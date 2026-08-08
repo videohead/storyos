@@ -213,7 +213,38 @@ Transform StoryOS into a narrative intelligence platform.
 
 ---
 
-# Phase 8: Community Platform
+# Phase 8: AI Editor
+
+## Objective
+
+Connect the WordPress content editor to local/API-driven LLMs and the multi-agent framework, enabling creators to interact with AI advisors directly from the WordPress admin UI.
+
+## Deliverables
+
+- WordPress Gutenberg AI Editor panel
+- REST API endpoints for AI communication
+- Local LLM integration (Qwen3.6 via vLLM)
+- Cloud LLM fallback (OpenAI, Anthropic)
+- WordPress/agent-skills integration
+- Multi-agent framework bridge
+- Context builder for Story Graph data
+- Agent routing system
+- AI Settings configuration UI
+
+## Integration Points
+
+- WordPress/agent-skills repository — expert WordPress knowledge for AI assistants
+- Orchestrator FastAPI service — multi-agent orchestration
+- Qwen3.6-35B vLLM instance — local LLM backend
+- Multi-agent framework — 32+ specialized filmmaking agents
+
+## Detailed Specification
+
+See [Phase_8_AI_Editor.md](Phase_8_AI_Editor.md) for full architecture, implementation plan, and testing strategy.
+
+---
+
+# Phase 9: Community Platform
 
 ## Objective
 
