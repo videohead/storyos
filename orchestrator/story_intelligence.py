@@ -479,6 +479,9 @@ class StoryGraphIntelligence:
 
         Uses persistent index if available and not stale. Saves index to disk
         after building if persistence is configured.
+        
+        Supports incremental updates - only re-embeds entities that have changed
+        since the last index build (Optimization 2: Incremental Indexing).
 
         Args:
             entity_types: Entity types to index. None = all configured types.
@@ -487,20 +490,24 @@ class StoryGraphIntelligence:
         Returns:
             Dict with index metadata and per-entity embedding references.
         """
+        entity_types = entity_types or list(self._index_fields.keys())
+        
         # Try to load cached index first (Optimization 1: Persistent Storage)
         if not force_rebuild and self._index_path:
             if self.load_index() is not None:
                 # Check if index is still valid
                 all_current = all(
-                    not self.index_needs_update(et) for et in 
-                    (entity_types or list(self._index_fields.keys()))
+                    not self.index_needs_update(et) for et in entity_types
                 )
                 if all_current:
                     logger.info("Using cached embedding index")
                     return self._index_data
-
-        entity_types = entity_types or list(self._index_fields.keys())
-        index: dict[str, list[dict[str, Any]]] = {}
+        
+        # If we have a valid cached index, start from it for incremental updates
+        if self._index_data and not force_rebuild:
+            index = self._index_data.get("index", {}).copy()
+        else:
+            index: dict[str, list[dict[str, Any]]] = {}
 
         for entity_type in entity_types:
             if entity_type not in self._index_fields:
@@ -512,27 +519,67 @@ class StoryGraphIntelligence:
                 lambda et=entity_type: self._get(et),
             )
 
-            entries: list[dict[str, Any]] = []
-            texts: list[str] = []
+            # Build a map of existing entries for incremental updates
+            existing_entries = {e["entity_id"]: e for e in index.get(entity_type, [])}
+            new_entries: list[dict[str, Any]] = []
+            texts_to_embed: list[str] = []
+            embed_positions: list[int] = []  # Track where to place embeddings
 
             for post in posts:
+                entity_id = post.get("id")
                 text = self._extract_text(post, self._index_fields[entity_type])
-                if text.strip():
-                    entries.append({
-                        "entity_type": entity_type,
-                        "entity_id": post.get("id"),
-                        "title": post.get("title", {}).get("rendered", ""),
-                        "text": text,
-                    })
-                    texts.append(text)
+                
+                if not text.strip():
+                    continue
+                
+                # Check if entity has changed (Optimization 2: Incremental)
+                last_modified = post.get("modified", "").replace("T", " ").replace("Z", "")
+                last_modified_ts = 0
+                if last_modified:
+                    try:
+                        from datetime import datetime
+                        last_modified_ts = datetime.strptime(
+                            last_modified[:19], "%Y-%m-%d %H:%M:%S"
+                        ).timestamp()
+                    except (ValueError, ImportError):
+                        pass
+                
+                # Track modification time
+                if entity_type not in self._entity_modified:
+                    self._entity_modified[entity_type] = {}
+                self._entity_modified[entity_type][entity_id] = last_modified_ts
+                
+                if entity_id in existing_entries:
+                    # Check if content changed by comparing text hash
+                    existing = existing_entries[entity_id]
+                    if existing.get("_text_hash") == hash(text):
+                        # Entity unchanged, keep existing entry
+                        new_entries.append(existing)
+                        continue
+                
+                # Entity is new or changed - rebuild entry
+                entry = {
+                    "entity_type": entity_type,
+                    "entity_id": entity_id,
+                    "title": post.get("title", {}).get("rendered", ""),
+                    "text": text,
+                    "_text_hash": hash(text),  # For change detection
+                }
+                texts_to_embed.append(text)
+                embed_positions.append(len(new_entries))
+                new_entries.append(entry)
 
-            if texts:
-                embeddings = self.embeddings.encode(texts)
+            # Embed only changed/new texts (Optimization 2: Incremental)
+            if texts_to_embed:
+                logger.info("Re-embedding %d changed %s entries", 
+                    len(texts_to_embed), entity_type)
+                embeddings = self.embeddings.encode(texts_to_embed)
                 for i, emb in enumerate(embeddings):
-                    entries[i]["embedding"] = emb
+                    idx = embed_positions[i]
+                    new_entries[idx]["embedding"] = emb
 
-            index[entity_type] = entries
-            logger.info("Indexed %d %s entries", len(entries), entity_type)
+            index[entity_type] = new_entries
+            logger.info("Indexed %d %s entries", len(new_entries), entity_type)
 
         index_data = {
             "indexed_at": time.time(),
@@ -547,6 +594,7 @@ class StoryGraphIntelligence:
             self.save_index()
 
         return index_data
+
 
     def semantic_search(
         self,

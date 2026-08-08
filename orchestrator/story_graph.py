@@ -36,6 +36,7 @@ class StoryGraphContextBuilder:
         self.timeout = timeout
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._cache_ttl = int(os.getenv("CACHE_TTL", "300"))  # seconds (Optimization 3)
+        self._temp_files: list[str] = []  # Track temp files for cleanup (Optimization 4)
 
     def _auth(self):
         return (self.username, self.app_password)
@@ -64,7 +65,10 @@ class StoryGraphContextBuilder:
         return self._get(f"media/{media_id}")
 
     def _download_media(self, media_url: str) -> Optional[str]:
-        """Download media file to a local temp path. Returns the path or None."""
+        """Download media file to a local temp path. Returns the path or None.
+        
+        Temp files are tracked for cleanup (Optimization 4).
+        """
         try:
             resp = requests.get(media_url, timeout=self.timeout)
             resp.raise_for_status()
@@ -72,9 +76,13 @@ class StoryGraphContextBuilder:
 
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
             tmp.write(resp.content)
+            tmp_path = tmp.name
             tmp.close()
-            logger.info("Downloaded media to %s", tmp.name)
-            return tmp.name
+            
+            # Track for cleanup (Optimization 4)
+            self._temp_files.append(tmp_path)
+            logger.info("Downloaded media to %s", tmp_path)
+            return tmp_path
         except Exception as e:
             logger.warning("Failed to download media %s: %s", media_url, e)
             return None
@@ -258,16 +266,25 @@ class StoryGraphContextBuilder:
     def clear_cache(self):
         """Clear the internal cache."""
         self._cache.clear()
-
-    def cleanup_temp_files(self):
+    def cleanup_temp_files(self) -> int:
         """Remove any temporary files downloaded during context building.
-
-        NOTE: This is a placeholder for a more robust temp file management
-        system. In production, use a proper temp directory with cleanup.
+        
+        Returns:
+            Number of files deleted.
         """
-        import glob
         import os
-
-        # This is a simple approach — in production, use tempfile.gettempdir()
-        # and track downloaded files in a registry.
-        logger.info("Temp file cleanup placeholder — implement as needed")
+        
+        deleted = 0
+        for tmp_path in self._temp_files:
+            try:
+                if os.path.isfile(tmp_path):
+                    os.remove(tmp_path)
+                    logger.debug("Deleted temp file: %s", tmp_path)
+                    deleted += 1
+            except OSError as e:
+                logger.warning("Failed to delete temp file %s: %s", tmp_path, e)
+        
+        # Clear the tracked list
+        self._temp_files.clear()
+        logger.info("Cleaned up %d temp files", deleted)
+        return deleted
