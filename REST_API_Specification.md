@@ -294,32 +294,62 @@ Example:
 
 # Script Integration API
 
-## Import Script
+## ✅ Celtx Integration (COMPLETE — Phase E)
+
+The `storyos-celtx` WordPress plugin provides bi-directional sync with Celtx via the Celtx GEM API.
+
+### Sync Endpoints
+
+```http
+GET  /wp-json/storyos-celtx/v1/sync/status
+POST /wp-json/storyos-celtx/v1/sync/characters
+POST /wp-json/storyos-celtx/v1/sync/locations
+POST /wp-json/storyos-celtx/v1/sync/scenes
+POST /wp-json/storyos-celtx/v1/sync/shots
+POST /wp-json/storyos-celtx/v1/sync/projects
+POST /wp-json/storyos-celtx/v1/sync/full
+```
+
+### Settings Endpoints
+
+```http
+GET  /wp-json/storyos-celtx/v1/settings
+POST /wp-json/storyos-celtx/v1/settings
+```
+
+### Authentication
+
+- API Key: `x-api-key` header (primary)
+- Basic Auth: `Authorization: Basic base64(username:password)`
+- Cookie Auth: `Cookie: cx_session=...`
+
+### Supported Formats (Planned)
+
+#### Import
+
+- [ ] Fountain — scene headings, action, dialogue, character extraction
+- [ ] FDX (Final Draft) — XML parsing → Story Graph entities
+- [ ] Fade In — import screenplay format
+- [ ] Highland — import screenplay format
+- [ ] Markdown — basic scene detection
+
+#### Export
+
+- [ ] Fountain — export Scene CPTs to Fountain syntax
+- [ ] Screenplay — formatted screenplay export
+- [ ] Shooting Script — scene numbers, shot descriptions, asset references
+- [ ] Markdown — structured markdown export
+
+### Import/Export Endpoints (Planned)
 
 ```http
 POST /scripts/import
-```
-
-Supported Formats:
-
-- Fountain
-- FDX
-- Celtx
-- Fade In
-- Markdown
-
-## Export Script
-
-```http
 POST /scripts/export
+GET  /scripts/import/{id}/preview
+POST /scripts/import/{id}/commit
+GET  /scripts/export/{project_id}?format=fountain
+GET  /scripts/export/{project_id}?format=shooting
 ```
-
-Supported Outputs:
-
-- Fountain
-- Screenplay
-- Shooting Script
-- Markdown
 
 ---
 

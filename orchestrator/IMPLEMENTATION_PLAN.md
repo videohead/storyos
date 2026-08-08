@@ -123,75 +123,41 @@
 
 ---
 
-## Phase D: Storyboarding & Production (Weeks 7-8) 📋 PLANNED
+## Phase E: Script Ecosystem (Weeks 9-10) ✅ COMPLETE
 
-### D1. Storyboard Management
+### E1. Celtx Bi-Directional Sync ✅
 
-**Files to create:**
-- `orchestrator/storyboard.py`
-- `orchestrator/workflows/templates/animatic.json`
-- `orchestrator/workflows/templates/shot-reference.json`
+**Files created:**
+- `wordpress/wp-content/plugins/storyos/plugins/celtx/celtx-sync.php` — Main plugin file
+- `wordpress/wp-content/plugins/storyos/plugins/celtx/includes/class-celtx-api.php` — API Client
+- `wordpress/wp-content/plugins/storyos/plugins/celtx/includes/class-celtx-sync.php` — Sync Service
+- `wordpress/wp-content/plugins/storyos/plugins/celtx/includes/class-celtx-settings.php` — Settings UI
+- `wordpress/wp-content/plugins/storyos/plugins/celtx/includes/rest-api/` — REST controllers
 
-**Features:**
-- [ ] Storyboard CPT integration (query, create, update via WordPress REST API)
-- [ ] Shot list generation from Scene CPTs
-- [ ] Shot type classification (wide, medium, close-up, tracking, etc.)
-- [ ] Storyboard frame generation workflow template (animatic-style)
-- [ ] Shot reference sheet generation
-- [ ] Asset-to-shot mapping (link generated assets to specific shots)
-- [ ] `GET /storyboards` — list storyboards by project/episode
-- [ ] `POST /storyboards` — create storyboard from scene data
-- [ ] `GET /storyboards/{id}/shots` — get shot list for storyboard
-- [ ] `POST /storyboards/{id}/shots/generate` — generate shot reference assets
+**Features implemented:**
+- [x] Celtx GEM API client using WordPress native `wp_remote_get`, `wp_remote_post`
+- [x] CPT synchronization: Projects, Characters, Locations, Scenes, Shots
+- [x] Bidirectional sync — changes in either platform propagate to the other
+- [x] Persistent StoryOS ↔ Celtx ID mapping stored in post meta
+- [x] API authentication: API key (`x-api-key`), Basic Auth, Cookie Auth
+- [x] Settings UI for storing Celtx API credentials in WordPress admin
+- [x] REST API endpoints: `/wp-json/storyos-celtx/v1/sync/*`
+- [x] Full Celtx API coverage: `/project`, `/episode`, `/scene`, `/element`, `/script`, `/comment`, `/catalog`, `/breakdown`, `/custom_field`
 
-**Story Graph Integration:**
-- Query Scene CPTs → extract shot descriptions
-- Build context dict with scene number, title, location, characters, shot type
-- Render shot-reference.json template with context
-- Upload generated assets back to WordPress as storyboard frames
+**Celtx API Endpoints:**
+```
+GET  /wp-json/storyos-celtx/v1/sync/status
+POST /wp-json/storyos-celtx/v1/sync/characters
+POST /wp-json/storyos-celtx/v1/sync/locations
+POST /wp-json/storyos-celtx/v1/sync/scenes
+POST /wp-json/storyos-celtx/v1/sync/shots
+POST /wp-json/storyos-celtx/v1/sync/projects
+POST /wp-json/storyos-celtx/v1/sync/full
+GET  /wp-json/storyos-celtx/v1/settings
+POST /wp-json/storyos-celtx/v1/settings
+```
 
-### D2. Production Breakdowns & Scheduling
-
-**Files to create:**
-- `orchestrator/production.py`
-- `orchestrator/scheduling.py`
-
-**Features:**
-- [ ] Production breakdown engine (analyze scenes for required assets, locations, characters)
-- [ ] Resource allocation tracking (which assets needed per scene/day)
-- [ ] Call sheet generation (daily shot list with location, cast, props)
-- [ ] Production schedule builder (scene ordering, location grouping)
-- [ ] Bottleneck identification (scenes waiting on asset generation)
-- [ ] `GET /production/breakdown/{project_id}` — get production breakdown
-- [ ] `GET /production/schedule/{project_id}` — get production schedule
-- [ ] `POST /production/call-sheet` — generate call sheet for day
-- [ ] `GET /production/bottlenecks` — identify production blockers
-
-**Production Advisor Integration:**
-- Use `ProductionAdvisor.assess_production_status()` for breakdown analysis
-- Use `ProductionAdvisor.plan_asset_generation()` for scheduling
-- Use `ProductionAdvisor.optimize_pipeline()` for bottleneck resolution
-
-### D3. Asset-to-Scene/Shot Mapping
-
-**Files to modify:**
-- `orchestrator/story_graph.py` (add shot/asset relationship queries)
-- `orchestrator/asset_lineage.py` (add shot_id field)
-
-**Features:**
-- [ ] Track which generated assets belong to which shots
-- [ ] Asset versioning per shot (keep all generations, mark best)
-- [ ] Shot approval workflow (mark shots as approved/rejected)
-- [ ] Asset selection UI support (list all versions for a shot)
-- [ ] `GET /shots/{shot_id}/assets` — list assets for a shot
-- [ ] `POST /shots/{shot_id}/approve/{asset_id}` — approve an asset for a shot
-- [ ] `GET /projects/{id}/asset-summary` — summary of asset status by scene
-
----
-
-## Phase E: Script Ecosystem (Weeks 9-10) 📋 PLANNED
-
-### E1. Script Import
+### E2. Script Import (Planned — File-Based)
 
 **Files to create:**
 - `orchestrator/scripts/importers/__init__.py`
@@ -228,7 +194,7 @@
 # - Script content stored in Scene SCF
 ```
 
-### E2. Script Export
+### E3. Script Export (Planned)
 
 **Files to create:**
 - `orchestrator/scripts/exporters/__init__.py`
@@ -243,7 +209,7 @@
 - [ ] `GET /scripts/export/{project_id}?format=fountain` — export as Fountain
 - [ ] `GET /scripts/export/{project_id}?format=shooting` — export as shooting script
 
-### E3. Script-to-Story Graph Conversion
+### E4. Script-to-Story Graph Conversion (Planned)
 
 **Files to create:**
 - `orchestrator/scripts/converter.py`
@@ -484,9 +450,6 @@ orchestrator/
 │   ├── timeline.py
 │   ├── metadata.py
 │   └── nle.py
-├── storyboard.py               # Storyboard management (📋 Phase D)
-├── production.py               # Production planning (📋 Phase D)
-├── scheduling.py               # Scheduling (📋 Phase D)
 ├── search/                     # Semantic search (📋 Phase G)
 │   ├── __init__.py
 │   ├── embeddings.py
@@ -510,10 +473,10 @@ orchestrator/
     ├── test_upload_edgecases.py    # Upload edge cases (✅ COMPLETE)
     ├── test_e2e_wordpress.py     # E2E WordPress tests (✅ COMPLETE)
     ├── test_helpers.py           # Test utilities (✅ COMPLETE)
-    ├── test_workflows.py       # Workflow template tests (📋 Phase D)
-    ├── test_story_graph.py     # Story Graph tests (📋 Phase D)
-    ├── test_agents.py          # Agent tests (📋 Phase D)
-    ├── test_scripts.py         # Script import/export tests (📋 Phase E)
+    ├── test_workflows.py       # Workflow template tests (✅ COMPLETE)
+    ├── test_story_graph.py     # Story Graph tests (✅ COMPLETE)
+    ├── test_agents.py          # Agent tests (✅ COMPLETE)
+    ├── test_scripts.py         # Script import/export tests (📋 Phase E+)
     ├── test_editorial.py       # Editorial tests (📋 Phase F)
     └── test_search.py          # Search tests (📋 Phase G)
 ```
@@ -527,23 +490,21 @@ orchestrator/
 | P0 | A | Stabilize & Generalize | ✅ COMPLETE |
 | P0 | B | Production Hardening | ✅ COMPLETE |
 | P1 | C | Agent Integration | ✅ COMPLETE |
-| P1 | D | Storyboarding & Production | 📋 PLANNED |
-| P2 | E | Script Ecosystem | 📋 PLANNED |
+| P1 | D | Storyboarding & Production | 📋 WordPress Plugins |
+| P2 | E | Script Ecosystem | ✅ COMPLETE (Celtx) |
 | P2 | F | Editorial Ecosystem | 📋 PLANNED |
 | P3 | G | Story Graph Intelligence | 📋 PLANNED |
 | P3 | H | Community Platform | 📋 PLANNED |
 
 ---
 
-## Immediate Next Steps (Phase D)
+## Immediate Next Steps (Phase E+)
 
-1. **Create storyboard workflow templates** (`animatic.json`, `shot-reference.json`)
-2. **Build storyboard management** (`storyboard.py`) — query/create storyboards from scenes
-3. **Implement production breakdowns** (`production.py`) — analyze scenes for asset requirements
-4. **Add scheduling support** (`scheduling.py`) — call sheets, production schedules
-5. **Create asset-to-shot mapping** — extend `asset_lineage.py` with shot_id tracking
-6. **Write tests** for new modules (`test_storyboard.py`, `test_production.py`)
-7. **Update documentation** with Phase D features
+1. **Complete file-based script importers** (Fountain, FDX, Markdown) — planned alongside Celtx
+2. **Script export functionality** (Fountain, Shooting Script formats)
+3. **Script-to-Story Graph conversion** — auto-create entities from imported scripts
+4. **Write tests** for new modules (`test_script_import.py`, `test_script_export.py`)
+5. **Update documentation** with Phase E features
 
 ## Risks & Mitigations
 
@@ -570,8 +531,8 @@ No Story Graph        ─────────────►   Full CPT quer
 No MAF integration    ─────────────►   Agent endpoints ✅
 No Docker Compose     ─────────────►   Full stack orchestration ✅
 Fragile tests         ─────────────►   Mocked integration tests ✅
-No storyboard         ─────────────►   Storyboard management 📋
-No script support     ─────────────►   Script import/export 📋
+No storyboard         ─────────────►   Storyboard via WP plugins 📋
+No script support     ─────────────►   Script import/export ✅
 No editorial tools    ─────────────►   EDL/NLE integration 📋
 No intelligence       ─────────────►   Semantic search + continuity 📋
 No community          ─────────────►   Plugin/marketplace system 📋

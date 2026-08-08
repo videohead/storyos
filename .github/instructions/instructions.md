@@ -185,16 +185,20 @@ storyos/
 - Conversation history tracking
 - Multi-advisor review capability
 
-### 🔄 Phase D: Storyboarding & Production (PLANNED)
-- Storyboard management
-- Shot list generation
-- Production breakdowns
-- Scheduling and call sheets
-
-### 📋 Phase E: Script Ecosystem (PLANNED)
-- Script import/export (Fountain, FDX, Celtx)
-- Script-to-Story Graph conversion
-- EDL export
+### ✅ Phase E: Script Ecosystem (COMPLETE — Celtx Integration)
+- **Celtx GEM API Integration** — Full bi-directional sync via `storyos-celtx` plugin
+  - CPT synchronization (Projects, Characters, Locations, Scenes, Shots)
+  - Persistent StoryOS ↔ Celtx ID mapping in post meta
+  - WordPress REST API endpoints (`/wp-json/storyos-celtx/v1/*`)
+  - API key, Basic Auth, and Cookie Auth support
+  - Settings UI for Celtx credentials in WordPress admin
+- **File-Based Import** (Planned)
+  - Fountain, FDX, Fade In, Highland, Markdown
+  - Scene/character/location extraction from scripts
+  - Auto-create Story Graph entities from imported scripts
+- **Script Export** (Planned)
+  - Fountain, Screenplay, Shooting Script formats
+  - Script-to-Story Graph conversion
 
 ### 📋 Phase F: Editorial Ecosystem (PLANNED)
 - EDL export
@@ -234,19 +238,17 @@ Each roadmap phase maps to specific agents and repositories:
 
 **Status:** ✅ COMPLETE - All advisors implemented and integrated
 
-### 🔄 Phase 4: Storyboarding & Production → Production Advisor
-**Repository:** `orchestrator/` (future expansion)
-- Storyboard management
-- Shot list generation
-- Production breakdowns
-- Scheduling and call sheets
+### ✅ Phase 5: Script Ecosystem → Story Advisor + Technical Advisor
+**Repository:** `wordpress/wp-content/plugins/storyos/plugins/celtx/`
+- Celtx GEM API bi-directional sync (COMPLETE)
+- CPT synchronization (Projects, Characters, Locations, Scenes, Shots)
+- WordPress plugin with REST API endpoints
+- API authentication (API key, Basic Auth, Cookie Auth)
+- Settings UI for Celtx credentials
+- **File-Based Import/Export** (Planned) — Fountain, FDX, Fade In, Highland, Markdown
+- **Script-to-Story Graph Conversion** (Planned)
 
-**Status:** 📋 PLANNED
-
-### 📋 Phase 5: Script Ecosystem → Story Advisor + Technical Advisor
-- Script import/export (Fountain, FDX, Celtx, Fade In, Markdown)
-- Script-to-Story Graph conversion
-- Industry tool integration
+**Status:** ✅ COMPLETE - Celtx integration implemented; file-based import/export planned
 
 **Status:** 📋 PLANNED
 

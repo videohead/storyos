@@ -58,30 +58,88 @@ Imported content should create Story Graph entities automatically.
 
 # Supported Script Imports
 
-## Phase 1
+## ✅ Celtx Integration (COMPLETE — Phase E)
 
-- Fountain
-- Markdown
+Full bi-directional synchronization with Celtx via the Celtx GEM API:
 
-## Phase 2
+- **CPT Synchronization**: Projects, Characters, Locations, Scenes, Shots sync between StoryOS and Celtx
+- **Bidirectional Sync**: Changes in either platform propagate to the other
+- **Element Mapping**: Persistent StoryOS ↔ Celtx ID mapping stored in post meta
+- **API Authentication**: API key, Basic Auth, and Cookie Auth support
+- **WordPress Plugin**: `storyos-celtx` plugin handles all Celtx communication
+- **REST API**: Sync endpoints via `wp-json/storyos-celtx/v1/*`
 
-- Final Draft (FDX)
-- Celtx
-- Fade In
-- Highland
-- Story Architect
+### Celtx Sync Architecture
+
+```
+StoryOS (WordPress)
+    ↓
+storyos-celtx Plugin
+    ├── API Client (class-celtx-api.php)
+    ├── Sync Service (class-celtx-sync.php)
+    └── Settings (class-celtx-settings.php)
+    ↓
+Celtx GEM API (games-api.celtx.com/api)
+    ├── /project
+    ├── /episode
+    ├── /scene
+    ├── /element
+    ├── /script
+    ├── /comment
+    ├── /catalog
+    ├── /breakdown
+    └── /custom_field
+```
+
+## Phase 1 — File-Based Import (Planned)
+
+- [ ] Fountain — scene headings, action, dialogue, character extraction
+- [ ] Markdown — basic scene detection
+
+## Phase 2 — Professional Formats (Planned)
+
+- [ ] Final Draft (FDX) — XML parsing → Story Graph entities
+- [ ] Fade In — import screenplay format
+- [ ] Highland — import screenplay format
+- [ ] Story Architect — import project data
 
 ## Future Support
 
-- PDF Parsing
-- Custom Studio Formats
+- [ ] PDF Parsing — text extraction
+- [ ] Custom Studio Formats
 
 ---
 
 # Import Workflow
 
+## Celtx Bi-Directional Sync (Complete)
+
 ```text
-Script File
+StoryOS CPTs
+    ↓
+Sync Service
+    ↓
+Celtx API Client
+    ↓
+Celtx GEM API
+    ↓
+Celtx Cloud
+    ↓ (bidirectional)
+Celtx Cloud
+    ↓
+Celtx GEM API
+    ↓
+Sync Service
+    ↓
+StoryOS CPTs
+```
+
+Changes in either platform propagate to the other via persistent ID mapping.
+
+## File-Based Import (Planned)
+
+```text
+Script File (Fountain, FDX, etc.)
      ↓
 Parser
      ↓

@@ -200,6 +200,18 @@ Top-level container for all story assets.
 - references Assets
 - references Storyboards
 
+## Celtx Sync Metadata (Phase E — Complete)
+
+When synced with Celtx, the following post meta fields are added:
+
+| Meta Key | Type | Description |
+|----------|------|-------------|
+| `storyos_celtx_id` | string | Celtx element/project ID |
+| `storyos_celtx_type` | string | Celtx entity type (`scene`, `element`, etc.) |
+| `storyos_celtx_project_id` | string | Parent Celtx project ID |
+| `storyos_synced_at` | datetime | Last successful sync timestamp |
+| `storyos_sync_direction` | string | `wordpress_to_celtx`, `celtx_to_wordpress`, `bidirectional` |
+
 ---
 
 # CPT: Shot

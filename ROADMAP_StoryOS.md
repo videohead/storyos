@@ -100,48 +100,71 @@ Introduce AI advisors and multi-agent orchestration.
 
 ---
 
-# Phase 4: Storyboarding & Production
+# Phase 4: Storyboarding & Production (WordPress Plugins)
 
-## Objective
+## Approach
 
-Support pre-production and production planning.
+Storyboarding and production planning are handled via WordPress plugins and extensions rather than built-in StoryOS modules. This keeps StoryOS focused on the Story Graph while leveraging the WordPress plugin ecosystem.
 
-## Deliverables
+## Recommended Plugins
 
-- Storyboards
-- Shot Lists
-- Production Breakdowns
-- Call Sheets
-- Scheduling
-- Asset-to-Scene Mapping
-- Asset-to-Shot Mapping
+- **Storyboarder** — Visual storyboard management with shot frames
+- **The Events Calendar / Modern Tribe** — Production scheduling and call sheets
+- **Advanced Custom Fields (ACF)** — Custom shot list and production breakdown fields
+- **WP All Import/Export** — Import/export production data
+- **Custom Post Type UI** — Extend CPTs for storyboards, shot lists, call sheets
+
+## Integration
+
+- Story Graph entities (Scenes, Shots, Assets) remain the source of truth
+- Plugins query Story Graph via WordPress REST API
+- Asset-to-Scene/Shot mapping via CPT relationships
+- Generated assets accessible through WordPress media library
 
 ---
 
-# Phase 5: Script Ecosystem
+# Phase 5: Script Ecosystem ✅ COMPLETE
 
 ## Objective
 
-Integrate with industry-standard writing tools.
+Integrate with industry-standard writing tools and enable bidirectional script synchronization.
 
-## Import Support
+## Celtx Integration (Primary)
 
-- Final Draft
-- Fountain
-- Celtx
-- Fade In
-- Highland
-- Story Architect
-- Markdown
-- PDF
+Full bi-directional synchronization with Celtx via the Celtx GEM API:
 
-## Export Support
+- **CPT Synchronization**: Projects, Characters, Locations, Scenes, Shots sync between StoryOS and Celtx
+- **Bidirectional Sync**: Changes in either platform propagate to the other
+- **API Authentication**: API key, Basic Auth, and Cookie Auth support
+- **Settings UI**: WordPress admin interface for Celtx API credentials
+- **REST API**: Sync endpoints via `wp-json/storyos-celtx/v1/*`
+- **Element Mapping**: Persistent StoryOS ↔ Celtx ID mapping stored in post meta
 
-- Fountain
-- Screenplays
-- Shooting Scripts
-- Production Scripts
-- Markdown
+## Import Support (Planned)
+
+- [ ] Fountain — scene headings, action, dialogue, character extraction
+- [ ] Final Draft (FDX) — XML parsing → Story Graph entities
+- [ ] Fade In — import screenplay format
+- [ ] Highland — import screenplay format
+- [ ] Story Architect — import project data
+- [ ] Markdown — basic scene detection
+- [ ] PDF — text extraction (future)
+
+## Export Support (Planned)
+
+- [ ] Fountain — export Scene CPTs to Fountain syntax
+- [ ] Screenplay — formatted screenplay export
+- [ ] Shooting Script — scene numbers, shot descriptions, asset references
+- [ ] Production Script — call sheet data, location info
+- [ ] Markdown — structured markdown export
+
+## Script-to-Story Graph Conversion (Planned)
+
+- [ ] Parse script → extract entities (characters, locations, props)
+- [ ] Parse script → extract scene structure and numbering
+- [ ] Auto-create Story Graph entities from script content
+- [ ] Entity deduplication and relationship inference
+- [ ] Import preview before committing
 
 ---
 

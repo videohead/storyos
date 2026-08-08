@@ -359,16 +359,42 @@ Advisors should retrieve context directly from Story Graph entities.
 
 # Script Integration Mapping
 
-Story Graph → Script Formats
+## ✅ Celtx Integration (COMPLETE — Phase E)
 
-Supported Targets:
+StoryOS ↔ Celtx bi-directional sync via the `storyos-celtx` WordPress plugin.
 
-- Final Draft
-- Fountain
-- Celtx
-- Fade In
-- Highland
-- Markdown
+### Synced Entities
+
+| StoryOS CPT | Celtx Entity | Sync Direction |
+|-------------|--------------|----------------|
+| Project | `/project` | Bi-directional |
+| Character | `/element` (character) | Bi-directional |
+| Location | `/element` (location) | Bi-directional |
+| Scene | `/scene` / `/element` | Bi-directional |
+| Shot | `/element` (shot) | Bi-directional |
+
+### ID Mapping
+
+Persistent mapping stored in WordPress post meta:
+- `storyos_celtx_id` — Celtx element/project ID
+- `storyos_celtx_type` — Celtx entity type
+- `storyos_synced_at` — Last sync timestamp
+
+### API Endpoints
+
+- `GET /wp-json/storyos-celtx/v1/sync/status`
+- `POST /wp-json/storyos-celtx/v1/sync/{entity_type}`
+- `GET /wp-json/storyos-celtx/v1/settings`
+
+### Supported Formats (Planned)
+
+Story Graph → Script Formats:
+
+- [ ] Final Draft (.fdx)
+- [ ] Fountain
+- [ ] Fade In
+- [ ] Highland
+- [ ] Markdown
 
 ---
 

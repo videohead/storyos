@@ -92,16 +92,19 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - Conversation history tracking
 - Multi-advisor review capability
 
-### 🔄 Phase D: Storyboarding & Production (PLANNED)
-- Storyboard management
-- Shot list generation
-- Production breakdowns
-- Scheduling and call sheets
-
-### 📋 Phase E: Script Ecosystem (PLANNED)
-- Script import/export (Fountain, FDX, Celtx)
-- Script-to-Story Graph conversion
-- EDL export
+### ✅ Phase E: Script Ecosystem (COMPLETE)
+- **Celtx Integration** — Full bi-directional sync via Celtx GEM API
+  - CPT synchronization (Projects, Characters, Locations, Scenes, Shots)
+  - Persistent StoryOS ↔ Celtx ID mapping
+  - WordPress plugin with REST API endpoints
+  - API key, Basic Auth, and Cookie Auth support
+- **File-Based Import** (Planned)
+  - Fountain, FDX, Fade In, Highland, Markdown
+  - Scene/character/location extraction
+  - Auto-create Story Graph entities from scripts
+- **Script Export** (Planned)
+  - Fountain, Screenplay, Shooting Script formats
+  - Script-to-Story Graph conversion
 
 ### 📋 Phase F: Editorial Ecosystem (PLANNED)
 - EDL export
