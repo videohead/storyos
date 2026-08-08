@@ -7,12 +7,26 @@
 
 namespace StoryOS\CPT;
 
-function init(): void {
-	$fields = [
-		'asset_title'       => [
-			'type'        => 'text',
-			'label'       => 'Asset Title',
-			'required'    => true,
+/**
+ * Asset Custom Post Type handler.
+ */
+class Asset {
+	/**
+	 * Register the Asset CPT.
+	 */
+	public static function init(): void {
+		self::register_cpt();
+	}
+
+	/**
+	 * Register the Asset CPT.
+	 */
+	private static function register_cpt(): void {
+		$fields = [
+			'asset_title'       => [
+				'type'        => 'text',
+				'label'       => 'Asset Title',
+				'required'    => true,
 		],
 		'asset_type'        => [
 			'type'        => 'taxonomy',
@@ -68,25 +82,25 @@ function init(): void {
 		],
 		'character'         => [
 			'type'        => 'relationship',
-			'label'       => 'Linked Character',
+			'label'       => 'Source Character',
 			'required'    => false,
 			'related_cpt' => 'storyos_character',
 		],
 		'location'          => [
 			'type'        => 'relationship',
-			'label'       => 'Linked Location',
+			'label'       => 'Source Location',
 			'required'    => false,
 			'related_cpt' => 'storyos_location',
 		],
 		'scene'             => [
 			'type'        => 'relationship',
-			'label'       => 'Linked Scene',
+			'label'       => 'Source Scene',
 			'required'    => false,
 			'related_cpt' => 'storyos_scene',
 		],
 		'storyboard'        => [
 			'type'        => 'relationship',
-			'label'       => 'Linked Storyboard',
+			'label'       => 'Source Storyboard Frame',
 			'required'    => false,
 			'related_cpt' => 'storyos_storyboard_frame',
 		],
@@ -100,37 +114,38 @@ function init(): void {
 		],
 		$fields
 	);
-}
-
-function save_meta( int $post_id, \WP_Post $post ): void {
-	if ( ! isset( $_POST['storyos_asset_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_asset_nonce'], 'storyos_asset_details' ) ) {
-		return;
 	}
 
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
+	public static function save_meta( int $post_id, \WP_Post $post ): void {
+		if ( ! isset( $_POST['storyos_asset_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_asset_nonce'], 'storyos_asset_details' ) ) {
+			return;
+		}
 
-	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
 
-	$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_asset' );
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
 
-	foreach ( $fields as $key => $field ) {
-		if ( isset( $_POST[ $key ] ) ) {
-			if ( 'taxonomy' === $field['type'] ) {
-				wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
-			} elseif ( 'relationship' === $field['type'] ) {
-				\StoryOS\Utils\add_relationship(
-					$post_id,
-					'storyos_asset',
-					absint( $_POST[ $key ] ),
-					$field['related_cpt'],
-					'linked_to'
-				);
-			} else {
-				update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_asset' );
+
+		foreach ( $fields as $key => $field ) {
+			if ( isset( $_POST[ $key ] ) ) {
+				if ( 'taxonomy' === $field['type'] ) {
+					wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
+				} elseif ( 'relationship' === $field['type'] ) {
+					\StoryOS\Utils\add_relationship(
+						$post_id,
+						'storyos_asset',
+						absint( $_POST[ $key ] ),
+						$field['related_cpt'],
+						'linked_to'
+					);
+				} else {
+					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+				}
 			}
 		}
 	}

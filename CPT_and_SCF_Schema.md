@@ -96,6 +96,10 @@ Top-level container for all story assets.
 - voice_profile
 - avatar_asset
 
+## Taxonomies
+
+- storyos_character_role
+
 ## Relationships
 
 - belongs_to Story World
@@ -186,6 +190,7 @@ Top-level container for all story assets.
 - time_of_day
 - emotional_tone
 - production_notes
+- sequence
 
 ## Relationships
 
@@ -308,6 +313,28 @@ Top-level container for all story assets.
 - Video
 - Audio
 
+## Character Role
+
+- Protagonist
+- Antagonist
+- Deuteragonist
+- Mentor
+- Ally
+- Foil
+- Love Interest
+- Comic Relief
+- Ensemble
+- Unknown
+
+## Sequence
+
+- Setup
+- Rising Action
+- Complication
+- Midpoint
+- Climax
+- Resolution
+
 ---
 
 # Relationship Table
@@ -340,6 +367,73 @@ Agents must be able to:
 - Retrieve metadata
 - Store recommendations
 - Create assets and production artifacts
+
+---
+
+# Vocabulary Alignment (Story Science + StudioBinder)
+
+To reduce ambiguity, StoryOS uses a controlled vocabulary that aligns with common story and film terminology.
+
+## Core Hierarchy
+
+- Shot: a single camera setup/take unit
+- Scene: a dramatic unit made from one or more shots
+- Sequence: a larger dramatic movement made from one or more scenes
+
+Implementation note:
+
+- StoryOS models Shot and Scene as first-class entities.
+- Sequence is currently implemented as an optional Scene taxonomy (`storyos_sequence`).
+
+## Canonical Narrative Terms
+
+- Protagonist: model as a Character role/tag, not a separate CPT
+- Antagonist: model as a Character role/tag, not a separate CPT
+- Stakes: capture in Scene or Episode notes/metadata
+- Conflict: capture in Scene summary/notes and relationship metadata
+- Climax and Resolution (Denouement): capture as tagged Scene milestones
+- Premise and Logline: capture at Project level metadata
+
+## Canonical Production Terms
+
+- Shot List: represented by ordered Shot entities per Scene
+- Coverage: represented by Shot variants (shot_type, angle, lens, duration)
+- Continuity: represented by graph relationships across Scene, Shot, Asset, Character, and Location
+- Storyboard: represented by Storyboard Frame entities linked to Scene/Shot
+- EDL: represented as Editorial Artifact with links to source Scene/Shot
+
+## Film Grammar Terms
+
+- Take: a single uninterrupted recording instance of a shot
+- Clapperboard/Slate: production marker identifying scene and take for sync and tracking
+- Establishing Shot: a context-setting shot, represented in StoryOS by shot_type and scene metadata
+- Insert/Cutaway/Reaction Shot: shot function categories, represented in shot_type taxonomy/enum values
+- Continuity Error: a validation outcome for continuity checks, not a first-class entity
+
+## Production Lifecycle Terms
+
+- Pre-Production: planning phase (scripts, storyboards, shot planning)
+- Principal Photography: active scene/shot capture phase
+- Post-Production: editorial/finishing phase (EDL, timeline, exports)
+- Daily Call Sheet: production schedule artifact (future Production entity)
+- Dailies: raw daily review media (future Asset sub-type)
+
+## Field-to-Vocabulary Crosswalk
+
+- scene_number -> Scene
+- sequence -> Sequence
+- shot_number -> Shot
+- shot_description -> Coverage notes
+- prompt_text -> Storyboard prompt
+- prompt -> Asset generation prompt
+- source_scene/source_shot (editorial) -> provenance lineage
+- linked_to / derived_from relationships -> association vs provenance semantics
+- status (asset/editorial) -> lifecycle state across production phases
+
+## Naming Rule
+
+When a relationship implies provenance, prefer Source wording in UI labels and docs.
+When a relationship implies generic association, keep Linked wording.
 
 ---
 

@@ -8,10 +8,22 @@
 namespace StoryOS\CPT;
 
 /**
- * Register the Project CPT.
+ * Project Custom Post Type handler.
  */
-function init(): void {
-	$fields = [
+class Project {
+	/**
+	 * Register the Project CPT.
+	 */
+	public static function init(): void {
+		self::register_cpt();
+		self::register_meta_boxes();
+	}
+
+	/**
+	 * Register the Project CPT.
+	 */
+	private static function register_cpt(): void {
+		$fields = [
 		'project_name'        => [
 			'type'        => 'text',
 			'label'       => 'Project Name',
@@ -105,31 +117,39 @@ function init(): void {
 		],
 		$fields
 	);
+	}
+
+	/**
+	 * Register meta boxes for Project.
+	 */
+	private static function register_meta_boxes(): void {
+		add_action( 'add_meta_boxes', function(): void {
+			add_meta_box(
+				'storyos_project_details',
+				'Project Details',
+				[self::class, 'project_details_meta_box'],
+				'storyos_project',
+				'side',
+				'default'
+			);
+
+			add_meta_box(
+				'storyos_project_graph',
+				'Story Graph Connections',
+				[self::class, 'project_graph_meta_box'],
+				'storyos_project',
+				'side',
+				'default'
+			);
+		} );
+	}
 }
 
 /**
  * Register meta boxes for Project.
  */
 function register_meta_boxes(): void {
-	add_action( 'add_meta_boxes', function(): void {
-		add_meta_box(
-			'storyos_project_details',
-			'Project Details',
-			[__CLASS__, 'project_details_meta_box'],
-			'storyos_project',
-			'side',
-			'default'
-		);
-
-		add_meta_box(
-			'storyos_project_graph',
-			'Story Graph Connections',
-			[__CLASS__, 'project_graph_meta_box'],
-			'storyos_project',
-			'side',
-			'default'
-		);
-	} );
+	Project::register_meta_boxes();
 }
 add_action( 'init', __NAMESPACE__ . '\\register_meta_boxes' );
 

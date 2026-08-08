@@ -48,6 +48,10 @@ class Scenes_Controller extends Base_Controller {
 					'project'  => [ 'type' => 'integer' ],
 					'episode'  => [ 'type' => 'integer' ],
 					'location' => [ 'type' => 'integer' ],
+					'sequence' => [
+						'description' => 'Filter by sequence slug (or comma-separated slugs).',
+						'type'        => 'string',
+					],
 				],
 			],
 			[
@@ -109,6 +113,12 @@ class Scenes_Controller extends Base_Controller {
 		$tags = get_the_terms( $post->ID, 'storyos_scene_tag' );
 		if ( $tags && ! is_wp_error( $tags ) ) {
 			$data['meta']['scene_tags'] = array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $tags );
+		}
+
+		// Get sequence terms.
+		$sequences = get_the_terms( $post->ID, 'storyos_sequence' );
+		if ( $sequences && ! is_wp_error( $sequences ) ) {
+			$data['meta']['sequences'] = array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $sequences );
 		}
 
 		// Count related shots.

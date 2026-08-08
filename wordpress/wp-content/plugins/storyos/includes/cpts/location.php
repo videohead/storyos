@@ -7,12 +7,26 @@
 
 namespace StoryOS\CPT;
 
-function init(): void {
-	$fields = [
-		'location_name'   => [
-			'type'        => 'text',
-			'label'       => 'Location Name',
-			'required'    => true,
+/**
+ * Location Custom Post Type handler.
+ */
+class Location {
+	/**
+	 * Register the Location CPT.
+	 */
+	public static function init(): void {
+		self::register_cpt();
+	}
+
+	/**
+	 * Register the Location CPT.
+	 */
+	private static function register_cpt(): void {
+		$fields = [
+			'location_name'   => [
+				'type'        => 'text',
+				'label'       => 'Location Name',
+				'required'    => true,
 		],
 		'description'     => [
 			'type'        => 'wysiwyg',
@@ -65,37 +79,37 @@ function init(): void {
 		],
 		$fields
 	);
-}
-
-function save_meta( int $post_id, \WP_Post $post ): void {
-	if ( ! isset( $_POST['storyos_location_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_location_nonce'], 'storyos_location_details' ) ) {
-		return;
 	}
 
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
+	public static function save_meta( int $post_id, \WP_Post $post ): void {
+		if ( ! isset( $_POST['storyos_location_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_location_nonce'], 'storyos_location_details' ) ) {
+			return;
+		}
 
-	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
 
-	$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_location' );
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
 
-	foreach ( $fields as $key => $field ) {
-		if ( isset( $_POST[ $key ] ) ) {
-			if ( 'relationship' === $field['type'] ) {
-				\StoryOS\Utils\add_relationship(
-					$post_id,
-					'storyos_location',
-					absint( $_POST[ $key ] ),
-					$field['related_cpt'],
-					'belongs_to'
-				);
-			} else {
-				update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_location' );
+
+		foreach ( $fields as $key => $field ) {
+			if ( isset( $_POST[ $key ] ) ) {
+				if ( 'relationship' === $field['type'] ) {
+					\StoryOS\Utils\add_relationship(
+						$post_id,
+						'storyos_location',
+						absint( $_POST[ $key ] ),
+						$field['related_cpt'],
+						'belongs_to'
+					);
+				} else {
+					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+				}
 			}
 		}
 	}
 }
-add_action( 'save_post_storyos_location', __NAMESPACE__ . '\\save_meta', 10, 2 );

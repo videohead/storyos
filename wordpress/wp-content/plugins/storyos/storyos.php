@@ -46,13 +46,49 @@ function autoloader( string $class ): void {
 
 	$relative_class = substr( $class, $len );
 	
-	// Convert camelCase to kebab-case for filenames (e.g., StoryWorld -> story-world).
-	$kebab_class = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $relative_class ) ) . '.php';
-	$file = $base_dir . str_replace( '\\', '/', $relative_class ) . '.php';
+	// Handle special namespace mappings (singular → plural directories).
+	$special_mappings = [
+		'CPT\\' => 'cpts/',
+		'REST\\' => 'rest-api/',
+		'Taxonomies\\' => 'taxonomies/',
+		'Admin\\' => 'admin/',
+		'Utils\\' => 'utils/',
+	];
+	foreach ( $special_mappings as $ns => $dir ) {
+		if ( strpos( $relative_class, $ns ) === 0 ) {
+			$relative_class = $dir . substr( $relative_class, strlen( $ns ) );
+			break;
+		}
+	}
+	
+	// Convert class names to filenames based on namespace.
+	// CPT files: StoryWorld -> story-world.php (camelCase to kebab-case)
+	// REST files: Projects_Controller -> projects-controller.php (underscore to hyphen)
+	$path_parts = explode( '/', $relative_class );
+	$filename = array_pop( $path_parts );
+	
+	// Check if this is a REST controller (has _Controller suffix)
+	if ( strpos( $relative_class, 'rest-api/' ) !== false ) {
+		// REST controllers: replace underscores with hyphens and lowercase
+		$filename = str_replace( '_', '-', strtolower( $filename ) ) . '.php';
+	} else {
+		// CPT and others: convert camelCase to kebab-case
+		$filename = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $filename ) ) . '.php';
+	}
+	
+	$path_parts[] = $filename;
+	$kebab_class = implode( '/', $path_parts );
+	
+	// Also try lowercase version of the full path (e.g., cpts/story-world.php).
+	$lower_class = strtolower( $relative_class ) . '.php';
+	$file = $base_dir . $relative_class . '.php';
 
-	// Try kebab-case filename first, then camelCase.
+	// Try kebab-case, then lowercase, then original case.
 	if ( ! file_exists( $file ) ) {
-		$file = $base_dir . str_replace( '\\', '/', $kebab_class );
+		$file = $base_dir . $kebab_class;
+	}
+	if ( ! file_exists( $file ) ) {
+		$file = $base_dir . $lower_class;
 	}
 
 	if ( file_exists( $file ) ) {
@@ -125,7 +161,9 @@ function init(): void {
 	Taxonomies\AssetType::init();
 	Taxonomies\ProductionStatus::init();
 	Taxonomies\CharacterRelation::init();
+	Taxonomies\CharacterRole::init();
 	Taxonomies\SceneTag::init();
+	Taxonomies\Sequence::init();
 
 	// Register REST API routes.
 	REST\Projects_Controller::init();
@@ -147,8 +185,8 @@ function init(): void {
 	REST\Editorial_Controller::init();
 
 	// Register admin pages and hooks.
-\Admin\Dashboard::init();
-\Admin\MetaBoxes::init();
+	Admin\Dashboard::init();
+	Admin\MetaBoxes::init();
 
 	// Activation/deactivation hooks.
 	register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );

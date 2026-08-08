@@ -14,8 +14,15 @@ wordpress/wp-content/themes/
 # SCF 
 wordpress/wp-content/plugins/secure-custom-fields/
 
+# LLMs
+llm/*
+
+# Node_modules
+node_modules/
+
+
 # ComfyUI
-ComfyUI/
+ComfyUI/*
 
 ## Python stuff
 # Byte-compiled / optimized / DLL files

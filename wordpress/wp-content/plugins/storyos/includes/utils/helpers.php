@@ -105,6 +105,358 @@ function storyos_get_all_cpts(): array {
 }
 
 /**
+ * Get Schema.org base type for each StoryOS CPT.
+ *
+ * This is a non-destructive semantic alignment layer used for interoperability.
+ *
+ * @return array<string, string>
+ */
+function storyos_schema_type_map(): array {
+	return [
+		'storyos_project'           => 'CreativeWork',
+		'storyos_story_world'       => 'CreativeWork',
+		'storyos_character'         => 'Person',
+		'storyos_location'          => 'Place',
+		'storyos_prop'              => 'Thing',
+		'storyos_organization'      => 'Organization',
+		'storyos_episode'           => 'Episode',
+		'storyos_scene'             => 'Clip',
+		'storyos_shot'              => 'Clip',
+		'storyos_storyboard_frame'  => 'ImageObject',
+		'storyos_asset'             => 'MediaObject',
+		'storyos_editorial_artifact'=> 'CreativeWork',
+	];
+}
+
+/**
+ * Resolve Schema.org type for a specific entity using available metadata.
+ *
+ * This remains non-destructive and only affects semantic interpretation.
+ *
+ * @param string $cpt        StoryOS CPT slug.
+ * @param array  $meta       StoryOS meta values.
+ * @param array  $taxonomies StoryOS taxonomy values.
+ * @return string
+ */
+function storyos_schema_type_for_entity( string $cpt, array $meta = [], array $taxonomies = [] ): string {
+	$type_map = storyos_schema_type_map();
+	$base_type = $type_map[ $cpt ] ?? 'Thing';
+
+	if ( 'storyos_project' === $cpt ) {
+		$target_medium = strtolower( (string) ( $meta['target_medium'] ?? '' ) );
+		if ( in_array( $target_medium, [ 'film', 'short_film' ], true ) ) {
+			return 'Movie';
+		}
+	}
+
+	if ( 'storyos_asset' === $cpt ) {
+		$asset_terms = $taxonomies['storyos_asset_type'] ?? [];
+		$asset_slugs = array_map(
+			static function( $term ) {
+				return strtolower( (string) ( $term['slug'] ?? '' ) );
+			},
+			$asset_terms
+		);
+
+		if ( in_array( 'video', $asset_slugs, true ) ) {
+			return 'VideoObject';
+		}
+		if ( in_array( 'audio', $asset_slugs, true ) ) {
+			return 'AudioObject';
+		}
+		if ( array_intersect( $asset_slugs, [ 'character', 'environment', 'prop', 'storyboard', 'lookbook', 'concept-art' ] ) ) {
+			return 'ImageObject';
+		}
+	}
+
+	return $base_type;
+}
+
+/**
+ * Get per-CPT field mappings to closest Schema.org properties.
+ *
+ * Match levels:
+ * - exact: direct semantic equivalent
+ * - close: strong practical equivalent
+ * - weak: partial or context-dependent equivalent
+ *
+ * @return array<string, array<string, array<string, string>>>
+ */
+function storyos_schema_field_map(): array {
+	return [
+		'storyos_project' => [
+			'project_name'     => [ 'property' => 'name', 'match' => 'exact' ],
+			'project_slug'     => [ 'property' => 'identifier', 'match' => 'close' ],
+			'description'      => [ 'property' => 'description', 'match' => 'exact' ],
+			'genre'            => [ 'property' => 'genre', 'match' => 'exact' ],
+			'target_medium'    => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'status'           => [ 'property' => 'creativeWorkStatus', 'match' => 'close' ],
+			'owner'            => [ 'property' => 'creator', 'match' => 'close' ],
+			'start_date'       => [ 'property' => 'dateCreated', 'match' => 'close' ],
+			'end_date'         => [ 'property' => 'expires', 'match' => 'weak' ],
+			'team_members'     => [ 'property' => 'contributor', 'match' => 'close' ],
+			'production_stage' => [ 'property' => 'creativeWorkStatus', 'match' => 'close' ],
+		],
+		'storyos_story_world' => [
+			'world_name'  => [ 'property' => 'name', 'match' => 'exact' ],
+			'synopsis'    => [ 'property' => 'description', 'match' => 'close' ],
+			'timeline'    => [ 'property' => 'temporalCoverage', 'match' => 'close' ],
+			'rules'       => [ 'property' => 'text', 'match' => 'weak' ],
+			'themes'      => [ 'property' => 'about', 'match' => 'close' ],
+			'geography'   => [ 'property' => 'spatialCoverage', 'match' => 'close' ],
+			'references'  => [ 'property' => 'citation', 'match' => 'close' ],
+			'project'     => [ 'property' => 'isPartOf', 'match' => 'close' ],
+		],
+		'storyos_character' => [
+			'display_name'  => [ 'property' => 'name', 'match' => 'exact' ],
+			'biography'     => [ 'property' => 'description', 'match' => 'close' ],
+			'age'           => [ 'property' => 'description', 'match' => 'weak' ],
+			'appearance'    => [ 'property' => 'description', 'match' => 'weak' ],
+			'personality'   => [ 'property' => 'description', 'match' => 'weak' ],
+			'motivation'    => [ 'property' => 'knowsAbout', 'match' => 'weak' ],
+			'backstory'     => [ 'property' => 'description', 'match' => 'close' ],
+			'voice_profile' => [ 'property' => 'description', 'match' => 'weak' ],
+			'avatar_asset'  => [ 'property' => 'image', 'match' => 'close' ],
+			'story_world'   => [ 'property' => 'subjectOf', 'match' => 'weak' ],
+		],
+		'storyos_location' => [
+			'location_name'    => [ 'property' => 'name', 'match' => 'exact' ],
+			'description'      => [ 'property' => 'description', 'match' => 'exact' ],
+			'environment_type' => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'geography'        => [ 'property' => 'address', 'match' => 'close' ],
+			'mood'             => [ 'property' => 'description', 'match' => 'weak' ],
+			'visual_reference' => [ 'property' => 'photo', 'match' => 'close' ],
+			'story_world'      => [ 'property' => 'containedInPlace', 'match' => 'close' ],
+		],
+		'storyos_prop' => [
+			'prop_name'        => [ 'property' => 'name', 'match' => 'exact' ],
+			'description'      => [ 'property' => 'description', 'match' => 'exact' ],
+			'purpose'          => [ 'property' => 'about', 'match' => 'close' ],
+			'owner_character'  => [ 'property' => 'owner', 'match' => 'close' ],
+			'notes'            => [ 'property' => 'text', 'match' => 'weak' ],
+		],
+		'storyos_organization' => [
+			'organization_name' => [ 'property' => 'name', 'match' => 'exact' ],
+			'organization_type' => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'description'       => [ 'property' => 'description', 'match' => 'exact' ],
+			'leadership'        => [ 'property' => 'member', 'match' => 'close' ],
+			'goals'             => [ 'property' => 'slogan', 'match' => 'weak' ],
+			'story_world'       => [ 'property' => 'subjectOf', 'match' => 'weak' ],
+		],
+		'storyos_episode' => [
+			'episode_number' => [ 'property' => 'episodeNumber', 'match' => 'exact' ],
+			'title'          => [ 'property' => 'name', 'match' => 'exact' ],
+			'synopsis'       => [ 'property' => 'description', 'match' => 'close' ],
+			'status'         => [ 'property' => 'creativeWorkStatus', 'match' => 'close' ],
+			'project'        => [ 'property' => 'isPartOf', 'match' => 'exact' ],
+		],
+		'storyos_scene' => [
+			'scene_number'      => [ 'property' => 'position', 'match' => 'close' ],
+			'title'             => [ 'property' => 'name', 'match' => 'exact' ],
+			'summary'           => [ 'property' => 'description', 'match' => 'close' ],
+			'script_content'    => [ 'property' => 'text', 'match' => 'close' ],
+			'location'          => [ 'property' => 'contentLocation', 'match' => 'exact' ],
+			'time_of_day'       => [ 'property' => 'temporal', 'match' => 'close' ],
+			'emotional_tone'    => [ 'property' => 'about', 'match' => 'weak' ],
+			'production_notes'  => [ 'property' => 'text', 'match' => 'weak' ],
+			'episode'           => [ 'property' => 'isPartOf', 'match' => 'exact' ],
+		],
+		'storyos_shot' => [
+			'shot_number'       => [ 'property' => 'position', 'match' => 'close' ],
+			'shot_type'         => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'camera_angle'      => [ 'property' => 'description', 'match' => 'weak' ],
+			'lens'              => [ 'property' => 'description', 'match' => 'weak' ],
+			'duration'          => [ 'property' => 'duration', 'match' => 'exact' ],
+			'shot_description'  => [ 'property' => 'description', 'match' => 'exact' ],
+			'editorial_notes'   => [ 'property' => 'text', 'match' => 'weak' ],
+			'scene'             => [ 'property' => 'isPartOf', 'match' => 'exact' ],
+		],
+		'storyos_storyboard_frame' => [
+			'frame_number'      => [ 'property' => 'position', 'match' => 'close' ],
+			'frame_description' => [ 'property' => 'description', 'match' => 'exact' ],
+			'image_asset'       => [ 'property' => 'image', 'match' => 'close' ],
+			'prompt_text'       => [ 'property' => 'text', 'match' => 'close' ],
+			'camera_notes'      => [ 'property' => 'description', 'match' => 'weak' ],
+			'scene'             => [ 'property' => 'isPartOf', 'match' => 'close' ],
+			'shot'              => [ 'property' => 'isPartOf', 'match' => 'close' ],
+		],
+		'storyos_asset' => [
+			'asset_title'            => [ 'property' => 'name', 'match' => 'exact' ],
+			'asset_type'             => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'workflow_name'          => [ 'property' => 'producer', 'match' => 'weak' ],
+			'prompt'                 => [ 'property' => 'text', 'match' => 'close' ],
+			'model_name'             => [ 'property' => 'producer', 'match' => 'weak' ],
+			'seed'                   => [ 'property' => 'identifier', 'match' => 'weak' ],
+			'generation_parameters'  => [ 'property' => 'additionalProperty', 'match' => 'close' ],
+			'version'                => [ 'property' => 'version', 'match' => 'exact' ],
+			'status'                 => [ 'property' => 'creativeWorkStatus', 'match' => 'close' ],
+			'storage_uri'            => [ 'property' => 'contentUrl', 'match' => 'close' ],
+			'character'              => [ 'property' => 'about', 'match' => 'close' ],
+			'location'               => [ 'property' => 'contentLocation', 'match' => 'close' ],
+			'scene'                  => [ 'property' => 'isPartOf', 'match' => 'close' ],
+			'storyboard'             => [ 'property' => 'isPartOf', 'match' => 'close' ],
+		],
+		'storyos_editorial_artifact' => [
+			'artifact_type'   => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'export_format'   => [ 'property' => 'encodingFormat', 'match' => 'exact' ],
+			'generated_date'  => [ 'property' => 'dateCreated', 'match' => 'close' ],
+			'source_scene'    => [ 'property' => 'isBasedOn', 'match' => 'close' ],
+			'source_shot'     => [ 'property' => 'isBasedOn', 'match' => 'close' ],
+			'notes'           => [ 'property' => 'text', 'match' => 'close' ],
+			'project'         => [ 'property' => 'isPartOf', 'match' => 'close' ],
+		],
+	];
+}
+
+/**
+ * Resolve the closest Schema.org property for a StoryOS field.
+ *
+ * @param string $cpt        StoryOS CPT slug.
+ * @param string $field_name StoryOS field name.
+ * @return array<string, string>|null
+ */
+function storyos_schema_property_for_field( string $cpt, string $field_name ): ?array {
+	$map = storyos_schema_field_map();
+	if ( empty( $map[ $cpt ] ) || empty( $map[ $cpt ][ $field_name ] ) ) {
+		return null;
+	}
+
+	return $map[ $cpt ][ $field_name ];
+}
+
+/**
+ * Summarize exact/close/weak match counts for each CPT.
+ *
+ * @return array<string, array<string, int>>
+ */
+function storyos_schema_similarity_summary(): array {
+	$map = storyos_schema_field_map();
+	$summary = [];
+
+	foreach ( $map as $cpt => $fields ) {
+		$summary[ $cpt ] = [
+			'exact' => 0,
+			'close' => 0,
+			'weak'  => 0,
+		];
+
+		foreach ( $fields as $field ) {
+			$match = $field['match'] ?? 'weak';
+			if ( isset( $summary[ $cpt ][ $match ] ) ) {
+				$summary[ $cpt ][ $match ]++;
+			}
+		}
+	}
+
+	return $summary;
+}
+
+/**
+ * Map an internal StoryOS relationship type to a Schema.org property.
+ *
+ * @param string $relationship_type Internal StoryOS relationship type.
+ * @param string $from_cpt          Source StoryOS CPT slug.
+ * @param string $to_cpt            Target StoryOS CPT slug.
+ * @return string
+ */
+function storyos_schema_property_for_relationship( string $relationship_type, string $from_cpt = '', string $to_cpt = '' ): string {
+	$relationship_type = strtolower( $relationship_type );
+
+	switch ( $relationship_type ) {
+		case 'contains':
+			return 'hasPart';
+
+		case 'belongs_to':
+			return 'isPartOf';
+
+		case 'derived_from':
+			return 'isBasedOn';
+
+		case 'references':
+			return 'mentions';
+
+		case 'related_to':
+			return 'isRelatedTo';
+
+		case 'located_in':
+			return 'contentLocation';
+
+		case 'used_in':
+			return 'isPartOf';
+
+		case 'generated_by':
+			return 'creator';
+
+		case 'appears_in':
+			if ( 'storyos_character' === $from_cpt ) {
+				return 'subjectOf';
+			}
+			if ( 'storyos_character' === $to_cpt ) {
+				return 'character';
+			}
+			return 'mentions';
+
+		case 'linked_to':
+			if ( 'storyos_character' === $to_cpt ) {
+				if ( in_array( $from_cpt, [ 'storyos_project', 'storyos_episode', 'storyos_scene', 'storyos_shot' ], true ) ) {
+					return 'character';
+				}
+				return 'about';
+			}
+
+			if ( 'storyos_location' === $to_cpt ) {
+				return 'contentLocation';
+			}
+
+			if ( in_array( $to_cpt, [ 'storyos_project', 'storyos_episode', 'storyos_scene', 'storyos_shot', 'storyos_storyboard_frame' ], true ) ) {
+				return 'isPartOf';
+			}
+
+			return 'about';
+
+		default:
+			return 'mentions';
+	}
+}
+
+/**
+ * Build canonical Schema.org property hints from StoryOS field metadata.
+ *
+ * @param string $cpt  StoryOS CPT slug.
+ * @param array  $meta StoryOS meta key-value map.
+ * @return array<string, mixed>
+ */
+function storyos_schema_hints_from_meta( string $cpt, array $meta ): array {
+	$field_map = storyos_schema_field_map();
+	$cpt_map = $field_map[ $cpt ] ?? [];
+	$hints = [];
+
+	foreach ( $cpt_map as $field_name => $mapping ) {
+		if ( ! array_key_exists( $field_name, $meta ) ) {
+			continue;
+		}
+
+		$property = $mapping['property'] ?? '';
+		if ( '' === $property ) {
+			continue;
+		}
+
+		if ( ! isset( $hints[ $property ] ) ) {
+			$hints[ $property ] = $meta[ $field_name ];
+			continue;
+		}
+
+		if ( ! is_array( $hints[ $property ] ) ) {
+			$hints[ $property ] = [ $hints[ $property ] ];
+		}
+
+		$hints[ $property ][] = $meta[ $field_name ];
+	}
+
+	return $hints;
+}
+
+/**
  * Sanitize a story graph ID.
  *
  * @param mixed $id The ID.

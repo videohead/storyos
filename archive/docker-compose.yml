@@ -1,0 +1,176 @@
+# StoryOS Docker Compose Configuration
+#
+# Services:
+# - wordpress: WordPress with StoryOS CPTs
+# - database: MariaDB for WordPress
+# - redis: Redis broker/backend for Celery
+# - orchestrator: FastAPI application
+# - test-framework: Playwright + PHPUnit + PHP tooling
+# - phpmyadmin: database administration
+# - vllm: optional local inference service
+# - llm-agents: optional agent runner
+
+version: '3.8'
+
+services:
+  wordpress:
+    image: wordpress:6.4-php8.2
+    container_name: storyos-wordpress
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: database:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_TABLE_PREFIX: wp_
+    volumes:
+      - wordpress_data:/var/www/html
+      - ./wordpress:/var/www/html
+      - ./wordpress/wp-content/plugins:/var/www/html/wp-content/plugins
+    depends_on:
+      - database
+      - cache
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  database:
+    image: mariadb:10.6
+    container_name: storyos-db
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_ROOT_PASSWORD: root_password
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./scripts/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    container_name: storyos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  orchestrator:
+    image: python:3.11-slim
+    container_name: storyos-orchestrator
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    environment:
+      WORDPRESS_URL: http://wordpress:80
+      WORDPRESS_USER: admin
+      WP_USERNAME: admin
+      WP_APP_PASSWORD: admin
+      WORDPRESSAPPPASSWORD: admin
+      COMFYUI_URL: http://comfyui:8188
+      REDIS_URL: redis://cache:6379/0
+    volumes:
+      - ./orchestrator:/app
+    command: >-
+      bash -lc "pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      - wordpress
+      - cache
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  test-framework:
+    image: php:8.2-apache
+    container_name: storyos-test-framework
+    working_dir: /app
+    ports:
+      - "8081:80"
+    volumes:
+      - ./test-framework:/app
+    environment:
+      WP_BASE_URL: http://wordpress
+      WP_USERNAME: admin
+      WP_APP_PASSWORD: admin
+    command: >-
+      bash -lc "apt-get update && apt-get install -y curl ca-certificates gnupg && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs && npm install -g playwright && curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer && composer global require --dev phpunit/phpunit && tail -f /dev/null"
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: storyos-phpmyadmin
+    ports:
+      - "8082:80"
+    environment:
+      PMA_HOST: database
+      MYSQL_ROOT_PASSWORD: root_password
+    depends_on:
+      - database
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  vllm:
+    image: python:3.11-slim
+    container_name: storyos-vllm
+    profiles: ["vllm"]
+    ports:
+      - "11434:11434"
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    command: >-
+      bash -lc "pip install --upgrade pip && pip install vllm && python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.6-35B-A3B-NVFP4 --port 11434 --host 0.0.0.0"
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  llm-agents:
+    image: python:3.11-slim
+    container_name: storyos-llm-agents
+    profiles: ["vllm"]
+    working_dir: /app
+    volumes:
+      - ./multi-agent-framework:/app
+    environment:
+      VLLM_URL: http://vllm:11434/v1
+    command: >-
+      bash -lc "pip install -r requirements.txt && python local_agent_framework.py"
+    depends_on:
+      - vllm
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+  comfyui:
+    image: python:3.11-slim
+    container_name: storyos-comfyui
+    profiles: ["comfyui"]
+    ports:
+      - "8188:8188"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    command: >-
+      bash -lc "pip install --upgrade pip && pip install comfyui && python -m comfyui --host 0.0.0.0 --port 8188"
+    networks:
+      - storyos-network
+    restart: unless-stopped
+
+volumes:
+  wordpress_data:
+    driver: local
+  db_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  storyos-network:
+    driver: bridge

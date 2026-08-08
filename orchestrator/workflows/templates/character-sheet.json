@@ -1,0 +1,93 @@
+{
+  "name": "character-sheet",
+  "description": "Generate character reference sheets with consistent appearance",
+  "placeholders": [
+    "__CHARACTER_NAME__",
+    "__POSITIVE_PROMPT__",
+    "__NEGATIVE_PROMPT__",
+    "__SEED__",
+    "__STEPS__",
+    "__CFG__",
+    "__RESOLUTION_X__",
+    "__RESOLUTION_Y__",
+    "__STYLE_REF_PATH__",
+    "__POSE_REF_PATH__"
+  ],
+  "required_context_keys": [
+    "character_name",
+    "positive_prompt",
+    "resolution_x",
+    "resolution_y"
+  ],
+  "nodes": {
+    "1": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "__STYLE_REF_PATH__",
+        "image_type": "RGB",
+        "alpha": "disabled"
+      }
+    },
+    "2": {
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": ["1", 0],
+        "vae": ["3", 0]
+      }
+    },
+    "3": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": {
+        "ckpt_name": "sd_xl_base_1.0.safetensors"
+      }
+    },
+    "4": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "__POSITIVE_PROMPT__",
+        "clip": ["3", 1]
+      }
+    },
+    "5": {
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "text": "__NEGATIVE_PROMPT__",
+        "clip": ["3", 1]
+      }
+    },
+    "6": {
+      "class_type": "KSampler",
+      "inputs": {
+        "seed": "__SEED__",
+        "steps": "__STEPS__",
+        "cfg": "__CFG__",
+        "sampler_name": "dpmpp_2m",
+        "scheduler": "karras",
+        "denoise": "0.85",
+        "model": ["3", 0],
+        "positive": ["4", 0],
+        "negative": ["5", 0],
+        "latent_image": ["2", 0]
+      }
+    },
+    "7": {
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": ["6", 0],
+        "vae": ["3", 0]
+      }
+    },
+    "8": {
+      "class_type": "SaveImage",
+      "inputs": {
+        "filename_prefix": "character___CHARACTER_NAME__",
+        "images": ["7", 0]
+      }
+    }
+  },
+  "output": {
+    "type": "image",
+    "target": "wordpress_media",
+    "post_type": "character"
+  }
+}

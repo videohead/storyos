@@ -109,6 +109,31 @@ abstract class Base_Controller extends WP_REST_Controller {
 			}
 		}
 
+		$schema_type = \StoryOS\Utils\storyos_schema_type_for_entity( $post->post_type, $meta, $taxonomies );
+		$schema_field_map = \StoryOS\Utils\storyos_schema_field_map()[ $post->post_type ] ?? [];
+		$schema_hints = \StoryOS\Utils\storyos_schema_hints_from_meta( $post->post_type, $meta );
+
+		if ( '' !== $post->post_title ) {
+			$schema_hints['name'] = $post->post_title;
+		}
+
+		if ( '' !== $post->post_content && empty( $schema_hints['description'] ) ) {
+			$schema_hints['description'] = wp_strip_all_tags( $post->post_content );
+		}
+
+		$schema_relationships = array_map(
+			static function( array $rel ) use ( $post ) {
+				$rel['schema_property'] = \StoryOS\Utils\storyos_schema_property_for_relationship(
+					(string) ( $rel['type'] ?? '' ),
+					$post->post_type,
+					(string) ( $rel['to_type'] ?? '' )
+				);
+
+				return $rel;
+			},
+			$relationships
+		);
+
 		return [
 			'id'           => $post->ID,
 			'slug'         => $post->post_slug ?? $post->post_name,
@@ -121,8 +146,13 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'created'      => $post->post_date,
 			'modified'     => $post->post_modified,
 			'meta'         => $meta,
+			'schema'       => [
+				'type'       => $schema_type,
+				'field_map'  => $schema_field_map,
+				'hints'      => $schema_hints,
+			],
 			'taxonomies'   => $taxonomies,
-			'relationships' => $relationships,
+			'relationships' => $schema_relationships,
 		];
 	}
 
@@ -346,16 +376,49 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'paged'       => absint( $request->get_param( 'page' ) ) ?: 1,
 		];
 
+		$tax_query = [];
+
 		// Filter by status taxonomy if provided.
 		$status = $request->get_param( 'status' );
 		if ( $status ) {
-			$args['tax_query'] = [
-				[
-					'taxonomy' => 'storyos_status',
-					'field'    => 'slug',
-					'terms'    => $status,
-				],
+			$tax_query[] = [
+				'taxonomy' => 'storyos_status',
+				'field'    => 'slug',
+				'terms'    => array_map( 'sanitize_title', is_array( $status ) ? $status : explode( ',', (string) $status ) ),
 			];
+		}
+
+		// Shared taxonomy filters used by StoryOS resources.
+		$taxonomy_filters = [
+			'character_role' => 'storyos_character_role',
+			'sequence'       => 'storyos_sequence',
+		];
+
+		foreach ( $taxonomy_filters as $request_key => $taxonomy ) {
+			$value = $request->get_param( $request_key );
+			if ( empty( $value ) ) {
+				continue;
+			}
+
+			$terms = is_array( $value ) ? $value : explode( ',', (string) $value );
+			$terms = array_values( array_filter( array_map( 'sanitize_title', $terms ) ) );
+
+			if ( empty( $terms ) ) {
+				continue;
+			}
+
+			$tax_query[] = [
+				'taxonomy' => $taxonomy,
+				'field'    => 'slug',
+				'terms'    => $terms,
+			];
+		}
+
+		if ( ! empty( $tax_query ) ) {
+			$args['tax_query'] = [ 'relation' => 'AND' ];
+			foreach ( $tax_query as $tax_clause ) {
+				$args['tax_query'][] = $tax_clause;
+			}
 		}
 
 		$query = new \WP_Query( $args );

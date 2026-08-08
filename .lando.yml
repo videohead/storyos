@@ -1,40 +1,192 @@
 name: storyos
 
-recipe: wordpress
+recipe: lamp
 config:
+  webroot: wordpress
   php: '8.2'
   composer_version: '2'
+  database: mariadb
 
 services:
-  redis-db:
-    type: redis
-    portforwarding: true
-  app:
+  appserver:
+    type: php:8.2
+    webroot: wordpress
+    ssl: true
+    xdebug: false
+    environment:
+      WORDPRESS_DB_HOST: database
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_TABLE_PREFIX: wp_
+      WP_USERNAME: ${WP_USERNAME:-admin}
+      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
+      COMFYUI_URL: ${COMFYUI_URL:-http://127.0.0.1:8188}
+      REDIS_URL: redis://cache:6379/0
+  database:
+    type: mariadb:10.6
+    portforward: true
+    creds:
+      user: wordpress
+      password: wordpress
+      database: wordpress
+    volumes:
+      - ./scripts/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
+  cache:
+    type: redis:7
+    portforward: true
+  orchestrator:
     type: python:3.11
     port: 8000
-    command: cd /app/orchestrator && pip install -r requirements.txt && celery -A tasks.celery_app worker --loglevel=info & uvicorn app:app --host 0.0.0.0 --port 8000
+    command:
+      - /bin/bash
+      - -lc
+      - cd /app/orchestrator && pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000
     environment:
-      WORDPRESS_URL: https://storyos.lndo.site
-      WORDPRESS_USER: ${WP_USERNAME}
-      WORDPRESSAPPPASSWORD: ${WP_APP_PASSWORD}
-      COMFYUI_URL: http://127.0.0.1:8188
-
+      WORDPRESS_URL: http://appserver
+      WORDPRESS_USER: ${WP_USERNAME:-admin}
+      WORDPRESSAPPPASSWORD: ${WP_APP_PASSWORD:-admin}
+      WP_USERNAME: ${WP_USERNAME:-admin}
+      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
+      COMFYUI_URL: ${COMFYUI_URL:-http://127.0.0.1:8188}
+      REDIS_URL: redis://cache:6379/0
+  test-framework:
+    type: node:20
+    overrides:
+      environment:
+        PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
+    run_as_root:
+      - "apt-get update && apt-get install -y ffmpeg ripgrep"
+      - "npm install sass --save-dev"
+      - "npm install minify --save-dev"
+      - "npm install jsonlint --save-dev"
+      - "npm install @playwright/test playwright --save-dev"
+      - "npm install @wordpress/e2e-test-utils-playwright --save-dev"
+      - "npm install pixelmatch pngjs --save-dev"
+      - "npx playwright install --with-deps chromium"
+      - "node -p \"'Chromium: ' + require('/app/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('chromium').executablePath()\""
+      - "node -p \"'ffmpeg: ' + require('/app/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('ffmpeg').executablePath('linux')\""
+    command:
+      - /bin/bash
+      - -lc
+      - cd /app/test-framework && if [ -f package.json ]; then npm install; fi && if [ -f composer.json ]; then composer install; fi && tail -f /dev/null
+    build_as_root:
+      - apt-get update
+      - apt-get install -y --no-install-recommends curl ca-certificates gnupg
+      - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      - apt-get install -y nodejs
+      - npm install -g playwright
+      - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+      - composer global require --dev phpunit/phpunit
+      - ln -sf /root/.config/composer/vendor/bin/phpunit /usr/local/bin/phpunit
+    environment:
+      PLAYWRIGHT_BROWSERS_PATH: /usr/local/share/playwright
+      WP_BASE_URL: http://appserver
+      WP_USERNAME: ${WP_USERNAME:-admin}
+      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
+  phpmyadmin:
+    type: phpmyadmin
+    hosts:
+      - database
+  vllm:
+    type: python:3.11
+    port: 11434
+    command:
+      - /bin/bash
+      - -lc
+      - python -m pip install --upgrade pip && python -m pip install "vllm>=0.6.0" && python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.6-35B-A3B-NVFP4 --port 11434 --host 0.0.0.0
+    environment:
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      STORYOS_ENABLE_VLLM: ${STORYOS_ENABLE_VLLM:-false}
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      test:
+        - CMD
+        - /bin/bash
+        - -lc
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/v1/models', timeout=5)"
+  llm-agents:
+    type: python:3.11
+    command:
+      - /bin/bash
+      - -lc
+      - cd /app/multi-agent-framework && pip install -r requirements.txt && python local_agent_framework.py
+    environment:
+      VLLM_URL: http://vllm:11434/v1
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      STORYOS_ENABLE_VLLM: ${STORYOS_ENABLE_VLLM:-false}
+  comfyui:
+    type: python:3.11
+    port: 8188
+    command:
+      - /bin/bash
+      - -lc
+      - python -m pip install --upgrade pip && python -m pip install comfyui && python -m comfyui --host 0.0.0.0 --port 8188
+    environment:
+      STORYOS_ENABLE_COMFYUI: ${STORYOS_ENABLE_COMFYUI:-false}
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      test:
+        - CMD
+        - /bin/bash
+        - -lc
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8188/', timeout=5)"
 tooling:
   wp:
     service: appserver
     cmd: wp
   python:
-    service: app
+    service: orchestrator
     cmd: python
   pip:
-    service: app
+    service: orchestrator
     cmd: pip
   pip-install:
-    service: app
+    service: orchestrator
     cmd: pip install -r /app/orchestrator/requirements.txt
   celery:
-    service: app
-    cmd: cd /app/orchestrator && celery -A tasks.celery_app worker
+    service: orchestrator
+    cmd: cd /app/orchestrator && celery -A tasks worker
   test:
-    service: app
+    service: orchestrator
     cmd: cd /app/orchestrator && pytest tests -q
+  phpunit:
+    service: test-framework
+    cmd: phpunit
+  playwright:
+    service: test-framework
+    cmd: playwright
+  node:
+    service: test-framework
+    cmd: node
+  npm:
+    service: test-framework
+    cmd: npm
+  composer:
+    service: test-framework
+    cmd: composer
+  pma:
+    service: phpmyadmin
+    cmd: /bin/sh
+  describe-vllm:
+    service: appserver
+    cmd: "bash -lc 'echo \"Optional service: vLLM. Set STORYOS_ENABLE_VLLM=true and run lando rebuild/start to provision it.\"'"
+  describe-comfyui:
+    service: appserver
+    cmd: "bash -lc 'echo \"Optional service: ComfyUI. Set STORYOS_ENABLE_COMFYUI=true and run lando rebuild/start to provision it.\"'"
+  start-vllm:
+    service: vllm
+    cmd: bash
+  start-comfyui:
+    service: comfyui
+    cmd: bash
+  setup-test-framework:
+    service: test-framework
+    cmd: bash -lc 'cd /app/test-framework && if [ -f package.json ]; then npm install; fi && if [ -f composer.json ]; then composer install; fi'
+  setup-llm:
+    service: llm-agents
+    cmd: bash -lc 'cd /app/multi-agent-framework && pip install -r requirements.txt'

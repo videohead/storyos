@@ -92,6 +92,53 @@ PUT    /characters/{id}
 DELETE /characters/{id}
 ```
 
+Common list filters:
+
+- `character_role` (slug or comma-separated slugs)
+- `status` (taxonomy slug)
+
+Filter combination behavior:
+
+- Filters are combined with `AND` across different filter keys.
+- Comma-separated values within a single key are matched as OR terms for that taxonomy.
+
+Examples:
+
+```http
+GET /characters?character_role=protagonist&status=approved
+GET /characters?character_role=protagonist,mentor&status=in-development
+```
+
+Expected response snippet:
+
+```json
+[
+  {
+    "id": 412,
+    "type": "storyos_character",
+    "title": "Mara Quinn",
+    "meta": {
+      "character_roles": [
+        { "id": 12, "name": "Protagonist", "slug": "protagonist" }
+      ]
+    },
+    "taxonomies": {
+      "storyos_character_role": [
+        { "id": 12, "name": "Protagonist", "slug": "protagonist" }
+      ],
+      "storyos_status": [
+        { "id": 7, "name": "Approved", "slug": "approved" }
+      ]
+    }
+  }
+]
+```
+
+Character responses include taxonomy metadata such as:
+
+- `storyos_character_relation`
+- `storyos_character_role`
+
 ## Locations
 
 ```http
@@ -109,6 +156,54 @@ POST   /scenes
 PUT    /scenes/{id}
 ```
 
+Common list filters:
+
+- `sequence` (slug or comma-separated slugs)
+- `status` (taxonomy slug)
+
+Filter combination behavior:
+
+- Filters are combined with `AND` across different filter keys.
+- Comma-separated values within a single key are matched as OR terms for that taxonomy.
+
+Examples:
+
+```http
+GET /scenes?sequence=climax&status=approved
+GET /scenes?sequence=midpoint,climax&status=approved
+```
+
+Expected response snippet:
+
+```json
+[
+  {
+    "id": 827,
+    "type": "storyos_scene",
+    "title": "Bridge Confrontation",
+    "meta": {
+      "sequences": [
+        { "id": 24, "name": "Climax", "slug": "climax" }
+      ],
+      "shot_count": 11
+    },
+    "taxonomies": {
+      "storyos_sequence": [
+        { "id": 24, "name": "Climax", "slug": "climax" }
+      ],
+      "storyos_status": [
+        { "id": 7, "name": "Approved", "slug": "approved" }
+      ]
+    }
+  }
+]
+```
+
+Scene responses include taxonomy metadata such as:
+
+- `storyos_scene_tag`
+- `storyos_sequence`
+
 ## Shots
 
 ```http
@@ -116,6 +211,12 @@ GET    /shots
 POST   /shots
 PUT    /shots/{id}
 ```
+
+Shot metadata includes:
+
+- `take_number`
+- `slate_id`
+- `shot_type` values including `establishing`, `insert`, `cutaway`, and `reaction`
 
 ## Assets
 
@@ -142,6 +243,36 @@ Response includes:
 - Related entities
 - Relationship types
 - Metadata
+
+## Relationship Semantics
+
+StoryOS distinguishes two link intents in API/UI wording:
+
+- Source: provenance link where an output is derived from an origin entity.
+- Linked: associative link where entities are related but not necessarily derived.
+
+Examples:
+
+- Asset -> Source Scene (provenance)
+- Asset -> Source Character (provenance)
+- Character -> Linked Asset (association)
+
+## Vocabulary Semantics
+
+API payloads and docs follow these shared term meanings:
+
+- Shot: continuous footage between two edits.
+- Take: one recorded attempt of a shot; modeled as shot production metadata.
+- Sequence: one or more scenes grouped by dramatic progression (`storyos_sequence`).
+- Continuity: consistency across adjacent shots/scenes and linked entities.
+- EDL: editorial decision output represented as an Editorial Artifact.
+- ADR: post-production dialogue replacement metadata when present.
+
+Lifecycle interpretation for status-like fields:
+
+- Pre-Production -> planning-oriented states and artifacts
+- Principal Photography -> capture/execution states
+- Post-Production -> editorial/finishing states
 
 ## Graph Traversal
 

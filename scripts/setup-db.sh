@@ -1,38 +1,35 @@
 #!/bin/bash
-# Database setup script for Lando environment
-# Run with: ./scripts/setup-db.sh
+# Database bootstrap helper for the StoryOS Lando environment.
+# This script is intended to run after the MariaDB service is available.
 
-set -e
+set -euo pipefail
 
-echo "=== WordPress Comfy Database Setup ==="
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BACKUP_SQL="$ROOT_DIR/scripts/backup.sql"
+DB_CONTAINER_NAME="storyos_database_1"
 
-# Create database user if not exists
-lando mariadb -u root -proot <<'SQL'
-CREATE USER IF NOT EXISTS 'wordpress'@'%' IDENTIFIED BY 'wordpress';
-GRANT ALL PRIVILEGES ON *.* TO 'wordpress'@'%';
-FLUSH PRIVILEGES;
-SQL
-
-# Create database if not exists
-lando mariadb -u root -proot -e "CREATE DATABASE IF NOT EXISTS wordpress CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>&1 || true
-
-# Import backup.sql (skip if already imported)
-TABLE_COUNT=$(lando mariadb -u wordpress -pwordpress -e "SELECT COUNT(*) FROM wordpress.information_schema.tables WHERE table_schema='wordpress';" 2>/dev/null | tail -1)
-if [ "$TABLE_COUNT" = "0" ] || [ -z "$TABLE_COUNT" ]; then
-    echo "Importing backup.sql..."
-    lando mariadb -u root -proot wordpress < /opt/wp-comfy/backup.sql 2>&1
-    echo "Backup imported successfully."
-else
-    echo "Database already has $TABLE_COUNT tables. Skipping import."
+if [[ ! -f "$BACKUP_SQL" ]]; then
+  echo "Backup file not found: $BACKUP_SQL"
+  exit 1
 fi
 
-# Update WordPress URLs to Lando site
-lando mariadb -u wordpress -pwordpress <<'SQL'
-UPDATE wordpress.wp_options SET option_value = 'https://storyos.lndo.site' WHERE option_name IN ('siteurl', 'home');
-UPDATE wordpress.wp_options SET option_value = 'https://storyos.lndo.site' WHERE option_value LIKE 'http://%';
-SQL
+if ! docker ps --format '{{.Names}}' | grep -qx "$DB_CONTAINER_NAME"; then
+  echo "MariaDB container '$DB_CONTAINER_NAME' is not running yet."
+  echo "Run this script again after the database service is up."
+  exit 1
+fi
 
-echo "=== Database setup complete ==="
-echo "WordPress URL: https://storyos.lndo.site"
-echo ""
-echo "After lando rebuild, run: ./scripts/setup-db.sh"
+echo "=== Bootstrapping StoryOS database ==="
+
+docker exec "$DB_CONTAINER_NAME" bash -lc "
+  mysql -uroot -proot -e \"CREATE DATABASE IF NOT EXISTS wordpress CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\"
+  mysql -uroot -proot -e \"CREATE USER IF NOT EXISTS 'wordpress'@'%' IDENTIFIED BY 'wordpress'; GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'%'; FLUSH PRIVILEGES;\"ILEGES;\"
+"
+
+docker cp "$BACKUP_SQL" "$DB_CONTAINER_NAME":/tmp/backup.sql
+
+docker exec "$DB_CONTAINER_NAME" bash -lc "
+  mysql -uwordpress -pwordpress wordpress < /tmp/backup.sql
+"
+
+echo "=== Database bootstrap complete ==="

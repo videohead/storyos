@@ -7,12 +7,26 @@
 
 namespace StoryOS\CPT;
 
-function init(): void {
-	$fields = [
-		'artifact_type'   => [
-			'type'        => 'select',
-			'label'       => 'Artifact Type',
-			'required'    => true,
+/**
+ * Editorial Artifact Custom Post Type handler.
+ */
+class EditorialArtifact {
+	/**
+	 * Register the Editorial Artifact CPT.
+	 */
+	public static function init(): void {
+		self::register_cpt();
+	}
+
+	/**
+	 * Register the Editorial Artifact CPT.
+	 */
+	private static function register_cpt(): void {
+		$fields = [
+			'artifact_type'   => [
+				'type'        => 'select',
+				'label'       => 'Artifact Type',
+				'required'    => true,
 			'options'     => [
 				'edl'               => 'EDL (Edit Decision List)',
 				'timeline_metadata' => 'Timeline Metadata',
@@ -65,39 +79,39 @@ function init(): void {
 		],
 		$fields
 	);
-}
-
-function save_meta( int $post_id, \WP_Post $post ): void {
-	if ( ! isset( $_POST['storyos_editorial_artifact_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_editorial_artifact_nonce'], 'storyos_editorial_artifact_details' ) ) {
-		return;
 	}
 
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
+	public static function save_meta( int $post_id, \WP_Post $post ): void {
+		if ( ! isset( $_POST['storyos_editorial_artifact_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_editorial_artifact_nonce'], 'storyos_editorial_artifact_details' ) ) {
+			return;
+		}
 
-	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
 
-	$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_editorial_artifact' );
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
 
-	foreach ( $fields as $key => $field ) {
-		if ( isset( $_POST[ $key ] ) ) {
-			if ( 'taxonomy' === $field['type'] ) {
-				wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
-			} elseif ( 'relationship' === $field['type'] ) {
-				\StoryOS\Utils\add_relationship(
-					$post_id,
-					'storyos_editorial_artifact',
-					absint( $_POST[ $key ] ),
-					$field['related_cpt'],
-					'references'
-				);
-			} else {
-				update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_editorial_artifact' );
+
+		foreach ( $fields as $key => $field ) {
+			if ( isset( $_POST[ $key ] ) ) {
+				if ( 'taxonomy' === $field['type'] ) {
+					wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
+				} elseif ( 'relationship' === $field['type'] ) {
+					\StoryOS\Utils\add_relationship(
+						$post_id,
+						'storyos_editorial_artifact',
+						absint( $_POST[ $key ] ),
+						$field['related_cpt'],
+						'references'
+					);
+				} else {
+					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+				}
 			}
 		}
 	}
 }
-add_action( 'save_post_storyos_editorial_artifact', __NAMESPACE__ . '\\save_meta', 10, 2 );

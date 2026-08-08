@@ -51,6 +51,10 @@ class Characters_Controller extends Base_Controller {
 						'description' => 'Filter by story world ID.',
 						'type'        => 'integer',
 					],
+					'character_role' => [
+						'description' => 'Filter by character role slug (or comma-separated slugs).',
+						'type'        => 'string',
+					],
 				],
 			],
 			[
@@ -112,6 +116,12 @@ class Characters_Controller extends Base_Controller {
 		$relations = get_the_terms( $post->ID, 'storyos_character_relation' );
 		if ( $relations && ! is_wp_error( $relations ) ) {
 			$data['meta']['character_relations'] = array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $relations );
+		}
+
+		// Get character role terms.
+		$roles = get_the_terms( $post->ID, 'storyos_character_role' );
+		if ( $roles && ! is_wp_error( $roles ) ) {
+			$data['meta']['character_roles'] = array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $roles );
 		}
 
 		// Count related scenes and shots.

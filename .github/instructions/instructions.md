@@ -118,25 +118,93 @@ MODEL=qwen
 
 ```
 storyos/
-├── wp-comfy/                    # Phase 1-2: WordPress + ComfyUI integration
-│   ├── docker-compose.yml       # WordPress, MariaDB, Python orchestrator, ComfyUI
-│   ├── orchestrator/            # FastAPI + Celery worker for ComfyUI jobs
-│   ├── wordpress/               # WordPress core + plugins
-│   └── scripts/                 # DB setup, migrations
-│
-├── multi-agent-framework/       # Phase 3: MAF agent orchestration
-│   ├── api_client.py            # OpenAI-compatible HTTP client
+├── orchestrator/              # Phase 1-3: Python orchestrator (FastAPI + Celery)
+│   ├── app.py                 # FastAPI main application (all endpoints)
+│   ├── tasks.py               # Celery tasks (template-based generation)
+│   ├── models.py              # Pydantic request/response models
+│   ├── story_graph.py         # Story Graph context builder (WordPress API)
+│   ├── health.py              # Health check service (WordPress, ComfyUI, Redis, Celery)
+│   ├── middleware.py           # Structured logging & Prometheus metrics
+│   ├── queue_manager.py       # Queue management (submit, cancel, prioritize)
+│   ├── asset_lineage.py       # Asset tracking & provenance (WordPress CPT)
+│   ├── workflows/             # Phase A: Workflow template system
+│   │   ├── templates/         # JSON workflow templates
+│   │   │   ├── base.json
+│   │   │   ├── character-sheet.json
+│   │   │   ├── environment.json
+│   │   │   └── storyboard.json
+│   │   └── loader.py          # Template loader with caching
+│   └── adapters/              # Phase C: AI advisor adapters
+│       ├── story_advisor.py
+│       ├── prompt_advisor.py
+│       ├── production_advisor.py
+│       ├── editorial_advisor.py
+│       ├── technical_advisor.py
+│       └── executive_orchestrator.py
+├── multi-agent-framework/     # MAF integration scaffold
+│   ├── api_client.py          # OpenAI-compatible HTTP client
 │   ├── local_agent_framework.py # CLI harness (health, chat, interactive)
-│   ├── maf_example.py           # Simulated two-agent demo
-│   ├── maf_integration.py       # Adaptive MAF integration scaffold
-│   ├── proxy/proxy.py           # Request normalization proxy
-│   └── requirements.txt         # Python dependencies
-│
-├── .github/instructions/        # This file — agent collaboration rules
-│   └── instructions.md
-│
-└── *.md                         # Architecture & specification documents
+│   ├── maf_example.py         # Simulated two-agent demo
+│   ├── maf_integration.py     # Adaptive MAF integration scaffold
+│   ├── proxy/proxy.py         # Request normalization proxy
+│   └── requirements.txt       # Python dependencies
+├── wordpress/                 # WordPress core
+├── docker-compose.yml         # Full stack orchestration (6 services)
+├── IMPLEMENTATION_PLAN.md     # Detailed implementation roadmap
+└── *.md                       # Architecture & specification documents
 ```
+
+---
+
+## Implementation Status
+
+### ✅ Phase A: Workflow Template System (COMPLETE)
+- JSON-based workflow templates with `__PLACEHOLDER__` substitution
+- Templates: base, character-sheet, environment, storyboard
+- Story Graph context builder (WordPress CPT queries with TTL caching)
+- Celery task refactoring with template support
+- Retry logic with exponential backoff (max 3 retries)
+
+### ✅ Phase B: Production Hardening (COMPLETE)
+- Health check service (WordPress, ComfyUI, Redis, Celery)
+- Structured logging middleware (JSON format, request ID propagation)
+- Prometheus-style metrics endpoint (`/metrics`)
+- Queue management (submit, cancel, prioritize, rate limit)
+- Asset lineage tracking (provenance, versioning via WordPress CPT)
+- Docker Compose orchestration (6 services: wordpress, db, redis, python-orchestrator, celery-worker, comfyui)
+
+### ✅ Phase C: Agent Integration (COMPLETE)
+- 5 specialized advisor adapters:
+  - **Story Advisor**: Narrative analysis, character development, plot consistency
+  - **Prompt Advisor**: Asset generation prompts (positive/negative), style recommendations
+  - **Production Advisor**: Production planning, scheduling, asset tracking
+  - **Editorial Advisor**: Asset quality review, style consistency, curation
+  - **Technical Advisor**: Integration troubleshooting, ComfyUI optimization, API design
+- Executive Orchestrator with intelligent routing (keyword + context-based)
+- Agent API endpoints (`/agents/*`)
+- Conversation history tracking
+- Multi-advisor review capability
+
+### 🔄 Phase D: Storyboarding & Production (PLANNED)
+- Storyboard management
+- Shot list generation
+- Production breakdowns
+- Scheduling and call sheets
+
+### 📋 Phase E: Script Ecosystem (PLANNED)
+- Script import/export (Fountain, FDX, Celtx)
+- Script-to-Story Graph conversion
+- EDL export
+
+### 📋 Phase F: Editorial Ecosystem (PLANNED)
+- EDL export
+- Timeline metadata
+- NLE integrations (XML, AAF)
+
+### 📋 Phase G: Story Graph Intelligence (PLANNED)
+- Semantic search
+- Continuity validation
+- Relationship analytics
 
 ---
 
@@ -144,59 +212,67 @@ storyos/
 
 Each roadmap phase maps to specific agents and repositories:
 
-### Phase 1: Story Core → Story Advisor + Technical Advisor
-**Repository:** `wp-comfy/`
-- WordPress CPT architecture (Project, Story World, Character, Location, Prop, Scene, Shot, Episode, Asset)
+### ✅ Phase 1-2: Story Core + Generation Core → Story Advisor + Prompt Advisor + Technical Advisor
+**Repository:** `orchestrator/`
+- WordPress CPT architecture (Project, Story World, Character, Location, Scene, Shot, Asset)
 - Structured Content Fields (SCF) data models
-- Taxonomies and relationships
-- REST API foundation (`/api/storyos/v1/`)
-- Story Graph entity storage
+- Workflow template system (JSON-based ComfyUI workflows)
+- Story Graph context builder (WordPress REST API queries)
+- Celery task queue with retry logic
+- Asset lineage tracking
 
-### Phase 2: Generation Core → Prompt Advisor + Technical Advisor
-**Repository:** `wp-comfy/`
-- ComfyUI workflow templates
-- Prompt storage and management
-- Generation history tracking
-- Asset versioning
-- SCF field integration (positive/negative prompts, resolution, pose/style images)
+**Status:** ✅ COMPLETE - All core generation pipeline implemented
 
-### Phase 3: Agent Core → Technical Advisor + Executive Orchestrator
-**Repository:** `multi-agent-framework/`
-- Microsoft Agent Framework integration
-- Context routing between agents
-- Advisor memory system
-- Tool integration layer
-- Project context retrieval from Story Graph
+### ✅ Phase 3: Agent Core → Technical Advisor + Executive Orchestrator
+**Repository:** `orchestrator/adapters/` + `multi-agent-framework/`
+- 5 specialized advisor adapters (Story, Prompt, Production, Editorial, Technical)
+- Executive Orchestrator with intelligent routing
+- Agent API endpoints (`/agents/*`)
+- Conversation history tracking
+- Multi-advisor review capability
+- Local model integration (Qwen3.6-35B via Ollama)
 
-### Phase 4: Storyboarding & Production → Production Advisor
-**Repository:** `wp-comfy/` (future expansion)
+**Status:** ✅ COMPLETE - All advisors implemented and integrated
+
+### 🔄 Phase 4: Storyboarding & Production → Production Advisor
+**Repository:** `orchestrator/` (future expansion)
 - Storyboard management
 - Shot list generation
 - Production breakdowns
 - Scheduling and call sheets
 
-### Phase 5: Script Ecosystem → Story Advisor + Technical Advisor
+**Status:** 📋 PLANNED
+
+### 📋 Phase 5: Script Ecosystem → Story Advisor + Technical Advisor
 - Script import/export (Fountain, FDX, Celtx, Fade In, Markdown)
 - Script-to-Story Graph conversion
 - Industry tool integration
 
-### Phase 6: Editorial Ecosystem → Editorial Advisor
+**Status:** 📋 PLANNED
+
+### 📋 Phase 6: Editorial Ecosystem → Editorial Advisor
 - EDL export
 - Timeline metadata
 - Scene/shot mapping
 - NLE integrations (XML, AAF)
 
-### Phase 7: Story Graph Intelligence → Story Advisor + Technical Advisor
+**Status:** 📋 PLANNED
+
+### 📋 Phase 7: Story Graph Intelligence → Story Advisor + Technical Advisor
 - Semantic search
 - Continuity validation
 - Relationship analytics
 - Narrative reasoning
 
-### Phase 8: Community Platform → All Agents
+**Status:** 📋 PLANNED
+
+### 📋 Phase 8: Community Platform → All Agents
 - Plugin marketplace
 - Workflow marketplace
 - Advisor marketplace
 - Community templates
+
+**Status:** 📋 PLANNED
 
 ---
 
@@ -284,23 +360,27 @@ When one agent's output becomes another agent's input:
 
 ## Testing
 
-### WordPress Tests
-- Run PHPUnit tests for CPT registration, REST endpoints, SCF fields
-- Store test results in `wp-comfy/test-results/`
-- Test CPT creation, retrieval, updates, deletion via REST API
-- Test Story Graph relationship queries
+### Python Tests (orchestrator/)
+- Run pytest: `cd orchestrator && pytest tests/ -v`
+- Test structure:
+  - `tests/test_app.py` — FastAPI endpoint tests
+  - `tests/test_tasks.py` — Celery task unit tests
+  - `tests/test_comfy_integration.py` — ComfyUI integration tests
+  - `tests/test_pipeline_send_to_comfy.py` — End-to-end pipeline tests
+  - `tests/test_upload_edgecases.py` — WordPress media upload edge cases
+- Use `conftest.py` for test fixtures (eager mode, mocked services)
+- Tests use monkeypatch for HTTP calls when services unavailable
 
-### Python Tests
-- Run pytest for orchestrator and MAF components
-- Store test results in `multi-agent-framework/test-results/`
-- Test API client health checks and endpoint fallbacks
-- Test proxy request normalization
-- Test agent handler functions
+### MAF Tests
+- Run local agent harness: `python local_agent_framework.py health`
+- Test API client: `python maf_example.py` (simulated two-agent demo)
+- Test proxy: `python proxy/proxy.py` and verify request normalization
 
-### Integration Tests
-- End-to-end: WordPress → Python Orchestrator → ComfyUI → WordPress upload
-- End-to-end: Agent → Proxy → Model Server → Agent response
-- Store logs in `test-results/` directories
+### Integration Testing
+- Full stack: `docker compose up -d` then test endpoints
+- WordPress → Orchestrator → ComfyUI → WordPress upload pipeline
+- Agent → Proxy → Model Server → Agent response flow
+- Test logs stored in `orchestrator/test_logs/`
 
 ---
 
@@ -321,11 +401,18 @@ When one agent's output becomes another agent's input:
 
 ### Start the stack
 ```bash
-# WordPress + ComfyUI stack
-cd wp-comfy
+# Full stack (WordPress, DB, Redis, Orchestrator, Worker, ComfyUI)
 docker compose up -d
 
-# MAF proxy
+# Just the orchestrator API (for development)
+cd orchestrator
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+
+# Celery worker (for development)
+cd orchestrator
+celery -A tasks worker --loglevel=info --concurrency=4
+
+# MAF proxy (for local model normalization)
 cd multi-agent-framework
 python proxy/proxy.py
 
@@ -334,11 +421,22 @@ python local_agent_framework.py health
 ```
 
 ### Key URLs
-- WordPress: `http://localhost`
+- WordPress: `http://localhost:8080`
+- WordPress Admin: `http://localhost:8080/wp-admin`
 - ComfyUI: `http://localhost:8188`
+- FastAPI Orchestrator: `http://localhost:8000`
+- FastAPI Docs: `http://localhost:8000/docs`
 - Model Server: `http://localhost:11434/v1/`
-- Proxy: `http://localhost:11435/v1/`
-- Orchestrator API: `http://localhost/wp-json/wp/v2/generate`
+- Proxy: `http://localhost:11435/v1/` (optional)
+
+### Key API Endpoints
+- Generation: `POST /generate`, `GET /status/{job_id}`
+- Workflows: `GET /workflows`, `POST /workflows/build`
+- Queue: `POST /queue/submit`, `POST /queue/cancel`, `GET /queue/active`
+- Assets: `GET /assets`, `POST /assets/{post_id}/media`
+- Health: `GET /health`
+- Metrics: `GET /metrics`
+- Agents: `GET /agents`, `POST /agents/orchestrator`, `POST /agents/story`, etc.
 
 ### Key Files
 - Story Graph spec: `Story_Graph_Specification.md`
@@ -346,5 +444,6 @@ python local_agent_framework.py health
 - REST API: `REST_API_Specification.md`
 - Agent architecture: `Agent_Architecture.md`
 - Roadmap: `ROADMAP_StoryOS.md`
+- Implementation plan: `orchestrator/IMPLEMENTATION_PLAN.md`
 - MAF README: `multi-agent-framework/MAF_README.md`
 - Copilot config: `multi-agent-framework/COPILOT_CONFIG.md`

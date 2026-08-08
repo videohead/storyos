@@ -125,6 +125,10 @@ Represents a fictional universe.
 - Referenced By Storyboards
 - Referenced By Assets
 
+## Taxonomies
+
+- Character Role
+
 ---
 
 # CPT: Location
@@ -201,6 +205,7 @@ Represents a fictional universe.
 - Time Of Day
 - Characters
 - Notes
+- Sequence
 
 ## Relationships
 
@@ -314,6 +319,28 @@ Represents a fictional universe.
 - Approved
 - Archived
 
+## Character Role
+
+- Protagonist
+- Antagonist
+- Deuteragonist
+- Mentor
+- Ally
+- Foil
+- Love Interest
+- Comic Relief
+- Ensemble
+- Unknown
+
+## Sequence
+
+- Setup
+- Rising Action
+- Complication
+- Midpoint
+- Climax
+- Resolution
+
 ---
 
 # AI Advisor Access Model
@@ -355,6 +382,56 @@ Supported Targets:
 - Timeline Metadata
 - XML (Future)
 - AAF (Future)
+
+---
+
+# Vocabulary Assumptions
+
+StoryOS aligns with widely used story and film terminology to keep metadata portable across writing, production, and editorial workflows.
+
+## Structural Terms
+
+- Shot: smallest filmed unit
+- Scene: dramatic unit composed of one or more shots
+- Sequence: dramatic run composed of one or more scenes
+
+Current model coverage:
+
+- Scene and Shot are modeled directly.
+- Sequence is modeled as an optional taxonomy attached to Scene records.
+
+## Story Terms
+
+- Protagonist and Antagonist are Character roles.
+- Premise and Logline belong to Project-level story metadata.
+- Conflict, Stakes, and Turning Points are Scene/Episode annotations.
+- Climax and Resolution are milestone tags on key scenes.
+
+## Film Production Terms
+
+- Coverage is captured through shot-level metadata (type, angle, lens, duration).
+- Shot List is a view derived from ordered Scene -> Shot relations.
+- Continuity is validated from linked entities across Character, Location, Prop, Scene, Shot, Storyboard, and Asset.
+- Storyboard is represented through Storyboard Frame entities and links.
+- EDL is represented as an Editorial Artifact derived from Scene/Shot structure.
+
+## Film Grammar Terms
+
+- Take is the recording instance of a shot and should be captured in shot-level production metadata.
+- Slate/Clapperboard identifiers should be modeled as optional shot metadata for sync and editorial traceability.
+- Establishing, Insert, Cutaway, and Reaction are shot function categories and should map to shot_type values.
+- Continuity errors are validation findings generated from graph comparisons, not standalone entities.
+
+## Lifecycle Terms
+
+- Pre-Production covers planning entities and metadata.
+- Principal Photography covers capture-oriented shot/scene execution data.
+- Post-Production covers editorial artifacts, timeline metadata, and exports.
+
+## Preferred Wording in UI and API
+
+- Use Source for provenance links (for example, Source Scene, Source Shot).
+- Use Linked for non-provenance associations (for example, Linked Character).
 
 ---
 

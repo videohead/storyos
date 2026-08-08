@@ -7,12 +7,26 @@
 
 namespace StoryOS\CPT;
 
-function init(): void {
-	$fields = [
-		'organization_name' => [
-			'type'        => 'text',
-			'label'       => 'Organization Name',
-			'required'    => true,
+/**
+ * Organization Custom Post Type handler.
+ */
+class Organization {
+	/**
+	 * Register the Organization CPT.
+	 */
+	public static function init(): void {
+		self::register_cpt();
+	}
+
+	/**
+	 * Register the Organization CPT.
+	 */
+	private static function register_cpt(): void {
+		$fields = [
+			'organization_name' => [
+				'type'        => 'text',
+				'label'       => 'Organization Name',
+				'required'    => true,
 		],
 		'organization_type' => [
 			'type'        => 'text',
@@ -51,35 +65,36 @@ function init(): void {
 		],
 		$fields
 	);
-}
-
-function save_meta( int $post_id, \WP_Post $post ): void {
-	if ( ! isset( $_POST['storyos_organization_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_organization_nonce'], 'storyos_organization_details' ) ) {
-		return;
 	}
 
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
+	public static function save_meta( int $post_id, \WP_Post $post ): void {
+		if ( ! isset( $_POST['storyos_organization_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_organization_nonce'], 'storyos_organization_details' ) ) {
+			return;
+		}
 
-	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
 
-	$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_organization' );
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
 
-	foreach ( $fields as $key => $field ) {
-		if ( isset( $_POST[ $key ] ) ) {
-			if ( 'relationship' === $field['type'] ) {
-				\StoryOS\Utils\add_relationship(
-					$post_id,
-					'storyos_organization',
-					absint( $_POST[ $key ] ),
-					$field['related_cpt'],
-					'belongs_to'
-				);
-			} else {
-				update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_organization' );
+
+		foreach ( $fields as $key => $field ) {
+			if ( isset( $_POST[ $key ] ) ) {
+				if ( 'relationship' === $field['type'] ) {
+					\StoryOS\Utils\add_relationship(
+						$post_id,
+						'storyos_organization',
+						absint( $_POST[ $key ] ),
+						$field['related_cpt'],
+						'belongs_to'
+					);
+				} else {
+					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+				}
 			}
 		}
 	}

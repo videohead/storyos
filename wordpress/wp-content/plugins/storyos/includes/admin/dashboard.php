@@ -190,12 +190,14 @@ class Dashboard {
 				<?php
 				$count = wp_count_posts( $cpt );
 				$total = is_object( $count ) ? array_sum( (array) $count ) : 0;
+				$post_type_object = get_post_type_object( $cpt );
+				$label = ( $post_type_object && isset( $post_type_object->labels->name ) ) ? $post_type_object->labels->name : $cpt;
 				?>
 				<div class="stat-card">
 					<div class="stat-number"><?php echo esc_html( $total ); ?></div>
 					<div class="stat-label">
 						<a href="<?php echo admin_url( 'edit.php?post_type=' . $cpt ); ?>">
-							<?php echo esc_html( get_post_type_object( $cpt )->labels->name ); ?>
+							<?php echo esc_html( $label ); ?>
 						</a>
 					</div>
 				</div>

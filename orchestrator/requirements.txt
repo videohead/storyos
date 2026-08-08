@@ -9,3 +9,4 @@ pytest
 pytest-mock
 responses
 httpx2
+openai

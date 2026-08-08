@@ -7,12 +7,26 @@
 
 namespace StoryOS\CPT;
 
-function init(): void {
-	$fields = [
-		'frame_number'    => [
-			'type'        => 'number',
-			'label'       => 'Frame Number',
-			'required'    => true,
+/**
+ * Storyboard Frame Custom Post Type handler.
+ */
+class StoryboardFrame {
+	/**
+	 * Register the Storyboard Frame CPT.
+	 */
+	public static function init(): void {
+		self::register_cpt();
+	}
+
+	/**
+	 * Register the Storyboard Frame CPT.
+	 */
+	private static function register_cpt(): void {
+		$fields = [
+			'frame_number'    => [
+				'type'        => 'number',
+				'label'       => 'Frame Number',
+				'required'    => true,
 		],
 		'frame_description' => [
 			'type'        => 'wysiwyg',
@@ -57,35 +71,36 @@ function init(): void {
 		],
 		$fields
 	);
-}
-
-function save_meta( int $post_id, \WP_Post $post ): void {
-	if ( ! isset( $_POST['storyos_storyboard_frame_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_storyboard_frame_nonce'], 'storyos_storyboard_frame_details' ) ) {
-		return;
 	}
 
-	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-		return;
-	}
+	public static function save_meta( int $post_id, \WP_Post $post ): void {
+		if ( ! isset( $_POST['storyos_storyboard_frame_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_storyboard_frame_nonce'], 'storyos_storyboard_frame_details' ) ) {
+			return;
+		}
 
-	if ( ! current_user_can( 'edit_post', $post_id ) ) {
-		return;
-	}
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
 
-	$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_storyboard_frame' );
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
 
-	foreach ( $fields as $key => $field ) {
-		if ( isset( $_POST[ $key ] ) ) {
-			if ( 'relationship' === $field['type'] ) {
-				\StoryOS\Utils\add_relationship(
-					$post_id,
-					'storyos_storyboard_frame',
-					absint( $_POST[ $key ] ),
-					$field['related_cpt'],
-					'references'
-				);
-			} else {
-				update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_storyboard_frame' );
+
+		foreach ( $fields as $key => $field ) {
+			if ( isset( $_POST[ $key ] ) ) {
+				if ( 'relationship' === $field['type'] ) {
+					\StoryOS\Utils\add_relationship(
+						$post_id,
+						'storyos_storyboard_frame',
+						absint( $_POST[ $key ] ),
+						$field['related_cpt'],
+						'references'
+					);
+				} else {
+					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
+				}
 			}
 		}
 	}
