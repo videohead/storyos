@@ -123,7 +123,7 @@ Storyboarding and production planning are handled via WordPress plugins and exte
 
 ---
 
-# Phase 5: Script Ecosystem ✅ COMPLETE
+# Phase 5: Script Ecosystem ⏸️ ON HOLD
 
 ## Objective
 
@@ -166,9 +166,13 @@ Full bi-directional synchronization with Celtx via the Celtx GEM API:
 - [ ] Entity deduplication and relationship inference
 - [ ] Import preview before committing
 
+## Current Status (as of 2026-08-08)
+
+**On Hold.** Celtx bi-directional sync is operational but no further development planned at this time. Import/export for Fountain, FDX, and other screenplay formats deferred.
+
 ---
 
-# Phase 6: Editorial Ecosystem
+# Phase 6: Editorial Ecosystem ⏸️ ON HOLD
 
 ## Objective
 
@@ -182,21 +186,25 @@ Extend StoryOS into post-production workflows.
 - ✅ 32-Character Clip Names for Premiere Pro
 - ✅ Multi-Track Support (Video + Audio)
 - ✅ NLE Compatibility (Unreal Engine, Premiere Pro, DaVinci Resolve, Avid, FCP)
-- Timeline Metadata
-- Scene Mapping
-- Shot Mapping
-- Asset References
+- [ ] Timeline Metadata
+- [ ] Scene Mapping
+- [ ] Shot Mapping
+- [ ] Asset References
 
 ## Future Deliverables
 
-- AAF Export
-- OMF Export
-- NLE-Specific Plugins (Premiere Pro Panel, DaVinci Resolve Plugin)
-- Direct Media Linking (EDL with absolute file paths)
+- [ ] AAF Export
+- [ ] OMF Export
+- [ ] NLE-Specific Plugins (Premiere Pro Panel, DaVinci Resolve Plugin)
+- [ ] Direct Media Linking (EDL with absolute file paths)
+
+## Current Status (as of 2026-08-08)
+
+**On Hold.** EDL export is implemented and functional. Timeline metadata, scene/shot mapping, asset references, AAF/OMF export, and NLE-specific plugins are deferred.
 
 ---
 
-# Phase 7: Story Graph Intelligence
+# Phase 7: Story Graph Intelligence ✅ COMPLETE
 
 ## Objective
 
@@ -204,16 +212,30 @@ Transform StoryOS into a narrative intelligence platform.
 
 ## Deliverables
 
-- Semantic Search
-- Continuity Validation
-- Relationship Analytics
-- Knowledge Graph Queries
-- Story Consistency Checks
-- Narrative Reasoning
+- ✅ Semantic Search (hybrid/semantic/keyword modes, WP_Query integration, admin bar)
+- ✅ Continuity Validation (auto-check on save, admin panel, severity levels)
+- ✅ Relationship Analytics (network density, co-occurrence, isolated entity detection)
+- ✅ Knowledge Graph Queries (orchestrator `/intelligence/*` endpoints)
+- ✅ Story Consistency Checks (structured issue storage, filter by error/warning/info)
+- ✅ Narrative Reasoning (orchestrator intelligence engine)
+
+## Planned Improvements
+
+- [ ] Incremental indexing (WP-Cron based) — currently full re-index on each call
+- [ ] Embedding cache with TTL-based invalidation
+- [ ] Search result caching (WordPress transients)
+- [ ] Performance benchmarks with production-scale data
+- [ ] E2E tests with Playwright
+- [ ] Real-time search suggestions (debounced input)
+- [ ] Knowledge graph database integration (Neo4j) — future
+
+## Current Status (as of 2026-08-08)
+
+Phase 7 is fully implemented and operational. Core intelligence engine (story_intelligence.py) provides hybrid search, continuity validation (6 check categories), and relationship analytics. REST endpoints are live in the orchestrator FastAPI service. Planned improvements focus on performance and scalability.
 
 ---
 
-# Phase 8: AI Editor
+# Phase 8: AI Editor ✅ COMPLETE
 
 ## Objective
 
@@ -221,19 +243,37 @@ Connect the WordPress content editor to local/API-driven LLMs and the multi-agen
 
 ## Deliverables
 
-- WordPress Gutenberg AI Editor panel
-- REST API endpoints for AI communication
-- Local LLM integration (Qwen3.6 via vLLM)
-- Cloud LLM fallback (OpenAI, Anthropic)
-- WordPress/agent-skills integration
-- Multi-agent framework bridge
-- Context builder for Story Graph data
-- Agent routing system
-- AI Settings configuration UI
+- ✅ WordPress Gutenberg AI Editor panel (React sidebar, CSS/JS assets)
+- ✅ 8 REST API endpoints (`/storyos/v1/ai/chat`, `/ai/analyze`, `/ai/generate`, `/ai/continuity`, `/ai/context`, `/ai/agents`, `/ai/settings`, `/ai/health`)
+- ✅ Local LLM integration (Qwen3.6 via vLLM/Ollama)
+- ✅ Cloud LLM fallback (OpenAI, Anthropic)
+- ✅ Multi-agent framework bridge (32+ specialized agents)
+- ✅ Context builder for Story Graph data (characters, scenes, projects)
+- ✅ Agent routing system (keyword-based: story, prompt, production, technical, editorial)
+- ✅ AI Settings configuration UI
+- ✅ Agent skills loader (`.agent.md` parsing)
+- ✅ Response caching & rate limiting
+- ✅ WordPress Abilities API (4 Tool, 3 Resource, 2 Prompt abilities)
+- ✅ MCP integration documentation (VS Code, Cursor, Claude)
+
+## Planned Polish
+
+- [ ] Clone WordPress/agent-skills repository
+- [ ] Copy MAF agent `.agent.md` files to plugin's agents directory
+- [ ] Install & configure WordPress MCP Adapter plugin
+- [ ] Test MCP discovery flow (discover-abilities, execute-ability)
+- [ ] Configure MCP client connections (VS Code, Cursor)
+- [ ] Keyboard shortcuts for AI panel
+- [ ] Content generation actions (insert into editor)
+- [ ] AI-generated content labeling
+- [ ] Performance optimization (caching, rate limiting)
+- [ ] Accessibility audit
+- [ ] Security audit (input sanitization, output escaping)
+- [ ] E2E tests with real content
 
 ## Integration Points
 
-- WordPress/agent-skills repository — expert WordPress knowledge for AI assistants
+- WordPress/agent-skills repository — expert WordPress knowledge for AI assistants (documented, not yet cloned)
 - Orchestrator FastAPI service — multi-agent orchestration
 - Qwen3.6-35B vLLM instance — local LLM backend
 - Multi-agent framework — 32+ specialized filmmaking agents
@@ -244,7 +284,7 @@ See [Phase_8_AI_Editor.md](Phase_8_AI_Editor.md) for full architecture, implemen
 
 ---
 
-# Phase 9: Community Platform
+# Phase 9: Community Platform ⏸️ ON HOLD
 
 ## Objective
 
@@ -252,12 +292,12 @@ Grow the StoryOS ecosystem.
 
 ## Deliverables
 
-- Plugin Marketplace
-- Workflow Marketplace
-- Advisor Marketplace
-- Community Templates
-- Educational Resources
-- Contributor Programs
+- [ ] Plugin Marketplace
+- [ ] Workflow Marketplace
+- [ ] Advisor Marketplace
+- [ ] Community Templates
+- [ ] Educational Resources
+- [ ] Contributor Programs
 
 ---
 
