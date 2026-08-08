@@ -141,6 +141,8 @@ function init(): void {
 	// Load dependencies.
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/continuity-checker.php';
 
 	// Register CPTs.
 	CPT\Project::init();
@@ -188,6 +190,7 @@ function init(): void {
 	Admin\Dashboard::init();
 	Admin\MetaBoxes::init();
 	Admin\Plugins::init();
+	Admin\Continuity_Panel::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {
@@ -217,8 +220,66 @@ function init(): void {
 	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php' ) ) {
 		require_once STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php';
 	}
+
+	// Enqueue search widget assets on frontend.
+	add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_search_assets' );
+
+	// Enqueue continuity panel assets in admin.
+	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\enqueue_continuity_assets' );
+
+	// Hook auto-validation on save for scenes and shots.
+	add_action( 'save_post_storyos_scene', __NAMESPACE__ . '\\auto_validate_scene', 20, 3 );
+	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\auto_validate_shot', 20, 3 );
+
+	// Add orchestrator URL constant if not defined.
+	if ( ! defined( 'STORYOS_ORCHESTRATOR_URL' ) ) {
+		define( 'STORYOS_ORCHESTRATOR_URL', 'http://localhost:8000' );
+	}
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
+
+/**
+ * Enqueue continuity panel admin assets.
+ */
+function enqueue_continuity_assets(): void {
+	// Assets are enqueued by Admin\Continuity_Panel::enqueue_scripts().
+	// This hook ensures the CSS/JS files are registered.
+	wp_enqueue_style(
+		'storyos-continuity',
+		STORYOS_PLUGIN_URL . 'assets/css/continuity-panel.css',
+		[],
+		STORYOS_VERSION
+	);
+	wp_enqueue_script(
+		'storyos-continuity',
+		STORYOS_PLUGIN_URL . 'assets/js/continuity-panel.js',
+		[ 'jquery' ],
+		STORYOS_VERSION,
+		true
+	);
+}
+
+/**
+ * Auto-validate a scene on save.
+ *
+ * @param int      $post_id Post ID.
+ * @param \WP_Post $post Post object.
+ * @param bool     $update Whether this is an update.
+ */
+function auto_validate_scene( int $post_id, \WP_Post $post, bool $update ): void {
+	\StoryOS\Utils\auto_check_continuity_on_save( $post_id, $post, $update );
+}
+
+/**
+ * Auto-validate a shot on save.
+ *
+ * @param int      $post_id Post ID.
+ * @param \WP_Post $post Post object.
+ * @param bool     $update Whether this is an update.
+ */
+function auto_validate_shot( int $post_id, \WP_Post $post, bool $update ): void {
+	\StoryOS\Utils\auto_check_continuity_on_save( $post_id, $post, $update );
+}
 
 /**
  * Flush rewrite rules on activation.
@@ -230,6 +291,7 @@ function activate(): void {
 	// Set default StoryOS options.
 	add_option( 'storyos_version', STORYOS_VERSION );
 	add_option( 'storyos_enabled', true );
+	add_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
 }
 
 /**

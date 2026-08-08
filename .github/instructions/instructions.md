@@ -268,7 +268,43 @@ Each roadmap phase maps to specific agents and repositories:
 
 **Status:** 📋 PLANNED
 
-### 📋 Phase 8: Community Platform → All Agents
+### 📋 Phase 8: AI Editor → Story Advisor + Technical Advisor
+**Repository:** `wordpress/wp-content/plugins/storyos/includes/ai-editor/`
+- **Gutenberg Sidebar Panel**: AI-powered assistant panel in the block editor
+- **REST API Endpoints** (8 endpoints):
+  - `POST /storyos/v1/ai/chat` — Send message to AI advisor
+  - `POST /storyos/v1/ai/analyze` — Analyze current post content
+  - `POST /storyos/v1/ai/generate` — Generate content (prompts, text, etc.)
+  - `POST /storyos/v1/ai/continuity` — Run continuity check on post
+  - `GET /storyos/v1/ai/context` — Get current post's AI context
+  - `GET /storyos/v1/ai/agents` — List available agents
+  - `POST /storyos/v1/ai/settings` — Update LLM configuration
+- **LLM Connection Layer**: Local vLLM (Qwen3.6 via :11434) + Cloud fallback (OpenAI, Anthropic)
+- **Context Builder**: Automatically assembles Story Graph context for the current post
+- **Agent Router**: Keyword-based routing to 5 advisors (Story, Prompt, Production, Editorial, Technical)
+- **MAF Bridge**: Hybrid architecture — PHP direct calls for simple queries, Python orchestrator for multi-agent workflows
+- **WordPress Abilities API** (WP 6.9+): Exposes AI capabilities via MCP Adapter for VS Code Copilot, Cursor, Claude Code
+  - Tools: `storyos/chat`, `storyos/analyze`, `storyos/generate`, `storyos/continuity-check`
+  - Resources: `storyos/post-context`, `storyos/character-context`, `storyos/scene-context`
+  - Prompts: `storyos/story-review-prompt`, `storyos/continuity-prompt`
+- **Agent Skills Integration**: Loads WordPress/agent-skills for expert WordPress knowledge
+- **Settings UI**: `StoryOS → AI Settings` page (backend selection, API keys, model config)
+
+**AI Editor Module Files:**
+- `class-ai-editor.php` — Main bootstrap/controller
+- `class-ai-llm-client.php` — LLM communication (local + cloud)
+- `class-ai-maf-bridge.php` — Multi-agent framework bridge
+- `class-ai-context-builder.php` — Story Graph context assembly
+- `class-ai-agent-router.php` — Keyword-based agent routing
+- `class-ai-agent-skills.php` — Agent skills loader
+- `class-ai-editor-rest.php` — REST API endpoints
+- `class-ai-abilities.php` — Abilities API registration (3 groups)
+- `assets/ai-editor/js/ai-editor.js` — React Gutenberg sidebar panel
+- `assets/ai-editor/css/ai-editor.css` — Panel styles
+
+**Status:** 📋 PLANNED — Full spec in `about/Phase_8_AI_Editor.md`
+
+### 📋 Phase 9: Community Platform → All Agents
 - Plugin marketplace
 - Workflow marketplace
 - Advisor marketplace
@@ -338,6 +374,21 @@ When one agent's output becomes another agent's input:
 - Sanitize input, escape output
 - Sub-plugins live under `storyos/plugins/` (e.g., `comfy-generate/`, `celtx/`)
 
+### WordPress REST Controllers — Static Method Pitfall
+- **CRITICAL**: `WP_REST_Controller::register_routes()` is **non-static** in WordPress core.
+- Child classes **cannot** override it as static — PHP 8.x enforces this and throws a fatal error.
+- **Wrong**: `public static function register_routes()` with `add_action( 'rest_api_init', [ __CLASS__, 'register_routes' ] )`
+- **Correct**:
+  ```php
+  public static function init(): void {
+      $instance = new self();
+      add_action( 'rest_api_init', [ $instance, 'register_routes' ] );
+  }
+  public function register_routes() {  // non-static
+  ```
+- This pattern must be applied to **all** REST controllers in `includes/rest-api/`.
+- There are 17 controllers total. If you see the fatal error, fix the offending controller and continue.
+
 ### Python (multi-agent-framework/, orchestrator/)
 - Python 3.10+ type hints
 - Modular design — one responsibility per module
@@ -362,6 +413,18 @@ When one agent's output becomes another agent's input:
 ---
 
 ## Testing
+
+### Tool Calling for Tests
+- Use `run_in_terminal` with `mode='sync'` for all test commands (builds, tests, installs).
+- Use `run_notebook_cell` for Jupyter notebook cells, NOT terminal commands like `jupyter notebook`.
+- Use `get_terminal_output` ONLY when `run_in_terminal` explicitly says a command was moved to background.
+- Do NOT poll with `sleep` or repeated `get_terminal_output` calls — wait for the async notification.
+
+### WordPress — Do Not Restart
+- WordPress runs PHP and **does not need restarting**.
+- Code changes take effect immediately on the next request.
+- Do NOT run `lando restart wordpress` or similar for PHP changes.
+- Only restart containers when changing Docker configuration, adding dependencies, or modifying infrastructure.
 
 ### Python Tests (orchestrator/)
 - Run pytest: `cd orchestrator && pytest tests/ -v`
