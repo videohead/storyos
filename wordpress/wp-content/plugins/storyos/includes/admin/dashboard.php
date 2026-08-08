@@ -196,7 +196,7 @@ class Dashboard {
 				<div class="stat-card">
 					<div class="stat-number"><?php echo esc_html( $total ); ?></div>
 					<div class="stat-label">
-						<a href="<?php echo admin_url( 'edit.php?post_type=' . $cpt ); ?>">
+						<a href="<?php echo admin_url( 'edit.php?post_type=storyos_' . strtolower($cpt) ); ?>">
 							<?php echo esc_html( $label ); ?>
 						</a>
 					</div>
