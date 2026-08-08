@@ -189,6 +189,29 @@ lando describe-vllm
 lando describe-comfyui
 ```
 
+### 4b. Running ComfyUI standalone with Docker Compose
+If you prefer to run ComfyUI outside of Lando (e.g. with full GPU access), a standalone `docker-compose.yaml` is provided in the `ComfyUI/` directory.
+
+```bash
+cd ComfyUI
+
+# CPU-only mode (for testing or machines without a GPU)
+docker compose up
+
+# GPU mode (recommended — requires nvidia-container-toolkit)
+docker compose --profile gpu up
+```
+
+The ComfyUI web UI will be available at **http://localhost:8188**.
+
+Downloaded models are persisted in a Docker volume (`comfyui_models`) so they survive container rebuilds.
+
+To stop and clean up:
+
+```bash
+docker compose --profile gpu down
+```
+
 ### Useful commands
 
 ```bash
