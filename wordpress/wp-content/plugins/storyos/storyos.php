@@ -187,10 +187,16 @@ function init(): void {
 	// Register admin pages and hooks.
 	Admin\Dashboard::init();
 	Admin\MetaBoxes::init();
+	Admin\Plugins::init();
 
 	// Activation/deactivation hooks.
 	register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
 	register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
+
+	// Load Celtx Sync integration.
+	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php' ) ) {
+		require_once STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php';
+	}
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
 
