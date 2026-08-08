@@ -88,18 +88,28 @@ A new module within the existing `storyos` WordPress plugin that provides:
 ### File Structure
 
 ```
-wordpress/wp-content/plugins/storyos/includes/
-├── admin/
+wordpress/wp-content/plugins/storyos/
+├── storyos.php                          # Main plugin — wires in AI Editor + Abilities
+├── includes/
+│   ├── ai-editor/
+│   │   ├── class-ai-editor.php          # Main bootstrap/controller
+│   │   ├── class-ai-llm-client.php      # LLM communication (local + cloud)
+│   │   ├── class-ai-maf-bridge.php      # Multi-agent framework bridge
+│   │   ├── class-ai-context-builder.php # Story Graph context assembly
+│   │   ├── class-ai-agent-router.php    # Keyword-based agent routing
+│   │   ├── class-ai-agent-skills.php    # Agent skills loader
+│   │   ├── class-ai-editor-rest.php     # REST API endpoints (8 endpoints)
+│   │   └── class-ai-abilities.php       # Abilities API registration (3 groups)
+│   ├── admin/
+│   │   └── dashboard.php                # Existing admin UI (extends with AI settings)
+│   └── rest-api/
+│       └── base-controller.php          # Base REST controller pattern
+├── assets/
 │   └── ai-editor/
-│       ├── class-ai-editor-panel.php      # Gutenberg sidebar panel
-│       ├── class-ai-editor-rest.php       # REST API endpoints
-│       ├── class-ai-context-builder.php   # Story Graph context gathering
-│       ├── class-ai-agent-router.php      # Agent selection/routing
-│       └── class-ai-settings.php          # LLM configuration UI
-├── cpts/
-│   └── (existing CPTs — AI panel hooks into all)
-└── rest-api/
-    └── ai-editor-controller.php           # REST controller
+│       ├── js/ai-editor.js              # React Gutenberg sidebar panel
+│       ├── js/ai-editor.asset.php       # Script dependency manifest
+│       └── css/ai-editor.css            # Panel styles
+└── agents/                              # MAF agent .agent.md files (to be copied)
 ```
 
 ### Gutenberg Panel
@@ -329,6 +339,198 @@ class AI_Agent_Router {
 }
 ```
 
+## 5. WordPress Abilities API & MCP Integration
+
+StoryOS exposes its AI capabilities through the **WordPress Abilities API** (WP 6.9+), which the official [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) then converts into MCP Tools, Resources, and Prompts. This enables AI agents in VS Code Copilot, Cursor, Claude, and other MCP-compatible clients to interact with StoryOS directly.
+
+### Hybrid Architecture
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│              AI Clients (Dual Exposure)                        │
+│  ┌─────────────────────┐    ┌──────────────────────────────┐  │
+│  │  Gutenberg Sidebar  │    │  MCP Clients (VS Code,       │  │
+│  │  (REST API)         │    │  Cursor, Claude Code)        │  │
+│  │                     │    │                              │  │
+│  │  • Chat UI          │    │  • Tools: chat, analyze,     │  │
+│  │  • Quick Actions    │    │    generate, continuity-check│  │
+│  │  • Context Preview  │    │  • Resources: post-context,  │  │
+│  └──────────┬──────────┘    │    character-context,        │  │
+│             │               │    scene-context             │  │
+│             │               │  • Prompts: story-review,    │  │
+│             │               │    continuity-prompt         │  │
+│             ▼               └──────────────┬───────────────┘  │
+└─────────────┼──────────────────────────────┼────────────────┘
+              │                              │
+         REST API                      Abilities API
+         /storyos/v1/ai/*            wp_register_ability()
+              │                              │
+              └──────────┬───────────────────┘
+                         ▼
+              ┌──────────────────────┐
+              │  StoryOS AI Editor   │
+              │  • Context Builder   │
+              │  • Agent Router      │
+              │  • LLM Client        │
+              │  • MAF Bridge        │
+              └──────────────────────┘
+```
+
+### MCP Component Types
+
+| MCP Component | WordPress Ability Type | StoryOS Example | Access |
+|---------------|----------------------|-----------------|--------|
+| **Tool** | Executable action | `storyos/chat`, `storyos/analyze` | Call and get result |
+| **Resource** | Read-only data | `storyos/post-context`, `storyos/character-context` | Fetch by URI |
+| **Prompt** | Structured template | `storyos/story-review-prompt` | Get system/user prompt |
+
+### Ability Registration Pattern
+
+StoryOS uses an ability group pattern (inspired by SCF's implementation) to organize abilities by domain:
+
+```php
+// Main Abilities class — registers groups
+\StoryOS\AI\Abilities\Abilities::instance()->init();
+
+// Groups:
+// 1. Chat_Abilities      → storyos/chat, storyos/analyze, storyos/generate, storyos/continuity-check
+// 2. Context_Resources   → storyos/post-context, storyos/character-context, storyos/scene-context
+// 3. Prompt_Templates    → storyos/story-review-prompt, storyos/continuity-prompt
+```
+
+Each ability is registered with:
+- **label/description** — Human-readable name
+- **input_schema/output_schema** — JSON Schema for validation
+- **execute_callback** — PHP callable that returns results
+- **permission_callback** — Capability check (`edit_posts`)
+- **meta** — MCP configuration:
+  - `public` — Whether exposed to REST/MCP/agents
+  - `mcp.type` — `'tool'`, `'resource'`, or `'prompt'`
+  - `mcp.uri` — For resources (e.g., `storyos://post-context/{id}`)
+  - `mcp.arguments` — For prompts (parameter definitions)
+  - `annotations` — `{readonly, destructive, idempotent}` for MCP hints
+
+### MCP Adapter Integration
+
+The [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) (v0.5.0, requires WP 6.9+) automatically discovers StoryOS abilities and exposes them to MCP clients:
+
+```php
+// MCP Adapter auto-discovers public abilities on plugins_loaded
+// No manual server configuration needed for default server
+
+// Default server endpoints:
+// HTTP:  GET /wp-json/mcp/mcp-adapter-default-server
+// STDIO: wp mcp-adapter serve --server=mcp-adapter-default-server
+
+// Built-in meta-tools available:
+// - mcp-adapter/discover-abilities   → List all StoryOS + WP abilities
+// - mcp-adapter/get-ability-info     → Get schema for specific ability
+// - mcp-adapter/execute-ability      → Execute an ability by name
+```
+
+**MCP Adapter Configuration** (optional custom server):
+
+```php
+add_action( 'mcp_adapter_init', function( $adapter ) {
+    $adapter->create_server(
+        'storyos',                    // Server ID
+        'storyos/v1',                 // REST namespace
+        'mcp',                        // REST route
+        'StoryOS MCP Server',         // Display name
+        'AI-powered storytelling tools', // Description
+        '1.0.0',                      // Version
+        [ \WP\MCP\Transport\HttpTransport::class ],
+        null,                         // Error handler (default)
+        null,                         // Observability (default)
+        [                               // Abilities to expose
+            'storyos/chat',
+            'storyos/analyze',
+            'storyos/generate',
+            'storyos/continuity-check',
+            'storyos/post-context',
+            'storyos/character-context',
+            'storyos/scene-context',
+            'storyos/story-review-prompt',
+            'storyos/continuity-prompt',
+        ]
+    );
+} );
+```
+
+### MCP Client Configuration
+
+**VS Code Copilot / Cursor (STDIO):**
+
+```json
+// Cursor config (~/.cursor/config.json)
+{
+  "mcpServers": {
+    "storyos": {
+      "command": "wp",
+      "args": [
+        "mcp-adapter",
+        "serve",
+        "--server=storyos",
+        "--user=admin"
+      ]
+    }
+  }
+}
+```
+
+**VS Code Copilot (HTTP):**
+
+```json
+// VS Code settings.json
+{
+  "copilot.advision.mcpServers": {
+    "storyos": {
+      "url": "http://localhost/wp-json/mcp/mcp-adapter-default-server"
+    }
+  }
+}
+```
+
+### MCP Annotations
+
+StoryOS abilities include MCP annotations for client behavior hints:
+
+| Annotation | Values | StoryOS Usage |
+|------------|--------|---------------|
+| `readonly` | `true/false/null` | All abilities are `true` (no DB writes) |
+| `destructive` | `true/false/null` | All `false` (no content deletion) |
+| `idempotent` | `true/false/null` | `true` for analyze/continuity, `false` for chat/generate |
+
+These annotations let MCP clients:
+- Warn users before destructive operations
+- Cache idempotent results
+- Show read-only indicators for informational tools
+
+### Discovery Flow
+
+```
+1. MCP Client connects to WordPress MCP Adapter
+2. Client calls mcp-adapter/discover-abilities
+3. Adapter returns all public abilities including StoryOS:
+   {
+     "tools": [
+       {"name": "storyos/chat", "description": "AI Chat..."},
+       {"name": "storyos/analyze", "description": "Analyze Content..."},
+       ...
+     ],
+     "resources": [
+       {"uri": "storyos://post-context/{post_id}", "description": "Post Context..."},
+       {"uri": "storyos://character-context/{character_id}", ...},
+       ...
+     ],
+     "prompts": [
+       {"name": "storyos/story-review-prompt", "description": "Story Review..."},
+       ...
+     ]
+   }
+4. Client can then call individual tools, read resources, or get prompts
+```
+
 ---
 
 # User Experience
@@ -372,38 +574,47 @@ class AI_Agent_Router {
 
 ## Phase 8.1: Foundation (Weeks 1-2)
 
-- [ ] Create `ai-editor` module structure in StoryOS plugin
-- [ ] Implement `AI_Context_Builder` class
-- [ ] Create REST API endpoints for AI communication
-- [ ] Add AI Settings page in WordPress admin
-- [ ] Configure local LLM connection (vLLM)
-- [ ] Add cloud LLM fallback support
+- [x] Create `ai-editor` module structure in StoryOS plugin
+- [x] Implement `AI_Context_Builder` class
+- [x] Create REST API endpoints for AI communication
+- [x] Add AI Settings page in WordPress admin
+- [x] Configure local LLM connection (vLLM)
+- [x] Add cloud LLM fallback support
+- [x] Wire AI Editor into main plugin file (`storyos.php`)
+- [x] Create autoloader for AI Editor classes
 
-## Phase 8.2: Agent Skills Integration (Weeks 3-4)
+## Phase 8.2: Agent Skills & MAF Bridge (Weeks 3-4)
 
 - [ ] Clone WordPress/agent-skills repository
 - [ ] Implement skill detection and loading system
 - [ ] Integrate core skills: `wp-block-development`, `wp-rest-api`, `wordpress-router`
 - [ ] Create skill augmentation for system prompts
 - [ ] Add skill caching for performance
+- [ ] Implement `AI_MAF_Bridge` class (already created, needs testing)
+- [ ] Copy MAF agent files to plugin's agents directory
 
 ## Phase 8.3: Gutenberg Panel (Weeks 5-6)
 
-- [ ] Build React sidebar panel component
+- [ ] Build React sidebar panel component (JS created, needs refinement)
 - [ ] Implement chat interface with streaming responses
 - [ ] Add agent selection UI
 - [ ] Create context preview panel
 - [ ] Add response history
 - [ ] Style with WordPress Design System (wpds)
 
-## Phase 8.4: MAF Bridge (Weeks 7-8)
+## Phase 8.4: Abilities API & MCP Integration (Weeks 7-8)
 
-- [ ] Implement ExecutiveOrchestrator PHP wrapper
-- [ ] Create agent routing system
-- [ ] Connect to orchestrator FastAPI service
-- [ ] Add async task handling for long operations
-- [ ] Implement health checks for LLM connectivity
-- [ ] Add error handling and fallback logic
+- [x] Create `AI_Abilities` class with ability groups (Chat, Context, Prompts)
+- [x] Register StoryOS AI Editor category via `wp_register_ability_category()`
+- [x] Register 4 Tool abilities: chat, analyze, generate, continuity-check
+- [x] Register 3 Resource abilities: post-context, character-context, scene-context
+- [x] Register 2 Prompt abilities: story-review-prompt, continuity-prompt
+- [x] Wire Abilities into main plugin file with WP 6.9+ feature detection
+- [ ] Install and configure WordPress MCP Adapter plugin
+- [ ] Test MCP discovery flow (discover-abilities, execute-ability)
+- [ ] Configure MCP client connections (VS Code, Cursor)
+- [ ] Add custom MCP server configuration option
+- [ ] Validate MCP annotations (readonly, destructive, idempotent)
 
 ## Phase 8.5: Polish & Testing (Weeks 9-10)
 
@@ -413,6 +624,9 @@ class AI_Agent_Router {
 - [ ] Performance optimization (caching, rate limiting)
 - [ ] Accessibility audit
 - [ ] Security audit (input sanitization, output escaping)
+- [ ] Test REST endpoints with StoryOS CPTs
+- [ ] Test Gutenberg panel with real content
+- [ ] Test MCP integration with live clients
 - [ ] Documentation and examples
 
 ---

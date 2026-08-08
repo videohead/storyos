@@ -38,6 +38,7 @@ spl_autoload_register( function ( $class ) {
 		'Taxonomies\\' => 'taxonomies/',
 		'Admin\\' => 'admin/',
 		'Utils\\' => 'utils/',
+		'AI\\' => 'ai-editor/',
 	];
 	foreach ( $special_mappings as $ns => $dir ) {
 		if ( strpos( $relative_class, $ns ) === 0 ) {

@@ -189,6 +189,16 @@ function init(): void {
 	Admin\MetaBoxes::init();
 	Admin\Plugins::init();
 
+	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
+	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {
+		\StoryOS\AI\AI_Editor::init();
+
+		// Initialize StoryOS Abilities for MCP exposure (requires WP 6.9+).
+		if ( function_exists( 'wp_register_ability' ) ) {
+			\StoryOS\AI\Abilities\Abilities::instance()->init();
+		}
+	}
+
 	// Activation/deactivation hooks.
 	register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
 	register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );

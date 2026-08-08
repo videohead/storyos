@@ -30,7 +30,8 @@ class Scenes_Controller extends Base_Controller {
 	 * Initialize the controller.
 	 */
 	public static function init(): void {
-		add_action( 'rest_api_init', [ __CLASS__, 'register_routes' ] );
+		$instance = new self();
+		add_action( 'rest_api_init', [ $instance, 'register_routes' ] );
 	}
 
 	/**

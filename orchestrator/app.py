@@ -57,6 +57,7 @@ from health import HealthChecker
 from middleware import RequestLoggingMiddleware, MetricsMiddleware, setup_logging, get_metrics
 from queue_manager import QueueManager
 from asset_lineage import AssetLineage, WordPressAssetError
+from mcp_agents import create_mcp_agent_router
 
 # ── Logging setup ──────────────────────────────────────────────────────────
 
@@ -1088,3 +1089,16 @@ class LegacyGenerateRequest(BaseModel):
 def generate_legacy(req: LegacyGenerateRequest):
     """Legacy endpoint for backward compatibility."""
     return generate(GenerateRequest(post_id=req.post_id))
+
+
+# ── MCP Agent Router ────────────────────────────────────────────────────────
+
+# Determine agents directory: prefer includes/agents/, fall back to multi-agent-framework/agents/
+_agents_dir = os.path.join(os.path.dirname(__file__), '..', 'wordpress', 'wp-content', 'plugins', 'storyos', 'includes', 'agents')
+if not os.path.isdir(_agents_dir):
+    _agents_dir = os.path.join(os.path.dirname(__file__), '..', 'multi-agent-framework', 'agents')
+
+mcp_router = create_mcp_agent_router(_agents_dir)
+app.include_router(mcp_router)
+
+print(f"MCP Agent Router initialized with agents from: {_agents_dir}")
