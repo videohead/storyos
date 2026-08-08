@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 import re
 import time
 from collections import Counter, defaultdict
@@ -243,16 +244,39 @@ class StoryGraphIntelligence:
         app_password: str,
         timeout: int = 30,
         embedding_backend: Optional[EmbeddingBackend] = None,
+        index_path: Optional[str] = None,
+        cache_ttl: int = 300,
     ):
         self.base_url = wordpress_url.rstrip("/")
         self.username = username
         self.app_password = app_password
         self.timeout = timeout
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
-        self._cache_ttl = 60
+        self._cache_ttl = cache_ttl
 
         # Embedding backend — defaults to Dummy for zero-dependency dev
         self.embeddings = embedding_backend or DummyEmbeddingBackend()
+
+        # Persistent index storage
+        self._index_path = index_path
+        self._index_data: Optional[dict[str, Any]] = None
+        self._entity_modified: dict[str, dict[int, float]] = {}  # entity_type -> {id: modified_timestamp}
+
+        # Load persisted index on startup if available
+        if self._index_path and os.path.isfile(self._index_path):
+            try:
+                with open(self._index_path, "r") as f:
+                    self._index_data = json.load(f)
+                logger.info("Loaded embedding index from %s (%d entries)",
+                    self._index_path,
+                    self._index_data.get("total_entries", 0),
+                )
+                # Restore modified timestamps if present
+                if "entity_modified" in self._index_data:
+                    self._entity_modified = self._index_data["entity_modified"]
+            except (json.JSONDecodeError, IOError) as e:
+                logger.warning("Failed to load persisted index: %s", e)
+                self._index_data = None
 
         # Text fields to index for semantic search, per entity type
         self._index_fields: dict[str, list[str]] = {
@@ -309,6 +333,87 @@ class StoryGraphIntelligence:
         data = fetch_func()
         self._cache[key] = (now, data)
         return data
+
+    def save_index(self) -> bool:
+        """Persist the current index to disk.
+
+        Returns:
+            True if saved successfully, False otherwise.
+        """
+        if not self._index_path or not self._index_data:
+            return False
+
+        try:
+            # Ensure parent directory exists
+            parent_dir = os.path.dirname(self._index_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+
+            # Write to temp file then rename (atomic on POSIX)
+            tmp_path = self._index_path + ".tmp"
+            with open(tmp_path, "w") as f:
+                json.dump(self._index_data, f)
+            os.replace(tmp_path, self._index_path)
+            logger.info("Saved embedding index to %s (%d entries)",
+                self._index_path,
+                self._index_data.get("total_entries", 0),
+            )
+            return True
+        except IOError as e:
+            logger.error("Failed to save index to %s: %s", self._index_path, e)
+            return False
+
+    def load_index(self) -> Optional[dict[str, Any]]:
+        """Load the index from disk.
+
+        Returns:
+            The loaded index dict, or None if not available.
+        """
+        if not self._index_path or not os.path.isfile(self._index_path):
+            return None
+
+        try:
+            with open(self._index_path, "r") as f:
+                self._index_data = json.load(f)
+            if "entity_modified" in self._index_data:
+                self._entity_modified = self._index_data["entity_modified"]
+            logger.info("Loaded embedding index from %s (%d entries)",
+                self._index_path,
+                self._index_data.get("total_entries", 0),
+            )
+            return self._index_data
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning("Failed to load index from %s: %s", self._index_path, e)
+            return None
+
+    def index_needs_update(self, entity_type: str) -> bool:
+        """Check if an entity type's index is stale.
+
+        An index is stale if:
+        - No persisted index exists
+        - The entity type is not in the persisted index
+        - Any entity of this type was modified after the index was built
+
+        Returns:
+            True if the index needs rebuilding for this entity type.
+        """
+        if not self._index_data:
+            return True
+
+        indexed_at = self._index_data.get("indexed_at", 0)
+        entity_entries = self._index_data.get("index", {}).get(entity_type, [])
+
+        if not entity_entries:
+            return True
+
+        modified = self._entity_modified.get(entity_type, {})
+        for eid, mtime in modified.items():
+            if mtime > indexed_at:
+                logger.debug("Entity %s/%d modified at %s > index at %s",
+                    entity_type, eid, mtime, indexed_at)
+                return True
+
+        return False
 
     def _get_entity_text(self, entity: dict[str, Any]) -> str:
         """Extract readable text from an entity (post or flat dict).
@@ -368,12 +473,32 @@ class StoryGraphIntelligence:
     def index_entities(
         self,
         entity_types: Optional[list[str]] = None,
+        force_rebuild: bool = False,
     ) -> dict[str, Any]:
         """Build embedding index for all (or specified) Story Graph entities.
+
+        Uses persistent index if available and not stale. Saves index to disk
+        after building if persistence is configured.
+
+        Args:
+            entity_types: Entity types to index. None = all configured types.
+            force_rebuild: If True, rebuild index even if cached version exists.
 
         Returns:
             Dict with index metadata and per-entity embedding references.
         """
+        # Try to load cached index first (Optimization 1: Persistent Storage)
+        if not force_rebuild and self._index_path:
+            if self.load_index() is not None:
+                # Check if index is still valid
+                all_current = all(
+                    not self.index_needs_update(et) for et in 
+                    (entity_types or list(self._index_fields.keys()))
+                )
+                if all_current:
+                    logger.info("Using cached embedding index")
+                    return self._index_data
+
         entity_types = entity_types or list(self._index_fields.keys())
         index: dict[str, list[dict[str, Any]]] = {}
 
@@ -409,12 +534,19 @@ class StoryGraphIntelligence:
             index[entity_type] = entries
             logger.info("Indexed %d %s entries", len(entries), entity_type)
 
-        return {
+        index_data = {
             "indexed_at": time.time(),
             "entity_types": entity_types,
             "total_entries": sum(len(v) for v in index.values()),
             "index": index,
+            "entity_modified": self._entity_modified,
         }
+
+        # Save index to disk for persistence (Optimization 1)
+        if self._index_path:
+            self.save_index()
+
+        return index_data
 
     def semantic_search(
         self,

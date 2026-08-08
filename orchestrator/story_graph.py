@@ -7,6 +7,7 @@ then builds a context dict for workflow template rendering.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, Optional
 
@@ -34,7 +35,7 @@ class StoryGraphContextBuilder:
         self.app_password = app_password
         self.timeout = timeout
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
-        self._cache_ttl = 60  # seconds
+        self._cache_ttl = int(os.getenv("CACHE_TTL", "300"))  # seconds (Optimization 3)
 
     def _auth(self):
         return (self.username, self.app_password)

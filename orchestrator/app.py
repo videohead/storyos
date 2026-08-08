@@ -154,6 +154,10 @@ intelligence = StoryGraphIntelligence(
     username=WORDPRESS_USER,
     app_password=WORDPRESS_APP_PASSWORD,
     embedding_backend=_embedding_backend,
+    # Optimization 1: Persistent embedding storage
+    index_path=os.getenv("EMBEDDING_INDEX_PATH"),
+    # Optimization 3: Increased cache TTL (60s → 300s)
+    cache_ttl=int(os.getenv("CACHE_TTL", "300")),
 )
 
 # ── WordPress helpers ───────────────────────────────────────────────────────
