@@ -13,9 +13,6 @@ define( 'STORYOS_PLUGIN_BASE', 'storyos/storyos.php' );
 define( 'STORYOS_API_NAMESPACE', 'storyos/v1' );
 define( 'STORYOS_CPT_PREFIX', 'storyos_' );
 
-// Load the main plugin file.
-require_once dirname( dirname( dirname( __DIR__ ) ) ) . '/storyos.php';
-
-// Load autoloader.
+// Load the StoryOS helper layer directly for unit tests.
 require_once dirname( __DIR__ ) . '/includes/utils/helpers.php';
 require_once dirname( __DIR__ ) . '/includes/utils/relationships.php';

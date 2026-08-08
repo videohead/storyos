@@ -56,7 +56,9 @@ services:
       environment:
         PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
     run_as_root:
-      - "apt-get update && apt-get install -y ffmpeg ripgrep python3 python3-pip python3-venv"
+      - "apt-get update && apt-get install -y ffmpeg ripgrep python3 python3-pip python3-venv php php-cli php-mbstring php-xml php-curl php-zip php-gd php-intl php-mysql php-dompdf php-sqlite3"
+      - "curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer"
+      - "curl -L https://phar.phpunit.de/phpunit-10.5.64.phar -o /usr/local/bin/phpunit && chmod +x /usr/local/bin/phpunit"
       - "python3 -m venv /opt/venv && /opt/venv/bin/pip install --upgrade pip"
       - "/opt/venv/bin/pip install pytest pytest-mock responses httpx pytest-asyncio"
       - "cd /app/test-framework && npm install sass --save-dev"
@@ -79,8 +81,7 @@ services:
       - apt-get install -y nodejs
       - npm install -g playwright
       - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-      - composer global require --dev phpunit/phpunit
-      - ln -sf /root/.config/composer/vendor/bin/phpunit /usr/local/bin/phpunit
+      - curl -L https://phar.phpunit.de/phpunit-10.5.64.phar -o /usr/local/bin/phpunit && chmod +x /usr/local/bin/phpunit
     environment:
       PLAYWRIGHT_BROWSERS_PATH: /usr/local/share/playwright
       WP_BASE_URL: http://appserver
@@ -164,6 +165,9 @@ tooling:
   phpunit:
     service: test-framework
     cmd: phpunit
+  storyos-phpunit:
+    service: test-framework
+    cmd: bash -lc 'cd /app/wordpress/wp-content/plugins/storyos && phpunit --configuration tests/phpunit.xml tests'
   playwright:
     service: test-framework
     cmd: playwright

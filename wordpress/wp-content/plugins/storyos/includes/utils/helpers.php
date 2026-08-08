@@ -10,10 +10,18 @@ namespace StoryOS\Utils;
 /**
  * Get the prefix for StoryOS CPTs and meta keys.
  *
+ * @param string $name Optional name to append to the prefix.
+ * @param string $custom_prefix Optional custom prefix override.
  * @return string
  */
-function prefix(): string {
-	return STORYOS_CPT_PREFIX;
+function prefix( string $name = '', string $custom_prefix = '' ): string {
+	$prefix = '' === $custom_prefix ? STORYOS_CPT_PREFIX : $custom_prefix;
+
+	if ( '' === $name ) {
+		return $prefix;
+	}
+
+	return $prefix . $name;
 }
 
 /**
@@ -66,8 +74,13 @@ function register_cpt( string $cpt, string $label, array $args = [], array $fiel
  * @param array  $fields Field definitions.
  */
 function storyos_register_fields( string $cpt, array $fields ): void {
+	$normalized_fields = [];
+	foreach ( $fields as $field_name => $field_config ) {
+		$normalized_fields[ $field_name ] = array_merge( [ 'name' => $field_name ], $field_config );
+	}
+
 	$all_fields = get_option( 'storyos_fields', [] );
-	$all_fields[ $cpt ] = $fields;
+	$all_fields[ $cpt ] = $normalized_fields;
 	update_option( 'storyos_fields', $all_fields );
 }
 
@@ -80,6 +93,55 @@ function storyos_register_fields( string $cpt, array $fields ): void {
 function storyos_get_fields( string $cpt ): array {
 	$all_fields = get_option( 'storyos_fields', [] );
 	return $all_fields[ $cpt ] ?? [];
+}
+
+/**
+ * Get the expected field names for a StoryOS CPT from the canonical schema contract.
+ *
+ * @param string $cpt CPT slug.
+ * @return array<int, string>
+ */
+function storyos_expected_fields_for_cpt( string $cpt ): array {
+	$expected_fields = [
+		'storyos_project'            => [ 'project_name', 'project_slug', 'description', 'genre', 'target_medium', 'status', 'owner', 'start_date', 'end_date', 'team_members', 'production_stage' ],
+		'storyos_story_world'        => [ 'world_name', 'synopsis', 'timeline', 'rules', 'themes', 'geography', 'references', 'project' ],
+		'storyos_character'          => [ 'display_name', 'biography', 'age', 'appearance', 'personality', 'motivation', 'backstory', 'voice_profile', 'avatar_asset', 'story_world' ],
+		'storyos_location'           => [ 'location_name', 'description', 'environment_type', 'geography', 'mood', 'visual_reference', 'story_world' ],
+		'storyos_prop'               => [ 'prop_name', 'description', 'purpose', 'owner_character', 'notes' ],
+		'storyos_organization'       => [ 'organization_name', 'organization_type', 'description', 'leadership', 'goals', 'story_world' ],
+		'storyos_episode'            => [ 'episode_number', 'title', 'synopsis', 'status', 'project' ],
+		'storyos_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
+		'storyos_shot'               => [ 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene' ],
+		'storyos_storyboard_frame'   => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
+		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
+		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
+	];
+
+	return $expected_fields[ $cpt ] ?? [];
+}
+
+/**
+ * Validate that a StoryOS CPT's registered fields match the canonical schema contract.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function storyos_validate_schema_alignment(): array {
+	$report = [];
+	foreach ( array_keys( storyos_get_all_cpts() ) as $cpt ) {
+		$registered_fields = storyos_get_fields( $cpt );
+		$registered_field_names = array_keys( $registered_fields );
+		$expected_fields = storyos_expected_fields_for_cpt( $cpt );
+		$missing_fields = array_values( array_diff( $expected_fields, $registered_field_names ) );
+
+		$report[ $cpt ] = [
+			'expected'   => $expected_fields,
+			'registered' => $registered_field_names,
+			'missing'    => $missing_fields,
+			'has_alignment' => empty( $missing_fields ),
+		];
+	}
+
+	return $report;
 }
 
 /**
@@ -457,13 +519,17 @@ function storyos_schema_hints_from_meta( string $cpt, array $meta ): array {
 }
 
 /**
- * Sanitize a story graph ID.
+ * Sanitize a story graph ID into a stable slug-like identifier.
  *
  * @param mixed $id The ID.
- * @return int
+ * @return string
  */
-function sanitize_story_id( $id ): int {
-	return absint( $id );
+function sanitize_story_id( $id ): string {
+	$raw = (string) $id;
+	$sanitized = strtolower( preg_replace( '/[^a-z0-9]+/', '-', $raw ) ?? $raw );
+	$sanitized = trim( $sanitized, '-' );
+
+	return $sanitized !== '' ? $sanitized : 'story';
 }
 
 /**

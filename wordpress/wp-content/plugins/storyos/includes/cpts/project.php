@@ -22,7 +22,7 @@ class Project {
 	/**
 	 * Register the Project CPT.
 	 */
-	private static function register_cpt(): void {
+	public static function register_cpt(): void {
 		$fields = [
 		'project_name'        => [
 			'type'        => 'text',
