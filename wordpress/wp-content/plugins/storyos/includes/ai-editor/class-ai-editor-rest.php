@@ -133,14 +133,44 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function chat( \WP_REST_Request $request ): \WP_REST_Response {
-		$prompt    = $request->get_param( 'prompt' );
-		$post_id   = $request->get_param( 'post_id' );
-		$agent     = $request->get_param( 'agent' );
-		$action    = $request->get_param( 'action' ) ?: 'chat';
+		// Sanitize all input parameters.
+		$prompt    = sanitize_text_field( $request->get_param( 'prompt' ) );
+		$post_id   = absint( $request->get_param( 'post_id' ) );
+		$agent     = sanitize_text_field( $request->get_param( 'agent' ) );
+		$action    = sanitize_text_field( $request->get_param( 'action' ) ) ?: 'chat';
+
+		// Validate action against allowed values.
+		$allowed_actions = [ 'chat', 'analyze', 'generate', 'continuity' ];
+		if ( ! in_array( $action, $allowed_actions, true ) ) {
+			$action = 'chat';
+		}
+
+		// Validate agent if provided.
+		if ( ! empty( $agent ) ) {
+			$allowed_agents = [ 'story', 'prompt', 'production', 'technical', 'editorial' ];
+			if ( ! in_array( $agent, $allowed_agents, true ) ) {
+				$agent = ''; // Reset to empty to trigger auto-routing.
+			}
+		}
 
 		// Build context if post_id provided.
 		$context = [];
 		if ( $post_id ) {
+			// Verify post exists and user has permission.
+			if ( ! get_post( $post_id ) ) {
+				return new \WP_REST_Response( [
+					'success' => false,
+					'error'   => 'Invalid post ID.',
+				], 400 );
+			}
+			$post_type = get_post_type( $post_id );
+			if ( ! $post_type ) {
+				return new \WP_REST_Response( [
+					'success' => false,
+					'error'   => 'Invalid post ID.',
+				], 400 );
+			}
+
 			$context_builder = new AI_Context_Builder();
 			$context = $context_builder->build_post_context( $post_id );
 		}
@@ -189,9 +219,9 @@ class AI_Editor_REST {
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
 			'data'    => $result['content'] ?? '',
-			'agent'   => $agent,
-			'backend' => $result['backend'] ?? 'unknown',
-			'error'   => $result['error'] ?? null,
+			'agent'   => esc_html( $agent ),
+			'backend' => esc_html( $result['backend'] ?? 'unknown' ),
+			'error'   => ! empty( $result['error'] ) ? esc_html( $result['error'] ) : null,
 		], empty( $result['error'] ) ? 200 : 500 );
 	}
 
@@ -202,8 +232,17 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function analyze( \WP_REST_Request $request ): \WP_REST_Response {
-		$prompt  = $request->get_param( 'prompt' );
-		$post_id = $request->get_param( 'post_id' );
+		// Sanitize input parameters.
+		$prompt  = sanitize_text_field( $request->get_param( 'prompt' ) );
+		$post_id = absint( $request->get_param( 'post_id' ) );
+
+		// Validate prompt length to prevent abuse.
+		if ( empty( $prompt ) || strlen( $prompt ) > 10000 ) {
+			return new \WP_REST_Response( [
+				'success' => false,
+				'error'   => 'Invalid prompt length.',
+			], 400 );
+		}
 
 		$context_builder = new AI_Context_Builder();
 		$context = $post_id ? $context_builder->build_post_context( $post_id ) : [];
@@ -222,7 +261,7 @@ class AI_Editor_REST {
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
 			'data'    => $result['content'] ?? '',
-			'error'   => $result['error'] ?? null,
+			'error'   => ! empty( $result['error'] ) ? esc_html( $result['error'] ) : null,
 		], empty( $result['error'] ) ? 200 : 500 );
 	}
 
@@ -233,9 +272,18 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function generate( \WP_REST_Request $request ): \WP_REST_Response {
-		$prompt  = $request->get_param( 'prompt' );
-		$post_id = $request->get_param( 'post_id' );
-		$agent   = $request->get_param( 'agent' );
+		// Sanitize input parameters.
+		$prompt  = sanitize_text_field( $request->get_param( 'prompt' ) );
+		$post_id = absint( $request->get_param( 'post_id' ) );
+		$agent   = sanitize_text_field( $request->get_param( 'agent' ) );
+
+		// Validate prompt length.
+		if ( empty( $prompt ) || strlen( $prompt ) > 10000 ) {
+			return new \WP_REST_Response( [
+				'success' => false,
+				'error'   => 'Invalid prompt length.',
+			], 400 );
+		}
 
 		$context_builder = new AI_Context_Builder();
 		$context = $post_id ? $context_builder->build_post_context( $post_id ) : [];
@@ -253,8 +301,8 @@ class AI_Editor_REST {
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
 			'data'    => $result['content'] ?? '',
-			'agent'   => $agent,
-			'error'   => $result['error'] ?? null,
+			'agent'   => esc_html( $agent ),
+			'error'   => ! empty( $result['error'] ) ? esc_html( $result['error'] ) : null,
 		], empty( $result['error'] ) ? 200 : 500 );
 	}
 
@@ -265,18 +313,26 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function continuity_check( \WP_REST_Request $request ): \WP_REST_Response {
-		$post_id = $request->get_param( 'post_id' );
+		// Sanitize input.
+		$post_id = absint( $request->get_param( 'post_id' ) );
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			return new \WP_REST_Response( [
+				'success' => false,
+				'error'   => 'Invalid post ID.',
+			], 400 );
+		}
 
 		$context_builder = new AI_Context_Builder();
 		$context = $context_builder->build_post_context( $post_id );
 
 		$continuity_prompt = "Check the following scene for continuity errors with the overall story:\n\n";
 		if ( isset( $context['scene_content'] ) ) {
-			$continuity_prompt .= "Scene: {$context['scene_content']}\n\n";
+			$continuity_prompt .= "Scene: " . wp_strip_all_tags( $context['scene_content'] ) . "\n\n";
 		}
 		$continuity_prompt .= "Check for:\n1. Character consistency\n2. Timeline errors\n3. Location inconsistencies\n4. Plot holes\n\n";
 		if ( isset( $context['project_logline'] ) ) {
-			$continuity_prompt .= "Project Logline: {$context['project_logline']}\n\n";
+			$continuity_prompt .= "Project Logline: " . wp_strip_all_tags( $context['project_logline'] ) . "\n\n";
 		}
 
 		$llm_client = new AI_LLM_Client();
@@ -288,7 +344,7 @@ class AI_Editor_REST {
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
 			'data'    => $result['content'] ?? '',
-			'error'   => $result['error'] ?? null,
+			'error'   => ! empty( $result['error'] ) ? esc_html( $result['error'] ) : null,
 		], empty( $result['error'] ) ? 200 : 500 );
 	}
 
@@ -299,12 +355,13 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function get_context( \WP_REST_Request $request ): \WP_REST_Response {
-		$post_id = $request->get_param( 'post_id' );
+		// Sanitize input.
+		$post_id = absint( $request->get_param( 'post_id' ) );
 
-		if ( ! $post_id ) {
+		if ( ! $post_id || ! get_post( $post_id ) ) {
 			return new \WP_REST_Response( [
 				'success' => false,
-				'error'   => 'post_id required',
+				'error'   => 'Invalid post ID.',
 			], 400 );
 		}
 
@@ -327,13 +384,13 @@ class AI_Editor_REST {
 		$maf_bridge = new AI_MAF_Bridge( new AI_LLM_Client() );
 		$agents = $maf_bridge->get_enabled_agents();
 
-		// Format for frontend.
+		// Format for frontend with proper escaping.
 		$formatted = [];
 		foreach ( $agents as $name => $agent ) {
 			$formatted[] = [
-				'name'        => $name,
-				'description' => $agent['description'] ?? '',
-				'department'  => $agent['department'] ?? '',
+				'name'        => esc_html( $name ),
+				'description' => esc_html( $agent['description'] ?? '' ),
+				'department'  => esc_html( $agent['department'] ?? '' ),
 			];
 		}
 
@@ -353,14 +410,14 @@ class AI_Editor_REST {
 		return new \WP_REST_Response( [
 			'success' => true,
 			'data'    => [
-				'backend'       => get_option( 'storyos_ai_backend', 'local' ),
-				'url'           => get_option( 'storyos_ai_url', 'http://localhost:11434' ),
-				'model'         => get_option( 'storyos_ai_model', 'qwen3.6:35b-a3b-q4_K_M' ),
-				'max_tokens'    => get_option( 'storyos_ai_max_tokens', 4096 ),
-				'temperature'   => get_option( 'storyos_ai_temperature', 0.7 ),
-				'fallback_enabled' => get_option( 'storyos_ai_fallback_enabled', true ),
-				'rate_limit'    => get_option( 'storyos_ai_rate_limit', 10 ),
-				'cache_ttl'     => get_option( 'storyos_ai_cache_ttl', 3600 ),
+				'backend'        => esc_html( get_option( 'storyos_ai_backend', 'local' ) ),
+				'url'            => esc_url_raw( get_option( 'storyos_ai_url', 'http://localhost:11434' ) ),
+				'model'          => esc_html( get_option( 'storyos_ai_model', 'qwen3.6:35b-a3b-q4_K_M' ) ),
+				'max_tokens'     => absint( get_option( 'storyos_ai_max_tokens', 4096 ) ),
+				'temperature'    => floatval( get_option( 'storyos_ai_temperature', 0.7 ) ),
+				'fallback_enabled' => rest_sanitize_boolean( get_option( 'storyos_ai_fallback_enabled', true ) ),
+				'rate_limit'     => absint( get_option( 'storyos_ai_rate_limit', 10 ) ),
+				'cache_ttl'      => absint( get_option( 'storyos_ai_cache_ttl', 3600 ) ),
 			],
 		], 200 );
 	}
@@ -377,7 +434,14 @@ class AI_Editor_REST {
 
 		return new \WP_REST_Response( [
 			'success' => true,
-			'data'    => $health,
+			'data'    => [
+				'backends' => [
+					'local'  => ! empty( $health['local']['healthy'] ),
+					'openai' => ! empty( $health['openai']['healthy'] ),
+				],
+				'cache_enabled' => true,
+				'rate_limiting' => true,
+			],
 		], 200 );
 	}
 

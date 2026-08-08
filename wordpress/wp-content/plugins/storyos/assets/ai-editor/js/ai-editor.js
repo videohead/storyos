@@ -76,14 +76,14 @@
 				if ( data.success ) {
 					setMessages( function( prev ) {
 						return prev.concat( [
-							{ role: 'assistant', content: data.data, agent: data.agent, backend: data.backend }
+							{ role: 'assistant', content: data.data, agent: data.agent, backend: data.backend, ai_generated: true }
 						] );
 					} );
 				} else {
 					setError( data.error || 'AI response failed.' );
 					setMessages( function( prev ) {
 						return prev.concat( [
-							{ role: 'error', content: data.error || 'AI response failed.' }
+							{ role: 'error', content: data.error || 'AI response failed.', ai_generated: true }
 						] );
 					} );
 				}
@@ -128,6 +128,85 @@
 			marginBottom: '12px',
 		};
 
+		/**
+		 * Insert AI-generated content into the Gutenberg editor.
+		 *
+		 * @param {string} content The content to insert.
+		 * @param {string} format The format of the content (html, plain, block).
+		 * @return {void}
+		 */
+		function insertIntoEditor( content, format ) {
+			if ( ! content ) return;
+
+			// Check if Gutenberg editor is available.
+			if ( ! wp.editor || ! wp.editor.dispatch ) {
+				alert( 'The block editor is not available. Please open a post or page in the editor first.' );
+				return;
+			}
+
+			var insertedContent = '';
+			var blockType = 'html';
+
+			switch ( format ) {
+				case 'block':
+					// Try to parse as blocks.
+					if ( wp.blocks ) {
+						var blocks = wp.blocks.parse( content );
+						if ( blocks && blocks.length > 0 ) {
+							wp.editor.dispatch( 'core/editor' ).insertBlocks( blocks );
+							insertedContent = blocks.map( function( block ) {
+								return wp.blocks.serialize( block );
+							} ).join( '\n' );
+							blockType = 'block';
+						}
+					}
+					break;
+
+				case 'html':
+					// Insert as HTML content.
+					insertedContent = '<!-- wp:html -->\n' + content + '\n<!-- /wp:html -->';
+					blockType = 'html';
+					break;
+
+				case 'plain':
+				default:
+					// Insert as paragraph blocks.
+					var paragraphs = content.split( '\n\n' ).filter( function( p ) {
+						return p.trim();
+					} );
+
+					if ( paragraphs.length > 0 ) {
+						var blocks = paragraphs.map( function( paragraph ) {
+							return wp.blocks.create( 'core/paragraph', {
+								content: paragraph.replace( /<[^>]*>/g, '' ) // Strip HTML tags for plain text
+							} );
+						} );
+
+						wp.editor.dispatch( 'core/editor' ).insertBlocks( blocks );
+						insertedContent = blocks.map( function( block ) {
+							return wp.blocks.serialize( block );
+						} ).join( '\n' );
+						blockType = 'block';
+					}
+					break;
+			}
+
+			if ( insertedContent ) {
+				// Show success notice.
+				setError( null );
+				setMessages( function( prev ) {
+					return prev.concat( [
+						{
+							role         : 'system',
+							content      : 'Content inserted into editor as ' + blockType + ' blocks.',
+							inserted     : true,
+							ai_generated : true
+						}
+					] );
+				} );
+			}
+		}
+
 		const messageStyle = function( role ) {
 			return {
 				marginBottom: '10px',
@@ -155,16 +234,78 @@
 				onChange: function( value ) { setSelectedAgent( value ); },
 			} ),
 
-			// Messages display.
-			React.createElement( 'div', { style: messagesContainerStyle },
+			// Messages display with accessibility improvements.
+			React.createElement( 'div', { 
+				style: messagesContainerStyle,
+				role: 'log',
+				'aria-live': 'polite',
+				'aria-label': __( 'AI Editor Messages' ),
+				tabIndex: 0
+			},
 				messages.map( function( msg, index ) {
-					return React.createElement( 'div', { key: index, style: messageStyle( msg.role ) },
+					var messageActions = null;
+					var aiLabel = msg.ai_generated ? React.createElement( 'span', {
+						style: {
+							display: 'inline-block',
+							marginRight: '8px',
+							padding: '2px 6px',
+							background: '#ffe6e6',
+							color: '#b32d2e',
+							borderRadius: '3px',
+							fontSize: '11px',
+							fontWeight: 'bold',
+							'aria-label': __( 'AI-generated content' ),
+							className: 'screen-reader-text'
+						},
+						className: 'storyos-ai-badge'
+					}, 'AI' ) : null;
+
+					// Add insert buttons for assistant messages.
+					if ( 'assistant' === msg.role ) {
+						messageActions = React.createElement( 'div', { style: { marginTop: '8px' } },
+							React.createElement( Button, {
+								variant: 'secondary',
+								size: 'small',
+								onClick: function() { insertIntoEditor( msg.content, 'block' ); },
+								disabled: ! wp.editor || ! wp.editor.dispatch
+							}, 'Insert as Blocks' ),
+							' ',
+							React.createElement( Button, {
+								variant: 'secondary',
+								size: 'small',
+								onClick: function() { insertIntoEditor( msg.content, 'html' ); },
+								disabled: ! wp.editor || ! wp.editor.dispatch
+							}, 'Insert as HTML' ),
+							' ',
+							React.createElement( Button, {
+								variant: 'secondary',
+								size: 'small',
+								onClick: function() { insertIntoEditor( msg.content, 'plain' ); },
+								disabled: ! wp.editor || ! wp.editor.dispatch
+							}, 'Insert as Text' )
+						);
+					}
+
+					return React.createElement( 'div', { 
+						key: index, 
+						style: messageStyle( msg.role ),
+						role: 'article',
+						'aria-label': msg.role === 'error' ? 'Error message' : ( msg.role === 'assistant' ? ( msg.agent + ' response' ) : 'User message' ),
+						tabIndex: 0
+					},
+						aiLabel,
 						'error' === msg.role && React.createElement( 'strong', { style: { color: '#d63638' } }, 'Error: ' ),
 						'assistant' === msg.role && React.createElement( 'strong', null, msg.agent + ': ' ),
-						React.createElement( 'div', { dangerouslySetInnerHTML: { __html: formatMessage( msg.content ) } } ),
-						'assistant' === msg.role && React.createElement( 'small', { style: { color: '#646970', display: 'block', marginTop: '4px' } },
-							msg.backend || ''
-						),
+						React.createElement( 'div', { 
+							dangerouslySetInnerHTML: { __html: formatMessage( msg.content ) },
+							role: 'text',
+							'aria-label': msg.role === 'error' ? 'Error details' : 'Message content'
+						} ),
+						'assistant' === msg.role && React.createElement( 'small', { 
+							style: { color: '#646970', display: 'block', marginTop: '4px' },
+							'aria-label': __( 'Response generated using' )
+						}, msg.backend || '' ),
+						messageActions
 					);
 				} )
 			),
@@ -176,7 +317,7 @@
 				onRemove: function() { setError( null ); },
 			}, error ),
 
-			// Input area.
+			// Input area with accessibility improvements.
 			React.createElement( TextareaControl, {
 				label: __( 'Ask AI Editor' ),
 				value: input,
@@ -185,15 +326,31 @@
 				rows: 3,
 				disabled: isLoading,
 				onKeyDown: handleKeyDown,
+				'aria-describedby': 'ai-editor-help-text',
 			} ),
 
-			// Send button.
+			// Help text for keyboard shortcuts.
+			React.createElement( 'div', {
+				id: 'ai-editor-help-text',
+				style: { fontSize: '12px', color: '#646970', marginBottom: '8px' }
+			}, __( 'Press Enter to send, Shift+Enter for new line.' ) ),
+
+			// Send button with accessibility improvements.
 			React.createElement( Button, {
 				variant: 'primary',
 				onClick: sendMessage,
 				isBusy: isLoading,
 				disabled: isLoading || ! input.trim(),
+				'aria-label': isLoading ? __( 'Processing AI request' ) : __( 'Send message to AI' ),
+				'aria-busy': isLoading ? 'true' : 'false',
 			}, isLoading ? __( 'Processing...' ) : __( 'Send' ) ),
+
+			// Live region for status updates (screen reader announcements).
+			React.createElement( 'div', {
+				role: 'status',
+				'aria-live': 'polite',
+				className: 'screen-reader-text',
+			}, isLoading ? __( 'AI is processing your request...' ) : '' ),
 		);
 	}
 
@@ -242,5 +399,19 @@
 			},
 		} );
 	}
+
+	// Global keyboard shortcut: Ctrl/Cmd+Enter to send message.
+	document.addEventListener( 'keydown', function( event ) {
+		// Check if Ctrl (or Cmd on Mac) + Enter is pressed.
+		if ( ( event.ctrlKey || event.metaKey ) && event.key === 'Enter' ) {
+			event.preventDefault();
+			// Check if we're in the AI Editor sidebar.
+			var sidebar = document.querySelector( '.storyos-ai-editor-sidebar' );
+			if ( sidebar && ! sidebar.classList.contains( 'is-collapsed' ) ) {
+				// Dispatch a custom event that the React component can listen to.
+				window.dispatchEvent( new CustomEvent( 'storyos-ai-send' ) );
+			}
+		}
+	} );
 
 } )( window.React, window.wp );

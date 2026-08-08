@@ -59,9 +59,11 @@ class AI_LLM_Client {
 			];
 		}
 
-		// Check cache.
+		// Check cache (both in-memory and transient).
 		$cache_key = md5( $prompt . $model . $system_prompt );
 		$cache_ttl = get_option( 'storyos_ai_cache_ttl', 3600 );
+
+		// First check in-memory cache.
 		if ( isset( $this->response_cache[ $cache_key ] ) ) {
 			$cached = $this->response_cache[ $cache_key ];
 			if ( time() - $cached['timestamp'] < $cache_ttl ) {
@@ -74,17 +76,45 @@ class AI_LLM_Client {
 			unset( $this->response_cache[ $cache_key ] );
 		}
 
+		// Then check WordPress transient cache (persists across requests).
+		$transient_key = 'storyos_ai_' . $cache_key;
+		$cached_content = get_transient( $transient_key );
+		if ( false !== $cached_content && is_array( $cached_content ) ) {
+			// Validate transient data.
+			if ( isset( $cached_content['content'], $cached_content['backend'], $cached_content['tokens'] ) ) {
+				// Update in-memory cache with transient data.
+				$this->response_cache[ $cache_key ] = [
+					'content'   => $cached_content['content'],
+					'backend'   => $cached_content['backend'],
+					'tokens'    => $cached_content['tokens'],
+					'timestamp' => time(),
+				];
+				return [
+					'content' => $cached_content['content'],
+					'backend' => $cached_content['backend'],
+					'tokens'  => $cached_content['tokens'],
+				];
+			}
+		}
+
 		// Try primary backend.
 		$result = $this->call_backend( $backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
 
 		if ( $result && empty( $result['error'] ) ) {
-			// Cache the result.
+			// Cache the result in both in-memory and transient storage.
+			$cache_data = [
+				'content'   => $result['content'],
+				'backend'   => $result['backend'],
+				'tokens'    => $result['tokens'] ?? 0,
+			];
 			$this->response_cache[ $cache_key ] = [
 				'content'   => $result['content'],
 				'backend'   => $result['backend'],
 				'tokens'    => $result['tokens'] ?? 0,
 				'timestamp' => time(),
 			];
+			// Store in WordPress transient for persistence across requests.
+			set_transient( $transient_key, $cache_data, $cache_ttl );
 			return $result;
 		}
 
