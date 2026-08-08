@@ -630,7 +630,7 @@ class Search_Widget extends \WP_Widget {
 	 * @param array $args     Widget arguments.
 	 * @param array $instance Widget instance settings.
 	 */
-	public function widget( \WP_Widget_Front_End_Display $args, array $instance ): void {
+	public function widget( $args, $instance ): void {
 		echo $args['before_widget']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 
 		$title    = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Story Search', 'storyos' );
@@ -676,7 +676,7 @@ class Search_Widget extends \WP_Widget {
 	 *
 	 * @param array $instance Previous widget settings.
 	 */
-	public function form( array $instance ): void {
+	public function form( $instance ): void {
 		$title      = isset( $instance['title'] ) ? $instance['title'] : __( 'Story Search', 'storyos' );
 		$mode       = isset( $instance['mode'] ) ? $instance['mode'] : 'hybrid';
 		$show_filters = isset( $instance['show_filters'] ) ? $instance['show_filters'] : true;
@@ -730,7 +730,7 @@ class Search_Widget extends \WP_Widget {
 	 * @param array $old_instance Old widget settings.
 	 * @return array Sanitized settings.
 	 */
-	public function update( array $new_instance, array $old_instance ): array {
+	public function update( $new_instance, $old_instance ) {
 		$instance = [];
 		$instance['title']      = sanitize_text_field( $new_instance['title'] );
 		$instance['mode']       = in_array( $new_instance['mode'], [ 'hybrid', 'semantic', 'keyword' ], true ) ? $new_instance['mode'] : 'hybrid';

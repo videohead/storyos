@@ -10,6 +10,7 @@
 
 namespace StoryOS\Utils;
 
+if ( ! function_exists( __NAMESPACE__ . '\orchestrator_url' ) ) :
 /**
  * Get the orchestrator URL for continuity validation.
  *
@@ -19,6 +20,7 @@ function orchestrator_url(): string {
 	$url = get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
 	return rtrim( $url, '/' );
 }
+endif;
 
 /**
  * Fetch continuity validation from the orchestrator.
@@ -361,7 +363,9 @@ function entity_permalink( string $type, int $id ): string {
  * @param int    $id The entity ID.
  * @return string
  */
+if ( ! function_exists( __NAMESPACE__ . '\entity_display_name' ) ) :
 function entity_display_name( string $type, int $id ): string {
 	$title = get_the_title( $id );
 	return $title ? $title : sprintf( '#%d', $id );
 }
+endif;

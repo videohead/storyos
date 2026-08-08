@@ -143,6 +143,12 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/continuity-checker.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationship-graph.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/dashboard.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/metaboxes.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
 
 	// Register CPTs.
 	CPT\Project::init();
@@ -191,6 +197,7 @@ function init(): void {
 	Admin\MetaBoxes::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();
+	Admin\Analytics_Panel::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {

@@ -426,6 +426,26 @@ When one agent's output becomes another agent's input:
 - Do NOT run `lando restart wordpress` or similar for PHP changes.
 - Only restart containers when changing Docker configuration, adding dependencies, or modifying infrastructure.
 
+### WordPress — WP_Widget Method Signatures
+- WordPress's `WP_Widget` base class methods (`widget()`, `form()`, `update()`) have **no type hints**.
+- Child classes **must not** add type hints like `array $instance` or return types like `: void` — PHP 8.x enforces signature compatibility and throws a fatal error.
+- **Wrong**: `public function form( array $instance ): void`
+- **Correct**: `public function form( $instance ): void` (keep `: void` if desired, but no parameter type hints)
+- **Wrong**: `public function widget( \WP_Widget_Front_End_Display $args, array $instance ): void`
+- **Correct**: `public function widget( $args, $instance ): void`
+- **Wrong**: `public function update( array $new_instance, array $old_instance ): array`
+- **Correct**: `public function update( $new_instance, $old_instance )`
+
+### WordPress — Duplicate Function Declarations
+- Multiple utility files in the same namespace (`StoryOS\Utils`) may be loaded by the plugin.
+- If a helper function like `orchestrator_url()` is defined in more than one file, PHP throws "Cannot redeclare" fatal error.
+- **Fix**: Wrap shared helper functions in `if ( ! function_exists( __NAMESPACE__ . '\function_name' ) ) :` guards.
+- Always check for existing function definitions before adding new ones in `includes/utils/`.
+
+### WordPress — OPcache
+- PHP OPcache can cache old versions of files.
+- If changes don't appear, clear OPcache via `lando exec appserver -- php -r "opcache_reset();"` — do NOT restart the container.
+
 ### Python Tests (orchestrator/)
 - Run pytest: `cd orchestrator && pytest tests/ -v`
 - Test structure:

@@ -15,6 +15,7 @@
 
 namespace StoryOS\Utils;
 
+if ( ! function_exists( __NAMESPACE__ . '\orchestrator_url' ) ) :
 /**
  * Get the orchestrator URL from options.
  *
@@ -23,6 +24,7 @@ namespace StoryOS\Utils;
 function orchestrator_url(): string {
 	return get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
 }
+endif;
 
 /**
  * Fetch relationship graph from orchestrator.
@@ -321,13 +323,14 @@ function get_character_cooccurrence( array $network ): array {
 }
 
 /**
- * Get entity display name.
+ * Get entity display name for graph analytics.
  *
  * @param int    $post_id The post ID.
  * @param string $post_type The post type slug.
  * @return string The entity display name.
  */
-function entity_display_name( int $post_id, string $post_type ): string {
+if ( ! function_exists( __NAMESPACE__ . '\graph_entity_display_name' ) ) :
+function graph_entity_display_name( int $post_id, string $post_type ): string {
 	$post = get_post( $post_id );
 	if ( ! $post ) {
 		return sprintf( '%s #%d (deleted)', $post_type, $post_id );
@@ -340,15 +343,17 @@ function entity_display_name( int $post_id, string $post_type ): string {
 
 	return $title;
 }
+endif;
 
 /**
- * Get entity permalink.
+ * Get entity permalink for graph analytics.
  *
  * @param int    $post_id The post ID.
  * @param string $post_type The post type slug.
  * @return string The entity permalink.
  */
-function entity_permalink( int $post_id, string $post_type ): string {
+if ( ! function_exists( __NAMESPACE__ . '\graph_entity_permalink' ) ) :
+function graph_entity_permalink( int $post_id, string $post_type ): string {
 	$post = get_post( $post_id );
 	if ( ! $post ) {
 		return '#';
@@ -356,6 +361,7 @@ function entity_permalink( int $post_id, string $post_type ): string {
 
 	return get_permalink( $post_id );
 }
+endif;
 
 /**
  * Get relationship type label.
