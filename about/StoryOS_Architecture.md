@@ -18,7 +18,7 @@ Story Core, Generation Core, Agent Core, Script Ecosystem, Production & Editoria
 
 ## MVP
 
-Projects, Characters, Locations, Scenes, Assets, ComfyUI Generate integration, advisor layer, Celtx script sync.
+Projects, Characters, Locations, Scenes, Assets, ComfyUI Generate integration, advisor layer, Celtx script sync, Web Stories sync.
 
 ## Roadmap
 
@@ -53,9 +53,18 @@ Production   Script Ecosystem
  Planning    Celtx Sync
     ↓           ↓
    EDL ←── Script Import/Export
-    ↓
-Editorial Timeline
+    ↓           ↓
+Editorial   Web Stories Sync
+ Timeline    (export/import)
 ```
+
+## WordPress Plugins
+
+| Plugin | Purpose | Status |
+|--------|---------|--------|
+| EDL Import/Export | Edit Decision List import/export for NLE integration | ✅ Implemented |
+| Web Stories Sync | Bidirectional sync with Google Web Stories | ✅ Implemented |
+| Celtx Sync | Script import/export with Celtx format | ✅ Implemented |
 
 ## Phase Status
 
@@ -64,6 +73,7 @@ Editorial Timeline
 | 1 | Story Core | ✅ Complete |
 | 2 | Generation Core | ✅ Complete |
 | 3 | Agent Core | ✅ Complete |
-| 4 | Storyboarding & Production | 📋 WordPress Plugins |
+| 4 | Storyboarding & Production | ✅ WordPress Plugins |
 | 5 | Script Ecosystem | ✅ Complete (Celtx) |
-| 6 | Editorial Ecosystem | ✅ EDL Implemented (CMX 3600, XML, Drop-Frame, Handles) | 
+| 6 | Editorial Ecosystem | ✅ EDL Implemented (CMX 3600, XML, Drop-Frame, Handles) |
+| 7 | Web Publishing | ✅ Web Stories Sync Implemented | 
