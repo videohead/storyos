@@ -176,7 +176,12 @@ Extend StoryOS into post-production workflows.
 
 ## Deliverables
 
-- EDL Export
+- ✅ EDL Export (CMX 3600 ASCII & SMPTE 436m XML)
+- ✅ Drop-Frame Timecode for 29.97/59.94fps NTSC
+- ✅ Frame Handles (Pre-Roll / Post-Roll) for Unreal Engine
+- ✅ 32-Character Clip Names for Premiere Pro
+- ✅ Multi-Track Support (Video + Audio)
+- ✅ NLE Compatibility (Unreal Engine, Premiere Pro, DaVinci Resolve, Avid, FCP)
 - Timeline Metadata
 - Scene Mapping
 - Shot Mapping
@@ -184,9 +189,10 @@ Extend StoryOS into post-production workflows.
 
 ## Future Deliverables
 
-- XML Export
 - AAF Export
-- NLE Integrations
+- OMF Export
+- NLE-Specific Plugins (Premiere Pro Panel, DaVinci Resolve Plugin)
+- Direct Media Linking (EDL with absolute file paths)
 
 ---
 

@@ -66,4 +66,4 @@ Editorial Timeline
 | 3 | Agent Core | ✅ Complete |
 | 4 | Storyboarding & Production | 📋 WordPress Plugins |
 | 5 | Script Ecosystem | ✅ Complete (Celtx) |
-| 6 | Editorial Ecosystem | 📋 Planned | 
+| 6 | Editorial Ecosystem | ✅ EDL Implemented (CMX 3600, XML, Drop-Frame, Handles) | 

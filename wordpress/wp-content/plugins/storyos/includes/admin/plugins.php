@@ -70,6 +70,22 @@ class Plugins {
 			);
 		}
 
+		// EDL Import/Export plugin.
+		if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php' ) ) {
+			self::register_plugin(
+				'edl',
+				'StoryOS - EDL Import/Export',
+				[
+					'name'        => 'EDL Import/Export',
+					'description' => 'Import and export Edit Decision Lists (ASCII/CMX 3600 & XML) for StoryOS projects and episodes.',
+					'version'     => '1.0.0',
+					'author'      => 'StoryOS Contributors',
+					'icon'        => 'dashicons-media-video',
+					'file'        => 'plugins/edl/edl-import-export.php',
+				]
+			);
+		}
+
 		// Future integrations can be registered here:
 		// self::register_plugin( 'integration-name', 'Plugin Name', [ ... ] );
 	}

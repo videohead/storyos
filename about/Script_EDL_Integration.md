@@ -273,19 +273,70 @@ All data originates from Story Graph entities.
 
 ## Purpose
 
-Provide editorial systems with structured timeline information.
+Provide editorial systems with structured timeline information from StoryOS projects and episodes. Enables bidirectional workflow between StoryOS shot planning and professional NLEs (Non-Linear Editors).
+
+**Status**: ✅ Implemented — CMX 3600 ASCII and SMPTE 436m XML export/import
+
+## Supported Formats
+
+| Format | Import | Export | Status |
+|--------|--------|--------|--------|
+| CMX 3600 (ASCII) | ✅ | ✅ | ✅ Complete |
+| SMPTE 436m (XML) | ✅ | ✅ | ✅ Complete |
+| AAF | ❌ | ❌ | 📋 Future |
+
+## NLE Compatibility
+
+Fully compatible with:
+
+- ✅ **Unreal Engine Sequencer** — pre-roll/post-roll handles, drop-frame timecode
+- ✅ **Adobe Premiere Pro** — 32-character clip names, drop-frame timecode
+- ✅ **DaVinci Resolve** — multi-track (V/A), drop-frame timecode
+- ✅ **Avid Media Composer** — CMX 3600 standard, multi-track
+- ✅ **Final Cut Pro** — XML format, standard EDL
+
+## Features
+
+### Export
+- CMX 3600 ASCII format (universal NLE compatibility)
+- SMPTE 436m XML format (structured XML)
+- Drop-frame timecode for 29.97/59.94fps NTSC
+- Pre-roll / Post-roll handles (Unreal Engine Sequencer)
+- 32-character clip names (Premiere Pro)
+- Configurable video tracks (V1, V2, V C) and audio tracks (A1, A2, A C)
+- Frame rate presets: 23.976, 24, 25, 29.97, 30, 50, 59.94, 60
+
+### Import
+- Upload `.txt`, `.edl`, or `.xml` EDL files
+- Preview detected clips before importing
+- Automatic format detection (CMX 3600 / XML)
+- Frame rate conversion support
+
+## Unreal Engine Sequencer Workflow
+
+1. **Export from StoryOS** → Shot timeline as EDL with pre-roll/post-roll handles
+2. **Render in Unreal Engine** → Sequencer exports video clips + EDL
+3. **Edit in NLE** → Import EDL into Premiere Pro/DaVinci Resolve, link media, make edits
+4. **Re-import to UE** → Export edited EDL from NLE, import back into Unreal Engine Sequencer
+5. **Sync Changes** → Updated timing/cuts reflected in the Unreal Engine sequence
 
 ## Export Targets
 
-### Phase 1
+### ✅ Complete
 
-- EDL
+- CMX 3600 ASCII EDL
+- SMPTE 436m XML EDL
+- Drop-frame timecode support
+- Frame handles (pre-roll/post-roll)
+- Multi-track (video + audio)
+- 32-character clip names
 
 ### Future
 
-- XML
-- AAF
-- NLE-specific exports
+- AAF (Advanced Authoring Format)
+- OMF (Open Media Framework)
+- NLE-specific plugins (Premiere Pro panel, DaVinci Resolve plugin)
+- Direct media linking (EDL with absolute file paths)
 
 ---
 
@@ -300,10 +351,14 @@ Storyboard
     ↓
 Timeline Segment
     ↓
-EDL Export
+EDL Export (CMX 3600 / XML)
+    ↓
+NLE Editorial (Premiere Pro, DaVinci Resolve, Avid, Unreal Engine)
+    ↓
+EDL Import (optional re-sync)
 ```
 
-This enables early editorial planning.
+This enables early editorial planning and bidirectional NLE integration.
 
 ---
 
@@ -318,6 +373,9 @@ Each shot may contain:
 - Asset References
 - Production Notes
 - Editorial Notes
+- Source In/Out points
+- Record In/Out points
+- Pre-roll / Post-roll handles
 
 ---
 

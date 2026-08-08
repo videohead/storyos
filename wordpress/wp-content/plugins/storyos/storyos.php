@@ -202,6 +202,11 @@ function init(): void {
 	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php' ) ) {
 		require_once STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php';
 	}
+
+	// Load EDL Import/Export integration.
+	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php' ) ) {
+		require_once STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php';
+	}
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
 
