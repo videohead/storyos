@@ -10,7 +10,7 @@ wordpress/*.php
 wordpress/wp-content/uploads/
 wordpress/wp-content/themes/
 !wordpress/wp-content/plugins/storyos/
-!wordpress/wp-content/plugins/comfygeneratebutton/
+!wordpress/wp-content/plugins/storyos/plugins/comfy-generate/
 
 # SCF 
 wordpress/wp-content/plugins/secure-custom-fields/

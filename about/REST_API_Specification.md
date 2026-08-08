@@ -9,7 +9,7 @@ The StoryOS REST API provides a unified integration layer between:
 - WordPress
 - Story Graph
 - Microsoft Agent Framework (MAF)
-- wp-comfy
+- ComfyUI Generate plugin
 - ComfyUI
 - Script Importers
 - Production Workflows

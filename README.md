@@ -4,6 +4,38 @@
 >
 > An Open Source AI Storytelling Operating System built on WordPress, ComfyUI, and Agentic AI.
 
+## Table of Contents
+
+### About StoryOS
+- [StoryOS Architecture](about/StoryOS_Architecture.md) — System overview and component design
+- [Content Model Specification](about/Content_Model_Specification.md) — Data model for stories, characters, scenes, and assets
+- [Story Graph Specification](about/Story_Graph_Specification.md) — Connected story data structure
+- [CPT and SCF Schema](about/CPT_and_SCF_Schema.md) — Custom Post Type and Structured Content Field definitions
+- [REST API Specification](about/REST_API_Specification.md) — API endpoints and usage
+- [SchemaOrg Minimum Surface](about/SchemaOrg_Minimum_Surface.md) — Schema.org integration baseline
+- [SchemaOrg Interoperability Review](about/SchemaOrg_Interoperability_Review.md) — Cross-platform schema analysis
+- [Script EDL Integration](about/Script_EDL_Integration.md) — Edit Decision List support for editorial workflows
+
+### Multi-Agent System
+- [Agent Architecture](about/Agent_Architecture.md) — AI advisor system design
+- [Agents Documentation](about/AGENTS.md) — Agent roles, capabilities, and configuration
+- [Agents Copy](about/AGENTS\ copy.md) — Additional agent reference documentation
+
+### Product & Planning
+- [StoryOD PRD](about/StoryOD_PRD.md) — Product Requirements Document
+- [Roadmap](about/ROADMAP_StoryOS.md) — Project timeline and milestones
+
+### Governance & Community
+- [Contributing Guide](about/CONTRIBUTING_StoryOS.md) — How to contribute to StoryOS
+- [Governance](about/GOVERNANCE_StoryOS.md) — Project governance model
+- [Code of Conduct](about/CODE_OF_CONDUCT_StoryOS.md) — Community guidelines
+
+### Marketing
+- [Brand Guide](about/marketing/StoryOS_Brand_Guide.md) — Brand identity and usage guidelines
+- [Pitch Deck](about/marketing/StoryOS-PitchDeck.png) — Visual pitch deck
+
+---
+
 ## What is StoryOS?
 
 StoryOS is an open-source platform that combines structured story development, AI-assisted creation, production planning, asset generation, and editorial workflows into a unified storytelling environment.

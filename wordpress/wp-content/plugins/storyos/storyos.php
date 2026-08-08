@@ -197,6 +197,11 @@ function init(): void {
 	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php' ) ) {
 		require_once STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php';
 	}
+
+	// Load ComfyUI Generate integration.
+	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php' ) ) {
+		require_once STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php';
+	}
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
 

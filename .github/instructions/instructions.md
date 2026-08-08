@@ -35,8 +35,8 @@ Story Graph as the canonical source of truth.
 | Agent | Responsibility | Maps To |
 |-------|---------------|---------|
 | **Executive Orchestrator** | Task decomposition, routing, result aggregation | Copilot Chat session manager |
-| **Story Advisor** | Story Core: CPTs, content model, Story Graph entities | `wp-comfy/` — WordPress plugin |
-| **Prompt Advisor** | Generation Core: ComfyUI workflows, prompt templates | `wp-comfy/` — orchestrator + ComfyUI |
+| **Story Advisor** | Story Core: CPTs, content model, Story Graph entities | `storyos/` — WordPress plugin |
+| **Prompt Advisor** | Generation Core: ComfyUI workflows, prompt templates | `storyos/plugins/comfy-generate/` — ComfyUI integration |
 | **Production Advisor** | Production planning: shot lists, schedules, storyboards | Future: production modules |
 | **Editorial Advisor** | Editorial workflows: EDL, timeline, continuity | Future: editorial modules |
 | **Technical Advisor** | Infrastructure: Docker, MAF integration, APIs | `multi-agent-framework/` |
@@ -328,7 +328,7 @@ When one agent's output becomes another agent's input:
 
 ## Coding Conventions
 
-### WordPress (wp-comfy/)
+### WordPress (storyos/)
 - Use WordPress Coding Standards (WPCS)
 - Custom Post Types registered in a single plugin file
 - Structured Content Fields via ACF Pro or MetaBox
@@ -336,6 +336,7 @@ When one agent's output becomes another agent's input:
 - All CPTs must support the REST API
 - Use WordPress nonces for all form submissions
 - Sanitize input, escape output
+- Sub-plugins live under `storyos/plugins/` (e.g., `comfy-generate/`, `celtx/`)
 
 ### Python (multi-agent-framework/, orchestrator/)
 - Python 3.10+ type hints

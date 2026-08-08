@@ -54,6 +54,22 @@ class Plugins {
 			);
 		}
 
+		// ComfyUI Generate plugin.
+		if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php' ) ) {
+			self::register_plugin(
+				'comfy-generate',
+				'StoryOS - ComfyUI Generate',
+				[
+					'name'        => 'ComfyUI Generate',
+					'description' => 'Adds a "Send to ComfyUI" button to WordPress posts and forwards jobs to a configurable ComfyUI endpoint.',
+					'version'     => '1.0.0',
+					'author'      => 'StoryOS Contributors',
+					'icon'        => 'dashicons-video-alt3',
+					'file'        => 'plugins/comfy-generate/comfy-generate.php',
+				]
+			);
+		}
+
 		// Future integrations can be registered here:
 		// self::register_plugin( 'integration-name', 'Plugin Name', [ ... ] );
 	}

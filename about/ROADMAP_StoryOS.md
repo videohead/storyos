@@ -44,7 +44,7 @@ Establish the foundational Story Graph and WordPress content model.
 
 ## Primary Repository
 
-- wp-comfy
+- storyos/
 
 ---
 
@@ -69,7 +69,7 @@ Connect story data to AI asset generation workflows.
 
 ## Primary Repository
 
-- wp-comfy
+- storyos/
 
 ---
 

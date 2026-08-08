@@ -1,4 +1,4 @@
-StoryOS Architecture Document v1.0
+StoryOS Product Requirements Document (PRD) v1.0
 
 ## Executive Summary
 
@@ -18,7 +18,7 @@ Story Core, Generation Core, Agent Core, Script Ecosystem, Production & Editoria
 
 ## MVP
 
-Projects, Characters, Locations, Scenes, Assets, wp-comfy integration, advisor layer, Celtx script sync.
+Projects, Characters, Locations, Scenes, Assets, ComfyUI Generate integration, advisor layer, Celtx script sync.
 
 ## Roadmap
 
@@ -34,7 +34,7 @@ StoryOS (WordPress + CPTs + SCF)
 Story Graph (canonical source of truth)
    ↓
 ┌─────────────────────┬──────────────────┐
-│ MAF Advisors        │ wp-comfy         │
+│ MAF Advisors        │ ComfyUI Generate │
 │ Story, Prompt,      │ ComfyUI workflows│
 │ Production, Editorial│ Character,       │
 │ Technical           │ Environment,     │
