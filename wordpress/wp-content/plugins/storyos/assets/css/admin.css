@@ -1,0 +1,48 @@
+/**
+ * StoryOS Admin Styles.
+ *
+ * Minimal styling that relies on WordPress default admin styles.
+ */
+
+.storyos-dashboard .stat-cards {
+	display: grid;
+	grid-template-columns: repeat( auto-fill, minmax( 200px, 1fr ) );
+	gap: 16px;
+	margin: 20px 0;
+}
+
+.storyos-dashboard .stat-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #2271b1;
+	padding: 16px;
+	box-shadow: 0 1px 1px rgba( 0, 0, 0, .04 );
+}
+
+.storyos-dashboard .stat-number {
+	font-size: 32px;
+	font-weight: 460;
+	color: #2271b1;
+	line-height: 1.25;
+}
+
+.storyos-dashboard .stat-label {
+	font-size: 13px;
+	color: #646970;
+}
+
+.storyos-dashboard .stat-label a {
+	color: #2271b1;
+}
+
+.storyos-dashboard .storyos-actions {
+	margin: 16px 0;
+}
+
+.storyos-dashboard .storyos-actions .button {
+	margin-right: 8px;
+}
+
+.storyos-dashboard .widefat tbody tr:hover {
+	background: #f0f0f1;
+}

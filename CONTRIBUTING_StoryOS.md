@@ -123,7 +123,8 @@ Current priorities include:
 
 - Story Graph architecture
 - WordPress content model design
-- wp-comfy enhancements
+- Enahancements to WordPress plugins
+- Additional ComfyUI configurations and assistance (including SCF to JSON mapping)
 - MAF advisor architecture
 - Script import/export workflows
 - EDL integration

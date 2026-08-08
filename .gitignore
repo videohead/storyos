@@ -1,3 +1,23 @@
+.env
+.venv
+orchestrator/scripts/backup.sql
+
+# Wordpress
+wordpress/wp-admin/
+wordpress/wp-includes/
+wordpress/*.php
+wordpress/wp-content/uploads/
+wordpress/wp-content/themes/
+!wordpress/wp-content/plugins/storyos/
+!wordpress/wp-content/plugins/comfygeneratebutton/
+
+# SCF 
+wordpress/wp-content/plugins/secure-custom-fields/
+
+# ComfyUI
+ComfyUI/
+
+## Python stuff
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

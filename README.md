@@ -43,14 +43,17 @@ Creators → StoryOS → WordPress → Story Graph → Advisors + Generation →
 
 ## Existing Projects
 
-### wp-comfy
-https://github.com/videohead/wp-comfy
+### WordPress
+wordpress/
+
+## StoryOS Plugin
+
 
 ### maf-agent-framework
-https://github.com/videohead/maf-agent-framework
+multi-agent-framework/
 
 ### vscode-githubcopilot-agent-framework
-https://github.com/videohead/vscode-githubcopilot-agent-framework
+.github/ and .vscode/
 
 ## Key Features
 

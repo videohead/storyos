@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+celery
+redis
+requests
+pydantic
+python-dotenv
+pytest
+pytest-mock
+responses
+httpx2

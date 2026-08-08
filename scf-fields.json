@@ -1,0 +1,64 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "name": "PoseImage",
+      "inputs": {
+        "image_path": "__POSE_IMAGE_PATH__"
+      }
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "name": "StyleImage",
+      "inputs": {
+        "image_path": "__STYLE_IMAGE_PATH__"
+      }
+    },
+    {
+      "id": 3,
+      "type": "TextPrompt",
+      "name": "PositivePrompt",
+      "inputs": {
+        "text": "__POSITIVE_PROMPT__"
+      }
+    },
+    {
+      "id": 4,
+      "type": "TextPrompt",
+      "name": "NegativePrompt",
+      "inputs": {
+        "text": "__NEGATIVE_PROMPT__"
+      }
+    },
+    {
+      "id": 5,
+      "type": "VideoGenerationModel",
+      "name": "VideoModel",
+      "inputs": {
+        "positive_prompt": 3,
+        "negative_prompt": 4,
+        "pose_image": 1,
+        "style_image": 2,
+        "fps": "__FPS__",
+        "width": "__RESOLUTION_X__",
+        "height": "__RESOLUTION_Y__",
+        "num_frames": "__NUM_FRAMES__"
+      }
+    },
+    {
+      "id": 6,
+      "type": "SaveVideo",
+      "name": "SaveVideo",
+      "inputs": {
+        "video": 5,
+        "output_path": "__OUTPUT_VIDEO_PATH__",
+        "format": "mp4"
+      }
+    }
+  ],
+  "outputs": {
+    "video_path": "__OUTPUT_VIDEO_PATH__"
+  }
+}

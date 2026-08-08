@@ -1,0 +1,40 @@
+name: storyos
+
+recipe: wordpress
+config:
+  php: '8.2'
+  composer_version: '2'
+
+services:
+  redis-db:
+    type: redis
+    portforwarding: true
+  app:
+    type: python:3.11
+    port: 8000
+    command: cd /app/orchestrator && pip install -r requirements.txt && celery -A tasks.celery_app worker --loglevel=info & uvicorn app:app --host 0.0.0.0 --port 8000
+    environment:
+      WORDPRESS_URL: https://storyos.lndo.site
+      WORDPRESS_USER: ${WP_USERNAME}
+      WORDPRESSAPPPASSWORD: ${WP_APP_PASSWORD}
+      COMFYUI_URL: http://127.0.0.1:8188
+
+tooling:
+  wp:
+    service: appserver
+    cmd: wp
+  python:
+    service: app
+    cmd: python
+  pip:
+    service: app
+    cmd: pip
+  pip-install:
+    service: app
+    cmd: pip install -r /app/orchestrator/requirements.txt
+  celery:
+    service: app
+    cmd: cd /app/orchestrator && celery -A tasks.celery_app worker
+  test:
+    service: app
+    cmd: cd /app/orchestrator && pytest tests -q
