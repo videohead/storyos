@@ -51,12 +51,14 @@ services:
       COMFYUI_URL: ${COMFYUI_URL:-http://127.0.0.1:8188}
       REDIS_URL: redis://cache:6379/0
   test-framework:
-    type: node:20
+    type: python:3.11
     overrides:
       environment:
         PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
     run_as_root:
-      - "apt-get update && apt-get install -y ffmpeg ripgrep"
+      - "apt-get update && apt-get install -y ffmpeg ripgrep python3 python3-pip python3-venv"
+      - "python3 -m venv /opt/venv && /opt/venv/bin/pip install --upgrade pip"
+      - "/opt/venv/bin/pip install pytest pytest-mock responses httpx pytest-asyncio"
       - "cd /app/test-framework && npm install sass --save-dev"
       - "cd /app/test-framework && npm install minify --save-dev"
       - "cd /app/test-framework && npm install jsonlint --save-dev"
@@ -68,8 +70,8 @@ services:
       - "cd /app/test-framework && node -p \"'ffmpeg: ' + require('/app/test-framework/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('ffmpeg').executablePath('linux')\""
     command:
       - /bin/bash
-      - -lc
-      - cd /app/test-framework && if [ -f package.json ]; then npm install; fi && if [ -f composer.json ]; then composer install; fi && tail -f /dev/null
+      - -c
+      - cd /app/test-framework && npm install && tail -f /dev/null
     build_as_root:
       - apt-get update
       - apt-get install -y --no-install-recommends curl ca-certificates gnupg
@@ -84,6 +86,11 @@ services:
       WP_BASE_URL: http://appserver
       WP_USERNAME: ${WP_USERNAME:-admin}
       WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
+      PATH: /opt/venv/bin:/usr/local/bin:/usr/bin:/bin
+    volumes:
+      - type: bind
+        source: ./orchestrator/tests
+        target: /app/test-framework/tests/python/orchestrator-tests
   phpmyadmin:
     type: phpmyadmin
     hosts:

@@ -25,8 +25,25 @@ from models import (
     WorkflowBuildResponse,
     HealthResponse,
     HealthStatus,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
+    SearchHit,
+    IndexEntitiesResponse,
+    ContinuityValidationRequest,
+    ContinuityIssue,
+    ContinuityValidationResponse,
+    CharacterNetworkRequest,
+    CharacterNetworkResponse,
+    GraphAnalyticsResponse,
 )
 from story_graph import StoryGraphContextBuilder, WordPressAPIError
+from story_intelligence import (
+    StoryGraphIntelligence,
+    EmbeddingBackend,
+    DummyEmbeddingBackend,
+    OllamaEmbeddingBackend,
+    SentenceTransformerBackend,
+)
 from workflows.loader import get_loader, build_workflow
 from adapters import (
     ExecutiveOrchestrator,
@@ -111,6 +128,32 @@ prompt_advisor = PromptAdvisor()
 production_advisor = ProductionAdvisor()
 technical_advisor = TechnicalAdvisor()
 editorial_advisor = EditorialAdvisor()
+
+# ── Initialize intelligence engine ──────────────────────────────────────────
+
+# Embedding backend selection via env var
+_EMBED_BACKEND = os.getenv("EMBEDDING_BACKEND", "dummy").lower()
+_embedding_backend: Optional[EmbeddingBackend] = None
+
+if _EMBED_BACKEND == "ollama":
+    _ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    _ollama_model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+    _embedding_backend = OllamaEmbeddingBackend(url=_ollama_url, model=_ollama_model)
+    logger.info("Using Ollama embedding backend (model=%s)", _ollama_model)
+elif _EMBED_BACKEND == "sentence-transformers":
+    _st_model = os.getenv("SENTENCE_TRANSFORMERS_MODEL", "all-MiniLM-L6-v2")
+    _embedding_backend = SentenceTransformerBackend(model_name=_st_model)
+    logger.info("Using sentence-transformers backend (model=%s)", _st_model)
+else:
+    _embedding_backend = DummyEmbeddingBackend()
+    logger.info("Using dummy embedding backend (development mode)")
+
+intelligence = StoryGraphIntelligence(
+    wordpress_url=WORDPRESS_URL,
+    username=WORDPRESS_USER,
+    app_password=WORDPRESS_APP_PASSWORD,
+    embedding_backend=_embedding_backend,
+)
 
 # ── WordPress helpers ───────────────────────────────────────────────────────
 
@@ -773,6 +816,265 @@ def get_agent_history(limit: int = 10):
         "history": orchestrator.get_conversation_history(limit=limit),
         "total": len(orchestrator.get_conversation_history()),
     }
+
+
+# ── Story Graph Intelligence endpoints ──────────────────────────────────────
+
+@app.post("/intelligence/search", response_model=SemanticSearchResponse)
+def semantic_search(req: SemanticSearchRequest):
+    """Search Story Graph entities by semantic similarity.
+
+    Uses embeddings to find entities matching the natural language query.
+    Falls back to keyword search when embeddings are unavailable.
+
+    Args:
+        query: Natural language search query
+        entity_types: Limit search to specific entity types
+        top_k: Maximum number of results
+        min_score: Minimum similarity threshold
+        use_hybrid: Use hybrid semantic + keyword search
+    """
+    import time
+    start = time.time()
+
+    try:
+        if req.use_hybrid:
+            results = intelligence.hybrid_search(
+                query=req.query,
+                entity_types=req.entity_types,
+                top_k=req.top_k,
+            )
+        else:
+            results = intelligence.semantic_search(
+                query=req.query,
+                entity_types=req.entity_types,
+                top_k=req.top_k,
+                min_score=req.min_score,
+            )
+
+        search_time_ms = round((time.time() - start) * 1000, 2)
+
+        return SemanticSearchResponse(
+            query=req.query,
+            results=[SearchHit(**r) for r in results],
+            total=len(results),
+            search_time_ms=search_time_ms,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search error: {str(e)}")
+
+
+@app.post("/intelligence/index")
+def index_entities_endpoint():
+    """Build embedding index for Story Graph entities.
+
+    Pre-computes embeddings for all entities to speed up search queries.
+    Returns index metadata.
+    """
+    try:
+        index_result = intelligence.index_entities()
+        return IndexEntitiesResponse(
+            indexed_at=index_result["indexed_at"],
+            entity_types=index_result["entity_types"],
+            total_entries=index_result["total_entries"],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Index error: {str(e)}")
+
+
+@app.post("/intelligence/validate", response_model=ContinuityValidationResponse)
+def validate_continuity_endpoint(req: ContinuityValidationRequest):
+    """Validate narrative continuity across scenes.
+
+    Checks for character appearance inconsistencies, location jumps,
+    prop continuity, scene ordering, and relationship conflicts.
+
+    Args:
+        episode_id: Validate only scenes in this episode
+        scene_ids: Validate only specific scenes
+    """
+    try:
+        issues = intelligence.validate_continuity(
+            episode_id=req.episode_id,
+            scene_ids=req.scene_ids,
+        )
+
+        # Count by severity
+        errors = sum(1 for i in issues if i.severity == "error")
+        warnings = sum(1 for i in issues if i.severity == "warning")
+        infos = sum(1 for i in issues if i.severity == "info")
+
+        # Count unique scenes validated
+        scene_ids_validated = set()
+        for issue in issues:
+            for entity in issue.entities:
+                if entity.get("type") == "scene":
+                    scene_ids_validated.add(entity["id"])
+
+        # Also count scenes from the request
+        if req.scene_ids:
+            scene_ids_validated.update(req.scene_ids)
+
+        return ContinuityValidationResponse(
+            issues=[
+                ContinuityIssue(
+                    severity=i.severity,
+                    category=i.category,
+                    description=i.description,
+                    entities=i.entities,
+                    suggestion=i.suggestion,
+                )
+                for i in issues
+            ],
+            total_issues=len(issues),
+            errors=errors,
+            warnings=warnings,
+            infos=infos,
+            scenes_validated=len(scene_ids_validated),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
+
+
+@app.get("/intelligence/character-network", response_model=CharacterNetworkResponse)
+def get_character_network(
+    character_id: Optional[int] = None,
+    scene_ids: Optional[str] = None,
+):
+    """Get character relationship network analytics.
+
+    Returns co-occurrence data, strongest relationships, and scene presence.
+
+    Query params:
+        character_id: Limit to a specific character
+        scene_ids: Comma-separated list of scene IDs to limit analysis
+    """
+    try:
+        scene_id_list = None
+        if scene_ids:
+            scene_id_list = [int(x.strip()) for x in scene_ids.split(",") if x.strip()]
+
+        network_data = intelligence.get_character_network_summary()
+
+        return CharacterNetworkResponse(
+            total_characters=network_data["total_characters"],
+            total_scenes=network_data["total_scenes"],
+            strongest_relationships=network_data["strongest_relationships"],
+            scene_presence=network_data["scene_presence"],
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Network analytics error: {str(e)}")
+
+
+@app.get("/intelligence/graph-analytics", response_model=GraphAnalyticsResponse)
+def get_graph_analytics():
+    """Get overall Story Graph analytics.
+
+    Returns entity counts, relationship density, most connected entities,
+    and isolated entities with no relationships.
+    """
+    try:
+        analytics = intelligence.compute_graph_analytics()
+
+        return GraphAnalyticsResponse(
+            total_entities=analytics.total_entities,
+            entity_counts=analytics.entity_counts,
+            total_relationships=analytics.total_relationships,
+            density=analytics.density,
+            most_connected=analytics.most_connected,
+            isolated_entities=analytics.isolated_entities,
+            character_count=analytics.entity_counts.get("characters", 0),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Graph analytics error: {str(e)}")
+
+
+@app.get("/intelligence/relationships")
+def get_relationship_graph(
+    scene_ids: Optional[str] = None,
+):
+    """Get the full relationship graph.
+
+    Returns all relationships between entities (character-scene, scene-location,
+    scene-prop, character-character).
+
+    Query params:
+        scene_ids: Comma-separated list of scene IDs to filter relationships
+    """
+    try:
+        scene_id_list = None
+        if scene_ids:
+            scene_id_list = [int(x.strip()) for x in scene_ids.split(",") if x.strip()]
+
+        edges = intelligence.compute_relationship_graph(scene_ids=scene_id_list)
+
+        return {
+            "edges": [
+                {
+                    "source_type": e.source_type,
+                    "source_id": e.source_id,
+                    "source_name": e.source_name,
+                    "target_type": e.target_type,
+                    "target_id": e.target_id,
+                    "target_name": e.target_name,
+                    "relation_type": e.relation_type,
+                    "strength": e.strength,
+                }
+                for e in edges
+            ],
+            "total_edges": len(edges),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Relationship graph error: {str(e)}")
+
+
+@app.post("/intelligence/character-analytics")
+def get_character_analytics(req: CharacterNetworkRequest):
+    """Get detailed analytics for one or more characters.
+
+    Returns scene count, co-occurrences, locations, props used, and relationships.
+
+    Body:
+        character_id: Limit to a specific character (optional)
+        scene_ids: Limit to specific scenes (optional)
+    """
+    try:
+        analytics = intelligence.compute_character_analytics(
+            character_id=req.character_id,
+            scene_ids=req.scene_ids,
+        )
+
+        return {
+            "characters": [
+                {
+                    "character_id": a.character_id,
+                    "name": a.name,
+                    "scene_count": a.scene_count,
+                    "scenes": a.scenes,
+                    "co_occurrences": a.co_occurrences,
+                    "locations": a.locations,
+                    "props_used": a.props_used,
+                    "relationship_edges": a.relationship_edges,
+                }
+                for a in analytics
+            ],
+            "total_characters": len(analytics),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Character analytics error: {str(e)}")
+
+
+@app.post("/intelligence/cache/clear")
+def clear_intelligence_cache():
+    """Clear the intelligence engine cache."""
+    intelligence.clear_cache()
+    return {"success": True, "message": "Cache cleared"}
 
 
 # ── Legacy compatibility ────────────────────────────────────────────────────

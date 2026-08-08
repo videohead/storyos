@@ -2,6 +2,7 @@
 .venv
 scripts/backup.sql
 scripts/backup.sql.gz
+scripts/wordpress.*
 
 # Wordpress
 wordpress/wp-admin/

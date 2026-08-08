@@ -118,6 +118,123 @@ class TaskListItem(BaseModel):
 class TaskListResponse(BaseModel):
     """Response from /tasks endpoint."""
     tasks: list[TaskListItem]
+
+
+# ── Story Graph Intelligence Models ─────────────────────────────────────────
+
+class SemanticSearchRequest(BaseModel):
+    """Request for semantic search."""
+    query: str = Field(
+        description="Natural language search query",
+        min_length=1,
+    )
+    entity_types: Optional[list[str]] = Field(
+        default=None,
+        description="Limit search to these entity types (e.g., ['characters', 'scenes'])",
+    )
+    top_k: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum number of results",
+    )
+    min_score: float = Field(
+        default=0.1,
+        ge=0.0,
+        le=1.0,
+        description="Minimum cosine similarity threshold",
+    )
+    use_hybrid: bool = Field(
+        default=True,
+        description="Use hybrid semantic + keyword search",
+    )
+
+
+class SearchHit(BaseModel):
+    """A single search result."""
+    entity_type: str
+    entity_id: int
+    title: str
+    score: float
+    snippet: str
+    is_semantic: bool = True
+
+
+class SemanticSearchResponse(BaseModel):
+    """Response from semantic search."""
+    query: str
+    results: list[SearchHit]
+    total: int
+    search_time_ms: float
+
+
+class IndexEntitiesResponse(BaseModel):
+    """Response from indexing entities."""
+    indexed_at: float
+    entity_types: list[str]
+    total_entries: int
+
+
+class ContinuityValidationRequest(BaseModel):
+    """Request for continuity validation."""
+    episode_id: Optional[int] = Field(
+        default=None,
+        description="Validate only scenes in this episode",
+    )
+    scene_ids: Optional[list[int]] = Field(
+        default=None,
+        description="Validate only specific scenes",
+    )
+
+
+class ContinuityIssue(BaseModel):
+    """A detected continuity issue."""
+    severity: str  # "error", "warning", "info"
+    category: str  # "character", "scene", "location", "prop", "timeline"
+    description: str
+    entities: list[dict[str, Any]] = Field(default_factory=list)
+    suggestion: str = ""
+
+
+class ContinuityValidationResponse(BaseModel):
+    """Response from continuity validation."""
+    issues: list[ContinuityIssue]
+    total_issues: int
+    errors: int
+    warnings: int
+    infos: int
+    scenes_validated: int
+
+
+class CharacterNetworkRequest(BaseModel):
+    """Request for character network analytics."""
+    character_id: Optional[int] = Field(
+        default=None,
+        description="Limit to a specific character",
+    )
+    scene_ids: Optional[list[int]] = Field(
+        default=None,
+        description="Limit to specific scenes",
+    )
+
+
+class CharacterNetworkResponse(BaseModel):
+    """Response from character network analytics."""
+    total_characters: int
+    total_scenes: int
+    strongest_relationships: list[dict[str, Any]]
+    scene_presence: list[dict[str, Any]]
+
+
+class GraphAnalyticsResponse(BaseModel):
+    """Response from graph analytics."""
+    total_entities: int
+    entity_counts: dict[str, int]
+    total_relationships: int
+    density: float
+    most_connected: dict[str, Any]
+    isolated_entities: list[dict[str, Any]]
+    character_count: int
     total: int
     filters: dict[str, Any] = {}
 
