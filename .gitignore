@@ -1,6 +1,7 @@
 .env
 .venv
-orchestrator/scripts/backup.sql
+scripts/backup.sql
+scripts/backup.sql.gz
 
 # Wordpress
 wordpress/wp-admin/
@@ -19,7 +20,7 @@ llm/*
 
 # Node_modules
 node_modules/
-
+test-framework/node_modules/
 
 # ComfyUI
 ComfyUI/*

@@ -57,15 +57,15 @@ services:
         PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
     run_as_root:
       - "apt-get update && apt-get install -y ffmpeg ripgrep"
-      - "npm install sass --save-dev"
-      - "npm install minify --save-dev"
-      - "npm install jsonlint --save-dev"
-      - "npm install @playwright/test playwright --save-dev"
-      - "npm install @wordpress/e2e-test-utils-playwright --save-dev"
-      - "npm install pixelmatch pngjs --save-dev"
-      - "npx playwright install --with-deps chromium"
-      - "node -p \"'Chromium: ' + require('/app/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('chromium').executablePath()\""
-      - "node -p \"'ffmpeg: ' + require('/app/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('ffmpeg').executablePath('linux')\""
+      - "cd /app/test-framework && npm install sass --save-dev"
+      - "cd /app/test-framework && npm install minify --save-dev"
+      - "cd /app/test-framework && npm install jsonlint --save-dev"
+      - "cd /app/test-framework && npm install @playwright/test playwright --save-dev"
+      - "cd /app/test-framework && npm install @wordpress/e2e-test-utils-playwright --save-dev"
+      - "cd /app/test-framework && npm install pixelmatch pngjs --save-dev"
+      - "cd /app/test-framework && npx playwright install --with-deps chromium"
+      - "cd /app/test-framework && node -p \"'Chromium: ' + require('/app/test-framework/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('chromium').executablePath()\""
+      - "cd /app/test-framework && node -p \"'ffmpeg: ' + require('/app/test-framework/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('ffmpeg').executablePath('linux')\""
     command:
       - /bin/bash
       - -lc
