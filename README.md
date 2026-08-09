@@ -54,10 +54,10 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌────────────┐
-│  WordPress  │───▶│Orchestrator│───▶ │     | ComfyUI    │
+│  WordPress  │───▶ │Orchestrator      │───▶│ ComfyUI    │
 |(Story Graph)│     │(FastAPI + Celery)│     │  (GPU Gen) │
 └─────────────┘     └────────┬─────────┘     └────────────┘
-                              │
+                             │
                       ┌───────▼────────┐
                       │  AI Advisors   │
                       │ (50 Specialized│
