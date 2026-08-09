@@ -54,13 +54,13 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌────────────┐
-│  WordPress   │────▶│  Python Orchestrator│───▶│  ComfyUI   │
-│  (Story Graph)│    │  (FastAPI + Celery) │   │  (GPU Gen) │
+│  WordPress  │───▶│Orchestrator│───▶ │     | ComfyUI    │
+|(Story Graph)│     │(FastAPI + Celery)│     │  (GPU Gen) │
 └─────────────┘     └────────┬─────────┘     └────────────┘
                               │
                       ┌───────▼────────┐
                       │  AI Advisors   │
-                      │  (5 Specialized│
+                      │ (50 Specialized│
                       │  + Executive)  │
                       └────────────────┘
 ```
@@ -94,16 +94,16 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - Template-based workflow system
 - Character sheets, environments, storyboards
 
-### AI Advisors (Phase 3+)
-- 5 specialized advisors: Story, Prompt, Production, Editorial, Technical
-- Executive Orchestrator for intelligent routing
-- Local model integration (Qwen3.6-35B via Ollama)
+### AI Advisors
+- 50 specialized advisors from film industry archetypes
+- Executive Orchestrator for intelligent routing (Story, Prompt, Production, Editorial, Technical)
+- Local model integration (BYOK, currently using a 35B MOE from Qwen via vLLM)
 - Conversation history and context management
 
 ## Current Status
 
 ### ✅ Phase A: Workflow Template System (COMPLETE)
-- JSON-based workflow templates with `__PLACEHOLDER__` substitution
+- JSON-based workflow templates
 - Templates: base, character-sheet, environment, storyboard
 - Story Graph context builder (WordPress CPT queries)
 - Celery task refactoring with template support
@@ -118,6 +118,7 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - Docker Compose orchestration (6 services)
 
 ### ✅ Phase C: Agent Integration (COMPLETE)
+- 50 specialized advisors from film industry archetypes
 - 5 specialized advisor adapters (Story, Prompt, Production, Editorial, Technical)
 - Executive Orchestrator with intelligent routing
 - Agent API endpoints (`/agents/*`)
@@ -138,13 +139,13 @@ Create an open platform where creators can manage story worlds, develop scripts,
   - Fountain, Screenplay, Shooting Script formats
   - Script-to-Story Graph conversion
 
-### 📋 Phase F: Editorial Ecosystem (PLANNED)
-- EDL export
+### 📋 Phase F: Editorial Ecosystem (COMPLETE)
+- EDL import and export
 - Timeline metadata
-- NLE integrations (XML, AAF)
+- NLE integrations (Unity, Davinci Resolve)
 
-### 📋 Phase G: Story Graph Intelligence (PLANNED)
-- Semantic search
+### 📋 Phase G: Story Graph Intelligence (COMPLETE)
+- Semantic search and indexing in WordPress
 - Continuity validation
 - Relationship analytics
 
