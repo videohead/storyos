@@ -77,11 +77,8 @@ docker compose --profile full up -d --build
 
 ### Hugging Face Token
 
-The model `nvidia/Qwen3.6-35B-A3B-NVFP4` requires authentication. A `.env` file is already present in this directory with the token configured:
+The model `nvidia/Qwen3.6-35B-A3B-NVFP4` requires authentication. A `.env` file is already present in this directory with the token configured.
 
-```bash
-HUGGING_FACE_HUB_TOKEN=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
-```
 
 If you need to rotate the token, update it in `.env`. Get a new token from https://huggingface.co/settings/tokens (scope: `read`).
 
