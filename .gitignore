@@ -17,18 +17,14 @@ wordpress/wp-content/themes/
 wordpress/wp-content/plugins/secure-custom-fields/
 
 # LLMs
-llm/qwen35MOE/models/
-llm/qwen35MOE/logs/
+llm/*
 
 # Node_modules
 node_modules/
 test-framework/node_modules/
 
 # ComfyUI
-!ComfyUI/.gitignore
-!ComfyUI/docker-compose.yaml
-!ComfyUI/Dockerfile
-!ComfyUI/README.md
+ComfyUI/*
 
 ## Python stuff
 # Byte-compiled / optimized / DLL files
