@@ -53,7 +53,7 @@ class Sync_Controller {
 	 */
 	private function __construct() {
 		// Register REST routes.
-		add_action( 'rest_api_init', [ $this, 'register_routes' ] );
+		\add_action( 'rest_api_init', [ $this, 'register_routes' ] );
 	}
 
 	/**
@@ -138,7 +138,7 @@ class Sync_Controller {
 	 * @return bool|WP_Error
 	 */
 	public function check_admin_permission() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! \current_user_can( 'manage_options' ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
 				'You do not have permission to access Celtx sync settings.',
@@ -224,13 +224,13 @@ class Sync_Controller {
 	public function get_sync_status( \WP_REST_Request $request ): \WP_REST_Response {
 		$status = [
 			'enabled'      => \StoryOSCeltx\celtx_sync_enabled(),
-			'last_sync'    => get_option( 'storyos_celtx_last_sync', null ),
+			'last_sync'    => \get_option( 'storyos_celtx_last_sync', null ),
 			'sync_counts'  => [
-				'projects'  => count_posts( 'storyos_project' )->publish,
-				'characters'=> count_posts( 'storyos_character' )->publish,
-				'locations' => count_posts( 'storyos_location' )->publish,
-				'scenes'    => count_posts( 'storyos_scene' )->publish,
-				'shots'     => count_posts( 'storyos_shot' )->publish,
+				'projects'  => \wp_count_posts( 'storyos_project' )->publish,
+				'characters'=> \wp_count_posts( 'storyos_character' )->publish,
+				'locations' => \wp_count_posts( 'storyos_location' )->publish,
+				'scenes'    => \wp_count_posts( 'storyos_scene' )->publish,
+				'shots'     => \wp_count_posts( 'storyos_shot' )->publish,
 			],
 		];
 
@@ -265,7 +265,7 @@ class Sync_Controller {
 		}
 
 		// Get all posts of this type.
-		$posts = get_posts( [
+		$posts = \get_posts( [
 			'post_type'   => 'storyos_' . $type,
 			'post_status' => 'publish',
 			'numberposts' => -1,

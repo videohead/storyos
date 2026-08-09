@@ -36,6 +36,7 @@ class Settings {
 	 * @var array
 	 */
 	private static $defaults = [
+		'enabled'      => false,
 		'endpoint_url' => '',
 		'username'     => '',
 		'password'     => '',
@@ -66,6 +67,44 @@ class Settings {
 	}
 
 	/**
+	 * Get whether ComfyUI integration is enabled.
+	 *
+	 * @return bool
+	 */
+	public static function is_enabled(): bool {
+		$settings = self::get_settings();
+		return ! empty( $settings['enabled'] );
+	}
+
+	/**
+	 * Enable ComfyUI integration.
+	 */
+	public static function enable(): void {
+		$settings = self::get_settings();
+		$settings['enabled'] = true;
+		update_option( self::OPTION_NAME, self::sanitize_settings( $settings ) );
+	}
+
+	/**
+	 * Disable ComfyUI integration.
+	 */
+	public static function disable(): void {
+		$settings = self::get_settings();
+		$settings['enabled'] = false;
+		update_option( self::OPTION_NAME, self::sanitize_settings( $settings ) );
+	}
+
+	/**
+	 * Check if ComfyUI endpoint is configured.
+	 *
+	 * @return bool
+	 */
+	public static function is_configured(): bool {
+		$settings = self::get_settings();
+		return ! empty( $settings['endpoint_url'] );
+	}
+
+	/**
 	 * Sanitize settings input.
 	 *
 	 * @param array $input The raw input.
@@ -73,6 +112,8 @@ class Settings {
 	 */
 	public static function sanitize_settings( array $input ): array {
 		$output = self::$defaults;
+
+		$output['enabled'] = ! empty( $input['enabled'] );
 
 		if ( empty( $input['endpoint_url'] ) ) {
 			return $output;
@@ -114,7 +155,8 @@ class Settings {
 	 * Add settings page to admin menu.
 	 */
 	public static function add_settings_page(): void {
-		add_options_page(
+		add_submenu_page(
+			'storyos',
 			__( 'ComfyUI Generate', 'storyos-comfy-generate' ),
 			__( 'ComfyUI Generate', 'storyos-comfy-generate' ),
 			'manage_options',
@@ -128,7 +170,7 @@ class Settings {
 	 */
 	public static function render_settings_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
+			wp_die( __( 'Sorry, you are not allowed to access this page.', 'storyos-comfy-generate' ) );
 		}
 
 		$settings = self::get_settings();
@@ -142,6 +184,25 @@ class Settings {
 
 				<table class="form-table" role="presentation">
 					<tbody>
+						<tr>
+							<th scope="row">
+								<label for="comfy-enabled"><?php esc_html_e( 'Enable ComfyUI Generate', 'storyos-comfy-generate' ); ?></label>
+							</th>
+							<td>
+								<input type="hidden" name="comfy_generate_button_settings[enabled]" value="0" />
+								<label>
+									<input
+										id="comfy-enabled"
+										name="comfy_generate_button_settings[enabled]"
+										type="checkbox"
+										value="1"
+										<?php checked( ! empty( $settings['enabled'] ) ); ?>
+									/>
+									<?php esc_html_e( 'Enable the editor button and ComfyUI AJAX actions.', 'storyos-comfy-generate' ); ?>
+								</label>
+							</td>
+						</tr>
+
 						<tr>
 							<th scope="row">
 								<label for="comfy-endpoint-url"><?php esc_html_e( 'ComfyUI Endpoint URL', 'storyos-comfy-generate' ); ?></label>

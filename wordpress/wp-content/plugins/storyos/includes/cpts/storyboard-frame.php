@@ -105,4 +105,4 @@ class StoryboardFrame {
 		}
 	}
 }
-add_action( 'save_post_storyos_storyboard_frame', __NAMESPACE__ . '\\save_meta', 10, 2 );
+add_action( 'save_post_storyos_storyboard_frame', [ __NAMESPACE__ . '\StoryboardFrame', 'save_meta' ], 10, 2 );

@@ -15,6 +15,13 @@ namespace StoryOS\Admin;
 class Plugins {
 
 	/**
+	 * Option name used to persist integration enabled states.
+	 *
+	 * @var string
+	 */
+	private const STATE_OPTION = 'storyos_plugin_states';
+
+	/**
 	 * Plugin registry.
 	 *
 	 * @var array
@@ -50,6 +57,8 @@ class Plugins {
 					'author'      => 'StoryOS Contributors',
 					'icon'        => 'dashicons-external',
 					'file'        => 'plugins/celtx/celtx-sync.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=celtx-sync' ),
 				]
 			);
 		}
@@ -66,6 +75,8 @@ class Plugins {
 					'author'      => 'StoryOS Contributors',
 					'icon'        => 'dashicons-video-alt3',
 					'file'        => 'plugins/comfy-generate/comfy-generate.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=comfy-generate' ),
 				]
 			);
 		}
@@ -82,12 +93,142 @@ class Plugins {
 					'author'      => 'StoryOS Contributors',
 					'icon'        => 'dashicons-media-video',
 					'file'        => 'plugins/edl/edl-import-export.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=storyos-edl' ),
 				]
 			);
 		}
 
 		// Future integrations can be registered here:
 		// self::register_plugin( 'integration-name', 'Plugin Name', [ ... ] );
+
+		self::hydrate_plugin_state();
+	}
+
+	/**
+	 * Hydrate plugin status from persisted options.
+	 */
+	private static function hydrate_plugin_state(): void {
+		foreach ( self::$plugins as $slug => $plugin ) {
+			self::$plugins[ $slug ]['active'] = self::is_plugin_enabled( $slug );
+			self::$plugins[ $slug ]['configured'] = self::is_plugin_configured( $slug );
+		}
+	}
+
+	/**
+	 * Get persisted plugin state map.
+	 *
+	 * @return array
+	 */
+	private static function get_saved_states(): array {
+		$states = get_option( self::STATE_OPTION, [] );
+
+		if ( ! is_array( $states ) ) {
+			return [];
+		}
+
+		return $states;
+	}
+
+	/**
+	 * Determine whether a plugin is enabled.
+	 *
+	 * @param string $slug Plugin slug.
+	 * @return bool
+	 */
+	private static function is_plugin_enabled( string $slug ): bool {
+		$states = self::get_saved_states();
+
+		if ( array_key_exists( $slug, $states ) ) {
+			return (bool) $states[ $slug ];
+		}
+
+		switch ( $slug ) {
+			case 'celtx':
+				return (bool) get_option( 'celtx_enabled', false );
+
+			case 'comfy-generate':
+				if ( class_exists( '\\StoryOSComfyGenerate\\Settings' ) ) {
+					return \StoryOSComfyGenerate\Settings::is_enabled();
+				}
+				return true;
+
+			case 'edl':
+				return (bool) get_option( 'storyos_edl_enabled', true );
+
+			default:
+				return false;
+		}
+	}
+
+	/**
+	 * Determine whether a plugin has required configuration.
+	 *
+	 * @param string $slug Plugin slug.
+	 * @return bool
+	 */
+	private static function is_plugin_configured( string $slug ): bool {
+		switch ( $slug ) {
+			case 'celtx':
+				if ( class_exists( '\\StoryOSCeltx\\Settings' ) ) {
+					return \StoryOSCeltx\Settings::has_credentials();
+				}
+				$credentials = get_option( 'celtx_credentials', [] );
+				return is_array( $credentials ) && ! empty( $credentials['api_key'] );
+
+			case 'comfy-generate':
+				if ( class_exists( '\\StoryOSComfyGenerate\\Settings' ) ) {
+					return \StoryOSComfyGenerate\Settings::is_configured();
+				}
+				$settings = get_option( 'comfy_generate_button_settings', [] );
+				return is_array( $settings ) && ! empty( $settings['endpoint_url'] );
+
+			case 'edl':
+				return true;
+
+			default:
+				return false;
+		}
+	}
+
+	/**
+	 * Persist plugin enabled state.
+	 *
+	 * @param string $slug Plugin slug.
+	 * @param bool   $enabled New enabled state.
+	 */
+	private static function persist_plugin_state( string $slug, bool $enabled ): void {
+		$states = self::get_saved_states();
+		$states[ $slug ] = $enabled;
+		update_option( self::STATE_OPTION, $states );
+
+		switch ( $slug ) {
+			case 'celtx':
+				if ( class_exists( '\\StoryOSCeltx\\Settings' ) ) {
+					if ( $enabled ) {
+						\StoryOSCeltx\Settings::enable();
+					} else {
+						\StoryOSCeltx\Settings::disable();
+					}
+				} else {
+					update_option( 'celtx_enabled', $enabled );
+				}
+				break;
+
+			case 'comfy-generate':
+				if ( class_exists( '\\StoryOSComfyGenerate\\Settings' ) ) {
+					if ( $enabled ) {
+						\StoryOSComfyGenerate\Settings::enable();
+					} else {
+						\StoryOSComfyGenerate\Settings::disable();
+					}
+				}
+				break;
+
+			case 'edl':
+				update_option( 'storyos_edl_enabled', $enabled );
+				break;
+		}
 	}
 
 	/**
@@ -108,8 +249,8 @@ class Plugins {
 			'file'        => $args['file'] ?? '',
 			'active'      => false,
 			'configured'  => false,
-			'has_settings' => false,
-			'settings_url' => '',
+			'has_settings' => ! empty( $args['has_settings'] ),
+			'settings_url' => $args['settings_url'] ?? '',
 		];
 	}
 
@@ -239,10 +380,16 @@ class Plugins {
 									<?php endif; ?>
 								</td>
 								<td>
-									<button class="button button-small storyos-toggle-plugin" data-plugin="<?php echo esc_attr( $slug ); ?>">
+									<?php
+									$requires_configuration = ! $plugin['active'] && ! $plugin['configured'] && $plugin['has_settings'];
+									?>
+									<button class="button button-small storyos-toggle-plugin" data-plugin="<?php echo esc_attr( $slug ); ?>" <?php disabled( $requires_configuration ); ?>>
 										<?php echo $plugin['active'] ? 'Disable' : 'Enable'; ?>
 									</button>
-									<?php if ( $plugin['active'] && ! $plugin['configured'] ) : ?>
+									<?php if ( $requires_configuration ) : ?>
+										<a href="<?php echo esc_url( $plugin['settings_url'] ); ?>" class="button button-small button-primary">Configure First</a>
+									<?php endif; ?>
+									<?php if ( $plugin['active'] && $plugin['configured'] ) : ?>
 										<button class="button button-small storyos-test-connection" data-plugin="<?php echo esc_attr( $slug ); ?>">
 											Test Connection
 										</button>
@@ -261,6 +408,10 @@ class Plugins {
 	 * AJAX handler for toggling plugins.
 	 */
 	public static function ajax_toggle_plugin(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => 'You are not allowed to perform this action.' ], 403 );
+		}
+
 		check_ajax_referer( 'storyos_admin', 'nonce' );
 
 		$slug = isset( $_POST['slug'] ) ? sanitize_text_field( $_POST['slug'] ) : '';
@@ -270,13 +421,25 @@ class Plugins {
 			wp_send_json_error( [ 'message' => 'Plugin not found.' ] );
 		}
 
-		// Toggle the plugin state.
-		$new_state = ! $plugin['active'];
+		// Toggle and persist plugin state.
+		$new_state = ! self::is_plugin_enabled( $slug );
+
+		if ( $new_state && ! self::is_plugin_configured( $slug ) && ! empty( $plugin['has_settings'] ) ) {
+			wp_send_json_error( [
+				'message' => 'Please configure this plugin before enabling it.',
+				'settings_url' => $plugin['settings_url'],
+			] );
+		}
+
+		self::persist_plugin_state( $slug, $new_state );
 		self::$plugins[ $slug ]['active'] = $new_state;
+		self::$plugins[ $slug ]['configured'] = self::is_plugin_configured( $slug );
 
 		wp_send_json_success( [
 			'message' => sprintf( '%s %s.', $plugin['name'], $new_state ? 'enabled' : 'disabled' ),
 			'active'  => $new_state,
+			'configured' => self::$plugins[ $slug ]['configured'],
+			'reload_required' => true,
 		] );
 	}
 

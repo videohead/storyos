@@ -69,6 +69,21 @@ function autoloader( string $class ): void {
 		$file = $base_dir . $filename . '.php';
 	}
 
+	// Compatibility fallbacks for existing StoryOS Celtx file naming.
+	if ( ! file_exists( $file ) ) {
+		$fallback_map = [
+			'sync'                => $base_dir . 'class-celtx-sync.php',
+			'settings'            => $base_dir . 'class-celtx-settings.php',
+			'api/client'          => $base_dir . 'class-celtx-api.php',
+			'rest/sync-controller' => $base_dir . 'rest-api/sync-controller.php',
+		];
+
+		$normalized_key = strtolower( str_replace( '\\', '/', $relative_class ) );
+		if ( isset( $fallback_map[ $normalized_key ] ) ) {
+			$file = $fallback_map[ $normalized_key ];
+		}
+	}
+
 	if ( file_exists( $file ) ) {
 		require $file;
 	}
@@ -88,7 +103,12 @@ function init(): void {
 	// Register REST API routes.
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_rest_routes' );
 }
-add_action( 'init', __NAMESPACE__ . '\\init' );
+
+if ( did_action( 'init' ) ) {
+	init();
+} else {
+	add_action( 'init', __NAMESPACE__ . '\\init' );
+}
 
 /**
  * Register REST API routes.

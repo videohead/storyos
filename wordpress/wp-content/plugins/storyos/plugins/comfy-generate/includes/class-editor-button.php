@@ -33,6 +33,10 @@ class Editor_Button {
 			return;
 		}
 
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return;
+		}
+
 		$nonce  = wp_create_nonce( 'comfy_generate_send_nonce' );
 		$ajax_url = admin_url( 'admin-ajax.php' );
 		?>

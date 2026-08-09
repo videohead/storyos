@@ -48,7 +48,17 @@ function init(): void {
 	}
 
 	Settings::init();
+
+	if ( ! Settings::is_enabled() ) {
+		return;
+	}
+
 	Ajax_Handler::init();
 	Editor_Button::init();
 }
-add_action( 'plugins_loaded', __NAMESPACE__ . '\\init' );
+
+if ( did_action( 'plugins_loaded' ) ) {
+	init();
+} else {
+	add_action( 'plugins_loaded', __NAMESPACE__ . '\\init', 20 );
+}

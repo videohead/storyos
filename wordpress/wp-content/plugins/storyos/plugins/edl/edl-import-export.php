@@ -29,9 +29,22 @@ define( 'STORYOS_EDL_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'STORYOS_EDL_PLUGIN_BASE', plugin_basename( __FILE__ ) );
 
 /**
+ * Whether EDL integration is enabled.
+ *
+ * @return bool
+ */
+function is_enabled(): bool {
+	return (bool) get_option( 'storyos_edl_enabled', true );
+}
+
+/**
  * Initialize the plugin.
  */
 function init(): void {
+	if ( ! is_enabled() ) {
+		return;
+	}
+
 	// Register admin menu page.
 	add_action( 'admin_menu', __NAMESPACE__ . '\\add_admin_page' );
 
@@ -45,7 +58,12 @@ function init(): void {
 	register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
 	register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
 }
-add_action( 'plugins_loaded', __NAMESPACE__ . '\\init' );
+
+if ( did_action( 'plugins_loaded' ) ) {
+	init();
+} else {
+	add_action( 'plugins_loaded', __NAMESPACE__ . '\\init' );
+}
 
 /**
  * Flush rewrite rules on activation.

@@ -32,20 +32,35 @@
 				},
 				success: function(response) {
 					if (response.success) {
+						var active = !!(response.data && response.data.active);
+
 						// Update the button text.
-						$button.text(isActive ? 'Enable' : 'Disable');
+						$button.text(active ? 'Disable' : 'Enable');
 
 						// Update status indicators.
 						var $statusCell = $button.closest('tr').find('td:nth-child(2)');
 						$statusCell.find('.status-active, .status-inactive').remove();
 						$statusCell.prepend(
-							'<span class="status-' + (isActive ? 'inactive' : 'active') + '">' +
-							(isActive ? 'Inactive' : 'Active') + '</span>'
+							'<span class="status-' + (active ? 'active' : 'inactive') + '">' +
+							(active ? 'Active' : 'Inactive') + '</span>'
 						);
 
 						// Show success notice.
 						showNotice(response.data.message, 'success');
+
+						if (response.data.reload_required) {
+							setTimeout(function() {
+								window.location.reload();
+							}, 500);
+						}
 					} else {
+							if (response.data && response.data.settings_url) {
+								showNotice(response.data.message || 'Please configure this plugin first.', 'error');
+								setTimeout(function() {
+									window.location.href = response.data.settings_url;
+								}, 400);
+								return;
+							}
 						showNotice(response.data.message || 'Failed to toggle plugin.', 'error');
 					}
 				},

@@ -150,4 +150,4 @@ class Asset {
 		}
 	}
 }
-add_action( 'save_post_storyos_asset', __NAMESPACE__ . '\\save_meta', 10, 2 );
+add_action( 'save_post_storyos_asset', [ __NAMESPACE__ . '\Asset', 'save_meta' ], 10, 2 );
