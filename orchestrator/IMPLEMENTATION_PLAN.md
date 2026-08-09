@@ -287,69 +287,84 @@ ITEM  DESCRIPTION    REEL      FRATE   NS      FR      SR      MO
 
 ---
 
-## Phase G: Story Graph Intelligence (Weeks 13-14) 📋 PLANNED
+## Phase G: Story Graph Intelligence (Weeks 13-14) ✅ COMPLETE
 
-### G1. Semantic Search
+### G1. Semantic Search ✅
+- [x] Create `orchestrator/story_intelligence.py` — StoryGraphIntelligence class
+- [x] Hybrid search (semantic + keyword + hybrid modes)
+- [x] Three embedding backends: Dummy, Ollama, SentenceTransformer
+- [x] Cosine similarity vector search over indexed entities
+- [x] Entity indexing: characters, locations, scenes, shots, assets, props, projects, story_worlds
+- [x] `POST /intelligence/search` — semantic search endpoint
+- [x] `POST /intelligence/index` — trigger entity indexing
+- [x] `POST /intelligence/validate` — continuity validation
+- [x] `POST /intelligence/relationships` — relationship analytics
+- [x] `POST /intelligence/consistency` — story consistency checks
+- [x] `POST /intelligence/reason` — narrative reasoning
 
-**Files to create:**
-- `orchestrator/search/__init__.py`
-- `orchestrator/search/embeddings.py`
-- `orchestrator/search/query.py`
+### G2. Continuity Validation ✅
+- [x] 6 check categories: character, prop, location, timeline, visual, dialogue
+- [x] Auto-check on save via WordPress REST API
+- [x] Admin panel for viewing continuity issues
+- [x] Severity levels: error, warning, info
+- [x] Structured issue storage in WordPress post meta
 
-**Features:**
-- [ ] Character description embedding (for semantic character search)
-- [ ] Location description embedding
-- [ ] Scene description embedding
-- [ ] Asset metadata embedding (prompts, tags, descriptions)
-- [ ] Vector store integration (SQLite FTS5 for MVP, optional FAISS for scale)
-- [ ] `POST /search/characters` — semantic character search
-- [ ] `POST /search/locations` — semantic location search
-- [ ] `POST /search/scenes` — semantic scene search
-- [ ] `POST /search/assets` — semantic asset search
+### G3. Relationship Analytics ✅
+- [x] Character co-occurrence analysis
+- [x] Network density calculation
+- [x] Isolated entity detection
+- [x] Scene density analysis
+- [x] `GET /intelligence/relationships` — relationship graph data
 
-### G2. Continuity Validation
+### G4. Story Consistency Checks ✅
+- [x] Worldbuilding consistency validation
+- [x] Theme consistency checking
+- [x] Tone consistency validation
+- [x] Character voice consistency
+- [x] Filter by error/warning/info severity
 
-**Files to create:**
-- `orchestrator/continuity.py`
+### G5. Performance Optimizations ✅ (2026-08-08)
 
-**Features:**
-- [ ] Character appearance validation (check if character appears in scenes where they should)
-- [ ] Location consistency (scenes in same location should have consistent visual references)
-- [ ] Timeline validation (scene ordering matches narrative chronology)
-- [ ] Prop tracking (track which props appear in which scenes)
-- [ ] Visual consistency checks (compare generated assets for same character/location)
-- [ ] `POST /continuity/check/{project_id}` — run continuity check
-- [ ] `GET /continuity/issues/{project_id}` — list continuity issues
-- [ ] `POST /continuity/issues/{issue_id}/resolve` — mark issue as resolved
+#### 5.1 Persistent Embedding Storage
+- [x] Embedding index saved to disk (JSON) via `save_index()` / `load_index()`
+- [x] Atomic file writes using temp file + `os.replace()`
+- [x] Index loaded on orchestrator startup — no full re-index on restart
+- [x] Configurable via `EMBEDDING_INDEX_PATH` environment variable
 
-### G3. Relationship Analytics
+#### 5.2 Incremental Indexing
+- [x] Hash-based change detection (`_text_hash`) per entity
+- [x] Only re-embeds entities that changed or are new
+- [x] Tracks modification timestamps per entity
+- [x] Drastically reduces API calls and embedding time on partial updates
+- [x] Merges with existing index rather than full rebuild
 
-**Files to create:**
-- `orchestrator/analytics.py`
+#### 5.3 Cache TTL Increase
+- [x] Default TTL increased from 60s → 300s (5 minutes)
+- [x] Configurable via `CACHE_TTL` environment variable
+- [x] Applied to both `StoryGraphContextBuilder` and `StoryGraphIntelligence`
 
-**Features:**
-- [ ] Character relationship graph (which characters appear together)
-- [ ] Scene density analysis (which scenes have most characters/props)
-- [ ] Location usage statistics (which locations are used most)
-- [ ] Asset generation statistics (by type, status, timestamp)
-- [ ] Production progress tracking (scenes completed vs total)
-- [ ] `GET /analytics/characters/{project_id}` — character relationship data
-- [ ] `GET /analytics/production/{project_id}` — production progress
-- [ ] `GET /analytics/assets/{project_id}` — asset generation stats
+#### 5.4 Temp File Cleanup
+- [x] Media downloads tracked in `_temp_files` list
+- [x] `cleanup_temp_files()` method removes all temp files
+- [x] Prevents disk space accumulation from orphaned downloads
 
-### G4. Story Consistency Checks
+#### 5.5 WordPress Transient Cache
+- [x] 3-tier caching: WordPress transient → in-memory → API fetch
+- [x] Persists across orchestrator restarts (unlike in-memory cache)
+- [x] Shared cache across multiple orchestrator instances
+- [x] WordPress plugin: `wordpress/wp-content/plugins/storyos-transient-cache/`
+- [x] REST API endpoints:
+  - `GET /wp-json/storyos/v1/transient/{key}`
+  - `POST /wp-json/storyos/v1/transient/{key}`
+  - `DELETE /wp-json/storyos/v1/transient/{key}`
+  - `POST /wp-json/storyos/v1/transients/flush`
+  - `GET /wp-json/storyos/v1/transients/stats`
+- [x] Configurable via `TRANSIENT_TTL` environment variable (default: 900s / 15 min)
 
-**Files to create:**
-- `orchestrator/consistency.py`
-
-**Features:**
-- [ ] Worldbuilding consistency (check character/location attributes against world rules)
-- [ ] Theme consistency (check scenes align with project themes)
-- [ ] Tone consistency (check scene descriptions match project tone)
-- [ ] Character voice consistency (check dialogue style across scenes)
-- [ ] `POST /consistency/world/{project_id}` — check worldbuilding consistency
-- [ ] `POST /consistency/theme/{project_id}` — check theme consistency
-- [ ] `POST /consistency/tone/{project_id}` — check tone consistency
+#### 5.6 Neo4j Integration ⏸️ ON HOLD
+- [ ] Only needed at scale (multi-instance, large datasets)
+- [ ] Will replace in-memory index with graph database queries
+- [ ] Planned for future when semantic search performance becomes a bottleneck
 
 ---
 
@@ -450,13 +465,7 @@ orchestrator/
 │   ├── timeline.py
 │   ├── metadata.py
 │   └── nle.py
-├── search/                     # Semantic search (📋 Phase G)
-│   ├── __init__.py
-│   ├── embeddings.py
-│   └── query.py
-├── continuity.py               # Continuity validation (📋 Phase G)
-├── analytics.py                # Relationship analytics (📋 Phase G)
-├── consistency.py              # Story consistency (📋 Phase G)
+├── story_intelligence.py       # Narrative intelligence engine (✅ COMPLETE)
 ├── plugins/                    # Plugin system (📋 Phase H)
 │   ├── __init__.py
 │   ├── registry.py
@@ -478,7 +487,7 @@ orchestrator/
     ├── test_agents.py          # Agent tests (✅ COMPLETE)
     ├── test_scripts.py         # Script import/export tests (📋 Phase E+)
     ├── test_editorial.py       # Editorial tests (📋 Phase F)
-    └── test_search.py          # Search tests (📋 Phase G)
+    └── test_search.py          # Search tests (✅ COMPLETE)
 ```
 
 ---
@@ -493,7 +502,7 @@ orchestrator/
 | P1 | D | Storyboarding & Production | 📋 WordPress Plugins |
 | P2 | E | Script Ecosystem | ✅ COMPLETE (Celtx) |
 | P2 | F | Editorial Ecosystem | 📋 PLANNED |
-| P3 | G | Story Graph Intelligence | 📋 PLANNED |
+| P3 | G | Story Graph Intelligence | ✅ COMPLETE + 5 Optimizations |
 | P3 | H | Community Platform | 📋 PLANNED |
 
 ---
