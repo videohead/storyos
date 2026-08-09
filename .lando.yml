@@ -96,53 +96,6 @@ services:
     type: phpmyadmin
     hosts:
       - database
-  vllm:
-    type: python:3.11
-    port: 11434
-    command:
-      - /bin/bash
-      - -lc
-      - python -m pip install --upgrade pip && python -m pip install "vllm>=0.6.0" && python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.6-35B-A3B-NVFP4 --port 11434 --host 0.0.0.0
-    environment:
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
-      STORYOS_ENABLE_VLLM: ${STORYOS_ENABLE_VLLM:-false}
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      test:
-        - CMD
-        - /bin/bash
-        - -lc
-        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/v1/models', timeout=5)"
-  llm-agents:
-    type: python:3.11
-    command:
-      - /bin/bash
-      - -lc
-      - cd /app/multi-agent-framework && pip install -r requirements.txt && python local_agent_framework.py
-    environment:
-      VLLM_URL: http://vllm:11434/v1
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
-      STORYOS_ENABLE_VLLM: ${STORYOS_ENABLE_VLLM:-false}
-  comfyui:
-    type: python:3.11
-    port: 8188
-    command:
-      - /bin/bash
-      - -lc
-      - python -m pip install --upgrade pip && python -m pip install comfyui && python -m comfyui --host 0.0.0.0 --port 8188
-    environment:
-      STORYOS_ENABLE_COMFYUI: ${STORYOS_ENABLE_COMFYUI:-false}
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      test:
-        - CMD
-        - /bin/bash
-        - -lc
-        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8188/', timeout=5)"
 tooling:
   wp:
     service: appserver
@@ -183,21 +136,6 @@ tooling:
   pma:
     service: phpmyadmin
     cmd: /bin/sh
-  describe-vllm:
-    service: appserver
-    cmd: "bash -lc 'echo \"Optional service: vLLM. Set STORYOS_ENABLE_VLLM=true and run lando rebuild/start to provision it.\"'"
-  describe-comfyui:
-    service: appserver
-    cmd: "bash -lc 'echo \"Optional service: ComfyUI. Set STORYOS_ENABLE_COMFYUI=true and run lando rebuild/start to provision it.\"'"
-  start-vllm:
-    service: vllm
-    cmd: bash
-  start-comfyui:
-    service: comfyui
-    cmd: bash
   setup-test-framework:
     service: test-framework
     cmd: bash -lc 'cd /app/test-framework && if [ -f package.json ]; then npm install; fi && if [ -f composer.json ]; then composer install; fi'
-  setup-llm:
-    service: llm-agents
-    cmd: bash -lc 'cd /app/multi-agent-framework && pip install -r requirements.txt'

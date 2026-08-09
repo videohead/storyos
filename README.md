@@ -211,22 +211,30 @@ lando db-import --check
 ```
 
 ### 4. Optional AI services
-The optional AI services are disabled by default. Start them only when you need them:
+The optional AI services are not hosted by Lando. They run as separate Docker Compose services outside the Lando stack and should be started from their own directories when needed:
 
 ```bash
-lando start-vllm
-lando start-comfyui
+# Start the external LLM service
+cd llm/gemma26B
+docker compose up -d --build
+
+# Start the external ComfyUI service
+cd ../ComfyUI
+docker compose --profile gpu up -d
 ```
 
-You can inspect them with:
+Check the containers and health endpoints:
 
 ```bash
-lando describe-vllm
-lando describe-comfyui
+docker compose ps
+curl -fsS http://localhost:11434/v1/models
+curl -fsS http://localhost:8188
 ```
 
-### 4b. Running ComfyUI standalone with Docker Compose
-If you prefer to run ComfyUI outside of Lando (e.g. with full GPU access), a standalone `docker-compose.yaml` is provided in the `ComfyUI/` directory.
+The orchestrator reads these services through the `VLLM_URL` and `COMFYUI_URL` environment variables.
+
+### 4b. Running ComfyUI externally with Docker Compose
+If you prefer to run ComfyUI outside of Lando (for example with full GPU access), a standalone `docker-compose.yaml` is provided in the `ComfyUI/` directory.
 
 ```bash
 cd ComfyUI

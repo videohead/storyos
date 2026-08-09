@@ -1,0 +1,87 @@
+# ComfyUI Docker Compose Configuration
+#
+# Launches ComfyUI (GPU image generation) in a Docker container.
+#
+# Prerequisites:
+#   - Docker & Docker Compose installed
+#   - NVIDIA GPU with drivers + nvidia-container-toolkit (for GPU mode)
+#
+# Quick start:
+#   # CPU-only mode (slow, for testing)
+#   docker compose up
+#
+#   # GPU mode (recommended — uses the host GPU)
+#   docker compose --profile gpu up
+#
+# Access the UI:  http://localhost:8188
+
+services:
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Uncomment the args block below when running with GPU support.
+      # Args are passed to the Dockerfile RUN steps.
+      # args:
+      #   CUDA_VERSION: "13.0"
+    image: storyos/comfyui:latest
+    container_name: storyos-comfyui
+    gpus: all
+    entrypoint:
+      - /usr/local/bin/entrypoint.sh
+    ports:
+      - "8188:8188"
+    # GPU profile — requires nvidia-container-toolkit
+    profiles:
+      - gpu
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+      # ComfyUI API base URL (used by the StoryOS orchestrator)
+      - COMFYUI_URL=http://comfyui:8188
+      # Hugging Face token for downloading gated models (read from .env)
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+      # Optional auto-download for missing assets; set to a comma-separated list of Hugging Face repo ids or URLs
+      - COMFYUI_DOWNLOAD_MODELS=${COMFYUI_DOWNLOAD_MODELS:-}
+      - COMFYUI_DOWNLOAD_MODEL=${COMFYUI_DOWNLOAD_MODEL:-}
+      # Persist large model and cache payloads on the host filesystem
+      - HF_HOME=/opt/comfyui/cache/huggingface
+      - HUGGINGFACE_HUB_CACHE=/opt/comfyui/cache/huggingface
+      - TRANSFORMERS_CACHE=/opt/comfyui/cache/huggingface
+      - TORCH_HOME=/opt/comfyui/cache/torch
+      - XDG_CACHE_HOME=/opt/comfyui/cache/xdg
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
+    volumes:
+      # Persist downloaded models (checkpoints, LoRAs, VAEs, etc.) — bind-mounted so you can see/copy/backup them on the host
+      - ./models:/opt/comfyui/models
+      # Persist LLM-related assets and cached inference data
+      - ./cache/llm:/opt/comfyui/llm
+      # Persist PyTorch and Hugging Face caches outside the image layer
+      - ./cache/torch:/opt/comfyui/cache/torch
+      - ./cache/huggingface:/opt/comfyui/cache/huggingface
+      - ./cache/xdg:/opt/comfyui/cache/xdg
+      # Persist input images (drag-and-drop into ComfyUI)
+      - ./input:/opt/comfyui/input
+      # Persist generated output images
+      - ./output:/opt/comfyui/output
+    command:
+      - --listen
+      - 0.0.0.0
+      - --preview-method
+      - auto
+    # Uncomment the deploy block below to enable GPU access
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8188/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  comfyui_models:
