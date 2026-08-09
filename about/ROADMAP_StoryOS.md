@@ -219,19 +219,52 @@ Transform StoryOS into a narrative intelligence platform.
 - ✅ Story Consistency Checks (structured issue storage, filter by error/warning/info)
 - ✅ Narrative Reasoning (orchestrator intelligence engine)
 
-## Planned Improvements
-
-- [ ] Incremental indexing (WP-Cron based) — currently full re-index on each call
-- [ ] Embedding cache with TTL-based invalidation
-- [ ] Search result caching (WordPress transients)
-- [ ] Performance benchmarks with production-scale data
-- [ ] E2E tests with Playwright
-- [ ] Real-time search suggestions (debounced input)
-- [ ] Knowledge graph database integration (Neo4j) — future
-
 ## Current Status (as of 2026-08-08)
 
-Phase 7 is fully implemented and operational. Core intelligence engine (story_intelligence.py) provides hybrid search, continuity validation (6 check categories), and relationship analytics. REST endpoints are live in the orchestrator FastAPI service. Planned improvements focus on performance and scalability.
+Phase 7 is fully implemented and operational. Core intelligence engine (story_intelligence.py) provides hybrid search, continuity validation (6 check categories), and relationship analytics. REST endpoints are live in the orchestrator FastAPI service.
+
+## Performance Optimizations (Completed — 2026-08-08)
+
+### 1. Persistent Embedding Storage ✅
+- Embedding index saved to disk (JSON) via `save_index()` / `load_index()`
+- Atomic file writes using temp file + `os.replace()`
+- Index loaded on orchestrator startup — no full re-index on restart
+- Configurable via `EMBEDDING_INDEX_PATH` environment variable
+
+### 2. Incremental Indexing ✅
+- Hash-based change detection (`_text_hash`) per entity
+- Only re-embeds entities that changed or are new
+- Tracks modification timestamps per entity
+- Drastically reduces API calls and embedding time on partial updates
+- Merges with existing index rather than full rebuild
+
+### 3. Cache TTL Increase ✅
+- Default TTL increased from 60s → 300s (5 minutes)
+- Configurable via `CACHE_TTL` environment variable
+- Applied to both `StoryGraphContextBuilder` and `StoryGraphIntelligence`
+
+### 4. Temp File Cleanup ✅
+- Media downloads tracked in `_temp_files` list
+- `cleanup_temp_files()` method removes all temp files
+- Prevents disk space accumulation from orphaned downloads
+
+### 5. WordPress Transient Cache ✅
+- 3-tier caching: WordPress transient → in-memory → API fetch
+- Persists across orchestrator restarts (unlike in-memory cache)
+- Shared cache across multiple orchestrator instances
+- WordPress plugin provides REST API endpoints:
+  - `GET /wp-json/storyos/v1/transient/{key}`
+  - `POST /wp-json/storyos/v1/transient/{key}`
+  - `DELETE /wp-json/storyos/v1/transient/{key}`
+  - `POST /wp-json/storyos/v1/transients/flush`
+  - `GET /wp-json/storyos/v1/transients/stats`
+- Configurable via `TRANSIENT_TTL` environment variable (default: 900s / 15 min)
+- Plugin location: `wordpress/wp-content/plugins/storyos-transient-cache/`
+
+### 6. Neo4j Integration ⏸️ ON HOLD
+- Only needed at scale (multi-instance, large datasets)
+- Will replace in-memory index with graph database queries
+- Planned for future when semantic search performance becomes a bottleneck
 
 ---
 

@@ -37,6 +37,10 @@ class StoryGraphContextBuilder:
         self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._cache_ttl = int(os.getenv("CACHE_TTL", "300"))  # seconds (Optimization 3)
         self._temp_files: list[str] = []  # Track temp files for cleanup (Optimization 4)
+        # Optimization 5: WordPress Transient Cache
+        self._transient_prefix = "storyos_"
+        self._transient_ttl = int(os.getenv("TRANSIENT_TTL", "900"))  # 15 minutes default
+        # Optimization 6: Neo4j Integration — ON HOLD (only needed at scale)
 
     def _auth(self):
         return (self.username, self.app_password)
@@ -87,16 +91,76 @@ class StoryGraphContextBuilder:
             logger.warning("Failed to download media %s: %s", media_url, e)
             return None
 
+    def _get_transient(self, key: str) -> Optional[dict[str, Any]]:
+        """Get data from WordPress transient cache.
+        
+        Returns:
+            Cached data if found and not expired, None otherwise.
+        """
+        try:
+            url = f"{self.base_url}/wp-json/storyos/v1/transient/{key}"
+            resp = requests.get(url, timeout=self.timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                logger.debug("Cache HIT (transient): %s", key)
+                return data
+        except Exception as e:
+            logger.debug("Failed to get transient %s: %s", key, e)
+        return None
+
+    def _set_transient(self, key: str, data: dict[str, Any]) -> bool:
+        """Store data in WordPress transient cache.
+        
+        Args:
+            key: Cache key
+            data: Data to cache
+            
+        Returns:
+            True if stored successfully, False otherwise.
+        """
+        try:
+            url = f"{self.base_url}/wp-json/storyos/v1/transient/{key}"
+            resp = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"},
+                timeout=self.timeout,
+            )
+            if resp.status_code in (200, 201):
+                logger.debug("Cache SET (transient): %s", key)
+                return True
+            else:
+                logger.warning("Failed to set transient %s: %s", key, resp.status_code)
+                return False
+        except Exception as e:
+            logger.warning("Failed to set transient %s: %s", key, e)
+            return False
+
     def _cached_get(self, key: str, fetch_func) -> dict[str, Any]:
-        """Fetch with simple TTL-based caching."""
+        """Fetch with WordPress transient caching (Optimization 5).
+        
+        Checks WordPress transients first, then in-memory cache,
+        then fetches fresh data and caches it.
+        """
+        # Try WordPress transient cache first (persists across restarts)
+        transient_data = self._get_transient(key)
+        if transient_data is not None:
+            return transient_data
+        
+        # Try in-memory cache
         now = time.time()
         if key in self._cache:
             cached_time, data = self._cache[key]
             if now - cached_time < self._cache_ttl:
                 return data
 
+        # Fetch fresh data
         data = fetch_func()
+        
+        # Store in both in-memory and WordPress transient cache
         self._cache[key] = (now, data)
+        self._set_transient(key, data)
+        
         return data
 
     def build_for_post(
