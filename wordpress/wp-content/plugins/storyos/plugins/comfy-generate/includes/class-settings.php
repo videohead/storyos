@@ -160,7 +160,7 @@ class Settings {
 			__( 'ComfyUI Generate', 'storyos-comfy-generate' ),
 			__( 'ComfyUI Generate', 'storyos-comfy-generate' ),
 			'manage_options',
-			'comfy-generate',
+			'storyos-comfy-generate',
 			[ __CLASS__, 'render_settings_page' ]
 		);
 	}

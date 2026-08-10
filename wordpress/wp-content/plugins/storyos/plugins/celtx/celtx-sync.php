@@ -58,8 +58,10 @@ function autoloader( string $class ): void {
 		// Convert namespace to directory
 		$namespace_dir = strtolower( str_replace( '\\', '/', $namespace ) );
 		
-		// Convert class name to filename (camelCase to kebab-case)
-		$filename = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $class_name ) );
+		// Convert class name to filename (camelCase and underscores to kebab-case)
+		// Replace underscores with hyphens first, then insert hyphens before internal capitals.
+		$sanitized_class = str_replace( '_', '-', $class_name );
+		$filename = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $sanitized_class ) );
 		
 		$file = $base_dir . $namespace_dir . '/' . $filename . '.php';
 	} else {
@@ -78,7 +80,9 @@ function autoloader( string $class ): void {
 			'rest/sync-controller' => $base_dir . 'rest-api/sync-controller.php',
 		];
 
-		$normalized_key = strtolower( str_replace( '\\', '/', $relative_class ) );
+		// Normalize the relative class to a kebab-style key for fallback mapping.
+		$normalized_key = str_replace( '_', '-', str_replace( '\\', '/', $relative_class ) );
+		$normalized_key = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $normalized_key ) );
 		if ( isset( $fallback_map[ $normalized_key ] ) ) {
 			$file = $fallback_map[ $normalized_key ];
 		}

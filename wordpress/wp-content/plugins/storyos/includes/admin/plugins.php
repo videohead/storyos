@@ -76,7 +76,7 @@ class Plugins {
 					'icon'        => 'dashicons-video-alt3',
 					'file'        => 'plugins/comfy-generate/comfy-generate.php',
 					'has_settings' => true,
-					'settings_url' => admin_url( 'admin.php?page=comfy-generate' ),
+					'settings_url' => admin_url( 'admin.php?page=storyos-comfy-generate' ),
 				]
 			);
 		}
