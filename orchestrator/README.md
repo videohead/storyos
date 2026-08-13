@@ -87,6 +87,13 @@ docker compose up -d
 docker compose up
 docker compose down
 
+# Runtime Dependencies
+
+Python packages are listed in `requirements.txt`. Operating-system binaries
+such as FFmpeg and FFprobe are tracked separately in
+`SYSTEM_DEPENDENCIES.md`, including local, container, VPS, and shared-host
+deployment paths.
+
 # First Time Build
 
 1. Copy `.env.example` to `.env` (if one exists) and fill in your values:

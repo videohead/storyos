@@ -29,7 +29,7 @@ Story Core, Generation Core, Agent Core, Script Ecosystem, Production & Editoria
 
 ## MVP
 
-Projects, Characters, Locations, Scenes, Assets, ComfyUI Generate integration, advisor layer, Celtx script sync, Web Stories sync.
+Projects, Characters, Locations, Scenes, Assets, Generation Engine integration, advisor layer, Celtx script sync, Web Stories sync.
 
 ## Roadmap
 

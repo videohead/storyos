@@ -1,0 +1,86 @@
+{
+  "structures": [
+    {
+      "structure_id": "text_to_image",
+      "version": "1.0",
+      "label": "Text to Image",
+      "description": "Generate one or more images from a text prompt.",
+      "input": {
+        "modalities": ["text"],
+        "min_count": 1,
+        "max_count": 1
+      },
+      "output": {
+        "modalities": ["image"],
+        "mime_types": ["image/png", "image/jpeg"],
+        "asset_target": "wordpress_media"
+      },
+      "parameters": {
+        "prompt": {
+          "type": "string",
+          "required": true
+        },
+        "negative_prompt": {
+          "type": "string",
+          "required": false
+        },
+        "seed": {
+          "type": "integer",
+          "required": false
+        },
+        "width": {
+          "type": "integer",
+          "required": false,
+          "description": "Editorial preference; provider validates the supported range."
+        },
+        "height": {
+          "type": "integer",
+          "required": false,
+          "description": "Editorial preference; provider validates the supported range."
+        }
+      },
+      "capability_requirements": ["generate", "download_artifacts"]
+    },
+    {
+      "structure_id": "image_to_video",
+      "version": "1.0",
+      "label": "Image to Video",
+      "description": "Generate a video from a source image and prompt.",
+      "input": {
+        "modalities": ["text", "image"],
+        "min_count": 1,
+        "max_count": 2,
+        "mime_types": ["image/png", "image/jpeg"]
+      },
+      "output": {
+        "modalities": ["video"],
+        "mime_types": ["video/mp4"],
+        "asset_target": "wordpress_media"
+      },
+      "parameters": {
+        "prompt": {
+          "type": "string",
+          "required": true
+        },
+        "duration_seconds": {
+          "type": "number",
+          "required": false,
+          "description": "Editorial preference; provider validates the supported range."
+        },
+        "aspect_ratio": {
+          "type": "string",
+          "required": false
+        }
+      },
+      "references": [
+        {
+          "role": "content",
+          "modalities": ["image"],
+          "max_count": 1,
+          "required": true
+        }
+      ],
+      "capability_requirements": ["generate", "download_artifacts"]
+    }
+  ]
+}

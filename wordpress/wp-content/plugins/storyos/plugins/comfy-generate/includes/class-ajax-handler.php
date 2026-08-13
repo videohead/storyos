@@ -1,18 +1,18 @@
 <?php
 /**
- * AJAX handler for ComfyUI Generate plugin.
+ * AJAX handler for StoryOS Generation Engine.
  *
- * @package StoryOSComfyGenerate
+ * @package StoryOSGenerationEngine
  */
 
-namespace StoryOSComfyGenerate;
+namespace StoryOSGenerationEngine;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 /**
- * Handles AJAX requests for sending posts to ComfyUI.
+ * Handles AJAX requests for submitting generation jobs.
  */
 class Ajax_Handler {
 
@@ -20,84 +20,65 @@ class Ajax_Handler {
 	 * Initialize the AJAX handler.
 	 */
 	public static function init(): void {
-		add_action( 'wp_ajax_comfy_generate_send_to_comfyui', [ __CLASS__, 'send_to_comfyui' ] );
+		add_action( 'wp_ajax_storyos_generation_engine_submit', [ __CLASS__, 'submit_generation' ] );
 	}
 
 	/**
-	 * Send a post to the ComfyUI endpoint.
+	 * Submit a generation request for the current post.
 	 */
-	public static function send_to_comfyui(): void {
+	public static function submit_generation(): void {
 		if ( ! current_user_can( 'edit_posts' ) ) {
 			wp_send_json_error(
-				[ 'message' => __( 'You are not allowed to run this action.', 'storyos-comfy-generate' ) ],
+				[ 'message' => __( 'You are not allowed to run this action.', 'storyos-generation-engine' ) ],
 				403
 			);
 		}
 
-		check_ajax_referer( 'comfy_generate_send_nonce', 'nonce' );
+		check_ajax_referer( 'storyos_generation_engine_nonce', 'nonce' );
 
 		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
 
 		if ( $post_id <= 0 ) {
 			wp_send_json_error(
-				[ 'message' => __( 'Invalid post ID.', 'storyos-comfy-generate' ) ],
+				[ 'message' => __( 'Invalid post ID.', 'storyos-generation-engine' ) ],
 				400
 			);
 		}
 
-		$settings = Settings::get_settings();
-		$endpoint_url = trim( $settings['endpoint_url'] );
+		$settings_class = __NAMESPACE__ . '\\Settings';
+		$client_class = __NAMESPACE__ . '\\Generation_Client';
+		$settings = class_exists( $settings_class ) ? $settings_class::get_settings() : [];
+		$workflow = isset( $_POST['workflow'] ) ? sanitize_text_field( wp_unslash( $_POST['workflow'] ) ) : '';
+		$custom_params = [];
+		if ( isset( $_POST['custom_params'] ) ) {
+			$custom_params = json_decode( wp_unslash( $_POST['custom_params'] ), true );
+			if ( ! is_array( $custom_params ) ) {
+				$custom_params = [];
+			}
+		}
 
-		if ( empty( $endpoint_url ) ) {
+		if ( ! class_exists( $client_class ) ) {
 			wp_send_json_error(
-				[ 'message' => __( 'ComfyUI endpoint URL is not configured.', 'storyos-comfy-generate' ) ],
-				400
+				[ 'message' => __( 'Generation client is unavailable.', 'storyos-generation-engine' ) ],
+				500
 			);
 		}
 
-		$headers = [
-			'Content-Type' => 'application/json',
-			'Accept'       => 'application/json',
-		];
+		$result = $client_class::send_generation_request( $post_id, $settings, $workflow, $custom_params );
 
-		if ( ! empty( $settings['auth_token'] ) ) {
-			$headers['Authorization'] = 'Bearer ' . $settings['auth_token'];
-		} elseif ( ! empty( $settings['username'] ) || ! empty( $settings['password'] ) ) {
-			$headers['Authorization'] = 'Basic ' . base64_encode( $settings['username'] . ':' . $settings['password'] );
+		if ( ! empty( $result['success'] ) ) {
+			wp_send_json_success( [
+				'status_code' => $result['status_code'] ?? 200,
+				'response'    => $result['response'] ?? [],
+				'job_id'      => $result['job_id'] ?? '',
+			] );
 		}
 
-		$request_body = wp_json_encode( [
-			'post_id' => $post_id,
-		] );
-
-		$response = wp_remote_post( $endpoint_url, [
-			'timeout' => 30,
-			'headers' => $headers,
-			'body'    => $request_body,
-		] );
-
-		if ( is_wp_error( $response ) ) {
-			wp_send_json_error( [
-				'message' => __( 'Request failed.', 'storyos-comfy-generate' ),
-				'details' => $response->get_error_message(),
-			], 500 );
-		}
-
-		$status_code = wp_remote_retrieve_response_code( $response );
-		$raw_body    = wp_remote_retrieve_body( $response );
-		$decoded     = json_decode( $raw_body, true );
-
-		if ( $status_code < 200 || $status_code >= 300 ) {
-			wp_send_json_error( [
-				'message'  => __( 'ComfyUI endpoint returned an error.', 'storyos-comfy-generate' ),
-				'status_code' => $status_code,
-				'response' => $decoded ?: $raw_body,
-			], 500 );
-		}
-
-		wp_send_json_success( [
-			'status_code' => $status_code,
-			'response'    => $decoded ?: $raw_body,
-		] );
+		wp_send_json_error( [
+			'message'     => __( 'StoryOS generation request failed.', 'storyos-generation-engine' ),
+			'details'     => $result['error'] ?? __( 'Unknown error.', 'storyos-generation-engine' ),
+			'status_code' => $result['status_code'] ?? 500,
+			'response'    => $result['response'] ?? [],
+		], 500 );
 	}
 }

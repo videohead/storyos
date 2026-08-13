@@ -18,7 +18,7 @@ Story Core, Generation Core, Agent Core, Script Ecosystem, Production & Editoria
 
 ## MVP
 
-Projects, Characters, Locations, Scenes, Assets, ComfyUI Generate integration, advisor layer, Celtx script sync.
+Projects, Characters, Locations, Scenes, Assets, Generation Engine integration, advisor layer, Celtx script sync.
 
 ## Roadmap
 
@@ -34,7 +34,7 @@ StoryOS (WordPress + CPTs + SCF)
 Story Graph (canonical source of truth)
    ↓
 ┌─────────────────────┬──────────────────┐
-│ MAF Advisors        │ ComfyUI Generate │
+│ MAF Advisors        │ Generation Engine │
 │ Story, Prompt,      │ ComfyUI workflows│
 │ Production, Editorial│ Character,       │
 │ Technical           │ Environment,     │

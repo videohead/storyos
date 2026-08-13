@@ -5,7 +5,7 @@ A filmmaking-focused multi-agent framework that connects VS Code Copilot Chat to
 ## Architecture
 
 ```
-Creators → StoryOS → WordPress → Story Graph → MAF Advisors + ComfyUI Generate → ComfyUI → Assets → Production → Editorial
+Creators → StoryOS → WordPress → Story Graph → MAF Advisors + Generation Engine → ComfyUI → Assets → Production → Editorial
 ```
 
 The MAF provides AI agents that mirror real film crew positions, organized by department:

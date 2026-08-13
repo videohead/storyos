@@ -20,10 +20,14 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 
 from models import GenerationContext, TaskStatus
+from artifact_downloader import ArtifactDownloadError, ArtifactDownloader
+from provider_events import ProviderEventType, emit_provider_event
+from providers import ComfyUIProvider, NovaReelProvider, NovaReelProviderError, VeoProvider, VeoProviderError
 from story_graph import StoryGraphContextBuilder, WordPressAPIError
 from workflows.loader import WorkflowTemplateError, build_workflow
 
 logger = get_task_logger(__name__)
+artifact_downloader = ArtifactDownloader()
 
 # ── Environment variables ───────────────────────────────────────────────────
 
@@ -107,6 +111,73 @@ def upload_video_to_wordpress(
     return resp.json()
 
 
+def ingest_provider_artifacts(artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Download provider artifacts, upload videos, and clean up temp files."""
+    ingested: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        local_path = ""
+        try:
+            downloaded = artifact_downloader.download(artifact)
+            local_path = downloaded["local_path"]
+            media = upload_video_to_wordpress(local_path, downloaded["filename"])
+            downloaded["wordpress_media_id"] = media.get("id")
+            downloaded["wordpress_source_url"] = media.get("source_url")
+            ingested.append(downloaded)
+        finally:
+            if local_path:
+                try:
+                    os.unlink(local_path)
+                except FileNotFoundError:
+                    pass
+    return ingested
+
+
+def emit_asset_events(
+    artifacts: list[dict[str, Any]],
+    *,
+    job_id: str,
+    provider_type: str,
+    connection_id: int | None,
+    remote_job_ref: str,
+) -> None:
+    """Emit normalized artifact and asset events after provider ingestion."""
+    emit_provider_event(
+        ProviderEventType.ARTIFACTS_AVAILABLE,
+        job_id=job_id,
+        provider_type=provider_type,
+        connection_id=connection_id,
+        remote_job_ref=remote_job_ref,
+        payload={"count": len(artifacts)},
+    )
+    for artifact in artifacts:
+        emit_provider_event(
+            ProviderEventType.ARTIFACT_DOWNLOADED,
+            job_id=job_id,
+            provider_type=provider_type,
+            connection_id=connection_id,
+            remote_job_ref=remote_job_ref,
+            payload={
+                "filename": artifact.get("filename"),
+                "mime_type": artifact.get("mime_type"),
+                "size_bytes": artifact.get("size_bytes"),
+                "sha256": artifact.get("sha256"),
+            },
+        )
+        emit_provider_event(
+            ProviderEventType.ASSET_INGESTED,
+            job_id=job_id,
+            provider_type=provider_type,
+            connection_id=connection_id,
+            remote_job_ref=remote_job_ref,
+            payload={
+                "filename": artifact.get("filename"),
+                "mime_type": artifact.get("mime_type"),
+                "wordpress_media_id": artifact.get("wordpress_media_id"),
+                "download_url": artifact.get("wordpress_source_url"),
+            },
+        )
+
+
 # ── ComfyUI helpers ─────────────────────────────────────────────────────────
 
 
@@ -116,29 +187,24 @@ class ComfyUIError(Exception):
 
 def submit_workflow(workflow_data: dict[str, Any]) -> str:
     """Submit a workflow to ComfyUI and return the prompt_id."""
-    url = f"{COMFYUI_URL}/prompt"
-    resp = requests.post(url, json=workflow_data, timeout=30)
-    if resp.status_code != 200:
-        raise ComfyUIError(
-            f"ComfyUI POST /prompt failed: {resp.status_code} {resp.text[:500]}"
-        )
-    data = resp.json()
-    return data["prompt_id"]
+    try:
+        return ComfyUIProvider(COMFYUI_URL).submit({"workflow": workflow_data})["remote_job_ref"]
+    except Exception as exc:
+        raise ComfyUIError(f"ComfyUI submission failed: {exc}") from exc
 
 
 def poll_comfyui(
     prompt_id: str, poll_interval: float = 2.0, max_polls: int = 300
 ) -> dict[str, Any]:
     """Poll ComfyUI for workflow completion. Returns outputs or raises."""
+    provider = ComfyUIProvider(COMFYUI_URL)
     for i in range(max_polls):
         try:
-            resp = requests.get(
-                f"{COMFYUI_URL}/history/{prompt_id}", timeout=10
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                if prompt_id in data:
-                    return data[prompt_id]
+            result = provider.poll(prompt_id)
+            if result["status"] == "completed":
+                return {"outputs": result.get("outputs", {})}
+            if result["status"] == "failed":
+                raise ComfyUIError(result.get("error") or "ComfyUI workflow failed")
             time.sleep(poll_interval)
         except Exception as e:
             logger.warning("ComfyUI poll error (attempt %d): %s", i + 1, e)
@@ -149,24 +215,22 @@ def poll_comfyui(
     )
 
 
-def get_comfyui_outputs(prompt_id: str) -> list[dict[str, Any]]:
+def get_comfyui_outputs(
+    prompt_id: str,
+    poll_interval: float = 2.0,
+    max_polls: int = 300,
+) -> list[dict[str, Any]]:
     """Extract output file info from ComfyUI history."""
-    history = poll_comfyui(prompt_id)
-    outputs = history.get("outputs", {})
+    provider = ComfyUIProvider(COMFYUI_URL)
+    for _ in range(max_polls):
+        result = provider.poll(prompt_id)
+        if result["status"] == "completed":
+            return provider.download_artifacts(prompt_id)
+        if result["status"] == "failed":
+            raise ComfyUIError(result.get("error") or "ComfyUI workflow failed")
+        time.sleep(poll_interval)
 
-    files = []
-    for node_id, node_output in outputs.items():
-        for key, value in node_output.items():
-            if key == "images" or key == "gifs":
-                for img in value:
-                    files.append(
-                        {
-                            "filename": img.get("filename", ""),
-                            "subfolder": img.get("subfolder", ""),
-                            "type": img.get("type", "output"),
-                        }
-                    )
-    return files
+    raise ComfyUIError(f"ComfyUI timed out after {max_polls} polls for prompt {prompt_id}")
 
 
 # ── Celery tasks ────────────────────────────────────────────────────────────
@@ -178,6 +242,518 @@ class ComfyUIError(Exception):
 
 class GenerationError(Exception):
     """Raised when generation fails permanently."""
+
+
+def _policy_max_retries(params: dict[str, Any], default: int = 3) -> int:
+    return max(1, int(params.get("max_retries", default)))
+
+
+def _policy_retry_countdown(params: dict[str, Any], attempt: int, default_delay: int = 60) -> int:
+    base = max(1, int(params.get("retry_delay_seconds", default_delay)))
+    return base * (2 ** max(0, attempt))
+
+
+@celery_app.task(
+    bind=True,
+    name="tasks.generate_veo_task",
+    max_retries=4,
+    default_retry_delay=90,
+)
+def generate_veo_task(
+    self,
+    post_id: int,
+    workflow: str = "base",
+    custom_params: Optional[dict[str, Any]] = None,
+):
+    """Generate a video using the Veo provider path."""
+    params = dict(custom_params or {})
+    job_id = str(self.request.id)
+    connection_id = int(params["connection_id"]) if params.get("connection_id") else None
+
+    try:
+        emit_provider_event(
+            ProviderEventType.REQUEST_RECEIVED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            status=TaskStatus.QUEUED.value,
+            payload={"post_id": post_id, "workflow": workflow},
+        )
+        provider = VeoProvider(
+            api_key=params.get("veo_api_key") or os.getenv("GOOGLE_API_KEY"),
+            model=str(params.get("model_id") or params.get("model") or "veo-2.0-generate-001"),
+        )
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "status": TaskStatus.QUEUED.value,
+                "message": "Preparing Veo request...",
+                "progress": 10,
+            },
+        )
+
+        prompt = str(params.get("prompt", "")).strip()
+        if not prompt:
+            raise GenerationError("Veo prompt is required")
+
+        emit_provider_event(
+            ProviderEventType.SUBMISSION_STARTED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            status=TaskStatus.PROCESSING.value,
+        )
+        submitted = provider.submit(
+            {
+                "prompt": prompt,
+                "duration_seconds": int(params.get("duration_seconds", 8)),
+                "aspect_ratio": str(params.get("aspect_ratio", "16:9")),
+                "image": params.get("image"),
+            }
+        )
+        operation_name = submitted["remote_job_ref"]
+        emit_provider_event(
+            ProviderEventType.SUBMITTED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            remote_job_ref=operation_name,
+            status=TaskStatus.PROCESSING.value,
+        )
+
+        update_post_status(
+            post_id,
+            TaskStatus.PROCESSING.value,
+            video_job_id=self.request.id,
+            video_provider_type="veo",
+            video_veo_operation=operation_name,
+            video_veo_model=provider.model,
+        )
+
+        max_polls = int(params.get("max_polls", 180))
+        poll_interval = float(params.get("poll_interval_seconds", 8))
+        last_poll: dict[str, Any] = {}
+
+        for attempt in range(max_polls):
+            if attempt == 0:
+                emit_provider_event(
+                    ProviderEventType.POLL_STARTED,
+                    job_id=job_id,
+                    provider_type="veo",
+                    connection_id=connection_id,
+                    remote_job_ref=operation_name,
+                    status=TaskStatus.PROCESSING.value,
+                )
+            poll = provider.poll(operation_name)
+            last_poll = poll
+            emit_provider_event(
+                ProviderEventType.POLL_UPDATED,
+                job_id=job_id,
+                provider_type="veo",
+                connection_id=connection_id,
+                remote_job_ref=operation_name,
+                status=str(poll.get("status", "unknown")),
+                progress=min(95, 35 + int((attempt / max(1, max_polls)) * 55)),
+            )
+
+            if poll["status"] == "completed":
+                break
+
+            if poll["status"] == "failed":
+                raise GenerationError(f"Veo operation failed: {poll.get('error')}")
+
+            progress = min(95, 35 + int((attempt / max(1, max_polls)) * 55))
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "status": TaskStatus.PROCESSING.value,
+                    "message": "Waiting for Veo generation...",
+                    "progress": progress,
+                },
+            )
+            time.sleep(poll_interval)
+        else:
+            raise GenerationError("Veo polling timed out")
+
+        artifacts = ingest_provider_artifacts(provider.download_artifacts(operation_name))
+        emit_asset_events(
+            artifacts,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            remote_job_ref=operation_name,
+        )
+        video_uri = artifacts[0]["uri"] if artifacts else ""
+        media_ids = [artifact.get("wordpress_media_id") for artifact in artifacts]
+
+        update_post_status(
+            post_id,
+            TaskStatus.COMPLETED.value,
+            video_job_id=self.request.id,
+            video_provider_type="veo",
+            video_veo_operation=operation_name,
+            video_output_uri=video_uri,
+            video_output_files=len(artifacts),
+            video_media_ids=media_ids,
+        )
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "status": TaskStatus.COMPLETED.value,
+                "message": "Veo generation complete",
+                "progress": 100,
+            },
+        )
+
+        emit_provider_event(
+            ProviderEventType.COMPLETED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            remote_job_ref=operation_name,
+            status=TaskStatus.COMPLETED.value,
+            progress=100,
+            payload={"asset_count": len(artifacts)},
+        )
+
+        return {
+            "status": "completed",
+            "post_id": post_id,
+            "provider_type": "veo",
+            "workflow": workflow,
+            "operation_name": operation_name,
+            "artifacts": artifacts,
+            "provider_poll": last_poll,
+        }
+
+    except VeoProviderError as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": str(e)[:200]},
+        )
+        logger.error("Veo provider error: %s", e)
+        update_post_status(
+            post_id,
+            TaskStatus.FAILED.value,
+            video_job_id=self.request.id,
+            video_provider_type="veo",
+            video_error=str(e)[:200],
+        )
+        raise GenerationError(str(e)) from e
+    except GenerationError as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": str(e)[:200]},
+        )
+        raise
+    except WordPressAPIError as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": f"WordPress error: {str(e)[:200]}"},
+        )
+        logger.error("WordPress API error during Veo task: %s", e)
+        update_post_status(
+            post_id,
+            TaskStatus.FAILED.value,
+            video_job_id=self.request.id,
+            video_provider_type="veo",
+            video_error=f"WordPress error: {str(e)[:200]}",
+        )
+        raise
+    except Exception as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="veo",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": str(e)[:200]},
+        )
+        logger.exception("Unexpected error in generate_veo_task")
+        countdown = _policy_retry_countdown(params, self.request.retries, default_delay=90)
+        raise self.retry(
+            exc=e,
+            countdown=countdown,
+            max_retries=_policy_max_retries(params, default=4),
+        )
+
+
+@celery_app.task(
+    bind=True,
+    name="tasks.generate_nova_reel_task",
+    max_retries=3,
+    default_retry_delay=60,
+)
+def generate_nova_reel_task(
+    self,
+    post_id: int,
+    workflow: str = "base",
+    custom_params: Optional[dict[str, Any]] = None,
+):
+    """Generate a video using the Nova Reel provider path.
+
+    Expects `custom_params` to include at least:
+    - prompt (TEXT_VIDEO / MULTI_SHOT_AUTOMATED), or
+    - shots (MULTI_SHOT_MANUAL)
+    - optional task_type, model_id, output_s3_uri, seed, duration_seconds, images
+    """
+    params = dict(custom_params or {})
+    job_id = str(self.request.id)
+    connection_id = int(params["connection_id"]) if params.get("connection_id") else None
+
+    try:
+        emit_provider_event(
+            ProviderEventType.REQUEST_RECEIVED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            status=TaskStatus.QUEUED.value,
+            payload={"post_id": post_id, "workflow": workflow},
+        )
+        provider = NovaReelProvider(region_name=os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1")
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "status": TaskStatus.QUEUED.value,
+                "message": "Preparing Nova Reel request...",
+                "progress": 10,
+            },
+        )
+
+        params.setdefault("workflow", workflow)
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "status": TaskStatus.PROCESSING.value,
+                "message": "Submitting job to Nova Reel...",
+                "progress": 30,
+            },
+        )
+
+        emit_provider_event(
+            ProviderEventType.SUBMISSION_STARTED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            status=TaskStatus.PROCESSING.value,
+        )
+        submitted = provider.submit(params)
+        invocation_arn = submitted["remote_job_ref"]
+        emit_provider_event(
+            ProviderEventType.SUBMITTED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            remote_job_ref=invocation_arn,
+            status=TaskStatus.PROCESSING.value,
+        )
+
+        update_post_status(
+            post_id,
+            TaskStatus.PROCESSING.value,
+            video_job_id=self.request.id,
+            video_provider_type="nova_reel",
+            video_nova_invocation_arn=invocation_arn,
+            video_nova_model_id=submitted.get("model_id"),
+            video_nova_task_type=submitted.get("task_type"),
+            video_nova_output_s3_uri=submitted.get("output_s3_uri"),
+        )
+
+        max_polls = int(params.get("max_polls", 120))
+        poll_interval = float(params.get("poll_interval_seconds", 10))
+        last_poll: dict[str, Any] = {}
+
+        for attempt in range(max_polls):
+            if attempt == 0:
+                emit_provider_event(
+                    ProviderEventType.POLL_STARTED,
+                    job_id=job_id,
+                    provider_type="nova_reel",
+                    connection_id=connection_id,
+                    remote_job_ref=invocation_arn,
+                    status=TaskStatus.PROCESSING.value,
+                )
+            poll = provider.poll(invocation_arn)
+            last_poll = poll
+            provider_status = poll.get("provider_status", "Unknown")
+            emit_provider_event(
+                ProviderEventType.POLL_UPDATED,
+                job_id=job_id,
+                provider_type="nova_reel",
+                connection_id=connection_id,
+                remote_job_ref=invocation_arn,
+                status=str(poll.get("status", "unknown")),
+                progress=min(95, 40 + int((attempt / max(1, max_polls)) * 50)),
+                payload={"provider_status": provider_status},
+            )
+
+            if poll["status"] == "completed":
+                break
+
+            if poll["status"] == "failed":
+                message = str(poll.get("failure_message") or "Nova Reel job failed")
+                update_post_status(
+                    post_id,
+                    TaskStatus.FAILED.value,
+                    video_job_id=self.request.id,
+                    video_provider_type="nova_reel",
+                    video_error=message[:200],
+                    video_nova_invocation_arn=invocation_arn,
+                    video_nova_status=provider_status,
+                )
+                raise GenerationError(message)
+
+            progress = min(95, 40 + int((attempt / max(1, max_polls)) * 50))
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "status": TaskStatus.PROCESSING.value,
+                    "message": f"Nova Reel job status: {provider_status}",
+                    "progress": progress,
+                },
+            )
+            time.sleep(poll_interval)
+        else:
+            update_post_status(
+                post_id,
+                TaskStatus.FAILED.value,
+                video_job_id=self.request.id,
+                video_provider_type="nova_reel",
+                video_error="Nova Reel polling timed out",
+                video_nova_invocation_arn=invocation_arn,
+            )
+            raise GenerationError("Nova Reel polling timed out")
+
+        artifacts = ingest_provider_artifacts(provider.download_artifacts(invocation_arn))
+        emit_asset_events(
+            artifacts,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            remote_job_ref=invocation_arn,
+        )
+        video_uri = artifacts[0]["uri"] if artifacts else ""
+        media_ids = [artifact.get("wordpress_media_id") for artifact in artifacts]
+
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "status": TaskStatus.COMPLETED.value,
+                "message": "Nova Reel generation complete",
+                "progress": 100,
+            },
+        )
+
+        update_post_status(
+            post_id,
+            TaskStatus.COMPLETED.value,
+            video_job_id=self.request.id,
+            video_provider_type="nova_reel",
+            video_nova_invocation_arn=invocation_arn,
+            video_nova_status=last_poll.get("provider_status", "Completed"),
+            video_output_uri=video_uri,
+            video_output_files=len(artifacts),
+            video_media_ids=media_ids,
+        )
+
+        emit_provider_event(
+            ProviderEventType.COMPLETED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            remote_job_ref=invocation_arn,
+            status=TaskStatus.COMPLETED.value,
+            progress=100,
+            payload={"asset_count": len(artifacts)},
+        )
+
+        return {
+            "status": "completed",
+            "post_id": post_id,
+            "provider_type": "nova_reel",
+            "workflow": workflow,
+            "invocation_arn": invocation_arn,
+            "artifacts": artifacts,
+        }
+
+    except NovaReelProviderError as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": str(e)[:200]},
+        )
+        logger.error("Nova Reel provider error: %s", e)
+        update_post_status(
+            post_id,
+            TaskStatus.FAILED.value,
+            video_job_id=self.request.id,
+            video_provider_type="nova_reel",
+            video_error=str(e)[:200],
+        )
+        raise GenerationError(str(e)) from e
+    except GenerationError as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": str(e)[:200]},
+        )
+        raise
+    except WordPressAPIError as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": f"WordPress error: {str(e)[:200]}"},
+        )
+        logger.error("WordPress API error during Nova Reel task: %s", e)
+        update_post_status(
+            post_id,
+            TaskStatus.FAILED.value,
+            video_job_id=self.request.id,
+            video_provider_type="nova_reel",
+            video_error=f"WordPress error: {str(e)[:200]}",
+        )
+        raise
+    except Exception as e:
+        emit_provider_event(
+            ProviderEventType.FAILED,
+            job_id=job_id,
+            provider_type="nova_reel",
+            connection_id=connection_id,
+            status=TaskStatus.FAILED.value,
+            payload={"error": str(e)[:200]},
+        )
+        logger.exception("Unexpected error in generate_nova_reel_task")
+        countdown = _policy_retry_countdown(params, self.request.retries, default_delay=120)
+        raise self.retry(
+            exc=e,
+            countdown=countdown,
+            max_retries=_policy_max_retries(params, default=5),
+        )
 
 
 @celery_app.task(
@@ -199,6 +775,7 @@ def generate_video_task(
         workflow: Workflow template name (e.g., 'character-sheet', 'environment')
         custom_params: Override parameters (seed, steps, cfg, etc.)
     """
+    params = dict(custom_params or {})
     try:
         # Initialize builders
         context_builder = StoryGraphContextBuilder(
@@ -220,8 +797,8 @@ def generate_video_task(
         context = context_builder.build_for_post(post_id)
 
         # Apply custom params overrides
-        if custom_params:
-            context.update(custom_params)
+        if params:
+            context.update(params)
 
         context["workflow_template"] = workflow
 
@@ -261,7 +838,12 @@ def generate_video_task(
             prompt_id = submit_workflow(workflow_data)
         except ComfyUIError as e:
             logger.error("ComfyUI submission failed: %s", e)
-            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+            countdown = _policy_retry_countdown(params, self.request.retries, default_delay=60)
+            raise self.retry(
+                exc=e,
+                countdown=countdown,
+                max_retries=_policy_max_retries(params, default=3),
+            )
 
         # Step 4: Poll for completion
         self.update_state(
@@ -274,10 +856,19 @@ def generate_video_task(
         )
 
         try:
-            output_files = get_comfyui_outputs(prompt_id)
+            output_files = get_comfyui_outputs(
+                prompt_id,
+                poll_interval=float(params.get("poll_interval_seconds", 2)),
+                max_polls=int(params.get("max_polls", 300)),
+            )
         except ComfyUIError as e:
             logger.error("ComfyUI generation failed: %s", e)
-            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+            countdown = _policy_retry_countdown(params, self.request.retries, default_delay=60)
+            raise self.retry(
+                exc=e,
+                countdown=countdown,
+                max_retries=_policy_max_retries(params, default=3),
+            )
 
         if not output_files:
             logger.warning("No output files from ComfyUI for prompt %s", prompt_id)
@@ -299,27 +890,14 @@ def generate_video_task(
             },
         )
 
-        uploaded_media = []
-        for file_info in output_files:
-            # Build full file path
-            subfolder = file_info.get("subfolder", "")
-            filename = file_info["filename"]
-            if subfolder:
-                filepath = f"/ ComfyUI/output/{subfolder}/{filename}"
-            else:
-                filepath = f"/ComfyUI/output/{filename}"
-
-            try:
-                media_obj = upload_media_to_wordpress(filepath, filename)
-                uploaded_media.append(media_obj)
-                logger.info(
-                    "Uploaded %s to WordPress as media %s", filename, media_obj.get("id")
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to upload %s to WordPress: %s", filename, e
-                )
-                # Continue with other files even if one fails
+        ingested_artifacts = ingest_provider_artifacts(output_files)
+        uploaded_media = [
+            {
+                "id": artifact.get("wordpress_media_id"),
+                "source_url": artifact.get("wordpress_source_url"),
+            }
+            for artifact in ingested_artifacts
+        ]
 
         # Step 6: Mark as complete
         self.update_state(
@@ -336,7 +914,7 @@ def generate_video_task(
             TaskStatus.COMPLETED.value,
             video_job_id=self.request.id,
             video_prompt_id=prompt_id,
-            video_output_files=len(output_files),
+            video_output_files=len(ingested_artifacts),
             video_media_ids=[m.get("id") for m in uploaded_media],
         )
 
@@ -344,7 +922,7 @@ def generate_video_task(
             "status": "completed",
             "post_id": post_id,
             "prompt_id": prompt_id,
-            "output_files": output_files,
+            "output_files": ingested_artifacts,
             "uploaded_media": [m.get("id") for m in uploaded_media],
             "workflow": workflow,
         }
@@ -364,7 +942,12 @@ def generate_video_task(
     except Exception as e:
         # Unknown error — retry
         logger.exception("Unexpected error in generate_video_task")
-        raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+        countdown = _policy_retry_countdown(params, self.request.retries, default_delay=60)
+        raise self.retry(
+            exc=e,
+            countdown=countdown,
+            max_retries=_policy_max_retries(params, default=3),
+        )
 
 
 @celery_app.task(

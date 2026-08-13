@@ -8,6 +8,21 @@
 
 ---
 
+## Local Lando Entry Points (Critical for Testing)
+
+When Lando is already running, use these service entry points for local validation:
+
+- WordPress app: http://storyos.lndo.site/ or https://storyos.lndo.site/
+- Orchestrator API / queue entry point: http://localhost:32774
+- ComfyUI service: http://localhost:32778
+- phpMyAdmin: http://localhost:32773
+
+For generation-engine and plugin integration work, the orchestrator service at http://localhost:32774 is the primary runtime endpoint for queue submission and status checks. The WordPress app remains the control plane, while the orchestrator handles execution, Celery jobs, provider adapters, and artifact processing.
+
+If the environment is already running, prefer `lando info` to refresh the URLs before testing.
+
+---
+
 ## Agent Hierarchy
 
 StoryOS uses a **hierarchical agent architecture** where agents collaborate through

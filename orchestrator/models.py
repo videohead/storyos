@@ -40,6 +40,14 @@ class HealthStatus(str, Enum):
 class GenerateRequest(BaseModel):
     """Request to generate an asset."""
     post_id: int
+    provider_type: str = Field(
+        description="Provider type slug registered in orchestrator (e.g., 'comfyui', 'veo')",
+        min_length=1,
+    )
+    connection_id: int = Field(
+        description="Provider connection identifier from control plane",
+        ge=1,
+    )
     workflow: GenerationType = Field(
         default=GenerationType.CHARACTER_SHEET,
         description="Workflow template to use",
@@ -86,6 +94,8 @@ class GenerateResponse(BaseModel):
     status: TaskStatus
     post_id: int
     workflow: str
+    provider_type: str
+    connection_id: int
 
 
 class BatchGenerateResponse(BaseModel):

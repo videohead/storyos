@@ -1,0 +1,81 @@
+{
+  "provider_type": "veo",
+  "provider_version": "0.1.0",
+  "capability_schema_version": "1.0",
+  "discovery": {
+    "mode": "static",
+    "endpoint": "https://generativelanguage.googleapis.com",
+    "refresh_interval_seconds": null,
+    "notes": "Refresh this descriptor when Google publishes model-version or parameter changes. Connection availability and regional restrictions remain runtime concerns."
+  },
+  "operations": {
+    "generate": true,
+    "download_artifacts": true,
+    "poll": true,
+    "cancel": false
+  },
+  "models": [
+    {
+      "model_id": "veo-3.1-generate-preview",
+      "status": "preview",
+      "execution_topology": {
+        "mode": "external_adapter",
+        "comfyui_required": false,
+        "external_api_required": true,
+        "dependencies": ["google_api_credentials", "supported_google_region"]
+      },
+      "structures": ["text_to_video", "image_to_video", "video_to_video", "image_start_frame", "image_end_frame"],
+      "input_constraints": {
+        "mime_types": ["image/png", "image/jpeg", "video/mp4"],
+        "max_image_count": 3,
+        "max_video_count": 1,
+        "max_audio_inputs": 0,
+        "prompt_max_characters": null
+      },
+      "output_constraints": {
+        "mime_types": ["video/mp4"],
+        "max_outputs_per_request": 1
+      },
+      "dimensions": {
+        "resolutions": ["720p", "1080p", "4k"],
+        "1080p_requires_duration_seconds": 8,
+        "4k_requires_duration_seconds": 8,
+        "extension_resolution": "720p"
+      },
+      "aspect_ratios": ["16:9", "9:16"],
+      "video": {
+        "duration_seconds": [4, 6, 8],
+        "frame_rates": [24],
+        "extension_max_input_seconds": 141,
+        "extension_max_output_seconds": 148
+      },
+      "prompt": {
+        "negative_prompt": false,
+        "seed": true,
+        "audio_prompting": true
+      },
+      "references": {
+        "image_references": true,
+        "max_reference_images": 3,
+        "start_frame": true,
+        "end_frame": true,
+        "video_extension": true
+      },
+      "audio": {
+        "output": true,
+        "native_generation": true
+      },
+      "availability": {
+        "video_retention_days": 2,
+        "regional_person_generation_restrictions": true
+      }
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://ai.google.dev/gemini-api/docs/veo",
+      "kind": "official_api",
+      "retrieved_at": "2026-08-12"
+    }
+  ]
+}

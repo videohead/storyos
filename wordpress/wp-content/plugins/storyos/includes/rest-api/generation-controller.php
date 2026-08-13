@@ -68,6 +68,20 @@ class Generation_Controller extends Base_Controller {
 					'description' => 'Generation parameters.',
 					'type'        => 'object',
 				],
+				'workflow'   => [
+					'description' => 'Workflow template slug.',
+					'type'        => 'string',
+				],
+				'provider_type' => [
+					'description' => 'Provider type slug.',
+					'type'        => 'string',
+					'required'    => true,
+				],
+				'connection_id' => [
+					'description' => 'Provider connection ID.',
+					'type'        => 'integer',
+					'required'    => true,
+				],
 			],
 		] );
 
@@ -127,11 +141,22 @@ class Generation_Controller extends Base_Controller {
 		$prompt = $request->get_param( 'prompt' );
 		$asset_id = $request->get_param( 'asset_id' ) ? absint( $request->get_param( 'asset_id' ) ) : null;
 		$params = $request->get_param( 'params' ) ?? [];
+		$workflow = sanitize_text_field( (string) ( $request->get_param( 'workflow' ) ?: 'character-sheet' ) );
+		$provider_type = sanitize_text_field( (string) $request->get_param( 'provider_type' ) );
+		$connection_id = absint( $request->get_param( 'connection_id' ) );
 
 		// Validate generation type.
 		$valid_types = [ 'image', 'video', 'audio', 'text' ];
 		if ( ! in_array( $type, $valid_types, true ) ) {
 			return new WP_Error( 'invalid_type', 'Invalid generation type.', [ 'status' => 400 ] );
+		}
+
+		if ( '' === $provider_type ) {
+			return new WP_Error( 'invalid_provider_type', 'Provider type is required.', [ 'status' => 400 ] );
+		}
+
+		if ( $connection_id < 1 ) {
+			return new WP_Error( 'invalid_connection_id', 'Connection ID must be a positive integer.', [ 'status' => 400 ] );
 		}
 
 		// Create generation request post.
@@ -150,16 +175,37 @@ class Generation_Controller extends Base_Controller {
 		update_post_meta( $post_id, '_storyos_generation_type', $type );
 		update_post_meta( $post_id, '_storyos_generation_prompt', $prompt );
 		update_post_meta( $post_id, '_storyos_generation_params', $params );
+		update_post_meta( $post_id, '_storyos_generation_workflow', $workflow );
+		update_post_meta( $post_id, '_storyos_generation_provider_type', $provider_type );
+		update_post_meta( $post_id, '_storyos_generation_connection_id', $connection_id );
 		update_post_meta( $post_id, '_storyos_generation_status', 'queued' );
 		update_post_meta( $post_id, '_storyos_generation_created', current_time( 'mysql' ) );
 
 		// Queue the generation task.
-		self::queue_generation( $post_id, $type, $prompt, $params );
+		$target_post_id = $asset_id ?: $post_id;
+		$queued = self::queue_generation( $target_post_id, $workflow, $provider_type, $connection_id, $params, $post_id, $type, $prompt );
+
+		if ( empty( $queued['success'] ) ) {
+			update_post_meta( $post_id, '_storyos_generation_status', 'failed' );
+			update_post_meta( $post_id, '_storyos_generation_error', $queued['error'] ?? 'Unknown queue error' );
+
+			return new WP_Error(
+				'generation_queue_failed',
+				$queued['error'] ?? 'Failed to queue generation request.',
+				[ 'status' => 500, 'details' => $queued ]
+			);
+		}
+
+		update_post_meta( $post_id, '_storyos_generation_job_id', sanitize_text_field( (string) $queued['job_id'] ) );
+		update_post_meta( $post_id, '_storyos_generation_status', 'queued' );
 
 		return rest_ensure_response( [
 			'id'         => $post_id,
+			'job_id'     => $queued['job_id'],
 			'status'     => 'queued',
 			'type'       => $type,
+			'provider_type' => $provider_type,
+			'connection_id' => $connection_id,
 			'created_at' => current_time( 'mysql' ),
 		] );
 	}
@@ -167,29 +213,83 @@ class Generation_Controller extends Base_Controller {
 	/**
 	 * Queue a generation task.
 	 *
-	 * @param int    $post_id
-	 * @param string $type
-	 * @param string $prompt
-	 * @param array  $params
+	 * @param int    $target_post_id Target post ID for generation context.
+	 * @param string $workflow Workflow template.
+	 * @param string $provider_type Provider type slug.
+	 * @param int    $connection_id Provider connection ID.
+	 * @param array  $params Generation parameters.
+	 * @param int    $generation_post_id Generation tracking post ID.
+	 * @param string $type Generation type.
+	 * @param string $prompt Prompt text.
+	 * @return array
 	 */
-	private static function queue_generation( int $post_id, string $type, string $prompt, array $params ): void {
-		// Integration point for ComfyUI or other generation backends.
-		// In production, this would push to a queue (e.g., Redis/Celery).
+	private static function queue_generation( int $target_post_id, string $workflow, string $provider_type, int $connection_id, array $params, int $generation_post_id, string $type, string $prompt ): array {
+		$endpoint = trailingslashit( self::get_orchestrator_url() ) . 'generate';
 
-		// For now, simulate async processing.
-		$generation_data = [
-			'id'       => $post_id,
-			'type'     => $type,
-			'prompt'   => $prompt,
-			'params'   => $params,
-			'status'   => 'processing',
+		$payload = [
+			'post_id'        => $target_post_id,
+			'provider_type'  => $provider_type,
+			'connection_id'  => $connection_id,
+			'workflow'       => $workflow,
+			'custom_params'  => array_merge(
+				[
+					'generation_post_id' => $generation_post_id,
+					'generation_type'    => $type,
+					'prompt'             => $prompt,
+					'source'             => 'storyos-rest',
+				],
+				$params
+			),
 		];
 
-		// Store in transient for demo purposes.
-		set_transient( 'storyos_generation_' . $post_id, $generation_data, HOUR_IN_SECONDS );
+		$response = wp_remote_post(
+			$endpoint,
+			[
+				'timeout'   => 30,
+				'headers'   => self::build_orchestrator_headers(),
+				'body'      => wp_json_encode( $payload ),
+				'sslverify' => false,
+			]
+		);
 
-		// Update status.
-		update_post_meta( $post_id, '_storyos_generation_status', 'processing' );
+		if ( is_wp_error( $response ) ) {
+			return [
+				'success' => false,
+				'error'   => $response->get_error_message(),
+			];
+		}
+
+		$status_code = wp_remote_retrieve_response_code( $response );
+		$body_raw    = wp_remote_retrieve_body( $response );
+		$decoded     = json_decode( $body_raw, true );
+
+		if ( $status_code < 200 || $status_code >= 300 ) {
+			return [
+				'success'     => false,
+				'error'       => 'Orchestrator rejected generation request.',
+				'status_code' => $status_code,
+				'response'    => $decoded ?: $body_raw,
+			];
+		}
+
+		$job_id = '';
+		if ( is_array( $decoded ) ) {
+			$job_id = (string) ( $decoded['job_id'] ?? '' );
+		}
+
+		if ( '' === $job_id ) {
+			return [
+				'success'  => false,
+				'error'    => 'Orchestrator response did not include a job_id.',
+				'response' => $decoded ?: $body_raw,
+			];
+		}
+
+		return [
+			'success'  => true,
+			'job_id'   => $job_id,
+			'response' => $decoded,
+		];
 	}
 
 	/**
@@ -200,20 +300,52 @@ class Generation_Controller extends Base_Controller {
 	 */
 	public static function get_generation_status( WP_REST_Request $request ) {
 		$generation_id = absint( $request->get_param( 'id' ) );
+		$job_id = get_post_meta( $generation_id, '_storyos_generation_job_id', true );
 
-		// Check transient first (simulated async).
-		$generation = get_transient( 'storyos_generation_' . $generation_id );
+		if ( ! empty( $job_id ) ) {
+			$endpoint = trailingslashit( self::get_orchestrator_url() ) . 'queue/task/' . rawurlencode( (string) $job_id );
+			$response = wp_remote_get(
+				$endpoint,
+				[
+					'timeout'   => 30,
+					'headers'   => self::build_orchestrator_headers(),
+					'sslverify' => false,
+				]
+			);
 
-		if ( ! $generation ) {
-			// Fall back to post meta.
-			$generation = [
-				'id'       => $generation_id,
-				'status'   => get_post_meta( $generation_id, '_storyos_generation_status', true ) ?: 'unknown',
-				'type'     => get_post_meta( $generation_id, '_storyos_generation_type', true ),
-				'prompt'   => get_post_meta( $generation_id, '_storyos_generation_prompt', true ),
-				'created'  => get_post_meta( $generation_id, '_storyos_generation_created', true ),
-			];
+			if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
+				$body_raw = wp_remote_retrieve_body( $response );
+				$decoded  = json_decode( $body_raw, true );
+
+				if ( is_array( $decoded ) ) {
+					$status = sanitize_text_field( (string) ( $decoded['registry_status'] ?? $decoded['celery_state'] ?? 'unknown' ) );
+					update_post_meta( $generation_id, '_storyos_generation_status', $status );
+
+					return rest_ensure_response( [
+						'id'            => $generation_id,
+						'job_id'        => $job_id,
+						'status'        => $status,
+						'type'          => get_post_meta( $generation_id, '_storyos_generation_type', true ),
+						'prompt'        => get_post_meta( $generation_id, '_storyos_generation_prompt', true ),
+						'provider_type' => get_post_meta( $generation_id, '_storyos_generation_provider_type', true ),
+						'connection_id' => absint( get_post_meta( $generation_id, '_storyos_generation_connection_id', true ) ),
+						'created'       => get_post_meta( $generation_id, '_storyos_generation_created', true ),
+						'orchestrator'  => $decoded,
+					] );
+				}
+			}
 		}
+
+		$generation = [
+			'id'            => $generation_id,
+			'job_id'        => $job_id,
+			'status'        => get_post_meta( $generation_id, '_storyos_generation_status', true ) ?: 'unknown',
+			'type'          => get_post_meta( $generation_id, '_storyos_generation_type', true ),
+			'prompt'        => get_post_meta( $generation_id, '_storyos_generation_prompt', true ),
+			'provider_type' => get_post_meta( $generation_id, '_storyos_generation_provider_type', true ),
+			'connection_id' => absint( get_post_meta( $generation_id, '_storyos_generation_connection_id', true ) ),
+			'created'       => get_post_meta( $generation_id, '_storyos_generation_created', true ),
+		];
 
 		return rest_ensure_response( $generation );
 	}
@@ -226,15 +358,26 @@ class Generation_Controller extends Base_Controller {
 	 */
 	public static function cancel_generation( WP_REST_Request $request ) {
 		$generation_id = absint( $request->get_param( 'id' ) );
+		$job_id = get_post_meta( $generation_id, '_storyos_generation_job_id', true );
 
-		// Remove transient.
-		delete_transient( 'storyos_generation_' . $generation_id );
+		if ( ! empty( $job_id ) ) {
+			$endpoint = trailingslashit( self::get_orchestrator_url() ) . 'queue/cancel/' . rawurlencode( (string) $job_id );
+			wp_remote_post(
+				$endpoint,
+				[
+					'timeout'   => 20,
+					'headers'   => self::build_orchestrator_headers(),
+					'sslverify' => false,
+				]
+			);
+		}
 
 		// Update status.
 		update_post_meta( $generation_id, '_storyos_generation_status', 'cancelled' );
 
 		return rest_ensure_response( [
 			'id'       => $generation_id,
+			'job_id'   => $job_id,
 			'status'   => 'cancelled',
 			'message'  => 'Generation request cancelled.',
 		] );
@@ -264,9 +407,12 @@ class Generation_Controller extends Base_Controller {
 			foreach ( $generations->posts as $post ) {
 				$history[] = [
 					'id'       => $post->ID,
+					'job_id'   => get_post_meta( $post->ID, '_storyos_generation_job_id', true ),
 					'type'     => get_post_meta( $post->ID, '_storyos_generation_type', true ),
 					'prompt'   => get_post_meta( $post->ID, '_storyos_generation_prompt', true ),
 					'status'   => get_post_meta( $post->ID, '_storyos_generation_status', true ),
+					'provider_type' => get_post_meta( $post->ID, '_storyos_generation_provider_type', true ),
+					'connection_id' => absint( get_post_meta( $post->ID, '_storyos_generation_connection_id', true ) ),
 					'created'  => get_post_meta( $post->ID, '_storyos_generation_created', true ),
 				];
 			}
@@ -274,5 +420,41 @@ class Generation_Controller extends Base_Controller {
 		}
 
 		return rest_ensure_response( $history );
+	}
+
+	/**
+	 * Resolve orchestrator URL.
+	 *
+	 * @return string
+	 */
+	private static function get_orchestrator_url(): string {
+		$url = get_option( 'storyos_orchestrator_url', '' );
+		if ( empty( $url ) && defined( 'STORYOS_ORCHESTRATOR_URL' ) ) {
+			$url = STORYOS_ORCHESTRATOR_URL;
+		}
+		if ( empty( $url ) ) {
+			$url = 'http://orchestrator:8000';
+		}
+
+		return rtrim( (string) $url, '/' );
+	}
+
+	/**
+	 * Build headers for orchestrator calls.
+	 *
+	 * @return array
+	 */
+	private static function build_orchestrator_headers(): array {
+		$headers = [
+			'Content-Type' => 'application/json',
+			'Accept'       => 'application/json',
+		];
+
+		$token = get_option( 'storyos_orchestrator_token', '' );
+		if ( ! empty( $token ) ) {
+			$headers['Authorization'] = 'Bearer ' . sanitize_text_field( (string) $token );
+		}
+
+		return $headers;
 	}
 }

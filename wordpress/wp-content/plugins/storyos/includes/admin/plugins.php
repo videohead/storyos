@@ -63,20 +63,20 @@ class Plugins {
 			);
 		}
 
-		// ComfyUI Generate plugin.
+		// Generation Engine plugin.
 		if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php' ) ) {
 			self::register_plugin(
 				'comfy-generate',
-				'StoryOS - ComfyUI Generate',
+				'StoryOS - Generation Engine',
 				[
-					'name'        => 'ComfyUI Generate',
-					'description' => 'Adds a "Send to ComfyUI" button to WordPress posts and forwards jobs to a configurable ComfyUI endpoint.',
+					'name'        => 'Generation Engine',
+					'description' => 'Adds a generation button to WordPress posts and forwards jobs to the StoryOS orchestrator.',
 					'version'     => '1.0.0',
 					'author'      => 'StoryOS Contributors',
 					'icon'        => 'dashicons-video-alt3',
 					'file'        => 'plugins/comfy-generate/comfy-generate.php',
 					'has_settings' => true,
-					'settings_url' => admin_url( 'admin.php?page=storyos-comfy-generate' ),
+					'settings_url' => admin_url( 'admin.php?page=storyos-generation-engine' ),
 				]
 			);
 		}
@@ -148,10 +148,11 @@ class Plugins {
 				return (bool) get_option( 'celtx_enabled', false );
 
 			case 'comfy-generate':
-				if ( class_exists( '\\StoryOSComfyGenerate\\Settings' ) ) {
-					return \StoryOSComfyGenerate\Settings::is_enabled();
+					if ( class_exists( '\\StoryOSGenerationEngine\\Settings' ) ) {
+						return \StoryOSGenerationEngine\Settings::is_enabled();
 				}
-				return true;
+					$settings = get_option( 'storyos_generation_engine_settings', [] );
+					return is_array( $settings ) && ! empty( $settings['enabled'] );
 
 			case 'edl':
 				return (bool) get_option( 'storyos_edl_enabled', true );
@@ -177,11 +178,11 @@ class Plugins {
 				return is_array( $credentials ) && ! empty( $credentials['api_key'] );
 
 			case 'comfy-generate':
-				if ( class_exists( '\\StoryOSComfyGenerate\\Settings' ) ) {
-					return \StoryOSComfyGenerate\Settings::is_configured();
+					if ( class_exists( '\\StoryOSGenerationEngine\\Settings' ) ) {
+						return \StoryOSGenerationEngine\Settings::is_configured();
 				}
-				$settings = get_option( 'comfy_generate_button_settings', [] );
-				return is_array( $settings ) && ! empty( $settings['endpoint_url'] );
+					$settings = get_option( 'storyos_generation_engine_settings', [] );
+					return is_array( $settings ) && ! empty( $settings['orchestrator_url'] );
 
 			case 'edl':
 				return true;
@@ -216,11 +217,11 @@ class Plugins {
 				break;
 
 			case 'comfy-generate':
-				if ( class_exists( '\\StoryOSComfyGenerate\\Settings' ) ) {
+					if ( class_exists( '\\StoryOSGenerationEngine\\Settings' ) ) {
 					if ( $enabled ) {
-						\StoryOSComfyGenerate\Settings::enable();
+							\StoryOSGenerationEngine\Settings::enable();
 					} else {
-						\StoryOSComfyGenerate\Settings::disable();
+							\StoryOSGenerationEngine\Settings::disable();
 					}
 				}
 				break;

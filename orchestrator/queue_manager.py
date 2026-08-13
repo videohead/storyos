@@ -20,6 +20,39 @@ from celery.result import AsyncResult
 logger = logging.getLogger(__name__)
 
 
+PROVIDER_QUEUE_POLICIES: dict[str, dict[str, Any]] = {
+    "comfyui": {
+        "task_name": "tasks.generate_video_task",
+        "poll_interval_seconds": 2,
+        "max_polls": 300,
+        "retry_delay_seconds": 60,
+        "max_retries": 3,
+        "soft_time_limit_seconds": 600,
+        "hard_time_limit_seconds": 900,
+    },
+    "nova_reel": {
+        "task_name": "tasks.generate_nova_reel_task",
+        "poll_interval_seconds": 10,
+        "max_polls": 180,
+        "retry_delay_seconds": 120,
+        "max_retries": 5,
+        "soft_time_limit_seconds": 2400,
+        "hard_time_limit_seconds": 3000,
+    },
+    "veo": {
+        "task_name": "tasks.generate_veo_task",
+        "poll_interval_seconds": 8,
+        "max_polls": 180,
+        "retry_delay_seconds": 90,
+        "max_retries": 4,
+        "soft_time_limit_seconds": 1800,
+        "hard_time_limit_seconds": 2400,
+    },
+}
+
+DEFAULT_PROVIDER_POLICY = PROVIDER_QUEUE_POLICIES["comfyui"]
+
+
 class TaskRegistry:
     """Registry to track task metadata beyond Celery's built-in tracking."""
 
@@ -32,6 +65,8 @@ class TaskRegistry:
         post_id: int,
         workflow: str,
         entity_type: str = "post",
+        provider_type: str = "comfyui",
+        connection_id: Optional[int] = None,
         custom_params: Optional[dict[str, Any]] = None,
     ):
         """Register a task with metadata."""
@@ -40,6 +75,8 @@ class TaskRegistry:
             "post_id": post_id,
             "entity_type": entity_type,
             "workflow": workflow,
+            "provider_type": provider_type,
+            "connection_id": connection_id,
             "custom_params": custom_params or {},
             "status": "queued",
             "created_at": time.time(),
@@ -164,12 +201,21 @@ class QueueManager:
         self.registry = TaskRegistry()
         self.rate_limiter = RateLimiter(max_concurrent=max_concurrent_per_post)
 
+    @staticmethod
+    def get_provider_policy(provider_type: str) -> dict[str, Any]:
+        """Get queue policy for a provider type."""
+        key = provider_type.strip().lower()
+        policy = PROVIDER_QUEUE_POLICIES.get(key, DEFAULT_PROVIDER_POLICY)
+        return dict(policy)
+
     def submit_task(
         self,
-        task_name: str,
+        task_name: Optional[str],
         post_id: int,
         workflow: str = "base",
         entity_type: str = "post",
+        provider_type: str = "comfyui",
+        connection_id: Optional[int] = None,
         custom_params: Optional[dict[str, Any]] = None,
     ) -> Optional[str]:
         """Submit a task to the queue with rate limiting.
@@ -183,10 +229,24 @@ class QueueManager:
             logger.warning("Task submission rejected for post %d: %s", post_id, reason)
             return None
 
+        policy = self.get_provider_policy(provider_type)
+        resolved_task_name = task_name or str(policy["task_name"])
+
+        merged_params = dict(custom_params or {})
+        merged_params.setdefault("provider_type", provider_type)
+        if connection_id is not None:
+            merged_params.setdefault("connection_id", connection_id)
+        merged_params.setdefault("poll_interval_seconds", policy["poll_interval_seconds"])
+        merged_params.setdefault("max_polls", policy["max_polls"])
+        merged_params.setdefault("retry_delay_seconds", policy["retry_delay_seconds"])
+        merged_params.setdefault("max_retries", policy["max_retries"])
+
         # Send task to Celery
         task = self.celery_app.send_task(
-            task_name,
-            args=[post_id, workflow, custom_params],
+            resolved_task_name,
+            args=[post_id, workflow, merged_params],
+            soft_time_limit=int(policy["soft_time_limit_seconds"]),
+            time_limit=int(policy["hard_time_limit_seconds"]),
         )
 
         # Register with metadata
@@ -195,7 +255,9 @@ class QueueManager:
             post_id=post_id,
             workflow=workflow,
             entity_type=entity_type,
-            custom_params=custom_params,
+            provider_type=provider_type,
+            connection_id=connection_id,
+            custom_params=merged_params,
         )
 
         logger.info("Submitted task %s for post %d", task.id, post_id)
@@ -242,6 +304,8 @@ class QueueManager:
             "post_id": registry_meta["post_id"],
             "entity_type": registry_meta["entity_type"],
             "workflow": registry_meta["workflow"],
+            "provider_type": registry_meta.get("provider_type", "comfyui"),
+            "connection_id": registry_meta.get("connection_id"),
             "celery_state": celery_result.state,
             "registry_status": registry_meta["status"],
             "progress": info.get("progress"),

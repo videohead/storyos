@@ -1,6 +1,7 @@
 import os
 import time
-from typing import Optional
+import logging
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
@@ -58,6 +59,11 @@ from middleware import RequestLoggingMiddleware, MetricsMiddleware, setup_loggin
 from queue_manager import QueueManager
 from asset_lineage import AssetLineage, WordPressAssetError
 from mcp_agents import create_mcp_agent_router
+from providers.loader import load_providers
+from providers.discovery import discover_providers
+from comfyui_readiness import ComfyUIReadinessChecker, ComfyUIReadinessError
+
+logger = logging.getLogger(__name__)
 
 # ── Logging setup ──────────────────────────────────────────────────────────
 
@@ -113,6 +119,8 @@ health_checker = HealthChecker(
 )
 
 queue_manager = QueueManager(celery_app=celery_app)
+
+provider_registry = load_providers()
 
 asset_lineage = AssetLineage(
     wordpress_url=WORDPRESS_URL,
@@ -337,27 +345,51 @@ def generate(req: GenerateRequest):
         custom_params: Override parameters (seed, steps, cfg, etc.)
     """
     try:
+        if not provider_registry.has(req.provider_type):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported provider_type: {req.provider_type}",
+            )
+
         # Validate post exists
         post = get_post(req.post_id)
 
-        # Send task to Celery
-        task = celery_app.send_task(
-            "tasks.generate_video_task",
-            args=[req.post_id, req.workflow, req.custom_params],
+        policy = queue_manager.get_provider_policy(req.provider_type)
+        task_name = str(policy["task_name"])
+
+        # Queue task via queue manager so execution is always orchestrated.
+        job_id = queue_manager.submit_task(
+            task_name=task_name,
+            post_id=req.post_id,
+            workflow=str(req.workflow),
+            entity_type="post",
+            provider_type=req.provider_type,
+            connection_id=req.connection_id,
+            custom_params=req.custom_params,
         )
+
+        if job_id is None:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded. Too many concurrent tasks for this post.",
+            )
 
         # Update WordPress post meta
         meta = post.get("meta", {}) or {}
         meta["video_status"] = "queued"
-        meta["video_job_id"] = task.id
+        meta["video_job_id"] = job_id
+        meta["storyos_provider_type"] = req.provider_type
+        meta["storyos_connection_id"] = req.connection_id
 
         update_post_meta(req.post_id, meta)
 
         return GenerateResponse(
-            job_id=task.id,
+            job_id=job_id,
             status="queued",
             workflow=req.workflow,
             post_id=req.post_id,
+            provider_type=req.provider_type,
+            connection_id=req.connection_id,
         )
 
     except WordPressAPIError as e:
@@ -426,15 +458,28 @@ def submit_task(
     post_id: int,
     workflow: str = "base",
     entity_type: str = "post",
+    provider_type: str = "comfyui",
+    connection_id: Optional[int] = None,
     custom_params: Optional[dict] = None,
 ):
     """Submit a task to the queue with rate limiting."""
     try:
+        if not provider_registry.has(provider_type):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported provider_type: {provider_type}",
+            )
+
+        policy = queue_manager.get_provider_policy(provider_type)
+        task_name = str(policy["task_name"])
+
         job_id = queue_manager.submit_task(
-            task_name="tasks.generate_video_task",
+            task_name=task_name,
             post_id=post_id,
             workflow=workflow,
             entity_type=entity_type,
+            provider_type=provider_type,
+            connection_id=connection_id,
             custom_params=custom_params,
         )
 
@@ -448,6 +493,8 @@ def submit_task(
             "job_id": job_id,
             "post_id": post_id,
             "workflow": workflow,
+            "provider_type": provider_type,
+            "connection_id": connection_id,
             "status": "queued",
         }
 
@@ -514,6 +561,62 @@ def get_task_status(job_id: str):
         raise HTTPException(status_code=404, detail=f"Task {job_id} not found")
 
     return status
+
+
+@app.get("/providers")
+def list_providers():
+    """List registered provider types and capability descriptors."""
+    providers = provider_registry.list_descriptors()
+    return {
+        "providers": providers,
+        "total": len(providers),
+    }
+
+
+@app.get("/providers/discovery")
+def discover_provider_adapters():
+    """Report discovered provider adapters and capability descriptor state."""
+    providers = discover_providers()
+    return {
+        "providers": providers,
+        "total": len(providers),
+    }
+
+
+@app.post("/providers/{provider_type}/health")
+def provider_health(provider_type: str, req: dict[str, Any] | None = None):
+    """Run a non-destructive health check for one provider connection."""
+    if not provider_registry.has(provider_type):
+        raise HTTPException(status_code=404, detail=f"Unsupported provider_type: {provider_type}")
+    try:
+        connection = dict(req or {})
+        if provider_type.strip().lower() == "comfyui":
+            connection.setdefault("endpoint_url", COMFYUI_URL)
+        return provider_registry.health_check(provider_type, connection)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/providers/comfyui/readiness")
+def check_comfyui_readiness(req: dict[str, Any]):
+    """Prove ComfyUI dependencies and optionally verify end-to-end downloadability."""
+    workflow = req.get("workflow")
+    if not isinstance(workflow, dict) or not workflow:
+        raise HTTPException(status_code=400, detail="A rendered ComfyUI workflow is required")
+
+    checker = ComfyUIReadinessChecker(COMFYUI_URL)
+    try:
+        if req.get("smoke_test", False):
+            return checker.smoke_test(
+                workflow,
+                poll_interval=float(req.get("poll_interval_seconds", 1)),
+                max_polls=int(req.get("max_polls", 60)),
+            )
+        return checker.check(workflow)
+    except ComfyUIReadinessError as exc:
+        raise HTTPException(status_code=424, detail=str(exc)) from exc
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=424, detail=f"ComfyUI readiness request failed: {exc}") from exc
 
 
 # ── Asset lineage endpoints ────────────────────────────────────────────────
@@ -1091,8 +1194,11 @@ class LegacyGenerateRequest(BaseModel):
 
 @app.post("/generate/legacy")
 def generate_legacy(req: LegacyGenerateRequest):
-    """Legacy endpoint for backward compatibility."""
-    return generate(GenerateRequest(post_id=req.post_id))
+    """Legacy endpoint is no longer supported."""
+    raise HTTPException(
+        status_code=410,
+        detail="Legacy endpoint removed. Use /generate with provider_type and connection_id.",
+    )
 
 
 # ── MCP Agent Router ────────────────────────────────────────────────────────

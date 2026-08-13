@@ -46,24 +46,15 @@ class Child_Plugin_Loader {
 			return;
 		}
 
-		// Ensure plugin activation helpers are available.
-		if ( ! function_exists( 'is_plugin_active' ) ) {
-			if ( file_exists( ABSPATH . 'wp-admin/includes/plugin.php' ) ) {
-				require_once ABSPATH . 'wp-admin/includes/plugin.php';
-			}
-		}
-
 		foreach ( $child_plugins as $relative_path ) {
 			$plugin_file = $plugin_dir . $relative_path;
 			if ( ! file_exists( $plugin_file ) ) {
 				continue;
 			}
 
-			// Only load the child plugin if it's active in WordPress.
-			$basename = plugin_basename( $plugin_file );
-			if ( function_exists( 'is_plugin_active' ) && ! is_plugin_active( $basename ) ) {
-				continue;
-			}
+			// Bundled StoryOS child plugins are feature-gated internally,
+			// so we always load them to ensure admin pages and settings routes
+			// are registered even when integrations are toggled off.
 
 			require_once $plugin_file;
 		}
