@@ -115,6 +115,7 @@ function storyos_expected_fields_for_cpt( string $cpt ): array {
 		'storyos_storyboard_frame'   => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
 		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
 		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
+		'storyos_template'           => [ 'template_name', 'description', 'generation_structure', 'configuration_json', 'default_values', 'provider_type', 'version', 'status' ],
 	];
 
 	return $expected_fields[ $cpt ] ?? [];
@@ -163,6 +164,7 @@ function storyos_get_all_cpts(): array {
 		'storyos_storyboard_frame' => 'Storyboard Frame',
 		'storyos_asset'           => 'Asset',
 		'storyos_editorial_artifact' => 'Editorial Artifact',
+		'storyos_template'        => 'Template',
 	];
 }
 

@@ -35,23 +35,39 @@ class AgentRegistry:
                     self.agents[agent['name'].lower()] = agent
     
     def _parse_agent_file(self, filepath: str) -> Optional[dict]:
-        """Parse an agent file with YAML frontmatter and markdown body."""
+        """Parse an agent file with YAML frontmatter and markdown body.
+
+        Supports two layouts:
+          1. Leading delimiter:  ---\\n<yaml>\\n---\\n<body>
+          2. Bare YAML block:    <yaml>\\n---\\n<body>   (no leading ---)
+        """
         try:
             with open(filepath, 'r') as f:
                 content = f.read()
-            
-            # Split frontmatter from body
+
             if content.startswith('---'):
+                # Layout 1: ---\n<yaml>\n---\n<body>
                 parts = content.split('---', 2)
                 if len(parts) >= 3:
-                    frontmatter = yaml.safe_load(parts[1])
-                    body = parts[2].strip()
-                    
-                    frontmatter['system_prompt'] = body
-                    frontmatter['file'] = filepath
-                    return frontmatter
-            
-            return None
+                    yaml_text, body = parts[1], parts[2]
+                else:
+                    return None
+            else:
+                # Layout 2: <yaml>\n---\n<body>  (first '---' line is the split)
+                lines = content.split('\n')
+                sep_idx = next((i for i, ln in enumerate(lines) if ln.strip() == '---'), None)
+                if sep_idx is None:
+                    return None
+                yaml_text = '\n'.join(lines[:sep_idx])
+                body = '\n'.join(lines[sep_idx + 1:])
+
+            frontmatter = yaml.safe_load(yaml_text)
+            if not isinstance(frontmatter, dict):
+                return None
+
+            frontmatter['system_prompt'] = body.strip()
+            frontmatter['file'] = filepath
+            return frontmatter
         except Exception as e:
             print(f"Error loading agent file {filepath}: {e}")
             return None

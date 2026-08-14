@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storyos.dev/schemas/generation-template-1.0.json",
+  "title": "StoryOS Generation Template",
+  "description": "A reusable, provider-neutral generation template. A template binds a registered generation structure to default parameters, explicit SCF field mappings, and reference bindings. It is StoryOS-owned editorial configuration, not a provider API contract. Providers remain responsible for translating the resolved request into provider-specific payloads.",
+  "type": "object",
+  "required": [
+    "template_id",
+    "version",
+    "label",
+    "structure",
+    "configuration"
+  ],
+  "properties": {
+    "template_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "structure": {
+      "$ref": "#/$defs/structure_ref"
+    },
+    "provider_type": {
+      "description": "Optional provider affinity. Null means the template is provider-neutral and any compatible connection may be selected.",
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "configuration": {
+      "$ref": "#/$defs/configuration"
+    },
+    "defaults": {
+      "description": "Template-level default values that are not structure parameters, for example output counts or asset targets.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "constraints": {
+      "description": "Optional editorial guardrails. Provider-specific hard limits belong in capability descriptors, not here.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "status": {
+      "enum": ["draft", "active", "archived"]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "structure_ref": {
+      "type": "object",
+      "required": ["structure_id"],
+      "properties": {
+        "structure_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "version": {
+          "description": "Optional structure version. When omitted, the newest registered version is used.",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "description": "Default values for the referenced structure's declared parameters. Keys must be parameter names declared by the structure.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "references": {
+          "description": "Bindings that resolve the structure's reference roles to concrete sources.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reference_binding"
+          }
+        },
+        "scf_fields": {
+          "description": "Explicit SCF field mappings. Maps a template field name to the SCF/post-meta field that prefills it. Stored SCF values provide initial editorial input and can be overridden before submission.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "workflow": {
+          "description": "Optional adapter-owned workflow reference, for example a ComfyUI workflow template. This is not a provider API contract.",
+          "type": "object",
+          "properties": {
+            "provider_type": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            },
+            "workflow_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "node_overrides": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reference_binding": {
+      "type": "object",
+      "required": ["role", "source"],
+      "properties": {
+        "role": {
+          "description": "Must be a reference role declared by the referenced structure.",
+          "enum": ["content", "style", "character", "pose", "start_frame", "end_frame", "audio", "mask"]
+        },
+        "source": {
+          "enum": ["scf_field", "story_graph", "user_upload", "asset", "fixed"]
+        },
+        "scf_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entity_type": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        },
+        "asset_id": {
+          "type": ["string", "integer"],
+          "minLength": 1
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "source": { "const": "scf_field" } }
+          },
+          "then": {
+            "required": ["scf_field"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "source": { "const": "story_graph" } }
+          },
+          "then": {
+            "required": ["entity_type"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "source": { "const": "asset" } }
+          },
+          "then": {
+            "required": ["asset_id"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "source": { "const": "fixed" } }
+          },
+          "then": {
+            "required": ["value"]
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

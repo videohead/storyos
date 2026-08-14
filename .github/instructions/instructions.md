@@ -382,7 +382,7 @@ When one agent's output becomes another agent's input:
 ### WordPress (storyos/)
 - Use WordPress Coding Standards (WPCS)
 - Custom Post Types registered in a single plugin file
-- Structured Content Fields via ACF Pro or MetaBox
+- Structured Content Fields via SCF in wordpress/wp-content/plugins/secure-custom-fields
 - REST API endpoints under `/api/storyos/v1/` namespace
 - All CPTs must support the REST API
 - Use WordPress nonces for all form submissions
@@ -430,6 +430,8 @@ When one agent's output becomes another agent's input:
 ## Testing
 
 ### Tool Calling for Tests
+- primary code testing is in test-framework/
+- Lando is used for containers, so tests can be run for each specific environment using lando ssh
 - Use `run_in_terminal` with `mode='sync'` for all test commands (builds, tests, installs).
 - Use `run_notebook_cell` for Jupyter notebook cells, NOT terminal commands like `jupyter notebook`.
 - Use `get_terminal_output` ONLY when `run_in_terminal` explicitly says a command was moved to background.

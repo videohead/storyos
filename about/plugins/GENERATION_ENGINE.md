@@ -1,3 +1,5 @@
+Mickey Mouse
+
 # StoryOS Generation Engine - AI Development Task List
 
 **Project:** StoryOS Generation Engine
@@ -247,29 +249,114 @@ Agents remain available to help users resolve prompt, workflow, capability, and 
 Support reusable generation templates.
 
 ### Tasks
-- [ ] Create Template CPT
-- [ ] Create Template JSON schema
-- [ ] Create Template Registry
-- [ ] Create Template UI
-- [ ] Create Template Versioning
-- [ ] Create Template Categories
+- [x] Create Template CPT
+- [x] Create Template JSON schema
+- [x] Create Template Registry
+- [x] Create Template UI
+- [x] Create Template Versioning
+- [x] Create Template Categories
+
+### Template Categories Strategy
+
+Template categories are registered as a native WordPress taxonomy on the `storyos_template` CPT, so users can create, edit, and maintain them directly in the WordPress admin without custom code for category management.
+
+### Template Versioning Strategy
+
+Template versioning can be implemented through the SCF layer by treating each template revision as a timestamped, revision-aware content record. This preserves the existing WordPress pattern of version history, auditability, and publication timestamps without inventing a separate parallel versioning system.
+
+Recommended model:
+
+- `template_id` remains the canonical logical identity.
+- `version` remains the semver-like release id (`major.minor`).
+- SCF/post revision metadata provides `created_at`, `updated_at`, `published_at`, and revision history.
+- A template record may be active while older revisions remain accessible for comparison and rollback.
+- The registry resolves the latest valid revision for a given `template_id` while retaining historical entries for audit and rollback.
+
+This keeps versioning compatible with the control-plane/editorial model and avoids storing version history outside WordPress metadata.
+
+### Template JSON Schema
+
+Generation templates are defined by a JSON schema at `orchestrator/templates/template.schema.json`
+(`$id: https://storyos.dev/schemas/generation-template-1.0.json`). A template is a
+provider-neutral editorial configuration that references a registered generation
+structure and binds its parameters to SCF fields.
+
+- **Identity** — `template_id` (slug) + `version` (`major.minor`) form the unique
+  identity, mirroring the structure identity convention.
+- **Structure reference** — `structure` points at a registered structure
+  (`structure_id` + optional `version` pin). The registry resolves the full
+  structure at load time and merges its parameter defaults into the template.
+- **Configuration** — `parameters` (must be a subset of the structure's declared
+  parameters), `references` (role/source bindings validated against the
+  structure's declared reference roles), `scf_fields` (parameter → SCF field
+  mapping), and an optional `workflow` block for provider-specific overrides.
+- **Provider neutrality** — templates never encode provider-specific limits
+  (max steps, resolution caps, etc.); those remain owned by the provider
+  capability descriptor.
+
+The schema is loaded and enforced by `orchestrator/templates/registry.py`
+(`TemplateRegistry`) and `orchestrator/templates/validator.py`
+(`validate_template` / `validate_catalog`), with example templates in
+`orchestrator/templates/examples.json` and coverage in
+`orchestrator/tests/test_template_registry.py`.
 
 ## Epic 5: SCF + JSON Configuration Engine
 
 ### Goal
-Support editor-friendly and developer-friendly workflow definitions.
+Compile editor-authored configuration into an immutable, validated Generation Request before a provider receives work.
+
+Epic 4 defines reusable template records and their editorial metadata. Epic 5 is a Celery-aligned pre-submit phase that resolves those definitions with live SCF values, the selected Provider Connection, and explicit user overrides.
+
+### Pre-Submit Contract
+
+The preparation stage receives a generation intent containing the target Story Graph entity, template identity and revision, Provider Connection ID, and user overrides. It produces either:
+
+- A resolved Generation Request snapshot that is valid to submit to a provider, or
+- A structured validation result explaining why submission is blocked.
+
+The snapshot is immutable for the lifetime of its Generation Job. Later edits to SCF values, templates, or connection configuration must affect only newly prepared jobs.
+
+### Discrete Runtime Steps
+
+1. **Receive intent** - Accept the target entity, template revision, Provider Connection, and user overrides; create the durable Generation Job.
+2. **Load configuration** - Resolve the template JSON, referenced Generation Structure, SCF/post-meta values, Story Graph context, and synchronized Provider Connection record.
+3. **Map SCF fields** - Apply the template's explicit `scf_fields` mappings to turn editorial values into structure parameters and references.
+4. **Merge configuration** - Combine structure defaults, template parameters, mapped SCF values, connection policy, and user overrides using the documented precedence order.
+5. **Normalize request** - Build one provider-neutral Generation Request with resolved prompt data, media references, output requirements, and provenance metadata.
+6. **Validate compatibility** - Check the normalized request against the selected provider capability descriptor, connection availability, enabled model, geography, and account constraints.
+7. **Persist the snapshot** - Store the resolved request, template/structure/capability versions, validation result, and non-secret provenance under the Generation Job.
+8. **Dispatch or block** - Enqueue provider submission only when validation succeeds; otherwise mark the job as blocked with actionable validation errors.
+
+### Configuration Precedence
+
+From lowest to highest priority:
+
+1. Generation Structure defaults
+2. Template JSON parameters
+3. Mapped SCF and Story Graph values
+4. Provider Connection policy and enabled-model constraints
+5. Explicit user overrides
+
+Provider capability descriptors are validation constraints, not a configuration source. They may reject a resolved value but must not silently rewrite editorial intent.
+
+### Celery Alignment
+
+The first worker phase is `prepare_generation_request`. It owns steps 2 through 7 and has no provider side effects. A successfully prepared request moves to `submit_provider_job`; a failed preparation never reaches a provider adapter.
+
+The initial implementation may keep preparation and submission inside one top-level Celery task to preserve the existing single task ID. If preparation later needs independent retry, routing, or monitoring, it can become the first task in a Celery chain while the durable StoryOS Generation Job remains the user-facing parent record.
 
 ### Tasks
+- [ ] Define Generation Intent and resolved Generation Request schemas
 - [ ] Create SCF field mapper
-- [ ] Create JSON configuration parser
-- [ ] Create configuration merge service
-- [ ] Create validation engine
-- [ ] Create preview engine
-- [ ] Create override hierarchy
+- [ ] Create template and structure configuration loader
+- [ ] Create configuration merge service and precedence rules
+- [ ] Create normalized request builder
+- [ ] Create capability and connection validation engine
+- [ ] Persist immutable resolved-request snapshots and provenance
+- [ ] Create preview endpoint using the same preparation path without dispatch
+- [ ] Add pre-submit and validation lifecycle states
 
-Runtime Merge:
-
-SCF Fields + Template JSON + Provider Config + User Overrides = Generation Job
+This is not a duplicate of template storage. Templates are the authoring layer; this engine is the execution-time resolution and compatibility layer.
 
 ## Epic 6: StoryOS Provider CPT
 
@@ -369,7 +456,7 @@ Endpoints:
 
 ## Target Architecture
 
-Story Graph → Generation Request → Template Resolution → Capability Validation → Provider Selection → Generation Job → Provider API → Asset Pipeline → Story Graph Update → Production & Editorial Workflows
+Story Graph → Generation Intent → Pre-Submit Resolution → Capability Validation → Resolved Request Snapshot → Generation Job → Provider Submission → Asset Pipeline → Story Graph Update → Production & Editorial Workflows
 
 ## Definition of Done (MVP)
 
@@ -757,6 +844,9 @@ Submit → Queue → Poll/Webhook → Download → Process
 
 - [ ] Pending
 - [ ] Queued
+- [ ] Preparing Request
+- [ ] Validation Blocked
+- [ ] Validated
 - [ ] Dispatched
 - [ ] Provider Submitted
 - [ ] Remote Running

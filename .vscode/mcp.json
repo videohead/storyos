@@ -1,0 +1,17 @@
+{
+        "servers": {
+                "local-maf": {
+                        "type": "stdio",
+                        "command": "docker",
+                        "args": [
+                                "compose",
+                                "-f",
+                                "/home/videohead/www/maf-agent-framework/docker-compose.yml",
+                                "run",
+                                "--rm",
+                                "-T",
+                                "mcp"
+                        ]
+                }
+        }
+}

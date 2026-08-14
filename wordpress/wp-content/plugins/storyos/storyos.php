@@ -31,31 +31,6 @@ define( 'STORYOS_API_NAMESPACE', 'storyos/v1' );
 define( 'STORYOS_CPT_PREFIX', 'storyos_' );
 
 /**
- * Convert a class or namespace segment to a kebab-case filename.
- *
- * @param string $name The class or segment name.
- * @return string
- */
-function to_kebab_case( string $name ): string {
-	$name = str_replace( '_', '-', $name );
-	return strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $name ) );
-}
-
-/**
- * Check whether a plugin file is active in WordPress.
- *
- * @param string $plugin_file The plugin file path.
- * @return bool
- */
-function storyos_is_plugin_active( string $plugin_file ): bool {
-	if ( ! function_exists( 'is_plugin_active' ) ) {
-		return false;
-	}
-
-	return is_plugin_active( plugin_basename( $plugin_file ) );
-}
-
-/**
  * Autoloader for StoryOS classes.
  *
  * @param string $class The class name.
@@ -70,53 +45,54 @@ function autoloader( string $class ): void {
 	}
 
 	$relative_class = substr( $class, $len );
-	$namespace_dir = '';
-	$use_class_prefix = false;
+	
+	// Handle special namespace mappings (singular → plural directories).
 	$special_mappings = [
-		'CPT\\' => 'cpts',
-		'REST\\' => 'rest-api',
-		'Taxonomies\\' => 'taxonomies',
-		'Admin\\' => 'admin',
-		'Utils\\' => 'utils',
-		'AI\\' => 'ai-editor',
+		'CPT\\' => 'cpts/',
+		'REST\\' => 'rest-api/',
+		'Taxonomies\\' => 'taxonomies/',
+		'Admin\\' => 'admin/',
+		'Utils\\' => 'utils/',
 	];
-
 	foreach ( $special_mappings as $ns => $dir ) {
 		if ( strpos( $relative_class, $ns ) === 0 ) {
-			$namespace_dir = $dir;
-			if ( 'AI\\' === $ns ) {
-				$use_class_prefix = true;
-			}
+			$relative_class = $dir . substr( $relative_class, strlen( $ns ) );
 			break;
 		}
 	}
-
-	$relative_class = str_replace( '\\', '/', $relative_class );
+	
+	// Convert class names to filenames based on namespace.
+	// CPT files: StoryWorld -> story-world.php (camelCase to kebab-case)
+	// REST files: Projects_Controller -> projects-controller.php (underscore to hyphen)
 	$path_parts = explode( '/', $relative_class );
 	$filename = array_pop( $path_parts );
-	$kebab_filename = to_kebab_case( $filename );
+	
+	// Check if this is a REST controller (has _Controller suffix)
+	if ( strpos( $relative_class, 'rest-api/' ) !== false ) {
+		// REST controllers: replace underscores with hyphens and lowercase
+		$filename = str_replace( '_', '-', strtolower( $filename ) ) . '.php';
+	} else {
+		// CPT and others: convert camelCase to kebab-case
+		$filename = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $filename ) ) . '.php';
+	}
+	
+	$path_parts[] = $filename;
+	$kebab_class = implode( '/', $path_parts );
+	
+	// Also try lowercase version of the full path (e.g., cpts/story-world.php).
+	$lower_class = strtolower( $relative_class ) . '.php';
+	$file = $base_dir . $relative_class . '.php';
 
-	$candidates = [];
-	if ( '' !== $namespace_dir ) {
-		$candidates[] = $base_dir . $namespace_dir . '/' . $kebab_filename . '.php';
-		if ( $use_class_prefix ) {
-			$candidates[] = $base_dir . $namespace_dir . '/class-' . $kebab_filename . '.php';
-		}
+	// Try kebab-case, then lowercase, then original case.
+	if ( ! file_exists( $file ) ) {
+		$file = $base_dir . $kebab_class;
+	}
+	if ( ! file_exists( $file ) ) {
+		$file = $base_dir . $lower_class;
 	}
 
-	$candidates[] = $base_dir . $kebab_filename . '.php';
-	$candidates[] = $base_dir . 'class-' . $kebab_filename . '.php';
-
-	if ( '' !== $namespace_dir ) {
-		$candidates[] = $base_dir . $namespace_dir . '/' . $filename . '.php';
-		$candidates[] = $base_dir . $namespace_dir . '/' . strtolower( $filename ) . '.php';
-	}
-
-	foreach ( $candidates as $file ) {
-		if ( file_exists( $file ) ) {
-			require $file;
-			return;
-		}
+	if ( file_exists( $file ) ) {
+		require $file;
 	}
 }
 
@@ -173,25 +149,6 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/admin/child-plugin-loader.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/base-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/projects-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/storyworlds-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/characters-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/locations-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/props-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/organizations-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/episodes-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/scenes-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/shots-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/storyboardframes-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/assets-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/editorialartifacts-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/graph-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/agents-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/generation-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/production-controller.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/rest-api/editorial-controller.php';
 
 	// Register CPTs.
 	CPT\Project::init();
@@ -206,6 +163,7 @@ function init(): void {
 	CPT\StoryboardFrame::init();
 	CPT\Asset::init();
 	CPT\EditorialArtifact::init();
+	CPT\Template::init();
 
 	// Register taxonomies.
 	Taxonomies\Genre::init();
@@ -215,6 +173,7 @@ function init(): void {
 	Taxonomies\CharacterRole::init();
 	Taxonomies\SceneTag::init();
 	Taxonomies\Sequence::init();
+	Taxonomies\TemplateCategory::init();
 
 	// Register REST API routes.
 	REST\Projects_Controller::init();
@@ -241,7 +200,6 @@ function init(): void {
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();
 	Admin\Analytics_Panel::init();
-	Admin\Child_Plugin_Loader::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {
@@ -257,9 +215,23 @@ function init(): void {
 	register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
 	register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
 
+	// Load Celtx Sync integration.
+	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php' ) ) {
+		require_once STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php';
+	}
+
+	// Load ComfyUI Generate integration.
+	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php' ) ) {
+		require_once STORYOS_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php';
+	}
+
+	// Load EDL Import/Export integration.
+	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php' ) ) {
+		require_once STORYOS_PLUGIN_DIR . 'plugins/edl/edl-import-export.php';
+	}
 
 	// Enqueue search widget assets on frontend.
-	add_action( 'wp_enqueue_scripts', '\\StoryOS\\Utils\\enqueue_search_assets' );
+	add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_search_assets' );
 
 	// Enqueue continuity panel assets in admin.
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\enqueue_continuity_assets' );
