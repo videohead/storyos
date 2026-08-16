@@ -147,7 +147,8 @@ class AI_Editor_REST {
 
 		// Validate agent if provided.
 		if ( ! empty( $agent ) ) {
-			$allowed_agents = [ 'story', 'prompt', 'production', 'technical', 'editorial' ];
+			$registry = new AI_Agent_Registry( new AI_LLM_Client() );
+			$allowed_agents = $registry->get_supported_agent_slugs();
 			if ( ! in_array( $agent, $allowed_agents, true ) ) {
 				$agent = ''; // Reset to empty to trigger auto-routing.
 			}
@@ -199,22 +200,9 @@ class AI_Editor_REST {
 			$skill_content = implode( "\n\n", $skill_sections );
 		}
 
-		// Get the agent's system prompt.
-		$maf_bridge = new AI_MAF_Bridge( new AI_LLM_Client() );
-		$agent_data = $maf_bridge->get_agent( $agent );
-		$system_prompt = $agent_data['system_prompt'] ?? '';
-		
-		// Add skill content to system prompt.
-		if ( ! empty( $skill_content ) ) {
-			$system_prompt .= "\n\n" . $skill_content;
-		}
-
-		// Call the LLM.
-		$llm_client = new AI_LLM_Client();
-		$result = $llm_client->chat( $prompt, [
-			'system_prompt' => $system_prompt,
-			'context'       => $context,
-		] );
+		$registry = new AI_Agent_Registry( new AI_LLM_Client() );
+		$result   = $registry->run_agent( $agent, $prompt, $context, $skill_content );
+		$agent    = $registry->resolve_agent_slug( $agent );
 
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
@@ -295,8 +283,9 @@ class AI_Editor_REST {
 			$agent = $route_result['agent'];
 		}
 
-		$maf_bridge = new AI_MAF_Bridge( new AI_LLM_Client() );
-		$result = $maf_bridge->run_agent( $agent, $prompt, $context );
+		$registry = new AI_Agent_Registry( new AI_LLM_Client() );
+		$result = $registry->run_agent( $agent, $prompt, $context );
+		$agent = $registry->resolve_agent_slug( $agent );
 
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
@@ -381,14 +370,15 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function get_agents( \WP_REST_Request $request ): \WP_REST_Response {
-		$maf_bridge = new AI_MAF_Bridge( new AI_LLM_Client() );
-		$agents = $maf_bridge->get_enabled_agents();
+		$registry = new AI_Agent_Registry( new AI_LLM_Client() );
+		$agents = $registry->get_enabled_agents();
 
 		// Format for frontend with proper escaping.
 		$formatted = [];
 		foreach ( $agents as $name => $agent ) {
 			$formatted[] = [
 				'name'        => esc_html( $name ),
+				'slug'        => esc_html( $agent['slug'] ?? $name ),
 				'description' => esc_html( $agent['description'] ?? '' ),
 				'department'  => esc_html( $agent['department'] ?? '' ),
 			];

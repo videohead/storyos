@@ -1,6 +1,6 @@
 <?php
 /**
- * AI Agent Router — routes user requests to appropriate advisors.
+ * AI Agent Router — routes user requests to native StoryOS agents.
  *
  * @package StoryOS
  */
@@ -17,92 +17,77 @@ if ( ! defined( 'ABSPATH' ) ) {
 class AI_Agent_Router {
 
 	/**
-	 * Orchestrator URL for multi-agent workflows.
+	 * Orchestrator URL for optional external workflows.
 	 *
 	 * @var string
 	 */
 	private $orchestrator_url;
 
 	/**
-	 * Whether to use hybrid routing (WordPress direct vs orchestrator).
+	 * Whether optional orchestrator routing is enabled.
 	 *
 	 * @var bool
 	 */
 	private $hybrid_enabled;
 
 	/**
-	 * Complexity threshold for routing to orchestrator.
+	 * Complexity threshold for orchestrator routing.
 	 *
 	 * @var int
 	 */
 	private $complexity_threshold;
 
 	/**
-	 * Keyword-to-agent mappings.
+	 * Native registry.
+	 *
+	 * @var AI_Agent_Registry
+	 */
+	private $agent_registry;
+
+	/**
+	 * Backward-compatible advisor aliases.
 	 *
 	 * @var array
 	 */
-	private $keyword_mappings = [
-		'story' => [
-			'keywords' => [
-				'character', 'dialogue', 'plot', 'scene', 'story', 'narrative',
-				'arc', 'conflict', 'resolution', 'protagonist', 'antagonist',
-				'write', 'draft', 'rewrite', 'edit', 'continue',
-			],
-			'agents' => [ 'story', 'script' ],
-		],
-		'prompt' => [
-			'keywords' => [
-				'prompt', 'image', 'generate', 'visual', 'scene', 'shot',
-				'composition', 'lighting', 'camera', 'style', 'look',
-				'concept', 'art', 'illustration', 'render',
-			],
-			'agents' => [ 'prompt', 'art' ],
-		],
-		'production' => [
-			'keywords' => [
-				'schedule', 'budget', 'crew', 'cast', 'location', 'permit',
-				'call sheet', 'production', 'logistics', 'resource',
-				'equipment', 'transport', 'catering', 'insurance',
-			],
-			'agents' => [ 'production', 'camera', 'sound', 'grip' ],
-		],
-		'technical' => [
-			'keywords' => [
-				'format', 'spec', 'template', 'technical', 'export',
-				'import', 'csv', 'json', 'xml', 'edl', 'cff',
-				'screenplay', 'final draft', 'fade in', 'fade out',
-			],
-			'agents' => [ 'technical', 'editorial' ],
-		],
-		'editorial' => [
-			'keywords' => [
-				'continuity', 'consistency', 'check', 'review', 'analyze',
-				'feedback', 'critique', 'suggestion', 'improve',
-				'pacing', 'rhythm', 'flow', 'structure',
-			],
-			'agents' => [ 'editorial', 'story' ],
-		],
+	private $legacy_aliases = [
+		'story'      => 'screenwriter',
+		'prompt'     => 'art_director',
+		'production' => 'producer',
+		'technical'  => 'editor',
+		'editorial'  => 'script_supervisor',
+	];
+
+	/**
+	 * High-signal keywords for major advisor categories.
+	 *
+	 * @var array
+	 */
+	private $category_keyword_mappings = [
+		'screenwriter' => [ 'character', 'dialogue', 'plot', 'scene', 'story', 'narrative', 'arc', 'script', 'rewrite', 'draft' ],
+		'art_director' => [ 'prompt', 'image', 'visual', 'scene', 'shot', 'composition', 'lighting', 'style', 'look', 'concept' ],
+		'producer' => [ 'schedule', 'budget', 'crew', 'cast', 'location', 'permit', 'production', 'logistics', 'resource' ],
+		'editor' => [ 'format', 'spec', 'template', 'technical', 'export', 'import', 'edl', 'xml', 'json' ],
+		'script_supervisor' => [ 'continuity', 'consistency', 'review', 'analyze', 'feedback', 'pacing', 'structure' ],
 	];
 
 	/**
 	 * Constructor.
 	 */
 	public function __construct() {
-		$this->orchestrator_url = get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
-		$this->hybrid_enabled   = (bool) get_option( 'storyos_ai_hybrid_routing', true );
-		$this->complexity_threshold = (int) get_option( 'storyos_ai_complexity_threshold', 3 );
+		$this->orchestrator_url     = get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
+		$this->hybrid_enabled       = (bool) get_option( 'storyos_ai_hybrid_routing', false );
+		$this->complexity_threshold = (int) get_option( 'storyos_ai_complexity_threshold', 6 );
+		$this->agent_registry       = new AI_Agent_Registry( new AI_LLM_Client() );
 	}
 
 	/**
-	 * Route a user request to the best agent.
+	 * Route a user request to the best native agent.
 	 *
 	 * @param string $prompt User prompt.
 	 * @param array  $options Optional routing options (force_local, force_orchestrator, context).
-	 * @return array Routing result with agent name, confidence, and routing strategy.
+	 * @return array
 	 */
 	public function route( string $prompt, array $options = [] ): array {
-		// Allow explicit override.
 		if ( ! empty( $options['force_orchestrator'] ) ) {
 			return [
 				'agent'      => null,
@@ -117,14 +102,13 @@ class AI_Agent_Router {
 			return $this->route_local( $prompt );
 		}
 
-		// Hybrid routing: detect complexity and choose strategy.
 		if ( $this->hybrid_enabled ) {
 			$complexity = $this->calculate_complexity( $prompt );
 			if ( $complexity >= $this->complexity_threshold ) {
 				return [
 					'agent'      => null,
 					'routing'    => 'orchestrator',
-					'confidence' => $complexity,
+					'confidence' => min( 1.0, $complexity / 10 ),
 					'category'   => 'multi-agent',
 					'message'    => "Complexity score {$complexity} exceeds threshold {$this->complexity_threshold}. Routing to orchestrator.",
 				];
@@ -135,101 +119,95 @@ class AI_Agent_Router {
 	}
 
 	/**
-	 * Route to local WordPress agent.
+	 * Route locally against full native agent set.
 	 *
 	 * @param string $prompt User prompt.
-	 * @return array Routing result.
+	 * @return array
 	 */
 	private function route_local( string $prompt ): array {
 		$prompt_lower = strtolower( $prompt );
-		$best_agent   = null;
-		$best_score   = 0;
+		$agents       = $this->agent_registry->list_agents();
 
-		foreach ( $this->keyword_mappings as $category => $mapping ) {
-			$score = 0;
-			foreach ( $mapping['keywords'] as $keyword ) {
-				if ( strpos( $prompt_lower, $keyword ) !== false ) {
-					$score++;
-				}
-			}
+		if ( empty( $agents ) ) {
+			return [
+				'agent'      => 'screenwriter',
+				'routing'    => 'local',
+				'confidence' => 0,
+				'category'   => 'fallback',
+			];
+		}
 
-			if ( $score > $best_score ) {
-				$best_score = $score;
-				$best_agent = $mapping['agents'][0];
+		foreach ( $this->legacy_aliases as $alias => $target ) {
+			if ( preg_match( '/\\b' . preg_quote( $alias, '/' ) . '\\b/', $prompt_lower ) ) {
+				return [
+					'agent'      => $target,
+					'routing'    => 'local',
+					'confidence' => 1.0,
+					'category'   => $alias,
+				];
 			}
 		}
 
-		// Default to story agent if no match.
-		if ( ! $best_agent ) {
-			$best_agent = 'story';
-			$best_score = 0;
+		$best_agent = 'screenwriter';
+		$best_score = -1;
+
+		foreach ( $agents as $slug => $agent ) {
+			$score = $this->score_agent_match( $slug, $agent, $prompt_lower );
+			if ( $score > $best_score ) {
+				$best_score = $score;
+				$best_agent = $slug;
+			}
+		}
+
+		if ( $best_score <= 0 ) {
+			foreach ( $this->category_keyword_mappings as $slug => $keywords ) {
+				$score = 0;
+				foreach ( $keywords as $keyword ) {
+					if ( false !== strpos( $prompt_lower, $keyword ) ) {
+						$score++;
+					}
+				}
+				if ( $score > $best_score ) {
+					$best_score = $score;
+					$best_agent = $slug;
+				}
+			}
 		}
 
 		return [
 			'agent'      => $best_agent,
 			'routing'    => 'local',
-			'confidence' => min( $best_score / 3, 1.0 ), // Normalize to 0-1.
+			'confidence' => max( 0, min( 1.0, $best_score / 4 ) ),
 			'category'   => $this->get_category_for_agent( $best_agent ),
 		];
 	}
 
 	/**
-	 * Calculate prompt complexity score.
+	 * Score prompt/agent match.
 	 *
-	 * @param string $prompt User prompt.
-	 * @return int Complexity score.
+	 * @param string $slug Agent slug.
+	 * @param array  $agent Agent data.
+	 * @param string $prompt_lower Lowercase prompt.
+	 * @return int
 	 */
-	private function calculate_complexity( string $prompt ): int {
+	private function score_agent_match( string $slug, array $agent, string $prompt_lower ): int {
 		$score = 0;
-		$prompt_lower = strtolower( $prompt );
 
-		// Count multi-agent indicators.
-		$multi_agent_indicators = [
-			'multiple agents',
-			'coordinate',
-			'workflow',
-			'pipeline',
-			'handoff',
-			'collaborate',
-			'chain',
-			'sequence',
-			'first then',
-			'after that',
-			'next',
-			'also need',
-			'and also',
-			'along with',
-			'involving',
-			'between',
-			'across departments',
-			'full production',
-			'end to end',
-			'complete',
-		];
+		$keywords = array_unique(
+			array_filter(
+				array_merge(
+					explode( '_', $slug ),
+					preg_split( '/[^a-z0-9]+/i', strtolower( (string) ( $agent['description'] ?? '' ) ) ) ?: []
+				)
+			)
+		);
 
-		foreach ( $multi_agent_indicators as $indicator ) {
-			if ( strpos( $prompt_lower, $indicator ) !== false ) {
-				$score++;
+		foreach ( $keywords as $keyword ) {
+			if ( strlen( $keyword ) < 4 ) {
+				continue;
 			}
-		}
-
-		// Count distinct department keywords.
-		$departments = [
-			'script' => [ 'character', 'dialogue', 'plot', 'scene', 'story', 'write', 'draft' ],
-			'prompt' => [ 'prompt', 'image', 'visual', 'shot', 'composition' ],
-			'production' => [ 'schedule', 'budget', 'crew', 'location', 'permit' ],
-			'camera' => [ 'camera', 'lighting', 'lens', 'focus' ],
-			'sound' => [ 'sound', 'audio', 'mic', 'boom' ],
-			'art' => [ 'production design', 'set', 'prop', 'costume', 'wardrobe' ],
-			'post' => [ 'edit', 'vfx', 'color', 'continuity' ],
-		];
-
-		foreach ( $departments as $dept => $keywords ) {
-			foreach ( $keywords as $keyword ) {
-				if ( strpos( $prompt_lower, $keyword ) !== false ) {
-					$score++;
-					break; // Count each department only once
-				}
+			if ( false !== strpos( $prompt_lower, $keyword ) ) {
+				$score += 2;
 			}
 		}
 
@@ -237,20 +215,52 @@ class AI_Agent_Router {
 	}
 
 	/**
-	 * Call the orchestrator for multi-agent routing.
+	 * Calculate prompt complexity score.
+	 *
+	 * @param string $prompt User prompt.
+	 * @return int
+	 */
+	private function calculate_complexity( string $prompt ): int {
+		$score             = 0;
+		$prompt_lower      = strtolower( $prompt );
+		$complexity_tokens = [
+			'multiple agents',
+			'coordinate',
+			'workflow',
+			'pipeline',
+			'handoff',
+			'collaborate',
+			'sequence',
+			'end to end',
+			'full production',
+		];
+
+		foreach ( $complexity_tokens as $indicator ) {
+			if ( false !== strpos( $prompt_lower, $indicator ) ) {
+				$score++;
+			}
+		}
+
+		return $score;
+	}
+
+	/**
+	 * Optional orchestrator call for complex workflows.
 	 *
 	 * @param string $prompt User prompt.
 	 * @param array  $context Optional context.
-	 * @return array Orchestrator response.
+	 * @return array
 	 */
 	public function route_to_orchestrator( string $prompt, array $context = [] ): array {
 		$url = trailingslashit( $this->orchestrator_url ) . 'api/agents/orchestrator';
 
 		$args = [
-			'body'    => wp_json_encode([
-				'prompt'  => $prompt,
-				'context' => $context,
-			]),
+			'body'    => wp_json_encode(
+				[
+					'prompt'  => $prompt,
+					'context' => $context,
+				]
+			),
 			'headers' => [
 				'Content-Type' => 'application/json',
 			],
@@ -280,50 +290,50 @@ class AI_Agent_Router {
 	}
 
 	/**
-	 * Get the category for an agent.
+	 * Get category for an agent slug.
 	 *
-	 * @param string $agent Agent name.
-	 * @return string Category name.
+	 * @param string $agent Agent slug.
+	 * @return string
 	 */
 	private function get_category_for_agent( string $agent ): string {
-		foreach ( $this->keyword_mappings as $category => $mapping ) {
-			if ( in_array( $agent, $mapping['agents'], true ) ) {
+		foreach ( $this->legacy_aliases as $category => $target ) {
+			if ( $target === $agent ) {
 				return $category;
 			}
 		}
-		return 'story';
+		return 'specialist';
 	}
 
 	/**
-	 * Get all available agents with their categories.
+	 * Get all available agents with categories.
 	 *
-	 * @return array Available agents.
+	 * @return array
 	 */
 	public function get_available_agents(): array {
 		$agents = [];
-
-		foreach ( $this->keyword_mappings as $category => $mapping ) {
-			foreach ( $mapping['agents'] as $agent ) {
-				$agents[] = [
-					'name'      => $agent,
-					'category'  => $category,
-					'keywords'  => $mapping['keywords'],
-				];
-			}
+		foreach ( $this->agent_registry->list_agents() as $slug => $agent ) {
+			$agents[] = [
+				'name'        => $slug,
+				'category'    => $this->get_category_for_agent( $slug ),
+				'description' => $agent['description'] ?? '',
+			];
 		}
-
 		return $agents;
 	}
 
 	/**
-	 * Get agents by category.
+	 * Get agents by category alias.
 	 *
 	 * @param string $category Category name.
-	 * @return array Agents in category.
+	 * @return array
 	 */
 	public function get_agents_by_category( string $category ): array {
-		if ( isset( $this->keyword_mappings[ $category ] ) ) {
-			return $this->keyword_mappings[ $category ]['agents'];
+		$category = strtolower( $category );
+		if ( isset( $this->legacy_aliases[ $category ] ) ) {
+			return [ $this->legacy_aliases[ $category ] ];
+		}
+		if ( 'all' === $category ) {
+			return array_keys( $this->agent_registry->list_agents() );
 		}
 		return [];
 	}

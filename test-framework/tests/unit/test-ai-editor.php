@@ -75,6 +75,7 @@ class AI_Editor_Test extends WP_UnitTestCase {
 		// Check for dependency properties.
 		$properties = [
 			'llm_client',
+			'agent_registry',
 			'maf_bridge',
 			'context_builder',
 			'agent_router',
@@ -97,6 +98,7 @@ class AI_Editor_Test extends WP_UnitTestCase {
 		$files = [
 			'class-ai-editor.php',
 			'class-ai-llm-client.php',
+			'class-ai-agent-registry.php',
 			'class-ai-maf-bridge.php',
 			'class-ai-context-builder.php',
 			'class-ai-agent-router.php',

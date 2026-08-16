@@ -149,6 +149,15 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-llm-client.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-context-builder.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-agent-registry.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-maf-bridge.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-agent-router.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-agent-skills.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-editor-rest.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-editor.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/ai-editor/class-ai-abilities.php';
 
 	// Register CPTs.
 	CPT\Project::init();
@@ -201,7 +210,7 @@ function init(): void {
 	Admin\Continuity_Panel::init();
 	Admin\Analytics_Panel::init();
 
-	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
+	// Initialize AI Editor module (LLM, native agent registry, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {
 		\StoryOS\AI\AI_Editor::init();
 

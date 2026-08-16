@@ -3,7 +3,7 @@
  * AI Editor — Main module class.
  *
  * Bootstraps the AI Editor subsystem: REST endpoints, admin UI, Gutenberg panel,
- * LLM client, MAF bridge, agent router, and agent-skills loader.
+ * LLM client, native agent registry, agent router, and agent-skills loader.
  *
  * @package StoryOS
  */
@@ -20,6 +20,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 class AI_Editor {
 
 	/**
+	 * Singleton instance.
+	 *
+	 * @var self|null
+	 */
+	private static $instance = null;
+
+	/**
 	 * LLM client instance.
 	 *
 	 * @var AI_LLM_Client
@@ -27,9 +34,16 @@ class AI_Editor {
 	private $llm_client;
 
 	/**
-	 * MAF bridge instance.
+	 * Native agent registry instance.
 	 *
-	 * @var AI_MAF_Bridge
+	 * @var AI_Agent_Registry
+	 */
+	private $agent_registry;
+
+	/**
+	 * Backward compatibility alias for old property name.
+	 *
+	 * @var AI_Agent_Registry
 	 */
 	private $maf_bridge;
 
@@ -60,7 +74,7 @@ class AI_Editor {
 	 * @return void
 	 */
 	public static function init(): void {
-		$instance = new self();
+		$instance = self::instance();
 		add_action( 'rest_api_init', [ $instance, 'register_rest_routes' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
 		add_action( 'admin_menu', [ __CLASS__, 'add_settings_page' ] );
@@ -70,14 +84,28 @@ class AI_Editor {
 	}
 
 	/**
+	 * Get singleton instance.
+	 *
+	 * @return self
+	 */
+	public static function instance(): self {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+
+		return self::$instance;
+	}
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
-		$this->llm_client     = new AI_LLM_Client();
-		$this->maf_bridge     = new AI_MAF_Bridge( $this->llm_client );
+		$this->llm_client      = new AI_LLM_Client();
+		$this->agent_registry  = new AI_Agent_Registry( $this->llm_client );
+		$this->maf_bridge      = $this->agent_registry;
 		$this->context_builder = new AI_Context_Builder();
-		$this->agent_router   = new AI_Agent_Router();
-		$this->agent_skills   = new AI_Agent_Skills();
+		$this->agent_router    = new AI_Agent_Router();
+		$this->agent_skills    = new AI_Agent_Skills();
 	}
 
 	/**
@@ -170,7 +198,7 @@ class AI_Editor {
 
 		register_setting( 'storyos_ai', 'storyos_ai_enabled_agents', [
 			'type'              => 'string',
-			'default'           => 'story,prompt,production,technical,editorial',
+			'default'           => 'all',
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
 	}
@@ -291,10 +319,10 @@ class AI_Editor {
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="storyos_ai_enabled_agents">Enabled Agents</label></th>
+						<th scope="row"><label for="storyos_ai_enabled_agents">Enabled Native Agents</label></th>
 						<td>
 							<input type="text" name="storyos_ai_enabled_agents" id="storyos_ai_enabled_agents" value="<?php echo esc_attr( get_option( 'storyos_ai_enabled_agents' ) ); ?>" class="regular-text" />
-							<p class="description">Comma-separated agent names (default: story,prompt,production,technical,editorial).</p>
+							<p class="description">Comma-separated agent slugs, or <code>all</code> to enable all plugin-local agents (default).</p>
 						</td>
 					</tr>
 				</table>
@@ -328,12 +356,12 @@ class AI_Editor {
 		);
 
 		wp_localize_script( 'storyos-ai-editor', 'storyosAI', [
-			'restUrl'   => rest_url( 'storyos/v1' ),
-			'nonce'     => wp_create_nonce( 'wp_rest' ),
-			'backend'   => get_option( 'storyos_ai_backend', 'local' ),
-			'model'     => get_option( 'storyos_ai_model', 'qwen3.6:35b-a3b-q4_K_M' ),
-			'maxTokens' => get_option( 'storyos_ai_max_tokens', 4096 ),
-			'temperature' => get_option( 'storyos_ai_temperature', 0.7 ),
+			'restUrl'      => rest_url( 'storyos/v1' ),
+			'nonce'        => wp_create_nonce( 'wp_rest' ),
+			'backend'      => get_option( 'storyos_ai_backend', 'local' ),
+			'model'        => get_option( 'storyos_ai_model', 'qwen3.6:35b-a3b-q4_K_M' ),
+			'maxTokens'    => get_option( 'storyos_ai_max_tokens', 4096 ),
+			'temperature'  => get_option( 'storyos_ai_temperature', 0.7 ),
 		] );
 	}
 
@@ -348,6 +376,116 @@ class AI_Editor {
 			return;
 		}
 		wp_enqueue_style( 'wp-components' );
+	}
+
+	/**
+	 * Execute chat with optional auto-routing and context.
+	 *
+	 * @param string      $prompt Prompt text.
+	 * @param string|null $agent Agent slug.
+	 * @param int         $post_id Context post ID.
+	 * @return array
+	 */
+	public function chat( string $prompt, ?string $agent = null, int $post_id = 0 ): array {
+		$context = [];
+		if ( $post_id > 0 && get_post( $post_id ) ) {
+			$context = $this->context_builder->build_post_context( $post_id );
+		}
+
+		if ( empty( $agent ) ) {
+			$route_result = $this->agent_router->route( $prompt );
+			$agent        = $route_result['agent'] ?? 'screenwriter';
+		}
+
+		$post_type       = $context['post_type'] ?? '';
+		$content         = $context['content'] ?? '';
+		$skill_content   = '';
+		$relevant_skills = $this->agent_skills->detect_relevant_skills( $post_type, $content );
+		if ( ! empty( $relevant_skills ) ) {
+			$sections = [];
+			foreach ( $relevant_skills as $skill_name ) {
+				$skill = $this->agent_skills->get_skill( $skill_name );
+				if ( $skill && ! empty( $skill['content'] ) ) {
+					$sections[] = $skill['content'];
+				}
+			}
+			$skill_content = implode( "\n\n", $sections );
+		}
+
+		$result = $this->agent_registry->run_agent( $agent, $prompt, $context, $skill_content );
+		$result['agent'] = $this->agent_registry->resolve_agent_slug( (string) $agent );
+		return $result;
+	}
+
+	/**
+	 * Execute generation through native agents.
+	 *
+	 * @param string      $prompt Prompt text.
+	 * @param string|null $type Optional generation type.
+	 * @param int         $post_id Context post ID.
+	 * @param string|null $agent Agent slug.
+	 * @return array
+	 */
+	public function generate( string $prompt, ?string $type = null, int $post_id = 0, ?string $agent = null ): array {
+		$normalized_prompt = $prompt;
+		if ( ! empty( $type ) ) {
+			$normalized_prompt = "Generate {$type} content for the following request:\n\n{$prompt}";
+		}
+		return $this->chat( $normalized_prompt, $agent, $post_id );
+	}
+
+	/**
+	 * Analyze content with LLM.
+	 *
+	 * @param int         $post_id Post ID.
+	 * @param string|null $focus Optional focus area.
+	 * @return array
+	 */
+	public function analyze( int $post_id, ?string $focus = null ): array {
+		$context = $post_id > 0 ? $this->context_builder->build_post_context( $post_id ) : [];
+		$prompt  = 'Analyze this content for narrative quality, structure, and consistency.';
+		if ( ! empty( $focus ) ) {
+			$prompt .= " Focus on: {$focus}.";
+		}
+		if ( ! empty( $context ) ) {
+			$prompt .= "\n\n" . $this->context_builder->build_context_for_llm( $context );
+		}
+
+		return $this->llm_client->chat(
+			$prompt,
+			[
+				'system_prompt' => 'You are an expert story analyst.',
+			]
+		);
+	}
+
+	/**
+	 * Run continuity check with context.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return array
+	 */
+	public function continuity_check( int $post_id ): array {
+		$context = $post_id > 0 ? $this->context_builder->build_post_context( $post_id ) : [];
+		$prompt  = 'Check this content for continuity errors across characters, timeline, and locations.';
+		if ( ! empty( $context ) ) {
+			$prompt .= "\n\n" . $this->context_builder->build_context_for_llm( $context );
+		}
+		return $this->llm_client->chat(
+			$prompt,
+			[
+				'system_prompt' => 'You are a continuity editor.',
+			]
+		);
+	}
+
+	/**
+	 * Get enabled native agents.
+	 *
+	 * @return array
+	 */
+	public function get_agents(): array {
+		return $this->agent_registry->get_enabled_agents();
 	}
 
 	/**

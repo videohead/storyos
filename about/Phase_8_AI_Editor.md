@@ -585,15 +585,16 @@ These annotations let MCP clients:
 - [x] Wire AI Editor into main plugin file (`storyos.php`)
 - [x] Create autoloader for AI Editor classes
 
-## Phase 8.2: Agent Skills & MAF Bridge (Complete)
+## Phase 8.2: Agent Skills & Native Agent Runtime (Complete)
 
-- [x] Implement `AI_MAF_Bridge` class — orchestrator REST API bridge
-- [x] Implement `AI_Agent_Router` — keyword-based agent routing
+- [x] Implement native WordPress agent registry and executor for plugin-local `.agent.md` files
+- [x] Keep `AI_MAF_Bridge` as a compatibility wrapper over the native registry
+- [x] Implement `AI_Agent_Router` — full native-agent routing with legacy advisor alias compatibility
 - [x] Implement `AI_Agent_Skills` — agent skills loader
-- [x] REST endpoints use MAF bridge for chat, analyze, generate, continuity
-- [x] 5 advisor routing rules (story, prompt, production, technical, editorial)
+- [x] REST endpoints use native agent runtime for chat, analyze, generate, continuity
+- [x] Full plugin-local agent set is available in `/home/runner/work/storyos/storyos/wordpress/wp-content/plugins/storyos/includes/agents`
+- [x] Legacy advisor aliases (`story`, `prompt`, `production`, `technical`, `editorial`) map to native agent slugs
 - [ ] Clone WordPress/agent-skills repository (documented but not yet cloned)
-- [ ] Copy MAF agent `.agent.md` files to plugin's agents directory
 
 ## Phase 8.3: Gutenberg Panel (Complete)
 
@@ -612,6 +613,7 @@ These annotations let MCP clients:
 - [x] Register 4 Tool abilities: chat, analyze, generate, continuity-check
 - [x] Register 3 Resource abilities: post-context, character-context, scene-context
 - [x] Register 2 Prompt abilities: story-review-prompt, continuity-prompt
+- [x] Register direct per-agent tool abilities for all plugin-local native agents
 - [x] Wire Abilities into main plugin file with WP 6.9+ feature detection
 - [ ] Install and configure WordPress MCP Adapter plugin (documented but not yet installed)
 - [ ] Test MCP discovery flow (discover-abilities, execute-ability)
