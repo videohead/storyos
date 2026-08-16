@@ -31,7 +31,7 @@ if ( ! function_exists( 'sanitize_text_field' ) ) {
 
 if ( ! function_exists( 'absint' ) ) {
 	function absint( $value ) {
-		return (int) $value;
+		return abs( (int) $value );
 	}
 }
 

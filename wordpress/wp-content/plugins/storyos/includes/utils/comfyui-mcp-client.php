@@ -151,7 +151,7 @@ class ComfyuiMcpClient {
 			$template = sprintf( $template, rawurlencode( (string) $job_id ) );
 		}
 
-		return $base . '/' . ltrim( $template, '/' );
+		return trailingslashit( $base ) . ltrim( $template, '/' );
 	}
 
 	/**
