@@ -18,6 +18,20 @@ use StoryOS\Utils\ComfyuiMcpClient;
  * Generation Controller class.
  */
 class Generation_Controller extends Base_Controller {
+	/**
+	 * Cron hook used to poll ComfyUI MCP job status.
+	 */
+	private const STATUS_POLL_CRON_HOOK = 'storyos_generation_poll_status';
+
+	/**
+	 * Delay between status polls in seconds.
+	 */
+	private const STATUS_POLL_DELAY = 30;
+
+	/**
+	 * Maximum polling retries after status request failures.
+	 */
+	private const STATUS_POLL_MAX_FAILURES = 10;
 
 	/**
 	 * CPT slug (not used).
@@ -39,6 +53,7 @@ class Generation_Controller extends Base_Controller {
 	public static function init(): void {
 		$instance = new self();
 		add_action( 'rest_api_init', [ $instance, 'register_routes' ] );
+		add_action( self::STATUS_POLL_CRON_HOOK, [ __CLASS__, 'poll_generation_status' ], 10, 2 );
 	}
 
 	/**
@@ -199,6 +214,8 @@ class Generation_Controller extends Base_Controller {
 
 		update_post_meta( $post_id, '_storyos_generation_job_id', sanitize_text_field( (string) $queued['job_id'] ) );
 		update_post_meta( $post_id, '_storyos_generation_status', 'queued' );
+		update_post_meta( $post_id, '_storyos_generation_poll_failures', 0 );
+		self::schedule_status_poll( $post_id, (string) $queued['job_id'] );
 
 		return rest_ensure_response( [
 			'id'         => $post_id,
@@ -327,6 +344,7 @@ class Generation_Controller extends Base_Controller {
 		if ( ! empty( $job_id ) ) {
 			ComfyuiMcpClient::cancel_job( (string) $job_id, self::get_mcp_server_url(), 20 );
 		}
+		wp_clear_scheduled_hook( self::STATUS_POLL_CRON_HOOK, [ $generation_id, (string) $job_id ] );
 
 		// Update status.
 		update_post_meta( $generation_id, '_storyos_generation_status', 'cancelled' );
@@ -385,5 +403,97 @@ class Generation_Controller extends Base_Controller {
 	 */
 	private static function get_mcp_server_url(): string {
 		return ComfyuiMcpClient::resolve_server_url();
+	}
+
+	/**
+	 * Poll ComfyUI MCP status for a queued generation.
+	 *
+	 * @param int    $generation_id Generation tracking post ID.
+	 * @param string $job_id Job identifier.
+	 * @return void
+	 */
+	public static function poll_generation_status( int $generation_id, string $job_id = '' ): void {
+		$generation_id = absint( $generation_id );
+		if ( $generation_id < 1 ) {
+			return;
+		}
+
+		if ( '' === $job_id ) {
+			$job_id = (string) get_post_meta( $generation_id, '_storyos_generation_job_id', true );
+		}
+		if ( '' === $job_id ) {
+			return;
+		}
+
+		$current_status = sanitize_key( (string) get_post_meta( $generation_id, '_storyos_generation_status', true ) );
+		if ( in_array( $current_status, [ 'completed', 'failed', 'cancelled' ], true ) ) {
+			return;
+		}
+
+		$result = ComfyuiMcpClient::get_status( $job_id, self::get_mcp_server_url(), 30 );
+		update_post_meta( $generation_id, '_storyos_generation_last_polled_at', current_time( 'mysql' ) );
+
+		if ( empty( $result['success'] ) ) {
+			$failures = absint( get_post_meta( $generation_id, '_storyos_generation_poll_failures', true ) ) + 1;
+			update_post_meta( $generation_id, '_storyos_generation_poll_failures', $failures );
+			update_post_meta( $generation_id, '_storyos_generation_last_poll_error', sanitize_text_field( (string) ( $result['error'] ?? 'Status polling failed.' ) ) );
+
+			if ( $failures < self::STATUS_POLL_MAX_FAILURES ) {
+				self::schedule_status_poll( $generation_id, $job_id );
+			} else {
+				update_post_meta( $generation_id, '_storyos_generation_status', 'failed' );
+			}
+			return;
+		}
+
+		update_post_meta( $generation_id, '_storyos_generation_poll_failures', 0 );
+		update_post_meta( $generation_id, '_storyos_generation_last_poll_error', '' );
+
+		$status = sanitize_key( (string) ( $result['status'] ?? '' ) );
+		if ( '' === $status ) {
+			$decoded = $result['response'] ?? [];
+			if ( is_array( $decoded ) ) {
+				$status = sanitize_key( (string) ( $decoded['status'] ?? $decoded['state'] ?? '' ) );
+			}
+		}
+		if ( '' === $status ) {
+			$status = 'unknown';
+		}
+
+		update_post_meta( $generation_id, '_storyos_generation_status', $status );
+		update_post_meta( $generation_id, '_storyos_generation_last_mcp_status', $result['response'] ?? [] );
+
+		if ( 'completed' === $status ) {
+			$artifacts = ComfyuiMcpClient::get_artifacts( $job_id, self::get_mcp_server_url(), 30 );
+			if ( ! empty( $artifacts['success'] ) ) {
+				update_post_meta( $generation_id, '_storyos_generation_artifacts', $artifacts['response'] ?? [] );
+			}
+			return;
+		}
+
+		if ( ! in_array( $status, [ 'failed', 'cancelled' ], true ) ) {
+			self::schedule_status_poll( $generation_id, $job_id );
+		}
+	}
+
+	/**
+	 * Schedule the next status poll.
+	 *
+	 * @param int    $generation_id Generation tracking post ID.
+	 * @param string $job_id Job identifier.
+	 * @return void
+	 */
+	private static function schedule_status_poll( int $generation_id, string $job_id ): void {
+		$generation_id = absint( $generation_id );
+		$job_id = sanitize_text_field( $job_id );
+		if ( $generation_id < 1 || '' === $job_id ) {
+			return;
+		}
+
+		if ( wp_next_scheduled( self::STATUS_POLL_CRON_HOOK, [ $generation_id, $job_id ] ) ) {
+			return;
+		}
+
+		wp_schedule_single_event( time() + self::STATUS_POLL_DELAY, self::STATUS_POLL_CRON_HOOK, [ $generation_id, $job_id ] );
 	}
 }
