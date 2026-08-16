@@ -17,8 +17,8 @@ Structured story management, asset generation, AI advisory, production planning,
 | Component | Location | Description |
 |-----------|----------|-------------|
 | WordPress Plugin | `wordpress/wp-content/plugins/storyos/` | Main plugin with 11 CPTs, taxonomies, REST API, AI Editor, and native agent runtime |
-| Orchestrator | `orchestrator/` | FastAPI service with Celery, 5 advisors, 32+ agents |
-| MAF Framework | `multi-agent-framework/` | Legacy/external framework components (not the primary WordPress agent runtime) |
+| AI Runtime | `wordpress/wp-content/plugins/storyos/includes/ai-editor/` | WordPress-native AI Editor, routing, and LLM integration |
+| Agent Definitions | `wordpress/wp-content/plugins/storyos/includes/agents/` | Native advisor role definitions loaded by the plugin runtime |
 | Local LLM | `llm/qwen35MOE/` | Qwen3.6-35B-A3B-NVFP4 via vLLM/Ollama |
 | ComfyUI | `ComfyUI/` | GPU-based asset generation |
 | Test Framework | `test-framework/` | PHPUnit + pytest test suites |
@@ -57,11 +57,11 @@ Story Graph (canonical source of truth)
 │           │                      │                  │
 │           ▼                      ▼                  │
 │  ┌──────────────────────────────────────────────────┐│
-│  │  Orchestrator (FastAPI + Celery)                 ││
-│  │  • ExecutiveOrchestrator                         ││
-│  │  • 5 Advisors (Story, Prompt, Production, etc.)  ││
-│  │  • External advisor orchestration               ││
-│  │  • Embedding backends (Dummy, Ollama, ST)        ││
+│  │  WordPress AI Runtime                             ││
+│  │  • Native advisor routing                         ││
+│  │  • 50+ advisor role definitions                   ││
+│  │  • Story Graph context retrieval                  ││
+│  │  • LLM provider abstraction                       ││
 │  └──────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────┘
    ↓                      ↓

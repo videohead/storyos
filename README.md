@@ -86,9 +86,10 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - ComfyUI workflow/runtime transport abstraction
 - Compatible with remote MCP service endpoints
 
-### Python Orchestrator (Optional / Legacy)
-- FastAPI for advisor and legacy pipeline endpoints
-- Celery + Redis for async task queue in legacy generation flows
+### WordPress Generation Workflow
+- WordPress-native generation endpoints under `/wp-json/storyos/v1/generation`
+- ComfyUI MCP operations (`submit`, `status`, `cancel`, `artifacts`) for execution
+- Asset ingestion and lineage tracking in the WordPress control plane
 
 ### ComfyUI
 - GPU-accelerated image/video generation
@@ -97,7 +98,7 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 ### AI Advisors
 - 50 specialized advisors from film industry archetypes
-- Executive Orchestrator for intelligent routing (Story, Prompt, Production, Editorial, Technical)
+- WordPress-native advisor routing (Story, Prompt, Production, Editorial, Technical)
 - Local model integration (BYOK, currently using a 35B MOE from Qwen via vLLM)
 - Conversation history and context management
 
@@ -121,7 +122,7 @@ Create an open platform where creators can manage story worlds, develop scripts,
 ### ✅ Phase C: Agent Integration (COMPLETE)
 - 50 specialized advisors from film industry archetypes
 - 5 specialized advisor adapters (Story, Prompt, Production, Editorial, Technical)
-- Executive Orchestrator with intelligent routing
+- WordPress-native advisor routing across specialized roles
 - Agent API endpoints (`/agents/*`)
 - Conversation history tracking
 - Multi-advisor review capability
@@ -185,9 +186,8 @@ lando start
 
 This starts the core local stack, including:
 - WordPress with PHP 8.2 and MariaDB
-- the orchestrator services
+- Redis cache service
 - phpMyAdmin for database inspection
-- the test framework for Playwright and PHPUnit
 
 Once Lando finishes starting, use:
 
@@ -256,9 +256,6 @@ lando info
 lando wp
 lando wp option update siteurl https://storyos.lndo.site
 lando wp option update home https://storyos.lndo.site
-lando python
-lando phpunit
-lando playwright
 lando pma
 ```
 
@@ -267,67 +264,34 @@ lando pma
 - If the database is still warming up, wait a moment and run `lando info` again.
 - If you need to inspect logs, use `lando logs`.
 
-### API Endpoints
+### API Endpoints (`/wp-json/storyos/v1`)
 
-#### Generation
-- `POST /generate` — Submit generation task
-- `GET /status/{job_id}` — Check task status
-- `GET /workflows` — List available workflow templates
-- `POST /workflows/build` — Dry-run workflow build
+#### Story Graph Entities
+- `GET|POST /projects`, `GET|POST /characters`, `GET|POST /locations`, `GET|POST /scenes`, `GET|POST /shots`
+- `GET|POST /assets`, `GET|POST /storyboard-frames`, `GET|POST /editorial-artifacts`, `GET|POST /storyworlds`, `GET|POST /episodes`, `GET|POST /props`, `GET|POST /organizations`
 
-#### Queue Management
-- `POST /queue/submit` — Submit task with priority
-- `POST /queue/cancel` — Cancel pending task
-- `GET /queue/active` — List active tasks
-- `GET /queue/pending` — List pending tasks
+#### Generation Workflow
+- `GET|POST /generation` — Submit and list generation jobs
+- `GET /generation/{id}` — Check generation status
+- `POST /generation/{id}/cancel` — Cancel generation
+- `GET /generation/asset/{asset_id}/history` — Inspect asset generation history
 
-#### Asset Lineage
-- `GET /assets` — List assets with filters
-- `GET /assets/{post_id}` — Get asset details
-- `POST /assets/{post_id}/status` — Update asset status
-- `POST /assets/{post_id}/media` — Upload media
+#### Search & Graph
+- `GET /search` and `GET /search/suggest` — Story Graph search and suggestions
+- `GET /graph/{id}`, `GET /graph/entities`, `GET|POST /graph/relationships` — Graph traversal and relationship management
 
-#### Health & Monitoring
-- `GET /health` — Service health checks
-- `GET /metrics` — Prometheus-style metrics
-
-#### AI Advisors (Phase 3+)
-- `GET /agents` — List available agents
-- `POST /agents/orchestrator` — Executive Orchestrator
-- `POST /agents/story` — Story Advisor
-- `POST /agents/prompt` — Prompt Advisor
-- `POST /agents/production` — Production Advisor
-- `POST /agents/editorial` — Editorial Advisor
-- `POST /agents/technical` — Technical Advisor
-- `POST /agents/review` — Multi-advisor review
-- `GET /agents/history` — Conversation history
+#### AI Editor
+- `POST /ai/chat`, `POST /ai/analyze`, `POST /ai/generate`, `POST /ai/continuity`
+- `GET /ai/context`, `GET /ai/agents`, `GET|POST /ai/settings`, `GET /ai/health`
 
 ## Project Structure
 
 ```
 storyos/
-├── orchestrator/              # Python orchestrator (optional legacy generation + advisors)
-│   ├── app.py                 # FastAPI main application
-│   ├── tasks.py               # Celery tasks
-│   ├── models.py              # Pydantic models
-│   ├── story_graph.py         # Story Graph context builder
-│   ├── health.py              # Health check service
-│   ├── middleware.py           # Logging & metrics middleware
-│   ├── queue_manager.py       # Queue management
-│   ├── asset_lineage.py       # Asset tracking
-│   ├── workflows/             # Workflow templates
-│   │   ├── templates/         # JSON workflow templates
-│   │   └── loader.py          # Template loader
-│   └── adapters/              # AI advisor adapters
-│       ├── story_advisor.py
-│       ├── prompt_advisor.py
-│       ├── production_advisor.py
-│       ├── editorial_advisor.py
-│       ├── technical_advisor.py
-│       └── executive_orchestrator.py
-├── multi-agent-framework/     # MAF integration scaffold
-├── wordpress/                 # WordPress core
-├── docker-compose.yml         # Full stack orchestration
+├── wordpress/                 # WordPress core and StoryOS plugin runtime
+│   └── wp-content/plugins/storyos/   # StoryOS plugin (Story Graph, generation, AI editor)
+├── ComfyUI/                   # Optional standalone ComfyUI runtime
+├── multi-agent-framework/     # Legacy research artifacts
 └── *.md                       # Architecture docs
 ```
 

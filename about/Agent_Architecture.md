@@ -4,15 +4,13 @@
 
 ## Purpose
 
-This document defines the agent architecture for StoryOS using the Microsoft Agent Framework (MAF) as the orchestration layer.
+This document defines the WordPress-native agent architecture for StoryOS.
 
 The agent system provides intelligent assistance throughout story development, asset generation, production planning, and editorial workflows while maintaining awareness of the Story Graph.
 
 ---
 
 # Architectural Vision
-
-StoryOS does not use AI as a replacement for creators.
 
 StoryOS uses AI as a collaborative team of expert advisors.
 
@@ -43,9 +41,9 @@ Agents retrieve knowledge from the Story Graph.
 
 Each agent has a focused responsibility.
 
-## Orchestrated Collaboration
+## WordPress-Native Collaboration
 
-Agents collaborate through MAF.
+Agents collaborate through the StoryOS WordPress runtime.
 
 ## Extensible
 
@@ -62,7 +60,7 @@ Creator
 StoryOS Interface
    |
    v
-MAF Orchestrator
+WordPress AI Runtime
    |
    +-------------------+
    |                   |
@@ -80,34 +78,34 @@ Context          WordPress
 # Agent Hierarchy
 
 ```text
-Executive Orchestrator
-        |
-        +-----------------------------+
-        |             |               |
-        v             v               v
+Director Advisor
+      |
+      +-----------------------------+
+      |             |               |
+      v             v               v
 Story      Production Advisor   Technical Advisor
 Advisor
-        |
-        +-------------+
-        |             |
-        v             v
+      |
+      +-------------+
+      |             |
+      v             v
 Prompt        Editorial Advisor
 Advisor
 ```
 
 ---
 
-# Executive Orchestrator
+# Director Advisor
 
 ## Responsibilities
 
 - Receive user requests
 - Determine intent
-- Route work
+- Route work to specialized advisors
 - Aggregate responses
 - Maintain project context
 
-The orchestrator serves as the primary MAF coordinator.
+The Director advisor serves as the primary routing coordinator in the WordPress runtime.
 
 ---
 
@@ -254,7 +252,7 @@ Role-specific instructions and workflows.
 User Request
       |
       v
-MAF Router
+Director Router
       |
       v
 Story Graph Query
@@ -337,6 +335,6 @@ Project-specific permissions must be respected.
 
 The long-term goal is an intelligent advisor ecosystem built around the Story Graph.
 
-As models evolve, the Story Graph becomes the persistent knowledge layer while agents become interchangeable expert interfaces.
+As models evolve, the Story Graph remains the persistent knowledge layer while advisors stay interoperable and replaceable.
 
 StoryOS therefore preserves story knowledge while remaining model-agnostic and future-proof.

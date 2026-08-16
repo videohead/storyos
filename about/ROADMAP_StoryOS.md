@@ -215,20 +215,20 @@ Transform StoryOS into a narrative intelligence platform.
 - ✅ Semantic Search (hybrid/semantic/keyword modes, WP_Query integration, admin bar)
 - ✅ Continuity Validation (auto-check on save, admin panel, severity levels)
 - ✅ Relationship Analytics (network density, co-occurrence, isolated entity detection)
-- ✅ Knowledge Graph Queries (orchestrator `/intelligence/*` endpoints)
+- ✅ Knowledge Graph Queries (WordPress `/storyos/v1/*` intelligence endpoints)
 - ✅ Story Consistency Checks (structured issue storage, filter by error/warning/info)
-- ✅ Narrative Reasoning (orchestrator intelligence engine)
+- ✅ Narrative Reasoning (StoryOS intelligence engine)
 
 ## Current Status (as of 2026-08-08)
 
-Phase 7 is fully implemented and operational. Core intelligence engine (story_intelligence.py) provides hybrid search, continuity validation (6 check categories), and relationship analytics. REST endpoints are live in the orchestrator FastAPI service.
+Phase 7 is fully implemented and operational. Core intelligence services provide hybrid search, continuity validation (6 check categories), and relationship analytics through WordPress REST endpoints.
 
 ## Performance Optimizations (Completed — 2026-08-08)
 
 ### 1. Persistent Embedding Storage ✅
 - Embedding index saved to disk (JSON) via `save_index()` / `load_index()`
 - Atomic file writes using temp file + `os.replace()`
-- Index loaded on orchestrator startup — no full re-index on restart
+- Index loaded on runtime startup — no full re-index on restart
 - Configurable via `EMBEDDING_INDEX_PATH` environment variable
 
 ### 2. Incremental Indexing ✅
@@ -250,8 +250,8 @@ Phase 7 is fully implemented and operational. Core intelligence engine (story_in
 
 ### 5. WordPress Transient Cache ✅
 - 3-tier caching: WordPress transient → in-memory → API fetch
-- Persists across orchestrator restarts (unlike in-memory cache)
-- Shared cache across multiple orchestrator instances
+- Persists across runtime restarts (unlike in-memory cache)
+- Shared cache across multiple runtime instances
 - WordPress plugin provides REST API endpoints:
   - `GET /wp-json/storyos/v1/transient/{key}`
   - `POST /wp-json/storyos/v1/transient/{key}`
@@ -307,7 +307,7 @@ Connect the WordPress content editor to local/API-driven LLMs and the multi-agen
 ## Integration Points
 
 - WordPress/agent-skills repository — expert WordPress knowledge for AI assistants (documented, not yet cloned)
-- Orchestrator FastAPI service — multi-agent orchestration
+- WordPress AI runtime — multi-agent routing
 - Qwen3.6-35B vLLM instance — local LLM backend
 - Multi-agent framework — 32+ specialized filmmaking agents
 
