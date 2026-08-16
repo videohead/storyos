@@ -189,7 +189,7 @@ class ComfyuiMcpClient {
 		$args = [
 			'timeout'   => max( 5, min( 300, $timeout ) ),
 			'headers'   => self::build_headers(),
-			'sslverify' => false,
+			'sslverify' => (bool) apply_filters( 'storyos_comfyui_mcp_sslverify', true ),
 		];
 		if ( null !== $body ) {
 			$args['body'] = wp_json_encode( $body );

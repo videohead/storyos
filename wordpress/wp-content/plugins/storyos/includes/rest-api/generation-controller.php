@@ -241,6 +241,15 @@ class Generation_Controller extends Base_Controller {
 			),
 		];
 		$result = ComfyuiMcpClient::submit_generation( $payload, self::get_mcp_server_url(), 30 );
+		if ( empty( $result['success'] ) ) {
+			return [
+				'success'     => false,
+				'error'       => $result['error'] ?? 'ComfyUI MCP rejected generation request.',
+				'response'    => $result['response'] ?? [],
+				'status_code' => $result['status_code'] ?? 500,
+			];
+		}
+
 		$job_id = (string) ( $result['job_id'] ?? '' );
 
 		if ( '' === $job_id ) {
@@ -253,7 +262,7 @@ class Generation_Controller extends Base_Controller {
 		}
 
 		return [
-			'success'  => ! empty( $result['success'] ),
+			'success'  => true,
 			'job_id'   => $job_id,
 			'response' => $result['response'] ?? [],
 			'status_code' => $result['status_code'] ?? 200,
