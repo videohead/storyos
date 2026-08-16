@@ -37,6 +37,7 @@ class Settings {
 	 */
 	private static $defaults = [
 		'enabled'          => false,
+		'mcp_server_url'   => '',
 		'orchestrator_url' => 'http://orchestrator:8000',
 		'workflow'         => 'character-sheet',
 		'provider_type'    => '',
@@ -110,7 +111,7 @@ class Settings {
 	 */
 	public static function is_configured(): bool {
 		$settings = self::get_settings();
-		return ! empty( $settings['orchestrator_url'] );
+		return ! empty( $settings['mcp_server_url'] ) || ! empty( $settings['orchestrator_url'] );
 	}
 
 	/**
@@ -123,6 +124,12 @@ class Settings {
 		$output = self::$defaults;
 
 		$output['enabled'] = ! empty( $input['enabled'] );
+
+		if ( ! empty( $input['mcp_server_url'] ) ) {
+			$output['mcp_server_url'] = esc_url_raw( trim( $input['mcp_server_url'] ) );
+		} elseif ( ! empty( $input['orchestrator_url'] ) ) {
+			$output['mcp_server_url'] = esc_url_raw( trim( $input['orchestrator_url'] ) );
+		}
 
 		if ( ! empty( $input['orchestrator_url'] ) ) {
 			$output['orchestrator_url'] = esc_url_raw( trim( $input['orchestrator_url'] ) );
@@ -225,7 +232,7 @@ class Settings {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Generation Engine Settings', 'storyos-generation-engine' ); ?></h1>
-			<p><?php esc_html_e( 'Configure orchestrator and provider routing defaults.', 'storyos-generation-engine' ); ?></p>
+			<p><?php esc_html_e( 'Configure ComfyUI MCP and provider routing defaults.', 'storyos-generation-engine' ); ?></p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( self::SETTINGS_GROUP ); ?>
@@ -317,18 +324,19 @@ class Settings {
 
 						<tr>
 							<th scope="row">
-								<label for="storyos-ge-orchestrator-url"><?php esc_html_e( 'Orchestrator URL', 'storyos-generation-engine' ); ?></label>
+								<label for="storyos-ge-mcp-server-url"><?php esc_html_e( 'ComfyUI MCP Server URL', 'storyos-generation-engine' ); ?></label>
 							</th>
 							<td>
 								<input
-									id="storyos-ge-orchestrator-url"
-									name="storyos_generation_engine_settings[orchestrator_url]"
+									id="storyos-ge-mcp-server-url"
+									name="storyos_generation_engine_settings[mcp_server_url]"
 									type="url"
 									class="regular-text"
-									placeholder="http://orchestrator:8000"
-									value="<?php echo esc_attr( $settings['orchestrator_url'] ); ?>"
+									placeholder="http://localhost:8000"
+									value="<?php echo esc_attr( $settings['mcp_server_url'] ?: $settings['orchestrator_url'] ); ?>"
 								/>
-								<p class="description"><?php esc_html_e( 'Base URL for StoryOS orchestrator. /generate will be appended automatically.', 'storyos-generation-engine' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Base URL for the ComfyUI MCP bridge used by generation submit/status/cancel operations.', 'storyos-generation-engine' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Legacy orchestrator URL settings remain supported as fallback.', 'storyos-generation-engine' ); ?></p>
 							</td>
 						</tr>
 

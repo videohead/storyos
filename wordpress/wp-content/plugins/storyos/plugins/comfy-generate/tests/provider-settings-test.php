@@ -77,6 +77,7 @@ $settings = Settings::sanitize_settings( [
 	'provider_type'       => 'new-provider',
 	'provider_api_key'    => 'must-not-be-stored',
 	'provider_endpoint_url' => 'https://provider.example.test',
+	'orchestrator_url'    => 'https://legacy.example.test',
 ] );
 if ( 'newprovider' !== $settings['provider_type'] ) {
 	fwrite( STDERR, "provider type was not normalized\n" );
@@ -86,6 +87,19 @@ if ( 'newprovider' !== $settings['provider_type'] ) {
 foreach ( [ 'provider_api_key', 'provider_endpoint_url', 'provider_password', 'provider_username' ] as $key ) {
 	if ( isset( $settings[ $key ] ) ) {
 		fwrite( STDERR, "provider-specific setting was stored: {$key}\n" );
+		exit( 1 );
+	}
+
+	if ( 'https://legacy.example.test' !== $settings['mcp_server_url'] ) {
+		fwrite( STDERR, "legacy orchestrator URL did not backfill mcp_server_url\n" );
+		exit( 1 );
+	}
+
+	$settings = Settings::sanitize_settings( [
+		'mcp_server_url' => 'https://mcp.example.test',
+	] );
+	if ( 'https://mcp.example.test' !== $settings['mcp_server_url'] ) {
+		fwrite( STDERR, "mcp_server_url was not preserved\n" );
 		exit( 1 );
 	}
 }

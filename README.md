@@ -54,8 +54,8 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌────────────┐
-│  WordPress  │───▶ │Orchestrator      │───▶│ ComfyUI    │
-|(Story Graph)│     │(FastAPI + Celery)│     │  (GPU Gen) │
+│  WordPress  │───▶ │ComfyUI MCP Bridge│───▶│ ComfyUI    │
+|(Story Graph)│     │ (submit/status)  │     │  (GPU Gen) │
 └─────────────┘     └────────┬─────────┘     └────────────┘
                              │
                       ┌───────▼────────┐
@@ -67,9 +67,9 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 **Data Flow:**
 1. WordPress stores structured story data (CPTs, SCFs, Story Graph)
-2. Python Orchestrator queries Story Graph, builds generation context
-3. Workflow templates render ComfyUI JSON with story context
-4. Celery workers submit to ComfyUI, poll for completion
+2. WordPress submits generation requests through ComfyUI MCP operations
+3. MCP bridge maps normalized operations to ComfyUI workflow/runtime calls
+4. MCP status/artifact operations return completion data and outputs
 5. Generated assets upload back to WordPress media library
 6. AI Advisors assist at every stage (story, prompts, production, editorial, technical)
 
@@ -81,13 +81,14 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - REST API for Story Graph queries
 - Media library for asset storage
 
-### Python Orchestrator
-- FastAPI for REST API endpoints
-- Celery + Redis for async task queue
-- Workflow template system (JSON-based ComfyUI workflows)
-- Story Graph context builder
-- Asset lineage tracking
-- Health monitoring and metrics
+### ComfyUI MCP Bridge
+- Normalized generation operations (submit, status, cancel, artifacts)
+- ComfyUI workflow/runtime transport abstraction
+- Compatible with remote MCP service endpoints
+
+### Python Orchestrator (Optional / Legacy)
+- FastAPI for advisor and legacy pipeline endpoints
+- Celery + Redis for async task queue in legacy generation flows
 
 ### ComfyUI
 - GPU-accelerated image/video generation
@@ -305,7 +306,7 @@ lando pma
 
 ```
 storyos/
-├── orchestrator/              # Python orchestrator (FastAPI + Celery)
+├── orchestrator/              # Python orchestrator (optional legacy generation + advisors)
 │   ├── app.py                 # FastAPI main application
 │   ├── tasks.py               # Celery tasks
 │   ├── models.py              # Pydantic models

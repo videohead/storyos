@@ -2,7 +2,7 @@
 /**
  * Plugin Name: StoryOS - Generation Engine
  * Plugin URI: https://storyos.dev
- * Description: Adds a generation button to WordPress posts and forwards jobs to the StoryOS orchestrator.
+ * Description: Adds a generation button to WordPress posts and forwards jobs to the StoryOS ComfyUI MCP bridge.
  * Version: 1.0.0
  * Author: StoryOS Contributors
  * License: GPL v2 or later

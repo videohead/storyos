@@ -3,10 +3,14 @@ Mickey Mouse
 # StoryOS Generation Engine - AI Development Task List
 
 **Project:** StoryOS Generation Engine
-**Status:** Planning
+**Status:** In Progress
 **Priority:** High
 
 ## Epic 1: Decouple From ComfyUI
+
+### Current Migration Update
+- Generation submission, status, and cancellation in WordPress now target a ComfyUI MCP contract (`submit`, `status`, `cancel`, `artifacts`) instead of direct orchestrator queue routes.
+- Generation Engine settings now prioritize a dedicated ComfyUI MCP server URL, while retaining legacy orchestrator URL fallback for backward compatibility.
 
 ### Goal
 Transform the existing generation plugin into a provider-agnostic generation platform.

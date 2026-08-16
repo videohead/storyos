@@ -1,6 +1,6 @@
 <?php
 /**
- * Generation client for the StoryOS orchestration pipeline.
+ * Generation client for the StoryOS ComfyUI MCP pipeline.
  *
  * @package StoryOSGenerationEngine
  */
@@ -12,8 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Sends generation requests to the StoryOS orchestrator, which then queues them
- * with the Celery worker pipeline.
+ * Sends generation requests to the StoryOS ComfyUI MCP adapter service.
  */
 class Generation_Client {
 
@@ -29,71 +28,34 @@ class Generation_Client {
 	public static function send_generation_request( int $post_id, array $settings = [], string $workflow = '', array $custom_params = [] ): array {
 		$settings = wp_parse_args( $settings, Settings::get_settings() );
 		$timeout = isset( $settings['request_timeout'] ) ? max( 5, min( 300, absint( $settings['request_timeout'] ) ) ) : 60;
-
-		$endpoint_url = self::normalize_endpoint_url( $settings['orchestrator_url'] ?? $settings['endpoint_url'] ?? '' );
-		if ( empty( $endpoint_url ) ) {
+		$mcp_server_url = self::normalize_endpoint_url( $settings['mcp_server_url'] ?? $settings['orchestrator_url'] ?? $settings['endpoint_url'] ?? '' );
+		if ( empty( $mcp_server_url ) ) {
 			return [
 				'success' => false,
-				'error'   => __( 'StoryOS orchestrator URL is not configured.', 'storyos-generation-engine' ),
+				'error'   => __( 'StoryOS ComfyUI MCP server URL is not configured.', 'storyos-generation-engine' ),
 			];
 		}
 
 		$payload = self::build_payload( $post_id, $settings, $workflow, $custom_params );
-
-		$headers = [
-			'Content-Type' => 'application/json',
-			'Accept'       => 'application/json',
-		];
-
-		$response = wp_remote_post(
-			$endpoint_url,
-			[
-				'timeout' => $timeout,
-				'headers' => $headers,
-				'body'    => wp_json_encode( $payload ),
-			]
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return [
-				'success' => false,
-				'error'   => $response->get_error_message(),
-				'payload' => $payload,
-			];
+		$result = self::submit_via_mcp( $payload, $mcp_server_url, $timeout );
+		if ( empty( $result['success'] ) ) {
+			$result['payload'] = $payload;
+			return $result;
 		}
 
-		$status_code = wp_remote_retrieve_response_code( $response );
-		$raw_body    = wp_remote_retrieve_body( $response );
-		$decoded     = json_decode( $raw_body, true );
-
-		if ( $status_code < 200 || $status_code >= 300 ) {
-			return [
-				'success' => false,
-				'error'   => __( 'StoryOS orchestrator returned an error.', 'storyos-generation-engine' ),
-				'status_code' => $status_code,
-				'response' => $decoded ?: $raw_body,
-				'payload' => $payload,
-			];
-		}
-
-		$job_id = '';
-		if ( is_array( $decoded ) ) {
-			$job_id = $decoded['job_id'] ?? $decoded['id'] ?? '';
-		}
-
-		do_action( 'storyos_generation_engine_job_submitted', $post_id, $payload, $decoded );
+		do_action( 'storyos_generation_engine_job_submitted', $post_id, $payload, $result['response'] ?? [] );
 
 		return [
 			'success'     => true,
-			'status_code' => $status_code,
-			'response'    => $decoded ?: $raw_body,
-			'job_id'      => $job_id,
+			'status_code' => $result['status_code'] ?? 200,
+			'response'    => $result['response'] ?? [],
+			'job_id'      => (string) ( $result['job_id'] ?? '' ),
 			'payload'     => $payload,
 		];
 	}
 
 	/**
-	 * Build a normalized payload for the orchestrator queue.
+	 * Build a normalized payload for MCP submission.
 	 *
 	 * @param int    $post_id Post identifier.
 	 * @param array  $settings Settings array.
@@ -153,14 +115,67 @@ class Generation_Client {
 	 */
 	public static function normalize_endpoint_url( string $url ): string {
 		$trimmed = trim( $url );
-		if ( '' === $trimmed ) {
-			return '';
+		if ( '' !== $trimmed ) {
+			return rtrim( $trimmed, '/' );
 		}
 
-		if ( preg_match( '#/generate/?$#', $trimmed ) ) {
-			return $trimmed;
+		return class_exists( '\\StoryOS\\Utils\\ComfyuiMcpClient' )
+			? \StoryOS\Utils\ComfyuiMcpClient::resolve_server_url()
+			: '';
+	}
+
+	/**
+	 * Submit payload through ComfyUI MCP adapter.
+	 *
+	 * @param array  $payload Request payload.
+	 * @param string $mcp_server_url MCP base URL.
+	 * @param int    $timeout Timeout.
+	 * @return array
+	 */
+	private static function submit_via_mcp( array $payload, string $mcp_server_url, int $timeout ): array {
+		if ( class_exists( '\\StoryOS\\Utils\\ComfyuiMcpClient' ) ) {
+			$result = \StoryOS\Utils\ComfyuiMcpClient::submit_generation( $payload, $mcp_server_url, $timeout );
+			if ( empty( $result['success'] ) ) {
+				$result['error'] = $result['error'] ?? __( 'StoryOS ComfyUI MCP server returned an error.', 'storyos-generation-engine' );
+			}
+			return $result;
 		}
 
-		return rtrim( $trimmed, '/' ) . '/generate';
+		$response = wp_remote_post(
+			rtrim( $mcp_server_url, '/' ) . '/mcp/comfyui/jobs',
+			[
+				'timeout' => $timeout,
+				'headers' => [
+					'Content-Type' => 'application/json',
+					'Accept'       => 'application/json',
+				],
+				'body'    => wp_json_encode( $payload ),
+			]
+		);
+		if ( is_wp_error( $response ) ) {
+			return [
+				'success' => false,
+				'error'   => $response->get_error_message(),
+			];
+		}
+
+		$status_code = wp_remote_retrieve_response_code( $response );
+		$raw_body    = wp_remote_retrieve_body( $response );
+		$decoded     = json_decode( $raw_body, true );
+		if ( $status_code < 200 || $status_code >= 300 ) {
+			return [
+				'success'     => false,
+				'status_code' => $status_code,
+				'error'       => __( 'StoryOS ComfyUI MCP server returned an error.', 'storyos-generation-engine' ),
+				'response'    => $decoded ?: [ 'raw' => $raw_body ],
+			];
+		}
+
+		return [
+			'success'     => true,
+			'status_code' => $status_code,
+			'response'    => $decoded ?: [ 'raw' => $raw_body ],
+			'job_id'      => is_array( $decoded ) ? (string) ( $decoded['job_id'] ?? $decoded['id'] ?? $decoded['remote_job_ref'] ?? '' ) : '',
+		];
 	}
 }

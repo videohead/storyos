@@ -2,7 +2,7 @@
 /**
  * Generation REST API Controller for StoryOS.
  *
- * Handles asset generation requests and status tracking.
+ * Handles asset generation requests and ComfyUI MCP status tracking.
  *
  * @package StoryOS
  */
@@ -12,6 +12,7 @@ namespace StoryOS\REST;
 use WP_REST_Request;
 use WP_REST_Response;
 use WP_Error;
+use StoryOS\Utils\ComfyuiMcpClient;
 
 /**
  * Generation Controller class.
@@ -224,8 +225,6 @@ class Generation_Controller extends Base_Controller {
 	 * @return array
 	 */
 	private static function queue_generation( int $target_post_id, string $workflow, string $provider_type, int $connection_id, array $params, int $generation_post_id, string $type, string $prompt ): array {
-		$endpoint = trailingslashit( self::get_orchestrator_url() ) . 'generate';
-
 		$payload = [
 			'post_id'        => $target_post_id,
 			'provider_type'  => $provider_type,
@@ -241,54 +240,23 @@ class Generation_Controller extends Base_Controller {
 				$params
 			),
 		];
-
-		$response = wp_remote_post(
-			$endpoint,
-			[
-				'timeout'   => 30,
-				'headers'   => self::build_orchestrator_headers(),
-				'body'      => wp_json_encode( $payload ),
-				'sslverify' => false,
-			]
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return [
-				'success' => false,
-				'error'   => $response->get_error_message(),
-			];
-		}
-
-		$status_code = wp_remote_retrieve_response_code( $response );
-		$body_raw    = wp_remote_retrieve_body( $response );
-		$decoded     = json_decode( $body_raw, true );
-
-		if ( $status_code < 200 || $status_code >= 300 ) {
-			return [
-				'success'     => false,
-				'error'       => 'Orchestrator rejected generation request.',
-				'status_code' => $status_code,
-				'response'    => $decoded ?: $body_raw,
-			];
-		}
-
-		$job_id = '';
-		if ( is_array( $decoded ) ) {
-			$job_id = (string) ( $decoded['job_id'] ?? '' );
-		}
+		$result = ComfyuiMcpClient::submit_generation( $payload, self::get_mcp_server_url(), 30 );
+		$job_id = (string) ( $result['job_id'] ?? '' );
 
 		if ( '' === $job_id ) {
 			return [
 				'success'  => false,
-				'error'    => 'Orchestrator response did not include a job_id.',
-				'response' => $decoded ?: $body_raw,
+				'error'    => $result['error'] ?? 'ComfyUI MCP response did not include a job_id.',
+				'response' => $result['response'] ?? [],
+				'status_code' => $result['status_code'] ?? 500,
 			];
 		}
 
 		return [
-			'success'  => true,
+			'success'  => ! empty( $result['success'] ),
 			'job_id'   => $job_id,
-			'response' => $decoded,
+			'response' => $result['response'] ?? [],
+			'status_code' => $result['status_code'] ?? 200,
 		];
 	}
 
@@ -303,36 +271,23 @@ class Generation_Controller extends Base_Controller {
 		$job_id = get_post_meta( $generation_id, '_storyos_generation_job_id', true );
 
 		if ( ! empty( $job_id ) ) {
-			$endpoint = trailingslashit( self::get_orchestrator_url() ) . 'queue/task/' . rawurlencode( (string) $job_id );
-			$response = wp_remote_get(
-				$endpoint,
-				[
-					'timeout'   => 30,
-					'headers'   => self::build_orchestrator_headers(),
-					'sslverify' => false,
-				]
-			);
+			$result = ComfyuiMcpClient::get_status( (string) $job_id, self::get_mcp_server_url(), 30 );
+			if ( ! empty( $result['success'] ) && is_array( $result['response'] ?? null ) ) {
+				$decoded = $result['response'];
+				$status = sanitize_text_field( (string) ( $result['status'] ?? $decoded['status'] ?? $decoded['state'] ?? 'unknown' ) );
+				update_post_meta( $generation_id, '_storyos_generation_status', $status );
 
-			if ( ! is_wp_error( $response ) && 200 === wp_remote_retrieve_response_code( $response ) ) {
-				$body_raw = wp_remote_retrieve_body( $response );
-				$decoded  = json_decode( $body_raw, true );
-
-				if ( is_array( $decoded ) ) {
-					$status = sanitize_text_field( (string) ( $decoded['registry_status'] ?? $decoded['celery_state'] ?? 'unknown' ) );
-					update_post_meta( $generation_id, '_storyos_generation_status', $status );
-
-					return rest_ensure_response( [
-						'id'            => $generation_id,
-						'job_id'        => $job_id,
-						'status'        => $status,
-						'type'          => get_post_meta( $generation_id, '_storyos_generation_type', true ),
-						'prompt'        => get_post_meta( $generation_id, '_storyos_generation_prompt', true ),
-						'provider_type' => get_post_meta( $generation_id, '_storyos_generation_provider_type', true ),
-						'connection_id' => absint( get_post_meta( $generation_id, '_storyos_generation_connection_id', true ) ),
-						'created'       => get_post_meta( $generation_id, '_storyos_generation_created', true ),
-						'orchestrator'  => $decoded,
-					] );
-				}
+				return rest_ensure_response( [
+					'id'            => $generation_id,
+					'job_id'        => $job_id,
+					'status'        => $status,
+					'type'          => get_post_meta( $generation_id, '_storyos_generation_type', true ),
+					'prompt'        => get_post_meta( $generation_id, '_storyos_generation_prompt', true ),
+					'provider_type' => get_post_meta( $generation_id, '_storyos_generation_provider_type', true ),
+					'connection_id' => absint( get_post_meta( $generation_id, '_storyos_generation_connection_id', true ) ),
+					'created'       => get_post_meta( $generation_id, '_storyos_generation_created', true ),
+					'mcp'           => $decoded,
+				] );
 			}
 		}
 
@@ -361,15 +316,7 @@ class Generation_Controller extends Base_Controller {
 		$job_id = get_post_meta( $generation_id, '_storyos_generation_job_id', true );
 
 		if ( ! empty( $job_id ) ) {
-			$endpoint = trailingslashit( self::get_orchestrator_url() ) . 'queue/cancel/' . rawurlencode( (string) $job_id );
-			wp_remote_post(
-				$endpoint,
-				[
-					'timeout'   => 20,
-					'headers'   => self::build_orchestrator_headers(),
-					'sslverify' => false,
-				]
-			);
+			ComfyuiMcpClient::cancel_job( (string) $job_id, self::get_mcp_server_url(), 20 );
 		}
 
 		// Update status.
@@ -423,38 +370,11 @@ class Generation_Controller extends Base_Controller {
 	}
 
 	/**
-	 * Resolve orchestrator URL.
+	 * Resolve ComfyUI MCP server URL.
 	 *
 	 * @return string
 	 */
-	private static function get_orchestrator_url(): string {
-		$url = get_option( 'storyos_orchestrator_url', '' );
-		if ( empty( $url ) && defined( 'STORYOS_ORCHESTRATOR_URL' ) ) {
-			$url = STORYOS_ORCHESTRATOR_URL;
-		}
-		if ( empty( $url ) ) {
-			$url = 'http://orchestrator:8000';
-		}
-
-		return rtrim( (string) $url, '/' );
-	}
-
-	/**
-	 * Build headers for orchestrator calls.
-	 *
-	 * @return array
-	 */
-	private static function build_orchestrator_headers(): array {
-		$headers = [
-			'Content-Type' => 'application/json',
-			'Accept'       => 'application/json',
-		];
-
-		$token = get_option( 'storyos_orchestrator_token', '' );
-		if ( ! empty( $token ) ) {
-			$headers['Authorization'] = 'Bearer ' . sanitize_text_field( (string) $token );
-		}
-
-		return $headers;
+	private static function get_mcp_server_url(): string {
+		return ComfyuiMcpClient::resolve_server_url();
 	}
 }

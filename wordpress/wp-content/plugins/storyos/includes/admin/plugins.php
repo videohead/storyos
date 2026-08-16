@@ -182,7 +182,7 @@ class Plugins {
 						return \StoryOSGenerationEngine\Settings::is_configured();
 				}
 					$settings = get_option( 'storyos_generation_engine_settings', [] );
-					return is_array( $settings ) && ! empty( $settings['orchestrator_url'] );
+					return is_array( $settings ) && ( ! empty( $settings['mcp_server_url'] ) || ! empty( $settings['orchestrator_url'] ) );
 
 			case 'edl':
 				return true;
