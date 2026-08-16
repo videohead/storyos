@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 import requests
+from providers.comfyui_provider import ComfyUIProvider
 
 
 class ComfyUIReadinessError(RuntimeError):
@@ -198,45 +199,18 @@ class ComfyUIReadinessChecker:
             return self._path("system_stats_path", "/system_stats")
         if default_path == "/object_info":
             return self._path("object_info_path", "/object_info")
-        return self._path("", default_path)
+        return self._normalize_path(default_path)
 
     def _path(self, key: str, default: str) -> str:
         value = str(self.connection.get(key) or default).strip()
+        return self._normalize_path(value)
+
+    @staticmethod
+    def _normalize_path(value: str) -> str:
+        value = str(value).strip()
         if not value.startswith("/"):
             value = "/" + value
         return value
 
     def _request_headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {}
-        raw_headers = self.connection.get("headers")
-        if isinstance(raw_headers, dict):
-            for key, value in raw_headers.items():
-                if isinstance(key, str) and key.strip() and value is not None:
-                    headers[key.strip()] = str(value).strip()
-
-        token = str(
-            self.connection.get("api_key")
-            or self.connection.get("token")
-            or self.connection.get("credential")
-            or ""
-        ).strip()
-        connector = str(self.connection.get("connector") or "").strip().lower()
-        auth_type = str(self.connection.get("auth_type") or "").strip().lower()
-
-        if not auth_type:
-            if connector in {"runcomfy", "comfydeploy", "comfy_cloud_bearer", "comfyui_cloud"}:
-                auth_type = "bearer"
-            elif connector in {"comfyicu", "comfy_cloud_api_key"}:
-                auth_type = "x-api-key"
-
-        if token and auth_type in {"bearer", "token"}:
-            headers.setdefault("Authorization", "Bearer " + token)
-        elif token and auth_type in {"x-api-key", "apikey", "api_key"}:
-            headers.setdefault("X-API-Key", token)
-        elif token and auth_type == "custom_header":
-            header_name = str(self.connection.get("auth_header") or "").strip()
-            if header_name:
-                prefix = str(self.connection.get("auth_prefix") or "").strip()
-                headers.setdefault(header_name, f"{prefix}{token}")
-
-        return headers
+        return ComfyUIProvider._request_headers(self.connection)
