@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from typing import Any, Optional
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import requests
 
@@ -58,13 +58,15 @@ class ComfyUIProvider(ProviderTypeInterface):
 
     def submit(self, request: dict[str, Any], connection: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         connection = connection or {}
-        endpoint_url = str(connection.get("endpoint_url") or self.endpoint_url).rstrip("/")
+        endpoint_url = self._endpoint_url(connection)
         workflow = request.get("workflow") or request.get("prompt") or request
         if isinstance(workflow, dict) and isinstance(workflow.get("prompt"), dict):
             workflow = workflow["prompt"]
+        submit_path = self._path(connection, "submit_path", "/prompt")
         response = requests.post(
-            f"{endpoint_url}/prompt",
+            f"{endpoint_url}{submit_path}",
             json={"prompt": workflow, "client_id": connection.get("client_id", self.client_id)},
+            headers=self._request_headers(connection),
             timeout=30,
         )
         response.raise_for_status()
@@ -79,9 +81,18 @@ class ComfyUIProvider(ProviderTypeInterface):
 
     def poll(self, remote_job_ref: str, connection: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         connection = connection or {}
-        endpoint_url = str(connection.get("endpoint_url") or self.endpoint_url).rstrip("/")
+        endpoint_url = self._endpoint_url(connection)
+        history_path_template = str(
+            connection.get("history_path_template")
+            or connection.get("status_path_template")
+            or "/history/{job_id}"
+        )
+        if not history_path_template.startswith("/"):
+            history_path_template = "/" + history_path_template
+        history_path = history_path_template.replace("{job_id}", quote(remote_job_ref, safe=""))
         response = requests.get(
-            f"{endpoint_url}/history/{remote_job_ref}",
+            f"{endpoint_url}{history_path}",
+            headers=self._request_headers(connection),
             timeout=30,
         )
         response.raise_for_status()
@@ -104,25 +115,44 @@ class ComfyUIProvider(ProviderTypeInterface):
 
     def cancel(self, remote_job_ref: str, connection: Optional[dict[str, Any]] = None) -> bool:
         connection = connection or {}
-        endpoint_url = str(connection.get("endpoint_url") or self.endpoint_url).rstrip("/")
-        response = requests.post(f"{endpoint_url}/interrupt", timeout=30)
+        endpoint_url = self._endpoint_url(connection)
+        cancel_path = self._path(connection, "cancel_path", "/interrupt").replace(
+            "{job_id}", quote(remote_job_ref, safe="")
+        )
+        response = requests.post(
+            f"{endpoint_url}{cancel_path}",
+            headers=self._request_headers(connection),
+            timeout=30,
+        )
         return response.ok
 
     def health_check(self, connection: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """Check ComfyUI reachability, runtime information, and node availability."""
         connection = connection or {}
-        endpoint_url = str(connection.get("endpoint_url") or self.endpoint_url).rstrip("/")
+        endpoint_url = self._endpoint_url(connection)
+        headers = self._request_headers(connection)
+        stats_path = self._path(connection, "system_stats_path", "/system_stats")
+        object_info_path = self._path(connection, "object_info_path", "/object_info")
         required_nodes = set(connection.get("required_nodes") or [])
         evidence: dict[str, Any] = {
             "provider_type": self.provider_type,
             "endpoint_url": endpoint_url,
+            "connector": str(connection.get("connector") or "local"),
             "status": "failed",
             "checks": {},
         }
         try:
-            stats_response = requests.get(f"{endpoint_url}/system_stats", timeout=10)
+            stats_response = requests.get(
+                f"{endpoint_url}{stats_path}",
+                headers=headers,
+                timeout=10,
+            )
             stats_response.raise_for_status()
-            object_response = requests.get(f"{endpoint_url}/object_info", timeout=10)
+            object_response = requests.get(
+                f"{endpoint_url}{object_info_path}",
+                headers=headers,
+                timeout=10,
+            )
             object_response.raise_for_status()
             available_nodes = set(object_response.json())
             missing_nodes = sorted(required_nodes - available_nodes)
@@ -144,7 +174,8 @@ class ComfyUIProvider(ProviderTypeInterface):
 
     def download_artifacts(self, remote_job_ref: str, connection: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
         connection = connection or {}
-        endpoint_url = str(connection.get("endpoint_url") or self.endpoint_url).rstrip("/")
+        endpoint_url = self._endpoint_url(connection)
+        view_path = self._path(connection, "view_path", "/view")
         poll = self.poll(remote_job_ref, connection)
         if poll["status"] != "completed":
             return []
@@ -166,7 +197,7 @@ class ComfyUIProvider(ProviderTypeInterface):
                     )
                     artifacts.append(
                         {
-                            "uri": f"{endpoint_url}/view?{params}",
+                            "uri": f"{endpoint_url}{view_path}?{params}",
                             "filename": item["filename"],
                             "mime_type": self._mime_type(output_key, item["filename"]),
                             "provider_type": self.provider_type,
@@ -183,3 +214,49 @@ class ComfyUIProvider(ProviderTypeInterface):
         if output_key == "audio" or extension in {"mp3", "wav", "flac", "ogg"}:
             return "audio/*"
         return "image/png" if extension == "png" else "image/*"
+
+    def _endpoint_url(self, connection: dict[str, Any]) -> str:
+        return str(connection.get("endpoint_url") or self.endpoint_url).rstrip("/")
+
+    @staticmethod
+    def _path(connection: dict[str, Any], key: str, default: str) -> str:
+        value = str(connection.get(key) or default).strip()
+        if not value.startswith("/"):
+            value = "/" + value
+        return value
+
+    @staticmethod
+    def _request_headers(connection: dict[str, Any]) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        raw_headers = connection.get("headers")
+        if isinstance(raw_headers, dict):
+            for key, value in raw_headers.items():
+                if isinstance(key, str) and key.strip() and value is not None:
+                    headers[key.strip()] = str(value).strip()
+
+        token = str(
+            connection.get("api_key")
+            or connection.get("token")
+            or connection.get("credential")
+            or ""
+        ).strip()
+        connector = str(connection.get("connector") or "").strip().lower()
+        auth_type = str(connection.get("auth_type") or "").strip().lower()
+
+        if not auth_type:
+            if connector in {"runcomfy", "comfydeploy", "comfy_cloud_bearer", "comfyui_cloud"}:
+                auth_type = "bearer"
+            elif connector in {"comfyicu", "comfy_cloud_api_key"}:
+                auth_type = "x-api-key"
+
+        if token and auth_type in {"bearer", "token"}:
+            headers.setdefault("Authorization", "Bearer " + token)
+        elif token and auth_type in {"x-api-key", "apikey", "api_key"}:
+            headers.setdefault("X-API-Key", token)
+        elif token and auth_type == "custom_header":
+            header_name = str(connection.get("auth_header") or "").strip()
+            if header_name:
+                prefix = str(connection.get("auth_prefix") or "").strip()
+                headers.setdefault(header_name, f"{prefix}{token}")
+
+        return headers

@@ -604,7 +604,8 @@ def check_comfyui_readiness(req: dict[str, Any]):
     if not isinstance(workflow, dict) or not workflow:
         raise HTTPException(status_code=400, detail="A rendered ComfyUI workflow is required")
 
-    checker = ComfyUIReadinessChecker(COMFYUI_URL)
+    endpoint_url = str(req.get("endpoint_url") or COMFYUI_URL).rstrip("/")
+    checker = ComfyUIReadinessChecker(endpoint_url, connection=req)
     try:
         if req.get("smoke_test", False):
             return checker.smoke_test(

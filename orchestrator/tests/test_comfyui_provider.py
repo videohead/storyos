@@ -18,12 +18,12 @@ class FakeResponse:
 def test_comfyui_provider_submits_polls_and_returns_api_artifact_urls(monkeypatch):
     calls = []
 
-    def fake_post(url, json=None, timeout=None):
-        calls.append(("POST", url, json))
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append(("POST", url, json, headers))
         return FakeResponse({"prompt_id": "prompt-123"})
 
-    def fake_get(url, timeout=None):
-        calls.append(("GET", url, None))
+    def fake_get(url, headers=None, timeout=None):
+        calls.append(("GET", url, None, headers))
         return FakeResponse(
             {
                 "prompt-123": {
@@ -58,3 +58,61 @@ def test_comfyui_provider_submits_polls_and_returns_api_artifact_urls(monkeypatc
     )
     assert artifacts[0]["mime_type"] == "image/png"
     assert any(call[1].endswith("/view?filename=storyos_00001.png&subfolder=&type=output") for call in calls) is False
+
+
+def test_comfyui_cloud_connector_uses_auth_headers_and_custom_paths(monkeypatch):
+    calls = []
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        calls.append(("POST", url, json, headers))
+        return FakeResponse({"prompt_id": "cloud-42"})
+
+    def fake_get(url, headers=None, timeout=None):
+        calls.append(("GET", url, None, headers))
+        return FakeResponse(
+            {
+                "cloud-42": {
+                    "status": {"status_str": "success"},
+                    "outputs": {
+                        "1": {
+                            "images": [
+                                {
+                                    "filename": "asset.png",
+                                    "subfolder": "cloud",
+                                    "type": "output",
+                                }
+                            ]
+                        }
+                    },
+                }
+            }
+        )
+
+    monkeypatch.setattr("providers.comfyui_provider.requests.post", fake_post)
+    monkeypatch.setattr("providers.comfyui_provider.requests.get", fake_get)
+
+    provider = ComfyUIProvider("https://cloud.example")
+    connection = {
+        "connector": "comfyui_cloud",
+        "token": "abc123",
+        "submit_path": "/api/prompt",
+        "history_path_template": "/api/history/{job_id}",
+        "view_path": "/api/view",
+    }
+    submitted = provider.submit({"workflow": {"1": {"class_type": "SaveImage"}}}, connection)
+    assert submitted["remote_job_ref"] == "cloud-42"
+
+    poll = provider.poll("cloud-42", connection)
+    assert poll["status"] == "completed"
+
+    artifacts = provider.download_artifacts("cloud-42", connection)
+    assert artifacts[0]["uri"] == (
+        "https://cloud.example/api/view?filename=asset.png&subfolder=cloud&type=output"
+    )
+
+    post_call = next(call for call in calls if call[0] == "POST")
+    assert post_call[1] == "https://cloud.example/api/prompt"
+    assert post_call[3]["Authorization"].startswith("Bearer ")
+
+    history_call = next(call for call in calls if call[0] == "GET")
+    assert history_call[1] == "https://cloud.example/api/history/cloud-42"

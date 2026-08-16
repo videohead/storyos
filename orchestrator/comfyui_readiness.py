@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import requests
 
@@ -34,9 +34,10 @@ def _output_nodes(workflow: dict[str, Any]) -> set[str]:
 class ComfyUIReadinessChecker:
     """Prove connector dependencies and optional end-to-end asset retrieval."""
 
-    def __init__(self, endpoint: str, timeout: float = 10.0):
+    def __init__(self, endpoint: str, timeout: float = 10.0, connection: dict[str, Any] | None = None):
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
+        self.connection = connection or {}
 
     def check(self, workflow: dict[str, Any]) -> dict[str, Any]:
         """Check endpoint, runtime, node, and output-node readiness."""
@@ -45,6 +46,7 @@ class ComfyUIReadinessChecker:
 
         evidence: dict[str, Any] = {
             "endpoint": self.endpoint,
+            "connector": str(self.connection.get("connector") or "local"),
             "checks": {},
             "ready": False,
             "proof_level": "static",
@@ -80,8 +82,9 @@ class ComfyUIReadinessChecker:
             raise ComfyUIReadinessError("static ComfyUI readiness checks failed")
 
         response = requests.post(
-            f"{self.endpoint}/prompt",
+            f"{self.endpoint}{self._path('submit_path', '/prompt')}",
             json={"prompt": workflow, "client_id": "storyos-readiness"},
+            headers=self._request_headers(),
             timeout=self.timeout,
         )
         response.raise_for_status()
@@ -91,7 +94,9 @@ class ComfyUIReadinessChecker:
 
         for _ in range(max_polls):
             history_response = requests.get(
-                f"{self.endpoint}/history/{prompt_id}", timeout=self.timeout
+                f"{self.endpoint}{self._history_path(prompt_id)}",
+                headers=self._request_headers(),
+                timeout=self.timeout,
             )
             history_response.raise_for_status()
             history = history_response.json().get(prompt_id) or {}
@@ -113,14 +118,22 @@ class ComfyUIReadinessChecker:
         )
 
     def _check_endpoint(self) -> dict[str, Any]:
-        response = requests.get(f"{self.endpoint}/history/", timeout=self.timeout)
+        response = requests.get(
+            f"{self.endpoint}{self._path('history_probe_path', '/history/')}",
+            headers=self._request_headers(),
+            timeout=self.timeout,
+        )
         return {
             "passed": response.ok or response.status_code == 404,
             "status_code": response.status_code,
         }
 
     def _get_json(self, path: str) -> dict[str, Any]:
-        response = requests.get(f"{self.endpoint}{path}", timeout=self.timeout)
+        response = requests.get(
+            f"{self.endpoint}{self._path_for_builtin(path)}",
+            headers=self._request_headers(),
+            timeout=self.timeout,
+        )
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
@@ -147,7 +160,12 @@ class ComfyUIReadinessChecker:
                 "type": artifact.get("type", "output"),
             }
         )
-        response = requests.get(f"{self.endpoint}/view?{query}", timeout=self.timeout, stream=True)
+        response = requests.get(
+            f"{self.endpoint}{self._path('view_path', '/view')}?{query}",
+            headers=self._request_headers(),
+            timeout=self.timeout,
+            stream=True,
+        )
         response.raise_for_status()
         first_chunk = next(response.iter_content(chunk_size=64 * 1024), b"")
         if not first_chunk:
@@ -164,3 +182,61 @@ class ComfyUIReadinessChecker:
             "bytes_verified": len(first_chunk),
             "content_length": int(content_length) if content_length and content_length.isdigit() else None,
         }
+
+    def _history_path(self, prompt_id: str) -> str:
+        template = str(
+            self.connection.get("history_path_template")
+            or self.connection.get("status_path_template")
+            or "/history/{job_id}"
+        )
+        if not template.startswith("/"):
+            template = "/" + template
+        return template.replace("{job_id}", quote(prompt_id, safe=""))
+
+    def _path_for_builtin(self, default_path: str) -> str:
+        if default_path == "/system_stats":
+            return self._path("system_stats_path", "/system_stats")
+        if default_path == "/object_info":
+            return self._path("object_info_path", "/object_info")
+        return self._path("", default_path)
+
+    def _path(self, key: str, default: str) -> str:
+        value = str(self.connection.get(key) or default).strip()
+        if not value.startswith("/"):
+            value = "/" + value
+        return value
+
+    def _request_headers(self) -> dict[str, str]:
+        headers: dict[str, str] = {}
+        raw_headers = self.connection.get("headers")
+        if isinstance(raw_headers, dict):
+            for key, value in raw_headers.items():
+                if isinstance(key, str) and key.strip() and value is not None:
+                    headers[key.strip()] = str(value).strip()
+
+        token = str(
+            self.connection.get("api_key")
+            or self.connection.get("token")
+            or self.connection.get("credential")
+            or ""
+        ).strip()
+        connector = str(self.connection.get("connector") or "").strip().lower()
+        auth_type = str(self.connection.get("auth_type") or "").strip().lower()
+
+        if not auth_type:
+            if connector in {"runcomfy", "comfydeploy", "comfy_cloud_bearer", "comfyui_cloud"}:
+                auth_type = "bearer"
+            elif connector in {"comfyicu", "comfy_cloud_api_key"}:
+                auth_type = "x-api-key"
+
+        if token and auth_type in {"bearer", "token"}:
+            headers.setdefault("Authorization", "Bearer " + token)
+        elif token and auth_type in {"x-api-key", "apikey", "api_key"}:
+            headers.setdefault("X-API-Key", token)
+        elif token and auth_type == "custom_header":
+            header_name = str(self.connection.get("auth_header") or "").strip()
+            if header_name:
+                prefix = str(self.connection.get("auth_prefix") or "").strip()
+                headers.setdefault(header_name, f"{prefix}{token}")
+
+        return headers
