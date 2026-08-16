@@ -58,6 +58,20 @@ class GenerateRequest(BaseModel):
     )
 
 
+class GenerationPreviewRequest(BaseModel):
+    """Request for Epic 5 preparation without provider dispatch."""
+    entity_type: str = Field(default="post", min_length=1)
+    entity_id: int = Field(ge=1)
+    template_id: str = Field(min_length=1)
+    template_version: Optional[str] = None
+    provider_type: str = Field(min_length=1)
+    connection_id: int = Field(ge=1)
+    scf_values: dict[str, Any] = Field(default_factory=dict)
+    story_graph_context: dict[str, Any] = Field(default_factory=dict)
+    connection: dict[str, Any] = Field(default_factory=dict)
+    user_overrides: dict[str, Any] = Field(default_factory=dict)
+
+
 class BatchGenerateRequest(BaseModel):
     """Request to generate assets for multiple posts."""
     post_ids: list[int]

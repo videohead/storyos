@@ -116,6 +116,7 @@ function storyos_expected_fields_for_cpt( string $cpt ): array {
 		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
 		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
 		'storyos_template'           => [ 'template_name', 'description', 'generation_structure', 'configuration_json', 'default_values', 'provider_type', 'version', 'status' ],
+		'storyos_connection'         => [ 'connection_name', 'provider_type', 'environment', 'status', 'endpoint_url', 'credential_reference', 'model_access', 'enabled_structures', 'rate_limits', 'cost_controls' ],
 	];
 
 	return $expected_fields[ $cpt ] ?? [];
@@ -165,6 +166,7 @@ function storyos_get_all_cpts(): array {
 		'storyos_asset'           => 'Asset',
 		'storyos_editorial_artifact' => 'Editorial Artifact',
 		'storyos_template'        => 'Template',
+		'storyos_connection'      => 'Connection',
 	];
 }
 
@@ -189,6 +191,8 @@ function storyos_schema_type_map(): array {
 		'storyos_storyboard_frame'  => 'ImageObject',
 		'storyos_asset'             => 'MediaObject',
 		'storyos_editorial_artifact'=> 'CreativeWork',
+		'storyos_template'           => 'CreativeWork',
+		'storyos_connection'         => 'Service',
 	];
 }
 
@@ -368,6 +372,18 @@ function storyos_schema_field_map(): array {
 			'source_shot'     => [ 'property' => 'isBasedOn', 'match' => 'close' ],
 			'notes'           => [ 'property' => 'text', 'match' => 'close' ],
 			'project'         => [ 'property' => 'isPartOf', 'match' => 'close' ],
+		],
+		'storyos_connection' => [
+			'connection_name'      => [ 'property' => 'name', 'match' => 'exact' ],
+			'endpoint_url'         => [ 'property' => 'url', 'match' => 'exact' ],
+			'status'               => [ 'property' => 'status', 'match' => 'close' ],
+			'environment'          => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'provider_type'        => [ 'property' => 'provider', 'match' => 'close' ],
+			'enabled_structures'   => [ 'property' => 'hasPart', 'match' => 'close' ],
+			'cost_controls'        => [ 'property' => 'priceSpecification', 'match' => 'close' ],
+			'model_access'         => [ 'property' => 'encodingFormat', 'match' => 'weak' ],
+			'rate_limits'          => [ 'property' => 'additionalProperty', 'match' => 'weak' ],
+			'credential_reference' => [ 'property' => 'identifier', 'match' => 'weak' ],
 		],
 	];
 }

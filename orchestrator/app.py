@@ -17,6 +17,7 @@ from celery.result import AsyncResult
 
 from models import (
     GenerateRequest,
+    GenerationPreviewRequest,
     GenerateResponse,
     TaskStatusResponse,
     TaskListResponse,
@@ -62,6 +63,7 @@ from mcp_agents import create_mcp_agent_router
 from providers.loader import load_providers
 from providers.discovery import discover_providers
 from comfyui_readiness import ComfyUIReadinessChecker, ComfyUIReadinessError
+from generation_engine import GenerationIntent, GenerationPreparationService, PreparationResult
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +123,7 @@ health_checker = HealthChecker(
 queue_manager = QueueManager(celery_app=celery_app)
 
 provider_registry = load_providers()
+generation_preparation = GenerationPreparationService(provider_registry=provider_registry)
 
 asset_lineage = AssetLineage(
     wordpress_url=WORDPRESS_URL,
@@ -333,6 +336,16 @@ def build_workflow_endpoint(req: WorkflowBuildRequest):
 
 
 # ── Generation endpoints ────────────────────────────────────────────────────
+
+
+@app.post("/generation/preview", response_model=PreparationResult)
+def generation_preview(req: GenerationPreviewRequest):
+    """Prepare and validate a request without dispatching provider work."""
+    try:
+        intent = GenerationIntent(**req.model_dump())
+        return generation_preparation.prepare(intent)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Generation preparation error: {exc}") from exc
 
 
 @app.post("/generate", response_model=GenerateResponse)

@@ -164,6 +164,7 @@ function init(): void {
 	CPT\Asset::init();
 	CPT\EditorialArtifact::init();
 	CPT\Template::init();
+	CPT\Connection::init();
 
 	// Register taxonomies.
 	Taxonomies\Genre::init();
@@ -193,6 +194,7 @@ function init(): void {
 	REST\Generation_Controller::init();
 	REST\Production_Controller::init();
 	REST\Editorial_Controller::init();
+	REST\Connections_Controller::init();
 
 	// Register admin pages and hooks.
 	Admin\Dashboard::init();
@@ -200,6 +202,7 @@ function init(): void {
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();
 	Admin\Analytics_Panel::init();
+	Admin\Connections::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {

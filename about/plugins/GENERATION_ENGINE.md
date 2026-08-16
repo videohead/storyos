@@ -550,13 +550,13 @@ Replace Epic 6: StoryOS Provider CPT with:
 
 #### Tasks
 
-- [ ] Create storyos_connection CPT
-- [ ] Create connection repository
-- [ ] Create connection management UI
-- [ ] Create capability synchronization
-- [ ] Create connection testing tools
-- [ ] Create environment management
-- [ ] Create quota management
+- [x] Create storyos_connection CPT
+- [x] Create connection repository
+- [x] Create connection management UI
+- [x] Create capability synchronization
+- [x] Create connection testing tools
+- [x] Create environment management
+- [x] Create quota management
 
 #### Fields
 
