@@ -343,8 +343,8 @@ class Generation_Controller extends Base_Controller {
 
 		if ( ! empty( $job_id ) ) {
 			ComfyuiMcpClient::cancel_job( (string) $job_id, self::get_mcp_server_url(), 20 );
+			wp_clear_scheduled_hook( self::STATUS_POLL_CRON_HOOK, [ $generation_id, (string) $job_id ] );
 		}
-		wp_clear_scheduled_hook( self::STATUS_POLL_CRON_HOOK, [ $generation_id, (string) $job_id ] );
 
 		// Update status.
 		update_post_meta( $generation_id, '_storyos_generation_status', 'cancelled' );
@@ -461,12 +461,12 @@ class Generation_Controller extends Base_Controller {
 		}
 
 		update_post_meta( $generation_id, '_storyos_generation_status', $status );
-		update_post_meta( $generation_id, '_storyos_generation_last_mcp_status', $result['response'] ?? [] );
+		update_post_meta( $generation_id, '_storyos_generation_last_mcp_status', self::sanitize_meta_payload( $result['response'] ?? [] ) );
 
 		if ( 'completed' === $status ) {
 			$artifacts = ComfyuiMcpClient::get_artifacts( $job_id, self::get_mcp_server_url(), 30 );
 			if ( ! empty( $artifacts['success'] ) ) {
-				update_post_meta( $generation_id, '_storyos_generation_artifacts', $artifacts['response'] ?? [] );
+				update_post_meta( $generation_id, '_storyos_generation_artifacts', self::sanitize_meta_payload( $artifacts['response'] ?? [] ) );
 			}
 			return;
 		}
@@ -495,5 +495,32 @@ class Generation_Controller extends Base_Controller {
 		}
 
 		wp_schedule_single_event( time() + self::STATUS_POLL_DELAY, self::STATUS_POLL_CRON_HOOK, [ $generation_id, $job_id ] );
+	}
+
+	/**
+	 * Sanitize remote response payloads before saving to post meta.
+	 *
+	 * @param mixed $payload Raw payload.
+	 * @return mixed
+	 */
+	private static function sanitize_meta_payload( $payload ) {
+		if ( is_array( $payload ) ) {
+			$sanitized = [];
+			foreach ( $payload as $key => $value ) {
+				$index = is_string( $key ) ? wp_strip_all_tags( $key ) : $key;
+				$sanitized[ $index ] = self::sanitize_meta_payload( $value );
+			}
+			return $sanitized;
+		}
+
+		if ( is_string( $payload ) ) {
+			return sanitize_text_field( $payload );
+		}
+
+		if ( is_numeric( $payload ) || is_bool( $payload ) || null === $payload ) {
+			return $payload;
+		}
+
+		return sanitize_text_field( wp_json_encode( $payload ) ?: '' );
 	}
 }
