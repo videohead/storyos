@@ -138,6 +138,7 @@ class AI_Editor_REST {
 		$post_id   = absint( $request->get_param( 'post_id' ) );
 		$agent     = sanitize_text_field( $request->get_param( 'agent' ) );
 		$action    = sanitize_text_field( $request->get_param( 'action' ) ) ?: 'chat';
+		$editor    = AI_Editor::instance();
 
 		// Validate action against allowed values.
 		$allowed_actions = [ 'chat', 'analyze', 'generate', 'continuity' ];
@@ -147,62 +148,13 @@ class AI_Editor_REST {
 
 		// Validate agent if provided.
 		if ( ! empty( $agent ) ) {
-			$registry = new AI_Agent_Registry( new AI_LLM_Client() );
-			$allowed_agents = $registry->get_supported_agent_slugs();
+			$allowed_agents = $editor->get_supported_agent_slugs();
 			if ( ! in_array( $agent, $allowed_agents, true ) ) {
 				$agent = ''; // Reset to empty to trigger auto-routing.
 			}
 		}
-
-		// Build context if post_id provided.
-		$context = [];
-		if ( $post_id ) {
-			// Verify post exists and user has permission.
-			if ( ! get_post( $post_id ) ) {
-				return new \WP_REST_Response( [
-					'success' => false,
-					'error'   => 'Invalid post ID.',
-				], 400 );
-			}
-			$post_type = get_post_type( $post_id );
-			if ( ! $post_type ) {
-				return new \WP_REST_Response( [
-					'success' => false,
-					'error'   => 'Invalid post ID.',
-				], 400 );
-			}
-
-			$context_builder = new AI_Context_Builder();
-			$context = $context_builder->build_post_context( $post_id );
-		}
-
-		// Route to agent if not specified.
-		if ( empty( $agent ) ) {
-			$router = new AI_Agent_Router();
-			$route_result = $router->route( $prompt );
-			$agent = $route_result['agent'];
-		}
-
-		// Get agent skills for this context.
-		$agent_skills = new AI_Agent_Skills();
-		$post_type = $context['post_type'] ?? '';
-		$content = $context['content'] ?? '';
-		$skill_content = '';
-		$relevant_skills = $agent_skills->detect_relevant_skills( $post_type, $content );
-		if ( ! empty( $relevant_skills ) ) {
-			$skill_sections = [];
-			foreach ( $relevant_skills as $skill_name ) {
-				$skill = $agent_skills->get_skill( $skill_name );
-				if ( $skill && ! empty( $skill['content'] ) ) {
-					$skill_sections[] = $skill['content'];
-				}
-			}
-			$skill_content = implode( "\n\n", $skill_sections );
-		}
-
-		$registry = new AI_Agent_Registry( new AI_LLM_Client() );
-		$result   = $registry->run_agent( $agent, $prompt, $context, $skill_content );
-		$agent    = $registry->resolve_agent_slug( $agent );
+		$result = $editor->chat( $prompt, $agent ?: null, $post_id );
+		$agent  = $result['agent'] ?? $editor->resolve_agent_slug( $agent ?: 'screenwriter' );
 
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
@@ -273,19 +225,9 @@ class AI_Editor_REST {
 			], 400 );
 		}
 
-		$context_builder = new AI_Context_Builder();
-		$context = $post_id ? $context_builder->build_post_context( $post_id ) : [];
-
-		// Route to agent if not specified.
-		if ( empty( $agent ) ) {
-			$router = new AI_Agent_Router();
-			$route_result = $router->route( $prompt );
-			$agent = $route_result['agent'];
-		}
-
-		$registry = new AI_Agent_Registry( new AI_LLM_Client() );
-		$result = $registry->run_agent( $agent, $prompt, $context );
-		$agent = $registry->resolve_agent_slug( $agent );
+		$editor = AI_Editor::instance();
+		$result = $editor->generate( $prompt, null, $post_id, $agent ?: null );
+		$agent  = $result['agent'] ?? $editor->resolve_agent_slug( $agent ?: 'screenwriter' );
 
 		return new \WP_REST_Response( [
 			'success' => empty( $result['error'] ),
@@ -370,8 +312,7 @@ class AI_Editor_REST {
 	 * @return \WP_REST_Response REST response.
 	 */
 	public function get_agents( \WP_REST_Request $request ): \WP_REST_Response {
-		$registry = new AI_Agent_Registry( new AI_LLM_Client() );
-		$agents = $registry->get_enabled_agents();
+		$agents = AI_Editor::instance()->get_agents();
 
 		// Format for frontend with proper escaping.
 		$formatted = [];

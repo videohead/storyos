@@ -49,13 +49,7 @@ class AI_Agent_Router {
 	 *
 	 * @var array
 	 */
-	private $legacy_aliases = [
-		'story'      => 'screenwriter',
-		'prompt'     => 'art_director',
-		'production' => 'producer',
-		'technical'  => 'editor',
-		'editorial'  => 'script_supervisor',
-	];
+	private $legacy_aliases = [];
 
 	/**
 	 * High-signal keywords for major advisor categories.
@@ -78,6 +72,7 @@ class AI_Agent_Router {
 		$this->hybrid_enabled       = (bool) get_option( 'storyos_ai_hybrid_routing', false );
 		$this->complexity_threshold = (int) get_option( 'storyos_ai_complexity_threshold', 6 );
 		$this->agent_registry       = new AI_Agent_Registry( new AI_LLM_Client() );
+		$this->legacy_aliases       = AI_Agent_Registry::LEGACY_ALIASES;
 	}
 
 	/**

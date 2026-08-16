@@ -198,6 +198,12 @@ class Prompt_Templates extends AbstractAbilityGroup {
 				$builder = new \StoryOS\AI\AI_Context_Builder();
 				$context = $builder->build_post_context( (int) $input['post_id'] );
 				$post    = get_post( (int) $input['post_id'] );
+				if ( ! $post ) {
+					return [
+						'system_prompt' => '',
+						'user_prompt' => 'Post not found.',
+					];
+				}
 				$focus   = $input['focus'] ?? 'story';
 				return [
 					'system_prompt' => 'You are a story review expert using the StoryOS framework.',
@@ -221,6 +227,12 @@ class Prompt_Templates extends AbstractAbilityGroup {
 				$builder = new \StoryOS\AI\AI_Context_Builder();
 				$context = $builder->build_post_context( (int) $input['post_id'] );
 				$post    = get_post( (int) $input['post_id'] );
+				if ( ! $post ) {
+					return [
+						'system_prompt' => '',
+						'user_prompt' => 'Post not found.',
+					];
+				}
 				return [
 					'system_prompt' => 'You are a continuity expert using the StoryOS framework.',
 					'user_prompt' => "Check this content for continuity errors.\n\nTitle: {$post->post_title}\n\nContent:\n{$post->post_content}\n\n" . $builder->build_context_for_llm( $context ),

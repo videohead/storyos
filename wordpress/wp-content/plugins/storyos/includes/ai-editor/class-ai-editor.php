@@ -489,6 +489,25 @@ class AI_Editor {
 	}
 
 	/**
+	 * Get supported agent slugs including legacy aliases.
+	 *
+	 * @return array
+	 */
+	public function get_supported_agent_slugs(): array {
+		return $this->agent_registry->get_supported_agent_slugs();
+	}
+
+	/**
+	 * Resolve an alias or slug to a native agent slug.
+	 *
+	 * @param string $agent Agent alias or slug.
+	 * @return string
+	 */
+	public function resolve_agent_slug( string $agent ): string {
+		return $this->agent_registry->resolve_agent_slug( $agent );
+	}
+
+	/**
 	 * Add AI-related data to StoryOS REST context.
 	 *
 	 * @param array  $context Existing context.

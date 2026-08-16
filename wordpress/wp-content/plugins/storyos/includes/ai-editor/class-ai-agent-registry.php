@@ -17,6 +17,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 class AI_Agent_Registry {
 
 	/**
+	 * Backward-compatible advisor aliases mapped to native agents.
+	 */
+	public const LEGACY_ALIASES = [
+		'story'      => 'screenwriter',
+		'prompt'     => 'art_director',
+		'production' => 'producer',
+		'technical'  => 'editor',
+		'editorial'  => 'script_supervisor',
+	];
+
+	/**
 	 * LLM client instance.
 	 *
 	 * @var AI_LLM_Client
@@ -35,13 +46,7 @@ class AI_Agent_Registry {
 	 *
 	 * @var array
 	 */
-	private $legacy_aliases = [
-		'story'      => 'screenwriter',
-		'prompt'     => 'art_director',
-		'production' => 'producer',
-		'technical'  => 'editor',
-		'editorial'  => 'script_supervisor',
-	];
+	private $legacy_aliases = self::LEGACY_ALIASES;
 
 	/**
 	 * Constructor.
@@ -97,7 +102,7 @@ class AI_Agent_Registry {
 		$yaml     = '';
 		$markdown = trim( $content );
 
-		if ( preg_match( '/\A(.*?)\R---\R(.*)\z/s', $content, $matches ) ) {
+		if ( preg_match( '/\A---\R(.*?)\R---\R(.*)\z/s', $content, $matches ) ) {
 			$yaml     = trim( $matches[1] );
 			$markdown = trim( $matches[2] );
 		}

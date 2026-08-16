@@ -592,7 +592,7 @@ These annotations let MCP clients:
 - [x] Implement `AI_Agent_Router` — full native-agent routing with legacy advisor alias compatibility
 - [x] Implement `AI_Agent_Skills` — agent skills loader
 - [x] REST endpoints use native agent runtime for chat, analyze, generate, continuity
-- [x] Full plugin-local agent set is available in `/home/runner/work/storyos/storyos/wordpress/wp-content/plugins/storyos/includes/agents`
+- [x] Full plugin-local agent set is available in `wordpress/wp-content/plugins/storyos/includes/agents`
 - [x] Legacy advisor aliases (`story`, `prompt`, `production`, `technical`, `editorial`) map to native agent slugs
 - [ ] Clone WordPress/agent-skills repository (documented but not yet cloned)
 
