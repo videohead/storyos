@@ -142,6 +142,8 @@ and prompts. StoryOS ability groups currently cover:
 - `storyos/post-context`
 - `storyos/character-context`
 - `storyos/scene-context`
+- `storyos/templates-manifest` - Discover active generation templates and
+  their provider-neutral configuration schemas.
 
 ### Prompts
 
@@ -152,6 +154,20 @@ Every ability must define an input schema, output schema, permission callback,
 and MCP metadata appropriate to its behavior. Use readonly, destructive, and
 idempotent annotations accurately. A public ability is a deliberate external
 contract, not an internal helper exposed for convenience.
+
+The `storyos/templates-manifest` resource is read-only and requires the
+WordPress `edit_posts` capability. It is exposed at
+`storyos://templates-manifest` and returns published Templates CPT records
+whose `status` is `active`. Each entry includes the template ID and slug,
+display name, description, generation structure, provider type, version,
+configuration schema, and default values. Invalid JSON configuration is
+returned as an empty object so discovery cannot make an invalid template
+executable.
+
+The manifest is discovery metadata, not a workflow execution surface. MCP
+clients must still submit a validated request through the supported WordPress
+generation path; credentials, raw provider responses, and arbitrary executable
+ComfyUI workflow content are never included in the manifest.
 
 The MCP Adapter is responsible for translating WordPress abilities into MCP
 operations. StoryOS should register abilities through WordPress and should not

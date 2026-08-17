@@ -476,6 +476,82 @@ class Prompt_Templates extends AbstractAbilityGroup {
     protected $description = 'Structured prompt templates for story review and continuity checking.';
 
     public function register(): void {
+        // storyos/templates-manifest - Discover active generation templates.
+        $this->register_ability( 'storyos/templates-manifest', [
+            'label'       => 'Generation Templates Manifest',
+            'description' => 'Discover active StoryOS generation templates and their provider-neutral schemas.',
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => [],
+            ],
+            'output_schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'templates' => [
+                        'type'  => 'array',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'id'                  => [ 'type' => 'integer' ],
+                                'slug'                => [ 'type' => 'string' ],
+                                'name'                => [ 'type' => 'string' ],
+                                'description'         => [ 'type' => 'string' ],
+                                'generation_structure' => [ 'type' => 'string' ],
+                                'provider_type'       => [ 'type' => 'string' ],
+                                'version'             => [ 'type' => 'string' ],
+                                'configuration_schema' => [ 'type' => 'object' ],
+                                'default_values'      => [ 'type' => 'object' ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            'execute_callback' => function() {
+                $templates = get_posts( [
+                    'post_type'      => 'storyos_template',
+                    'post_status'    => 'publish',
+                    'posts_per_page' => -1,
+                    'meta_key'       => 'status',
+                    'meta_value'     => 'active',
+                    'orderby'        => 'title',
+                    'order'          => 'ASC',
+                ] );
+
+                $manifest = [];
+                foreach ( $templates as $template ) {
+                    $configuration = json_decode( (string) get_post_meta( $template->ID, 'configuration_json', true ), true );
+                    $defaults = json_decode( (string) get_post_meta( $template->ID, 'default_values', true ), true );
+
+                    $manifest[] = [
+                        'id'                   => (int) $template->ID,
+                        'slug'                 => (string) $template->post_name,
+                        'name'                 => (string) get_post_meta( $template->ID, 'template_name', true ),
+                        'description'          => wp_strip_all_tags( (string) get_post_meta( $template->ID, 'description', true ) ),
+                        'generation_structure' => (string) get_post_meta( $template->ID, 'generation_structure', true ),
+                        'provider_type'        => (string) get_post_meta( $template->ID, 'provider_type', true ),
+                        'version'              => (string) get_post_meta( $template->ID, 'version', true ),
+                        'configuration_schema' => is_array( $configuration ) ? $configuration : [],
+                        'default_values'       => is_array( $defaults ) ? $defaults : [],
+                    ];
+                }
+
+                return [ 'templates' => $manifest ];
+            },
+            'permission_callback' => function() {
+                return current_user_can( 'edit_posts' );
+            },
+            'meta' => [
+                'public' => true,
+                'mcp'    => [ 'type' => 'resource' ],
+                'uri'     => 'storyos://templates-manifest',
+                'annotations' => [
+                    'readonly'    => true,
+                    'destructive' => false,
+                    'idempotent'  => true,
+                ],
+            ],
+        ] );
+
         // storyos/story-review-prompt - Story review prompt template.
         $this->register_ability( 'storyos/story-review-prompt', [
             'label'       => 'Story Review Prompt',

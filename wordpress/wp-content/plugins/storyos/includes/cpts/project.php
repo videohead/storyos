@@ -127,7 +127,7 @@ class Project {
 			add_meta_box(
 				'storyos_project_details',
 				'Project Details',
-				[self::class, 'project_details_meta_box'],
+				__NAMESPACE__ . '\\project_details_meta_box',
 				'storyos_project',
 				'side',
 				'default'
@@ -136,7 +136,7 @@ class Project {
 			add_meta_box(
 				'storyos_project_graph',
 				'Story Graph Connections',
-				[self::class, 'project_graph_meta_box'],
+				__NAMESPACE__ . '\\project_graph_meta_box',
 				'storyos_project',
 				'side',
 				'default'
@@ -144,14 +144,6 @@ class Project {
 		} );
 	}
 }
-
-/**
- * Register meta boxes for Project.
- */
-function register_meta_boxes(): void {
-	Project::register_meta_boxes();
-}
-add_action( 'init', __NAMESPACE__ . '\\register_meta_boxes' );
 
 /**
  * Render the project details meta box.

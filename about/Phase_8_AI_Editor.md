@@ -218,6 +218,7 @@ The module registers three groups.
 - `storyos/post-context`
 - `storyos/character-context`
 - `storyos/scene-context`
+- `storyos/templates-manifest`
 
 ### Prompts
 
@@ -273,6 +274,20 @@ private entities to a user who cannot read them in WordPress.
 Prompt abilities return reusable templates for story review and continuity
 work. Prompt text must make the Story Graph context boundary and output format
 clear.
+
+### Generation template discovery
+
+`storyos/templates-manifest` is a read-only resource for MCP clients that need
+to discover available generation templates before preparing an asset request.
+It is exposed at `storyos://templates-manifest` and returns only published
+`storyos_template` records with `status` set to `active`. Entries include the
+template identity, revision/version, generation structure, provider type,
+configuration schema, and default values.
+
+The manifest does not expose credentials or raw executable ComfyUI workflows,
+and it does not queue generation. A client must use the discovered metadata to
+prepare a validated WordPress-owned request package through the Generation
+Engine contract.
 
 ## Security
 
@@ -343,6 +358,7 @@ clear.
 - [x] AI Editor REST routes validate and permission-check requests.
 - [x] Four tool abilities are registered.
 - [x] Three context resources are registered.
+- [x] Active generation templates are discoverable through a read-only MCP resource.
 - [x] Two prompt abilities are registered.
 - [x] MCP metadata and permission callbacks are defined.
 - [ ] Complete live MCP Adapter discovery tests.
