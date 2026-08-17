@@ -54,7 +54,8 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
-			$result = Comfy_Cloud_MCP::run_template(
+			$client = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
+			$result = $client::run_template(
 				(string) get_post_meta( $job_id, '_storyos_generation_workflow', true ),
 				(string) get_post_meta( $job_id, '_storyos_generation_prompt', true ),
 				(array) get_post_meta( $job_id, '_storyos_generation_params', true )
@@ -69,7 +70,7 @@ class Generation_Batch {
 			$remote_job_id = sanitize_text_field( (string) ( $result['job_id'] ?? $result['id'] ?? '' ) );
 			if ( '' === $remote_job_id ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
-				update_post_meta( $job_id, '_storyos_generation_error', 'Comfy Cloud MCP did not return a job ID.' );
+				update_post_meta( $job_id, '_storyos_generation_error', 'The generation provider did not return a job ID.' );
 				continue;
 			}
 
@@ -89,7 +90,8 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
-			$result = Comfy_Cloud_MCP::get_job_status( (string) get_post_meta( $job_id, '_storyos_generation_job_id', true ) );
+			$client = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
+			$result = $client::get_job_status( (string) get_post_meta( $job_id, '_storyos_generation_job_id', true ) );
 			if ( is_wp_error( $result ) ) {
 				continue;
 			}

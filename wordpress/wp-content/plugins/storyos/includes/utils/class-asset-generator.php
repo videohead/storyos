@@ -125,7 +125,11 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_asset_invalid_post', __( 'That post cannot have a StoryOS asset generated for it.', 'storyos' ), [ 'status' => 404 ] );
 		}
 
-		if ( ! Comfy_Cloud_MCP::is_configured() ) {
+		$provider = 'local_mcp' === get_option( 'storyos_comfy_connection_mode', 'none' ) ? 'local_comfyui' : 'comfy_cloud_mcp';
+		if ( 'local_comfyui' === $provider && ! Local_ComfyUI::is_configured() ) {
+			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'Set a local ComfyUI URL and paste an API-format workflow in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		if ( 'comfy_cloud_mcp' === $provider && ! Comfy_Cloud_MCP::is_configured() ) {
 			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'Set a Comfy Cloud MCP API key in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
 		}
 
@@ -149,7 +153,7 @@ class Asset_Generator {
 		update_post_meta( $job_id, '_storyos_generation_prompt', $prompt );
 		update_post_meta( $job_id, '_storyos_generation_params', [ 'size' => $size ?: null ] );
 		update_post_meta( $job_id, '_storyos_generation_workflow', $template );
-		update_post_meta( $job_id, '_storyos_generation_provider_type', 'comfy_cloud_mcp' );
+		update_post_meta( $job_id, '_storyos_generation_provider_type', $provider );
 		update_post_meta( $job_id, '_storyos_generation_source_post_id', $post_id );
 		update_post_meta( $job_id, '_storyos_generation_set_featured', rest_sanitize_boolean( $args['set_featured'] ) );
 		update_post_meta( $job_id, '_storyos_generation_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );
@@ -260,7 +264,8 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_generation_output_missing', __( 'Comfy MCP completed the job but did not return a downloadable image URL.', 'storyos' ) );
 		}
 
-		$download = wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
+		$provider = (string) get_post_meta( $job_id, '_storyos_generation_provider_type', true );
+		$download = 'local_comfyui' === $provider ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
 		if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
 			return new WP_Error( 'storyos_generation_download_failed', __( 'The completed image could not be downloaded from Comfy MCP.', 'storyos' ) );
 		}

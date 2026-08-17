@@ -17,6 +17,7 @@ class Setup_Wizard {
 		add_action( 'admin_menu', [ __CLASS__, 'add_menu' ] );
 		add_action( 'admin_post_storyos_save_setup', [ __CLASS__, 'save' ] );
 		add_action( 'wp_ajax_storyos_test_llm_connection', [ __CLASS__, 'test_llm_connection' ] );
+		add_action( 'wp_ajax_storyos_test_comfy_connection', [ __CLASS__, 'test_comfy_connection' ] );
 		add_action( 'admin_init', [ __CLASS__, 'maybe_redirect_after_activation' ] );
 		add_action( 'admin_init', [ __CLASS__, 'maybe_redirect_to_setup' ] );
 		add_action( 'admin_notices', [ __CLASS__, 'render_setup_notice' ] );
@@ -109,7 +110,7 @@ class Setup_Wizard {
 		add_submenu_page(
 			'storyos',
 			'Setup StoryOS',
-			'Setup',
+			'Setup & Settings',
 			'manage_options',
 			'storyos-setup',
 			[ __CLASS__, 'render' ]
@@ -131,6 +132,13 @@ class Setup_Wizard {
 
 		if ( ! defined( 'STORYOS_COMFY_API_KEY' ) && isset( $_POST['storyos_comfy_api_key'] ) ) {
 			update_option( 'storyos_comfy_api_key', sanitize_text_field( wp_unslash( $_POST['storyos_comfy_api_key'] ) ) );
+		}
+		if ( isset( $_POST['storyos_comfy_local_url'] ) ) {
+			update_option( 'storyos_comfy_local_url', esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ) ) );
+		}
+		if ( isset( $_POST['storyos_comfy_local_workflow'] ) ) {
+			$workflow = json_decode( wp_unslash( $_POST['storyos_comfy_local_workflow'] ), true );
+			update_option( 'storyos_comfy_local_workflow', is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '' );
 		}
 
 		// Primary LLM Configuration
@@ -191,7 +199,7 @@ class Setup_Wizard {
 			'backend' => $backend,
 			'url'     => esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ),
 			'model'   => sanitize_text_field( wp_unslash( $_POST['model'] ?? '' ) ),
-			'api_key' => defined( 'STORYOS_AI_API_KEY' ) ? STORYOS_AI_API_KEY : sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) ),
+			'api_key' => defined( 'STORYOS_AI_API_KEY' ) ? \STORYOS_AI_API_KEY : sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) ),
 		];
 
 		$result = ( new \StoryOS\AI\AI_LLM_Client() )->test_connection( $configuration );
@@ -203,6 +211,33 @@ class Setup_Wizard {
 			'message' => ! empty( $result['url'] ) ? sprintf( 'Connected to %s.', $result['url'] ) : 'Provider credentials are configured.',
 			'models'  => array_values( $result['models'] ?? [] ),
 		] );
+	}
+
+	/**
+	 * Test a local ComfyUI server from the WordPress container.
+	 *
+	 * @return void
+	 */
+	public static function test_comfy_connection(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => 'You do not have permission to test this connection.' ], 403 );
+		}
+
+		check_ajax_referer( 'storyos_test_comfy_connection', 'nonce' );
+		$url = untrailingslashit( esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ) );
+		if ( '' === $url ) {
+			wp_send_json_error( [ 'message' => 'Enter a local ComfyUI API URL first.' ], 400 );
+		}
+
+		$response = wp_remote_get( $url . '/system_stats', [ 'timeout' => 10 ] );
+		if ( is_wp_error( $response ) ) {
+			wp_send_json_error( [ 'message' => sprintf( 'Unable to reach ComfyUI: %s', $response->get_error_message() ) ] );
+		}
+		if ( wp_remote_retrieve_response_code( $response ) < 200 || wp_remote_retrieve_response_code( $response ) >= 300 ) {
+			wp_send_json_error( [ 'message' => sprintf( 'ComfyUI returned HTTP %d from /system_stats.', wp_remote_retrieve_response_code( $response ) ) ] );
+		}
+
+		wp_send_json_success( [ 'message' => sprintf( 'Connected to ComfyUI at %s.', $url ) ] );
 	}
 
 	public static function render(): void {
@@ -229,12 +264,17 @@ class Setup_Wizard {
 				<p>WordPress is connected. For production, configure a host scheduler to run WP-Cron. Local Lando users can run <code>lando wp-cron</code>.</p>
 				<h2>2. Generation Connection (Optional)</h2>
 				<p><label><input type="radio" name="storyos_comfy_connection_mode" value="cloud" <?php checked( $comfy_mode, 'cloud' ); ?> /> Comfy Cloud MCP</label><br />
-				<label><input type="radio" name="storyos_comfy_connection_mode" value="local_mcp" <?php checked( $comfy_mode, 'local_mcp' ); ?> /> Local ComfyUI through an MCP client</label><br />
+				<label><input type="radio" name="storyos_comfy_connection_mode" value="local_mcp" <?php checked( $comfy_mode, 'local_mcp' ); ?> /> Local ComfyUI HTTP API</label><br />
 				<label><input type="radio" name="storyos_comfy_connection_mode" value="none" <?php checked( $comfy_mode, 'none' ); ?> /> No ComfyUI connection yet</label></p>
 				<p><label for="storyos_comfy_api_key">Comfy Cloud API Key</label><br />
 				<input type="password" class="regular-text" name="storyos_comfy_api_key" id="storyos_comfy_api_key" value="<?php echo esc_attr( get_option( 'storyos_comfy_api_key' ) ); ?>" <?php disabled( defined( 'STORYOS_COMFY_API_KEY' ) ); ?> />
 				<?php if ( defined( 'STORYOS_COMFY_API_KEY' ) ) : ?> <span class="description">Configured through the deployment environment.</span><?php endif; ?></p>
-				<p class="description">Local <code>comfy-mcp</code> is configured in an MCP-compatible desktop or coding agent, not in WordPress. It cannot be called directly by PHP.</p>
+				<p><label for="storyos_comfy_local_url">Local ComfyUI API URL</label><br />
+				<input type="url" class="regular-text" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" placeholder="http://host.docker.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.docker.internal:8188</code>; do not use <code>localhost</code>.</span></p>
+				<p><button type="button" class="button" id="storyos-test-comfy-connection">Test ComfyUI</button> <span id="storyos-comfy-test-result" aria-live="polite"></span></p>
+				<p><label for="storyos_comfy_local_workflow">Local ComfyUI API Workflow</label><br />
+				<textarea class="large-text code" name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10"><?php echo esc_textarea( get_option( 'storyos_comfy_local_workflow', '' ) ); ?></textarea><br />
+				<span class="description">In ComfyUI, export with “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here.</span></p>
 				<p class="description">Choose <strong>No ComfyUI connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
 				<h2>3. LLM Connection (Required for AI Agents)</h2>
 				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration. Without one, leave these fields empty and use StoryOS for story data, WordPress media, and external-generation asset tracking.</p>
@@ -318,6 +358,30 @@ class Setup_Wizard {
 							})
 							.finally(function () { button.disabled = false; });
 					});
+					var comfyButton = document.getElementById('storyos-test-comfy-connection');
+					var comfyResult = document.getElementById('storyos-comfy-test-result');
+					if (comfyButton && comfyResult) {
+						comfyButton.addEventListener('click', function () {
+							comfyButton.disabled = true;
+							comfyResult.textContent = 'Testing...';
+							var data = new URLSearchParams({
+								action: 'storyos_test_comfy_connection',
+								nonce: '<?php echo esc_js( wp_create_nonce( 'storyos_test_comfy_connection' ) ); ?>',
+								url: document.getElementById('storyos_comfy_local_url').value
+							});
+							fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: data })
+								.then(function (response) { return response.json(); })
+								.then(function (response) {
+									comfyResult.textContent = response.data && response.data.message ? response.data.message : 'Connection test failed.';
+									comfyResult.style.color = response.success ? '#008a20' : '#b32d2e';
+								})
+								.catch(function () {
+									comfyResult.textContent = 'Connection test could not be completed.';
+									comfyResult.style.color = '#b32d2e';
+								})
+								.finally(function () { comfyButton.disabled = false; });
+						});
+					}
 				}());
 			</script>
 		</div>

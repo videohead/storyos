@@ -160,6 +160,7 @@ function init(): void {
 	// Load dependencies.
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/local-comfyui.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';

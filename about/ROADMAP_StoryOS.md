@@ -101,6 +101,40 @@ WordPress prepares and records generation requests. ComfyUI owns workflow
 execution. Generated media returns to the WordPress media and Story Graph asset
 pipeline.
 
+### Major Deferred Project: Local ComfyUI Workflow Catalog and Connections
+
+The current local HTTP path can reach a configured ComfyUI server and submit a
+manually pasted API-format workflow. It is intentionally a minimal developer
+integration, not a complete local-generation product. Completing local ComfyUI
+support is a significant follow-on project.
+
+The project must make the `storyos_connection` CPT the source of truth for a
+local ComfyUI endpoint, supported workflow catalog, model availability, and
+installation state. It must deliver:
+
+- Connection-specific workflow records or workflow packages, including stable
+  identifiers, revisions, parameter schemas, prompt/reference bindings, and
+  supported Story Graph structures.
+- A connection-to-workflow assignment model; global pasted workflow JSON must
+  not become the durable multi-connection configuration mechanism.
+- API-format workflow validation, prompt and input-node bindings, output-node
+  discovery, and compatibility checks before a generation job is queued.
+- Model, custom-node, and workflow dependency manifests with checksums,
+  provenance, license metadata, compatible ComfyUI versions, and install
+  status.
+- An administrator-authorized, auditable dependency-download/install flow with
+  allowlisted sources, disk-space checks, failure recovery, and no secrets in
+  WordPress records or logs.
+- Connection health, capability, queue, and dependency synchronization against
+  the local ComfyUI API.
+- Per-connection generation routing, status polling, artifact import, error
+  reporting, cancellation where supported, and end-to-end tests using a real
+  ComfyUI fixture.
+
+Until that project is delivered, local ComfyUI should be treated as an
+advanced single-workflow integration. Comfy Cloud MCP remains the supported
+managed server-side generation connection.
+
 The ComfyUI / Comfy Cloud MCP connection is established, but live end-to-end
 validation of the ComfyUI generation models has **not** yet been completed.
 

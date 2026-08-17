@@ -25,11 +25,29 @@ Comfy Cloud is the supported WordPress generation connection. Create a Comfy Clo
 
 The key can also be entered in the StoryOS settings, but an environment variable is preferred for deployed sites. Do not commit credentials to `.env` or source control.
 
-## Local ComfyUI and MCP
+## Local ComfyUI HTTP API
 
-The first-party local `comfy-mcp` server is a Python stdio MCP server launched by an MCP-compatible client. It is not an HTTP service that PHP can call directly.
+StoryOS can reach a local ComfyUI server through its HTTP API. In the Setup
+wizard, choose **Local ComfyUI HTTP API**, set the endpoint that is reachable
+from WordPress, and use **Test ComfyUI** to check `/system_stats`. In a Lando
+development environment where ComfyUI runs on the host, use
+`http://host.docker.internal:8188`; `localhost` refers to the WordPress
+container and will not reach the host service.
 
-To use a local ComfyUI installation, connect an MCP-capable desktop or coding agent to both the local `comfy-mcp` server and the StoryOS WordPress MCP/Abilities surface. The agent can then read StoryOS context, operate local ComfyUI workflows, and return generated assets to StoryOS through its normal media workflow. This is an optional development and creator workflow; it is not required by the WordPress deployment.
+The current local implementation accepts one manually supplied ComfyUI
+**Save (API Format)** workflow. Replace the positive-prompt text in that JSON
+with `{{prompt}}`. StoryOS submits it to `/prompt`, polls `/history/{prompt_id}`
+through WP-Cron, and imports the first image output from `/view`.
+
+This is an advanced, minimal integration. It does not yet manage a workflow
+catalog, per-connection workflow selection, custom nodes, model discovery,
+dependency downloads, installation, workflow compatibility, or lifecycle
+recovery. Those capabilities are a major planned project centered on the
+`storyos_connection` CPT; see the **Local ComfyUI Workflow Catalog and
+Connections** section in [the roadmap](ROADMAP_StoryOS.md).
+
+`comfy-mcp` remains useful for desktop or coding-agent workflows, but it is a
+separate stdio transport and is not required for the WordPress HTTP path.
 
 ## LLM Connections
 

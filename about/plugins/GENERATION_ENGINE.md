@@ -49,18 +49,53 @@ workflow tool with the selected template, prompt, and approved parameters.
 Credentials must never be written into generation records, templates, asset
 metadata, logs, or capability snapshots.
 
-### Local ComfyUI through MCP
+### Local ComfyUI HTTP API
 
-Local ComfyUI is an optional creator and development workflow.
+Local ComfyUI has a minimal WordPress HTTP client in
+`includes/utils/local-comfyui.php`.
 
-- The first-party `comfy-mcp` server is a Python stdio MCP server.
-- An MCP-capable desktop or coding client launches and connects to it.
-- The client can also connect to the StoryOS WordPress MCP/Abilities surface.
-- Local workflows can read approved StoryOS context and return generated media
-  through the normal WordPress media workflow.
+- Endpoint: a WordPress-container-reachable ComfyUI base URL, such as
+  `http://host.docker.internal:8188` for a Lando host installation.
+- Transport: `POST /prompt`, `GET /history/{prompt_id}`, and `GET /view`.
+- Authentication: none by default; an exposed local endpoint must be protected
+  by the deployment network boundary.
+- Configuration: one API-format workflow JSON document with a `{{prompt}}`
+  binding.
+- WordPress responsibility: queue and poll the request, then import the first
+  returned image output as a StoryOS asset.
 
-The local MCP server is not an HTTP service that PHP calls directly. Do not add
-local ComfyUI connection logic to the WordPress HTTP client.
+This is deliberately not a generic ComfyUI workflow manager. It is a bridge for
+a known workflow while the Connections-backed local workflow project is
+developed.
+
+### Major Planned Work: Connections-Backed Local Workflows
+
+Local ComfyUI must not remain dependent on a global endpoint and free-form
+workflow option. The `storyos_connection` CPT is the intended control-plane
+record for the local endpoint, environment, secret reference, allowed models,
+enabled structures, quota configuration, and verification state.
+
+Before local ComfyUI can be described as a complete StoryOS generation
+connection, implement all of the following:
+
+1. A versioned workflow catalog linked to a specific Connection, including
+   parameter schemas, input/output bindings, Story Graph mappings, validation,
+   and compatibility metadata.
+2. Dependency manifests for checkpoints, LoRAs, VAEs, custom nodes, and
+   workflow assets, including source provenance, checksums, licenses, versions,
+   and compatible ComfyUI versions.
+3. An administrator-approved dependency discovery and installation workflow.
+   Downloads must use allowlisted sources, report storage requirements and
+   progress, preserve audit data, and support retries and recovery.
+4. ComfyUI capability and installed-dependency synchronization, connection
+   health checks, and preflight validation that prevents jobs from starting
+   against an incompatible workflow or missing model.
+5. Per-connection queue routing, cancellation/status semantics, artifact
+   output selection, provenance capture, and realistic end-to-end coverage.
+
+Do not add arbitrary remote download or shell-execution behavior as a shortcut
+for this work. The final design must preserve WordPress permissions, explicit
+administrator consent, auditability, and the existing asset-provenance model.
 
 ### No ComfyUI Connection
 

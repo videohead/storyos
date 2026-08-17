@@ -103,6 +103,18 @@ class AI_Editor {
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
 
+		register_setting( 'storyos_ai', 'storyos_comfy_local_url', [
+			'type'              => 'string',
+			'default'           => 'http://host.docker.internal:8188',
+			'sanitize_callback' => 'esc_url_raw',
+		] );
+
+		register_setting( 'storyos_ai', 'storyos_comfy_local_workflow', [
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => [ __CLASS__, 'sanitize_comfy_workflow' ],
+		] );
+
 		register_setting( 'storyos_ai', 'storyos_ai_backend', [
 			'type'              => 'string',
 			'default'           => 'openai_compatible',
@@ -219,6 +231,18 @@ class AI_Editor {
 	}
 
 	/**
+	 * Store only valid ComfyUI API-format workflow JSON.
+	 *
+	 * @param string $value Workflow JSON.
+	 * @return string
+	 */
+	public static function sanitize_comfy_workflow( $value ): string {
+		$workflow = json_decode( (string) $value, true );
+
+		return is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '';
+	}
+
+	/**
 	 * Add AI Settings page to admin menu.
 	 *
 	 * @return void
@@ -226,12 +250,27 @@ class AI_Editor {
 	public static function add_settings_page(): void {
 		add_submenu_page(
 			'storyos',
-			'AI Settings',
+			'StoryOS AI Settings',
 			'AI Settings',
 			'manage_options',
 			'storyos-ai-settings',
-			[ __CLASS__, 'render_settings_page' ]
+			[ __CLASS__, 'redirect_to_setup_page' ]
 		);
+		remove_submenu_page( 'storyos', 'storyos-ai-settings' );
+	}
+
+	/**
+	 * Redirect legacy AI settings URLs to the single setup page.
+	 *
+	 * @return void
+	 */
+	public static function redirect_to_setup_page(): void {
+		$url = admin_url( 'admin.php?page=storyos-setup' );
+		if ( isset( $_GET['required'] ) ) {
+			$url = add_query_arg( [ 'required' => '1' ], $url );
+		}
+		wp_safe_redirect( $url );
+		exit;
 	}
 
 	/**
@@ -259,7 +298,14 @@ class AI_Editor {
 					</tr>
 					<tr>
 						<th scope="row">Local ComfyUI MCP</th>
-						<td><p class="description">Connect local `comfy-mcp` from an MCP-compatible desktop or coding agent. It is a local stdio service and is not configured in WordPress.</p></td>
+						<td>
+							<label for="storyos_comfy_local_url">ComfyUI API URL</label><br />
+							<input type="url" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" class="regular-text" placeholder="http://host.docker.internal:8188" />
+							<p class="description">The address reachable from the WordPress container, not the browser's localhost.</p>
+							<label for="storyos_comfy_local_workflow">ComfyUI API Workflow</label><br />
+							<textarea name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10" class="large-text code"><?php echo esc_textarea( get_option( 'storyos_comfy_local_workflow' ) ); ?></textarea>
+							<p class="description">Export the workflow with ComfyUI's “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. StoryOS posts it to <code>/prompt</code>, polls <code>/history</code>, and imports the generated image.</p>
+						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="storyos_ai_backend">LLM Backend</label></th>
