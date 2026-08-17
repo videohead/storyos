@@ -147,6 +147,7 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/continuity-checker.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationship-graph.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/dashboard.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/setup-wizard.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/metaboxes.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
@@ -200,6 +201,7 @@ function init(): void {
 
 	// Register admin pages and hooks.
 	Admin\Dashboard::init();
+	Admin\Setup_Wizard::init();
 	Admin\MetaBoxes::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();

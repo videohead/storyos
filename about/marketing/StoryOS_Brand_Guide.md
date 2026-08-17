@@ -406,3 +406,7 @@ StoryOS creates connected knowledge.
 Most platforms focus on outputs.
 
 StoryOS focuses on context.
+
+## Deployment Promise
+
+StoryOS runs on a WordPress.org-capable host or a local Docker/Lando deployment. Helpful filmmaking agents require an API-connected LLM: a local OpenAI-compatible server or an OpenAI/Anthropic API key. Generation can use Comfy Cloud MCP or a creator's local ComfyUI MCP setup. Browser-only AI subscriptions are not a StoryOS server connection.

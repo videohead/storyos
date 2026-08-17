@@ -149,6 +149,10 @@ Before starting StoryOS, make sure you have the following installed and running:
 - Docker Desktop or Docker Engine
 - Git
 - Lando
+- A WordPress.org-capable host or local Docker/Lando deployment
+- An API-connected LLM: local OpenAI-compatible server or an OpenAI/Anthropic API key
+
+Comfy Cloud MCP or local ComfyUI via an MCP client is optional for generation. Browser-only ChatGPT, Claude, and Claude Code subscriptions are not supported by the WordPress integration without an API credential.
 
 ### 2. Install Lando
 Lando is the recommended way to run StoryOS locally.
@@ -202,7 +206,7 @@ lando db-import --check
 ```
 
 ### 4. Connect Generation and AI
-Configure Comfy Cloud MCP, local Comfy MCP for an MCP-capable agent client, and OpenAI, Claude, or OpenAI-compatible LLMs using the [Deployment and Connections](about/Deployment_and_Connections.md) guide.
+Open **StoryOS > Setup** in WordPress to configure Comfy Cloud MCP and an API-connected LLM. Configure local Comfy MCP in an MCP-capable agent client. See [Deployment and Connections](about/Deployment_and_Connections.md) for the required credentials and supported local endpoints.
 
 ### Useful commands
 

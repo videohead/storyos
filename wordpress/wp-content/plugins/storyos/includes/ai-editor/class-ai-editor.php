@@ -233,7 +233,7 @@ class AI_Editor {
 								<option value="anthropic" <?php selected( get_option( 'storyos_ai_backend' ), 'anthropic' ); ?>>Anthropic API</option>
 								<option value="dual" <?php selected( get_option( 'storyos_ai_backend' ), 'dual' ); ?>>Dual (Local + Fallback)</option>
 							</select>
-							<p class="description">Use OpenAI-compatible for Ollama, vLLM, LM Studio, OpenRouter, or another compatible BYOK endpoint.</p>
+							<p class="description">Use OpenAI-compatible for llama.cpp, Ollama, vLLM, LM Studio, OpenRouter, or another compatible BYOK endpoint. Browser-only ChatGPT, Claude, and Claude Code subscriptions are not supported.</p>
 						</td>
 					</tr>
 					<tr>
@@ -254,7 +254,7 @@ class AI_Editor {
 						<th scope="row"><label for="storyos_ai_api_key">API Key</label></th>
 						<td>
 							<input type="password" name="storyos_ai_api_key" id="storyos_ai_api_key" value="<?php echo esc_attr( get_option( 'storyos_ai_api_key' ) ); ?>" class="regular-text" />
-							<p class="description">API key for cloud LLM providers (leave blank for local).</p>
+							<p class="description">Required for hosted providers. A browser subscription without an API key cannot connect to StoryOS; local servers may be left blank only when they do not require authentication.</p>
 						</td>
 					</tr>
 					<tr>
