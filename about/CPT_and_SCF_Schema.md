@@ -274,6 +274,46 @@ When synced with Celtx, the following post meta fields are added:
 
 ---
 
+# CPT: Generation Template
+
+The `storyos_template` CPT stores reusable, provider-neutral generation
+configuration. It is an editorial configuration record, not an executable
+workflow and not a replacement for the StoryOS Assets metabox.
+
+## Fields
+
+- template_name
+- description
+- generation_structure
+- configuration_json
+- default_values
+- provider_type
+- version
+- status (`draft`, `active`, or `archived`)
+
+`configuration_json` contains the parameter definitions, reference roles, and
+SCF field mappings used to resolve a generation request. `default_values` may
+provide reusable starting values, but explicit user input takes precedence
+after validation.
+
+## Planned Generation Relationship
+
+The Assets workflow is expected to select an active template revision for the
+asset-generating Story Graph item. That relationship must preserve the
+template identity and revision on the generation record; it must not alter the
+featured attachment or `_storyos_asset_gallery_ids` gallery metadata.
+
+After resolution, WordPress should create a normalized request package for the
+configured ComfyUI MCP connection. The package includes resolved prompts,
+references, parameters, output requirements, Story Graph target, workflow
+identity, and provenance. Credentials, raw provider responses, and arbitrary
+executable workflow content do not belong in the package.
+
+This relationship and request-package adapter are a remaining Generation Core
+epic and are not yet represented as a completed CPT contract.
+
+---
+
 # CPT: Editorial Artifact
 
 ## Fields

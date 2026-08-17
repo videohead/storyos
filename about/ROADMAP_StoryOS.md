@@ -101,6 +101,46 @@ WordPress prepares and records generation requests. ComfyUI owns workflow
 execution. Generated media returns to the WordPress media and Story Graph asset
 pipeline.
 
+### Remaining Epic: Assets, Templates, and ComfyUI Request Packaging
+
+The next major generation milestone is to connect the existing StoryOS Assets
+metabox to the available `storyos_template` CPT and make the resolved request
+portable to ComfyUI MCP. This is a coordination and contract project, not a
+new execution service.
+
+The Assets metabox currently manages the featured WordPress attachment and the
+supporting gallery for supported Story Graph posts. The Templates CPT currently
+stores reusable, provider-neutral generation configuration. The missing
+product surface is an explicit, permission-aware way to select or associate an
+active template with an asset-generating story item and resolve its defaults,
+Story Graph references, and user overrides.
+
+The epic must deliver:
+
+- A documented relationship between an asset-generating story item, its
+  selected template and revision, and the resulting generation record.
+- Template selection and validation in the relevant Assets workflow without
+  replacing the existing featured-asset or gallery semantics.
+- A normalized request package containing the template identity and revision,
+  generation structure, prompt and reference bindings, resolved parameters,
+  target Story Graph entity, connection mode, output requirements, and
+  provenance. Secrets and raw provider responses must be excluded.
+- An adapter that maps the normalized package to the approved ComfyUI MCP
+  operation, including workflow/input bindings and preflight validation. The
+  package must not be a raw arbitrary workflow upload or a second source of
+  truth outside WordPress.
+- Persistence of the package inputs and resolved provenance on the WordPress
+  generation record, followed by import and linkage of returned media through
+  the existing StoryOS asset pipeline.
+- Permission, schema, invalid-template, unavailable-connection, and
+  end-to-end ComfyUI fixture coverage.
+
+Until this epic is delivered, the Assets metabox and Templates CPT should be
+documented as separate surfaces, and local ComfyUI should remain an advanced
+single-workflow integration. The existing Comfy Cloud MCP path may continue to
+accept supported generation requests, but it must not imply that every asset
+already has a template-backed ComfyUI package.
+
 ### Major Deferred Project: Local ComfyUI Workflow Catalog and Connections
 
 The current local HTTP path can reach a configured ComfyUI server and submit a

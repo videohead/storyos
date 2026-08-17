@@ -208,6 +208,48 @@ Template revisions should use WordPress revision and metadata facilities so
 that published configurations remain auditable and restorable. Do not create a
 parallel version store outside WordPress.
 
+## Remaining Epic: Asset-to-Template Request Packaging
+
+The existing StoryOS Assets metabox and `storyos_template` CPT are currently
+separate admin surfaces. The Assets metabox owns the featured attachment and
+supporting gallery for a Story Graph post; the Templates CPT owns reusable
+provider-neutral generation configuration. The metabox does not yet select a
+template or produce a ComfyUI request package.
+
+The target flow is:
+
+1. The user selects an active template and revision for an asset-generating
+  story item, without changing the featured-asset or gallery behavior.
+2. WordPress resolves template defaults, Story Graph and SCF bindings, and
+  explicit user values according to the configuration precedence above.
+3. WordPress validates the generation structure, required inputs, references,
+  output requirements, connection capabilities, and workflow compatibility.
+4. WordPress persists a normalized request package and generation record before
+  invoking ComfyUI MCP.
+5. The MCP adapter maps the normalized package to an approved ComfyUI
+  operation, receives the result, and sends returned media through the
+  existing WordPress media and StoryOS asset-provenance pipeline.
+
+The normalized package is a WordPress-owned contract. At minimum it contains:
+
+- Template identity, revision, generation structure, and provider type.
+- Resolved prompt, negative prompt, references, parameters, and SCF bindings.
+- Target project or Story Graph entity and requested output type/format.
+- Selected connection mode, workflow identity, and compatibility metadata.
+- Initiating user, request timestamp, and provenance identifiers.
+
+It must not contain API keys, authorization headers, unredacted remote
+responses, or arbitrary executable workflow content. A ComfyUI API-format
+workflow may be referenced or materialized by an approved connection-specific
+adapter, but it is not the canonical template or request record.
+
+This epic is incomplete until template selection is available from the
+relevant Assets workflow, invalid combinations fail before queueing, the
+normalized package can be mapped to the supported ComfyUI MCP operation, and
+the resulting media is linked back to the initiating Story Graph item with
+auditable provenance. Until then, documentation must describe the Assets
+metabox and Templates CPT as separate capabilities.
+
 ## Comfy Cloud MCP Contract
 
 The WordPress Comfy Cloud client is intentionally limited to the MCP contract.
