@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: StoryOS - Web Stories Sync
- * Plugin URI: https://storyos.dev
+ * Plugin URI: https://github.com/videohead/storyos
  * Description: Synchronize StoryOS elements (Scenes, Storyboard Frames) with Google Web Stories. Import Web Stories into StoryOS for production management, or export StoryOS scenes to Web Stories format.
  * Version: 1.0.0
  * Author: StoryOS Contributors

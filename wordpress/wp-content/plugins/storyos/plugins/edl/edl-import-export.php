@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: StoryOS - EDL Import/Export
- * Plugin URI: https://storyos.dev
+ * Plugin URI: https://github.com/videohead/storyos
  * Description: Import and export Edit Decision Lists (ASCII/CMX 3600 & XML) for StoryOS projects and episodes.
  * Version: 1.0.0
  * Author: StoryOS Contributors

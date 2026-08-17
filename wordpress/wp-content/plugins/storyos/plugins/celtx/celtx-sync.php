@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: StoryOS - Celtx Sync
- * Plugin URI: https://storyos.dev
+ * Plugin URI: https://github.com/videohead/storyos
  * Description: Synchronize StoryOS elements (Projects, Characters, Locations, Scenes, Shots) with Celtx using the Celtx GEM Bi-Directional API.
  * Version: 1.0.0
  * Author: StoryOS Contributors

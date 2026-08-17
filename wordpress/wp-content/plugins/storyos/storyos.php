@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: StoryOS - Story Core
- * Plugin URI: https://storyos.dev
+ * Plugin URI: https://github.com/videohead/storyos
  * Description: StoryOS Story Core - The canonical Story Graph for AI-powered storytelling. Manages Projects, Story Worlds, Characters, Locations, Scenes, Shots, Storyboards, Assets, and Editorial Artifacts as WordPress Custom Post Types with structured content fields and graph relationships.
  * Version: 1.0.0
  * Author: StoryOS Contributors
