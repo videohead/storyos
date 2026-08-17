@@ -9,6 +9,12 @@ records, and assets. ComfyUI workflows are accessed through MCP.
 **Roadmap status:** Phases 1-4, 7, and 8 are complete. Phases 5, 6, and 9 are
 on hold as of 2026-08-17.
 
+**Integration status:** Connections to the LLM (AI Editor) and ComfyUI /
+Comfy Cloud MCP are established, but live end-to-end validation of the
+internal AI chat and ComfyUI generation models has not yet been completed. A
+user guide and example starting workflow are in progress, with specifications
+under `about/example-workflow/`.
+
 ## Guiding Vision
 
 StoryOS provides one place to manage:
@@ -94,6 +100,9 @@ Connect Story Graph context to reusable generative media workflows.
 WordPress prepares and records generation requests. ComfyUI owns workflow
 execution. Generated media returns to the WordPress media and Story Graph asset
 pipeline.
+
+The ComfyUI / Comfy Cloud MCP connection is established, but live end-to-end
+validation of the ComfyUI generation models has **not** yet been completed.
 
 See [GENERATION_ENGINE.md](plugins/GENERATION_ENGINE.md) and
 [Deployment and Connections](Deployment_and_Connections.md).
@@ -266,6 +275,7 @@ Bring Story Graph-aware AI assistance into the WordPress content editor.
 
 ### Next Work
 
+- Complete live end-to-end testing of the internal AI chat.
 - Complete live MCP Adapter discovery tests.
 - Complete browser and accessibility coverage.
 - Add durable audit records for accepted AI edits.

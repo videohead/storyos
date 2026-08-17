@@ -74,7 +74,7 @@ class Analytics_Panel {
 				'strings'      => [
 					'loading'       => 'Loading analytics...',
 					'error'         => 'Error loading analytics.',
-					'fetching'      => 'Analyzing Story Graph...'
+					'fetching'      => 'Analyzing Story Graph...',
 					'noData'        => 'No analytics data available.',
 					'clearCache'    => 'Clear Cache',
 					'cacheCleared'  => 'Cache cleared.',

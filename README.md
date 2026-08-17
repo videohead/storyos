@@ -101,6 +101,21 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 ## Current Status
 
+### 🔌 Integration Status
+
+The WordPress stack, Story Graph model, and external connections are established:
+
+- **ComfyUI / Comfy Cloud MCP connection** — established
+- **AI connection (OpenAI, Claude, or OpenAI-compatible API)** — established
+
+Live end-to-end validation has **not** yet been completed for:
+
+- **Internal AI chat** — not yet tested
+- **ComfyUI generation models** — not yet tested
+
+A user guide and an example starting workflow are in progress, with specifications
+in [about/example-workflow/](about/example-workflow/).
+
 ### ✅ Phase A: Workflow Template System (COMPLETE)
 - JSON-based workflow templates
 - Templates: base, character-sheet, environment, storyboard
@@ -142,6 +157,14 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - Semantic search and indexing in WordPress
 - Continuity validation
 - Relationship analytics
+
+### 🚧 Phase 8: AI Editor (LIVE TESTING PENDING)
+- Gutenberg AI Editor sidebar
+- Story Graph context builder
+- Local and hosted LLM connection settings
+- Chat, analysis, generation, and continuity REST routes
+- WordPress Abilities API integration (tools, resources, prompts)
+- **Internal AI chat** — connection established, live end-to-end testing pending
 
 ## Quick Start
 

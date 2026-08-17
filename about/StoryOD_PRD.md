@@ -36,9 +36,10 @@ StoryOS (WordPress + CPTs + SCF)
 Story Graph (canonical source of truth)
    ↓
 ┌─────────────────────┬──────────────────┐
-│ MAF Advisors        │ Generation Engine │
+│     Advisors        │ Generation Engine│
 │ Story, Prompt,      │ ComfyUI workflows│
-│ Production, Editorial│ Character,       │
+│ Production &        |                  |
+| Editorial,Character,│                  |
 │ Technical           │ Environment,     │
 │                     │ Storyboard       │
 └─────────────────────┴──────────────────┘
@@ -69,3 +70,4 @@ Editorial Timeline
 | 4 | Storyboarding & Production | 📋 WordPress Plugins |
 | 5 | Script Ecosystem | ✅ Complete (Celtx) |
 | 6 | Editorial Ecosystem | 📋 Planned | 
+| 7 | User workflow, import and generate | 📋 Planned |

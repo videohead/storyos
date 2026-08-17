@@ -14,7 +14,6 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
 - **Field:** Comfy Cloud API Key
 - **Purpose:** Enable image/video generation via Comfy Cloud MCP
 - **Stored as:** `storyos_comfy_api_key` option
-- **Environment Override:** `STORYOS_COMFY_API_KEY` constant
 
 #### **Section 3: LLM Connection (Required for AI Agents)**
 
@@ -24,7 +23,6 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
 - **Model Name:** Model identifier to use
 - **API Key:** Authentication credentials
 - **Stored as:** `storyos_ai_*` options
-- **Environment Override:** `STORYOS_AI_API_KEY` constant
 
 **Advanced LLM Settings (Optional)**
 - **Max Tokens:** Response length limit (default: 2048)
@@ -36,7 +34,6 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
 - **API Key:** Backup provider credentials
 - **Purpose:** Automatic failover if primary LLM unavailable
 - **Stored as:** `storyos_ai_fallback_*` options
-- **Environment Override:** `STORYOS_AI_FALLBACK_API_KEY` constant
 
 ## File Changes
 
@@ -72,32 +69,24 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
 ### 1. **Unified Configuration**
 All API keys configured in one place during plugin activation
 
-### 2. **Environment Variable Support**
-For production deployments:
-```php
-define( 'STORYOS_COMFY_API_KEY', getenv( 'STORYOS_COMFY_API_KEY' ) );
-define( 'STORYOS_AI_API_KEY', getenv( 'STORYOS_AI_API_KEY' ) );
-define( 'STORYOS_AI_FALLBACK_API_KEY', getenv( 'STORYOS_AI_FALLBACK_API_KEY' ) );
-```
-
 When constants defined:
 - Wizard fields display as read-only
 - Shows: "Configured through the deployment environment"
 - Ideal for production security
 
-### 3. **Smart Defaults**
+### 2. **Smart Defaults**
 - Primary backend: `openai_compatible`
 - LLM URL: `http://localhost:11434/v1`
 - Max tokens: `2048`
 - Temperature: `0.7`
 - Fallback: `openai`
 
-### 4. **Automatic Redirect**
+### 3. **Automatic Redirect**
 - Plugin redirects to wizard after activation
 - Setup state tracked via `storyos_setup_complete` option
 - Can be reset to re-run wizard
 
-### 5. **Validation & Sanitization**
+### 4. **Validation & Sanitization**
 All inputs properly validated:
 - `sanitize_key()` for provider selection
 - `sanitize_text_field()` for text inputs

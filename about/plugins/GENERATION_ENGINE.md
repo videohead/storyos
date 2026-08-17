@@ -312,14 +312,15 @@ When changing the Generation Engine:
 
 ## Definition of Done
 
-- [ ] Generation requests are created from valid Story Graph or editor context.
-- [ ] Templates and revisions are stored and audited in WordPress.
-- [ ] Comfy Cloud MCP credentials are protected and configurable.
-- [ ] The WordPress MCP client handles valid and invalid MCP responses.
-- [ ] Generation records persist sanitized request and result provenance.
-- [ ] Returned media is linked to StoryOS assets.
-- [ ] WordPress Abilities expose the supported AI and story context actions.
-- [ ] Optional local ComfyUI MCP workflows are documented without requiring
+- [x] Generation requests are created from valid Story Graph or editor context.
+- [x] Templates and revisions are stored and audited in WordPress.
+- [x] Comfy Cloud MCP credentials are protected and configurable.
+- [x] The WordPress MCP client handles valid and invalid MCP responses.
+- [x] Generation records persist sanitized request and result provenance.
+- [x] Returned media is linked to StoryOS assets.
+- [x] WordPress Abilities expose the supported AI and story context actions.
+- [x] Optional local ComfyUI MCP workflows are documented without requiring
       server-side local ComfyUI access.
-- [ ] REST and admin surfaces enforce WordPress permissions and validation.
-- [ ] No external execution service is required by the Generation Engine.
+- [x] REST and admin surfaces enforce WordPress permissions and validation.
+- [x] No external execution service is required by the Generation Engine.
+- [ ] Live end-to-end validation of ComfyUI generation models is completed.

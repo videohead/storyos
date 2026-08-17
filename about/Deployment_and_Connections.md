@@ -7,14 +7,15 @@ StoryOS keeps stories, Story Graph data, and helpful filmmaking agents in WordPr
 Every StoryOS user needs:
 
 1. A WordPress.org-capable host, or a local Docker/Lando deployment.
-2. A Comfy Cloud account with an API key, a local ComfyUI installation operated through an MCP client, or no ComfyUI connection while using StoryOS for story work.
+2. A local ComfyUI installation operated through an MCP client, Comfy Cloud account with an API key, or no ComfyUI connection while using StoryOS for story-only work (no visual assets can be generated in this mode).
 3. An API-connected LLM: a local OpenAI-compatible server such as llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as OpenAI or Anthropic.
 
-Browser-only subscriptions, including ChatGPT, Claude, and Claude Code subscriptions without an API credential, are not supported by the StoryOS server integration. Hosted LLM providers require an API key; a local LLM must expose an OpenAI-compatible API endpoint and any credential it requires.
+Browser-only subscriptions, including ChatGPT, Claude, and Claude Code subscriptions without an API credential, are not supported by the StoryOS server integration at this time. Hosted LLM providers require an API key; a local LLM must expose an OpenAI-compatible API endpoint and any credential it requires.
 
 ## Core Runtime
 
 The standard deployment contains WordPress, MariaDB, and the StoryOS plugin. WordPress stores generation jobs and uses WP-Cron to process bounded batches.
+The SCF plugin is also required in order to extend StoryOS capabilities
 
 For reliable production scheduling, invoke `wp-cron.php` from the host scheduler. Local Lando users can run due events with `lando wp-cron`.
 
@@ -41,7 +42,6 @@ Configure the AI Editor in WordPress under **StoryOS > AI Settings**.
 | Ollama, vLLM, LM Studio | OpenAI-Compatible / Local LLM | The service's `/v1` endpoint | Optional or service-specific key |
 | Hosted compatible API | OpenAI-Compatible / Local LLM | Provider's `/v1` endpoint | Provider API key |
 
-Set `STORYOS_AI_API_KEY` for the primary provider and `STORYOS_AI_FALLBACK_API_KEY` for the optional fallback. These environment variables override keys saved in WordPress. Configure the base URL in WordPress settings; it must point to an OpenAI-compatible endpoint, such as `http://host.docker.internal:11434/v1`. A web subscription without an API key cannot be used.
 
 ## StoryOS Without ComfyUI
 

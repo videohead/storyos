@@ -2,7 +2,11 @@
 
 > Build Your Story Once. Create Everywhere.
 
-**Status: Complete**
+**Status: Implemented — Live end-to-end validation pending**
+
+The AI Editor implementation is complete, and the LLM connection is
+established. Live end-to-end testing of the internal AI chat has **not** yet
+been completed.
 
 ## Implementation Update
 
