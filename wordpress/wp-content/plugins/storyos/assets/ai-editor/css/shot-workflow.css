@@ -1,0 +1,48 @@
+/* StoryOS AI workflow for the classic Shot editor. */
+.storyos-ai-workflow {
+	max-width: 880px;
+}
+
+.storyos-ai-workflow label {
+	display: block;
+	font-weight: 600;
+	margin: 12px 0 6px;
+}
+
+.storyos-ai-workflow__controls {
+	max-width: 520px;
+}
+
+.storyos-ai-workflow__agent {
+	max-width: 100%;
+	width: 100%;
+}
+
+.storyos-ai-workflow__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.storyos-ai-workflow__status {
+	color: #50575e;
+	margin-top: 12px;
+	min-height: 20px;
+}
+
+.storyos-ai-workflow__result {
+	background: #f6f7f7;
+	border-left: 4px solid #2271b1;
+	margin-top: 12px;
+	max-height: 420px;
+	overflow: auto;
+	padding: 12px;
+	white-space: pre-wrap;
+}
+
+.storyos-ai-workflow__result--error {
+	background: #fcf0f1;
+	border-color: #d63638;
+	color: #8a2424;
+}

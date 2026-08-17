@@ -8,29 +8,21 @@
 
 	$(document).ready(function() {
 		var $form = $('#storyos-import-form');
-		var $json = $('#storyos_json');
+		var $file = $('#storyos_json_file');
 		var $submit = $form.find('input[type="submit"]');
 
-		// Validate JSON before submit.
 		$form.on('submit', function(e) {
-			var raw = $json.val().trim();
+			var file = $file[0] && $file[0].files ? $file[0].files[0] : null;
 
-			if (raw === '') {
+			if (!file) {
 				e.preventDefault();
-				alert('Please paste a StoryOS JSON document.');
+				alert('Please choose a StoryOS JSON file to import.');
 				return;
 			}
 
-			try {
-				var parsed = JSON.parse(raw);
-				if (!parsed.project || !parsed.world || !parsed.scenes) {
-					e.preventDefault();
-					alert('Invalid StoryOS JSON: missing required sections (project, world, scenes).');
-					return;
-				}
-			} catch (err) {
+			if (!/\.json$/i.test(file.name)) {
 				e.preventDefault();
-				alert('Invalid JSON: ' + err.message);
+				alert('Please choose a .json StoryOS export file.');
 				return;
 			}
 

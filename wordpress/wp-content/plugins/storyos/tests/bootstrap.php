@@ -16,3 +16,17 @@ define( 'STORYOS_CPT_PREFIX', 'storyos_' );
 // Load the StoryOS helper layer directly for unit tests.
 require_once dirname( __DIR__ ) . '/includes/utils/helpers.php';
 require_once dirname( __DIR__ ) . '/includes/utils/relationships.php';
+require_once dirname( __DIR__ ) . '/includes/exporter/class-storyos-exporter.php';
+
+// Test files reference the global helper names used in older StoryOS tests.
+if ( ! function_exists( 'prefix' ) ) {
+	function prefix( string $name = '', string $custom_prefix = '' ): string {
+		return \StoryOS\Utils\prefix( $name, $custom_prefix );
+	}
+}
+
+if ( ! function_exists( 'sanitize_story_id' ) ) {
+	function sanitize_story_id( $id ): string {
+		return \StoryOS\Utils\sanitize_story_id( $id );
+	}
+}

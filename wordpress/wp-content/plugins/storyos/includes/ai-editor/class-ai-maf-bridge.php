@@ -247,7 +247,14 @@ class AI_MAF_Bridge {
 	 * @return array Enabled agents.
 	 */
 	public function get_enabled_agents(): array {
-		$enabled_str = get_option( 'storyos_ai_enabled_agents', 'story,prompt,production,technical,editorial' );
+		$enabled_str = get_option( 'storyos_ai_enabled_agents', '' );
+		$legacy_default = 'story,prompt,production,technical,editorial';
+
+		// An empty setting, or the old category-based default, means all loaded agents.
+		if ( empty( trim( $enabled_str ) ) || $legacy_default === trim( $enabled_str ) ) {
+			return $this->agents;
+		}
+
 		$enabled = array_map( 'trim', explode( ',', $enabled_str ) );
 
 		$result = [];

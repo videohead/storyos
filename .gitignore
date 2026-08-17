@@ -3,6 +3,7 @@
 scripts/backup.sql
 scripts/backup.sql.gz
 scripts/wordpress.*
+backup.sql.gz
 
 # Wordpress
 wordpress/wp-admin/
@@ -25,6 +26,9 @@ test-framework/node_modules/
 
 # ComfyUI
 ComfyUI/*
+
+# Composer
+vendor/ 
 
 ## Python stuff
 # Byte-compiled / optimized / DLL files

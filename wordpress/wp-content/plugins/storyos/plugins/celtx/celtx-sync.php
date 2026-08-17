@@ -43,48 +43,41 @@ function autoloader( string $class ): void {
 	}
 
 	$relative_class = substr( $class, $len );
-	
+
 	// Convert namespace to file path.
 	// StoryOSCeltx\API\Client -> api/client.php
+	// StoryOSCeltx\REST\Sync_Controller -> rest/sync-controller.php
 	// StoryOSCeltx\Sync -> sync.php
-	// StoryOSCeltx\Settings -> settings.php
-	
-	// Remove trailing class name for namespace paths
+
+	// Convert a class name to a kebab-case filename.
+	// Underscores become hyphens; internal capitals get a hyphen unless one already precedes them.
+	$to_kebab = static function ( string $name ): string {
+		$name = str_replace( '_', '-', $name );
+		return strtolower( preg_replace( '/(?<!^)(?<![-A-Z])[A-Z]/', '-$0', $name ) );
+	};
+
 	$last_backslash = strrpos( $relative_class, '\\' );
 	if ( false !== $last_backslash ) {
-		$namespace = substr( $relative_class, 0, $last_backslash );
-		$class_name = substr( $relative_class, $last_backslash + 1 );
-		
-		// Convert namespace to directory
-		$namespace_dir = strtolower( str_replace( '\\', '/', $namespace ) );
-		
-		// Convert class name to filename (camelCase and underscores to kebab-case)
-		// Replace underscores with hyphens first, then insert hyphens before internal capitals.
-		$sanitized_class = str_replace( '_', '-', $class_name );
-		$filename = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $sanitized_class ) );
-		
-		$file = $base_dir . $namespace_dir . '/' . $filename . '.php';
+		$namespace_dir = strtolower( str_replace( '\\', '/', substr( $relative_class, 0, $last_backslash ) ) );
+		$filename      = $to_kebab( substr( $relative_class, $last_backslash + 1 ) );
+		$path_key      = $namespace_dir . '/' . $filename;
 	} else {
-		// Top-level class
-		$class_name = $relative_class;
-		$filename = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $class_name ) );
-		$file = $base_dir . $filename . '.php';
+		$path_key = $to_kebab( $relative_class );
 	}
+
+	$file = $base_dir . $path_key . '.php';
 
 	// Compatibility fallbacks for existing StoryOS Celtx file naming.
 	if ( ! file_exists( $file ) ) {
 		$fallback_map = [
-			'sync'                => $base_dir . 'class-celtx-sync.php',
-			'settings'            => $base_dir . 'class-celtx-settings.php',
-			'api/client'          => $base_dir . 'class-celtx-api.php',
+			'sync'                 => $base_dir . 'class-celtx-sync.php',
+			'settings'             => $base_dir . 'class-celtx-settings.php',
+			'api/client'           => $base_dir . 'class-celtx-api.php',
 			'rest/sync-controller' => $base_dir . 'rest-api/sync-controller.php',
 		];
 
-		// Normalize the relative class to a kebab-style key for fallback mapping.
-		$normalized_key = str_replace( '_', '-', str_replace( '\\', '/', $relative_class ) );
-		$normalized_key = strtolower( preg_replace( '/(?<!^)[A-Z]/', '-$0', $normalized_key ) );
-		if ( isset( $fallback_map[ $normalized_key ] ) ) {
-			$file = $fallback_map[ $normalized_key ];
+		if ( isset( $fallback_map[ $path_key ] ) ) {
+			$file = $fallback_map[ $path_key ];
 		}
 	}
 
@@ -99,12 +92,21 @@ spl_autoload_register( __NAMESPACE__ . '\\autoloader' );
  * Initialize the plugin.
  */
 function init(): void {
-	// Initialize components.
-	\StoryOSCeltx\API\Client::class; // Ensure class is loaded.
-	\StoryOSCeltx\Sync::init();
+	// Settings always load so the integration can be enabled from the admin UI.
+	if ( ! class_exists( \StoryOSCeltx\Settings::class ) ) {
+		return;
+	}
+
 	\StoryOSCeltx\Settings::init();
-	
-	// Register REST API routes.
+
+	if ( ! \StoryOSCeltx\Settings::is_enabled() ) {
+		return;
+	}
+
+	if ( class_exists( \StoryOSCeltx\Sync::class ) ) {
+		\StoryOSCeltx\Sync::init();
+	}
+
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\register_rest_routes' );
 }
 
@@ -118,5 +120,9 @@ if ( did_action( 'init' ) ) {
  * Register REST API routes.
  */
 function register_rest_routes(): void {
+	if ( ! class_exists( \StoryOSCeltx\REST\Sync_Controller::class ) ) {
+		return;
+	}
+
 	\StoryOSCeltx\REST\Sync_Controller::init();
 }

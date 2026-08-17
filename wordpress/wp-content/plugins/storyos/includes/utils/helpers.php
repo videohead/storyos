@@ -25,14 +25,14 @@ function prefix( string $name = '', string $custom_prefix = '' ): string {
 }
 
 /**
- * Register a StoryOS CPT.
+ * Build the default register_post_type arguments for a StoryOS CPT.
  *
- * @param string $cpt      The CPT slug.
- * @param string $label    The display label.
- * @param array  $args     Additional register_post_type args.
- * @param array  $fields   SCF field definitions.
+ * @param string $cpt   The CPT slug.
+ * @param string $label The display label.
+ * @param array  $args  Additional register_post_type args.
+ * @return array
  */
-function register_cpt( string $cpt, string $label, array $args = [], array $fields = [] ): void {
+function storyos_get_default_cpt_args( string $cpt, string $label, array $args = [] ): array {
 	$defaults = [
 		'labels'             => [
 			'name'               => $label,
@@ -46,19 +46,33 @@ function register_cpt( string $cpt, string $label, array $args = [], array $fiel
 			'search_items'       => "Search {$label}",
 			'not_found'          => "No {$label} found",
 			'not_found_in_trash' => "No {$label} found in Trash",
-			'all_items'          => "All {$label}",
+			'all_items'          => $label,
 		],
 		'public'             => true,
+		'show_ui'            => true,
 		'has_archive'        => true,
-		'rewrite'            => ['slug' => $cpt],
+		'rewrite'            => [ 'slug' => $cpt ],
+		'show_in_menu'       => 'storyos',
 		'show_in_rest'       => true,
 		'rest_base'          => $cpt,
-		'supports'           => ['title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions'],
+		'supports'           => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions' ],
 		'capability_type'    => 'post',
 		'map_meta_cap'       => true,
 	];
 
-	$args = wp_parse_args( $args, $defaults );
+	return wp_parse_args( $args, $defaults );
+}
+
+/**
+ * Register a StoryOS CPT.
+ *
+ * @param string $cpt      The CPT slug.
+ * @param string $label    The display label.
+ * @param array  $args     Additional register_post_type args.
+ * @param array  $fields   SCF field definitions.
+ */
+function register_cpt( string $cpt, string $label, array $args = [], array $fields = [] ): void {
+	$args = storyos_get_default_cpt_args( $cpt, $label, $args );
 	register_post_type( $cpt, $args );
 
 	// Store field definitions for REST API and admin.
@@ -543,8 +557,8 @@ function storyos_schema_hints_from_meta( string $cpt, array $meta ): array {
  * @return string
  */
 function sanitize_story_id( $id ): string {
-	$raw = (string) $id;
-	$sanitized = strtolower( preg_replace( '/[^a-z0-9]+/', '-', $raw ) ?? $raw );
+	$raw = strtolower( (string) $id );
+	$sanitized = preg_replace( '/[^a-z0-9]+/', '-', $raw ) ?? $raw;
 	$sanitized = trim( $sanitized, '-' );
 
 	return $sanitized !== '' ? $sanitized : 'story';

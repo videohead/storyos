@@ -78,4 +78,14 @@ class Test_StoryOS_CPT extends TestCase {
 		$this->assertArrayHasKey( 'delete_post', $capabilities );
 		$this->assertArrayHasKey( 'edit_posts', $capabilities );
 	}
+
+	/**
+	 * Test StoryOS CPTs are mounted under the StoryOS menu.
+	 */
+	public function test_storyos_cpt_defaults_use_storyos_menu() {
+		$args = \StoryOS\Utils\storyos_get_default_cpt_args( 'storyos_project', 'Project' );
+
+		$this->assertSame( 'storyos', $args['show_in_menu'] );
+		$this->assertTrue( $args['show_ui'] );
+	}
 }

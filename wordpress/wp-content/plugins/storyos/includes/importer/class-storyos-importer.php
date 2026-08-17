@@ -712,22 +712,23 @@ class StoryOS_Importer {
 	 * Verify the import against expected totals.
 	 */
 	private function verify_import(): void {
-		$expected = [
-			'storyos_project'          => 1,
-			'storyos_story_world'      => 1,
-			'storyos_character'        => count( $this->document['characters'] ),
-			'storyos_location'         => count( $this->document['locations'] ),
-			'storyos_prop'             => count( $this->document['props'] ),
-			'storyos_scene'            => count( $this->document['scenes'] ),
-			'storyos_shot'             => count( $this->document['shots'] ),
-			'storyos_storyboard_frame' => count( $this->document['storyboards'] ),
+		// Map CPT slugs to the label prefix used in report['created'] entries.
+		$label_prefixes = [
+			'storyos_project'          => 'Project ',
+			'storyos_story_world'      => 'World ',
+			'storyos_character'        => 'Character ',
+			'storyos_location'         => 'Location ',
+			'storyos_prop'             => 'Prop ',
+			'storyos_scene'            => 'Scene ',
+			'storyos_shot'             => 'Shot ',
+			'storyos_storyboard_frame' => 'Storyboard frame ',
 		];
 
 		$totals = [];
-		foreach ( $expected as $cpt => $count ) {
+		foreach ( $label_prefixes as $cpt => $prefix ) {
 			$created = 0;
 			foreach ( $this->report['created'] as $entry ) {
-				if ( strpos( $entry, $cpt ) !== false ) {
+				if ( strpos( $entry, $prefix ) === 0 ) {
 					$created++;
 				}
 			}

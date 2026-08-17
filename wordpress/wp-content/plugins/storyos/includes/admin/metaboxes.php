@@ -61,6 +61,36 @@ class MetaBoxes {
 		}
 
 		wp_enqueue_media();
+
+		wp_enqueue_style(
+			'storyos-asset-generator',
+			STORYOS_PLUGIN_URL . 'assets/css/asset-generator.css',
+			[],
+			STORYOS_VERSION
+		);
+
+		wp_enqueue_script(
+			'storyos-asset-generator',
+			STORYOS_PLUGIN_URL . 'assets/js/asset-generator.js',
+			[],
+			STORYOS_VERSION,
+			true
+		);
+
+		wp_localize_script( 'storyos-asset-generator', 'storyosAssetGenerator', [
+			'restUrl' => rest_url( 'storyos/v1/assets/generate' ),
+			'nonce'   => wp_create_nonce( 'wp_rest' ),
+			'i18n'    => [
+				'generating'   => __( 'Generating image…', 'storyos' ),
+				'loading'      => __( 'Building a prompt from this story element…', 'storyos' ),
+				'done'         => __( 'Image generated and attached.', 'storyos' ),
+				'featured'     => __( 'Set as the featured asset.', 'storyos' ),
+				'assetCreated' => __( 'Linked Asset record created.', 'storyos' ),
+				'reloadHint'   => __( 'Reload the editor to see it in the featured asset and gallery fields.', 'storyos' ),
+				'error'        => __( 'Image generation failed.', 'storyos' ),
+				'unconfigured' => __( 'No text-to-image endpoint is configured. Set one in StoryOS AI Settings.', 'storyos' ),
+			],
+		] );
 	}
 
 	/**
@@ -142,6 +172,39 @@ class MetaBoxes {
 			<?php endforeach; ?>
 		</div>
 		<p><button type="button" class="button storyos-select-gallery"><?php esc_html_e( 'Upload or select gallery assets', 'storyos' ); ?></button></p>
+		<?php
+		self::render_generate_asset_tools( $post );
+	}
+
+	/**
+	 * Render the text-to-image generate asset tools.
+	 *
+	 * @param \WP_Post $post Current post.
+	 */
+	private static function render_generate_asset_tools( \WP_Post $post ): void {
+		if ( ! current_user_can( 'upload_files' ) ) {
+			return;
+		}
+		?>
+		<hr />
+		<div class="storyos-generate-asset" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
+			<h4><?php esc_html_e( 'Generate asset', 'storyos' ); ?></h4>
+			<p class="description"><?php esc_html_e( 'Create an initial image for this story element with text-to-image. The result is uploaded to the media library and linked to this post.', 'storyos' ); ?></p>
+			<label for="storyos-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Prompt', 'storyos' ); ?></label>
+			<textarea class="widefat storyos-generate-asset__prompt" id="storyos-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="4" placeholder="<?php esc_attr_e( 'Describe the image to generate.', 'storyos' ); ?>"></textarea>
+			<p class="storyos-generate-asset__options">
+				<label for="storyos-generate-asset-size-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Size', 'storyos' ); ?></label>
+				<select class="storyos-generate-asset__size" id="storyos-generate-asset-size-<?php echo esc_attr( $post->ID ); ?>"></select>
+				<label><input type="checkbox" class="storyos-generate-asset__featured" checked /> <?php esc_html_e( 'Set as featured asset', 'storyos' ); ?></label>
+				<label><input type="checkbox" class="storyos-generate-asset__create" checked /> <?php esc_html_e( 'Create linked Asset record', 'storyos' ); ?></label>
+			</p>
+			<p>
+				<button type="button" class="button button-primary storyos-generate-asset__run"><?php esc_html_e( 'Generate image', 'storyos' ); ?></button>
+				<button type="button" class="button storyos-generate-asset__suggest"><?php esc_html_e( 'Suggest prompt', 'storyos' ); ?></button>
+			</p>
+			<div class="storyos-generate-asset__status" role="status" aria-live="polite"></div>
+			<div class="storyos-generate-asset__result" hidden></div>
+		</div>
 		<?php
 	}
 

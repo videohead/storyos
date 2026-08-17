@@ -285,4 +285,4 @@ function save_project_meta( int $post_id, \WP_Post $post ): void {
 		}
 	}
 }
-add_action( 'save_post_storyos_project', [ __NAMESPACE__ . '\Project', 'save_project_meta' ], 10, 2 );
+add_action( 'save_post_storyos_project', __NAMESPACE__ . '\save_project_meta', 10, 2 );

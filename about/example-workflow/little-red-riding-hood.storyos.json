@@ -68,8 +68,8 @@
       "summary": "Red prepares to visit Grandmother.",
       "dialogue": [
         {
-          "speaker": "Grandmother",
-          "text": "Please take this basket through the forest."
+          "speaker": "Narrative Voice",
+          "text": "Please take this basket through the forest to Grandmother's house"
         },
         {
           "speaker": "Little Red Riding Hood",
@@ -91,11 +91,12 @@
         },
         {
           "speaker": "Little Red Riding Hood",
-          "text": "I am visiting my grandmother."
+          "text": "I am visiting my grandmother to deliver this basket of treats."
         },
         {
           "speaker": "Wolf",
-          "text": "How interesting."
+          "text": "How interesting.",
+          "description": "Wolf licks his lips"
         }
       ]
     },
@@ -105,7 +106,7 @@
       "location": "loc_grandmother_house",
       "characters": ["char_red", "char_grandmother", "char_wolf"],
       "props": ["prop_bed"],
-      "summary": "Red discovers Wolf's deception and reunites with Grandmother.",
+      "summary": "The wolf has disguised himself as Grandmother and is in her bed. Through  an investigation, Red discovers Wolf's deception and reunites with Grandmother.",
       "dialogue": [
         {
           "speaker": "Little Red Riding Hood",
@@ -113,7 +114,35 @@
         },
         {
           "speaker": "Wolf",
-          "text": "Come closer."
+          "text": "Come closer.",
+          "description": "Wolf is disguised as Grandmother"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "My Grandmother. What big eyes you have."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "The better to see you with my dear, do come closer.",
+          "description": "Wolf is disguised as Grandmother"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "My Grandmother. What big ears you have."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "The better to hear you with my dear.",
+          "description": "Wolf is disguised as Grandmother"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "Oh Grandmother. What big teeth you have."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "The better to EAT you with!",
+          "description": "Wolf throws off disguise and leaps at Red."
         },
         {
           "speaker": "Little Red Riding Hood",

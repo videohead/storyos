@@ -64,6 +64,7 @@ class AI_Editor {
 		add_action( 'rest_api_init', [ $instance, 'register_rest_routes' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
 		add_action( 'admin_menu', [ __CLASS__, 'add_settings_page' ] );
+		add_action( 'add_meta_boxes', [ __CLASS__, 'register_story_element_workflow_metabox' ], 10, 2 );
 		add_action( 'enqueue_block_editor_assets', [ __CLASS__, 'enqueue_editor_assets' ] );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_admin_assets' ] );
 		add_filter( 'storyos_rest_context', [ __CLASS__, 'add_ai_context' ], 10, 2 );
@@ -126,6 +127,30 @@ class AI_Editor {
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
 
+		register_setting( 'storyos_ai', 'storyos_ai_image_url', [
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'esc_url_raw',
+		] );
+
+		register_setting( 'storyos_ai', 'storyos_ai_image_api_key', [
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+
+		register_setting( 'storyos_ai', 'storyos_ai_image_model', [
+			'type'              => 'string',
+			'default'           => AI_Image_Client::DEFAULT_MODEL,
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+
+		register_setting( 'storyos_ai', 'storyos_ai_image_size', [
+			'type'              => 'string',
+			'default'           => AI_Image_Client::DEFAULT_SIZE,
+			'sanitize_callback' => [ __CLASS__, 'sanitize_image_size' ],
+		] );
+
 		register_setting( 'storyos_ai', 'storyos_ai_max_tokens', [
 			'type'              => 'integer',
 			'default'           => 4096,
@@ -176,9 +201,21 @@ class AI_Editor {
 
 		register_setting( 'storyos_ai', 'storyos_ai_enabled_agents', [
 			'type'              => 'string',
-			'default'           => 'story,prompt,production,technical,editorial',
+			'default'           => '',
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
+	}
+
+	/**
+	 * Restrict the stored image size to the supported list.
+	 *
+	 * @param string $value Submitted size.
+	 * @return string
+	 */
+	public static function sanitize_image_size( $value ): string {
+		$value = sanitize_text_field( (string) $value );
+
+		return in_array( $value, AI_Image_Client::ALLOWED_SIZES, true ) ? $value : AI_Image_Client::DEFAULT_SIZE;
 	}
 
 	/**
@@ -258,6 +295,38 @@ class AI_Editor {
 						</td>
 					</tr>
 					<tr>
+						<th scope="row"><label for="storyos_ai_image_url">Image Base URL</label></th>
+						<td>
+							<input type="url" name="storyos_ai_image_url" id="storyos_ai_image_url" value="<?php echo esc_attr( get_option( 'storyos_ai_image_url' ) ); ?>" class="regular-text" />
+							<p class="description">OpenAI-compatible base URL for `/images/generations`, used by the Generate Asset tools. Leave blank to reuse the LLM base URL.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="storyos_ai_image_model">Image Model</label></th>
+						<td>
+							<input type="text" name="storyos_ai_image_model" id="storyos_ai_image_model" value="<?php echo esc_attr( get_option( 'storyos_ai_image_model' ) ); ?>" class="regular-text" />
+							<p class="description">Text-to-image model name (default: <?php echo esc_html( AI_Image_Client::DEFAULT_MODEL ); ?>).</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="storyos_ai_image_size">Image Size</label></th>
+						<td>
+							<select name="storyos_ai_image_size" id="storyos_ai_image_size">
+								<?php foreach ( AI_Image_Client::ALLOWED_SIZES as $size ) : ?>
+									<option value="<?php echo esc_attr( $size ); ?>" <?php selected( get_option( 'storyos_ai_image_size', AI_Image_Client::DEFAULT_SIZE ), $size ); ?>><?php echo esc_html( $size ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description">Default size for generated story element images.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="storyos_ai_image_api_key">Image API Key</label></th>
+						<td>
+							<input type="password" name="storyos_ai_image_api_key" id="storyos_ai_image_api_key" value="<?php echo esc_attr( get_option( 'storyos_ai_image_api_key' ) ); ?>" class="regular-text" <?php disabled( defined( 'STORYOS_AI_IMAGE_API_KEY' ) ); ?> />
+							<p class="description">Leave blank to reuse the API Key above. The `STORYOS_AI_IMAGE_API_KEY` constant takes precedence when defined.</p>
+						</td>
+					</tr>
+					<tr>
 						<th scope="row"><label for="storyos_ai_max_tokens">Max Tokens</label></th>
 						<td>
 							<input type="number" name="storyos_ai_max_tokens" id="storyos_ai_max_tokens" value="<?php echo esc_attr( get_option( 'storyos_ai_max_tokens' ) ); ?>" class="small-text" />
@@ -315,7 +384,7 @@ class AI_Editor {
 						<th scope="row"><label for="storyos_ai_enabled_agents">Enabled Agents</label></th>
 						<td>
 							<input type="text" name="storyos_ai_enabled_agents" id="storyos_ai_enabled_agents" value="<?php echo esc_attr( get_option( 'storyos_ai_enabled_agents' ) ); ?>" class="regular-text" />
-							<p class="description">Comma-separated agent names (default: story,prompt,production,technical,editorial).</p>
+							<p class="description">Comma-separated agent names. Leave blank to enable all agents in the StoryOS agents directory.</p>
 						</td>
 					</tr>
 				</table>
@@ -365,10 +434,107 @@ class AI_Editor {
 	 * @return void
 	 */
 	public static function enqueue_admin_assets( string $hook ): void {
-		if ( 'toplevel_page_storyos-ai-settings' !== $hook && 'settings_page_storyos-ai-settings' !== $hook ) {
+		if ( 'toplevel_page_storyos-ai-settings' === $hook || 'settings_page_storyos-ai-settings' === $hook ) {
+			wp_enqueue_style( 'wp-components' );
+		}
+
+		if ( ! in_array( $hook, [ 'post.php', 'post-new.php' ], true ) ) {
 			return;
 		}
-		wp_enqueue_style( 'wp-components' );
+
+		$screen = get_current_screen();
+		if ( ! $screen || ! in_array( $screen->post_type, self::get_story_element_post_types(), true ) ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'storyos-ai-workflow',
+			STORYOS_PLUGIN_URL . 'assets/ai-editor/js/shot-workflow.js',
+			[],
+			STORYOS_VERSION,
+			true
+		);
+
+		wp_enqueue_style(
+			'storyos-ai-workflow',
+			STORYOS_PLUGIN_URL . 'assets/ai-editor/css/shot-workflow.css',
+			[],
+			STORYOS_VERSION
+		);
+
+		wp_localize_script( 'storyos-ai-workflow', 'storyosAIWorkflow', [
+			'restUrl' => rest_url( 'storyos/v1' ),
+			'nonce'   => wp_create_nonce( 'wp_rest' ),
+			'postId'  => get_the_ID(),
+		] );
+	}
+
+	/**
+	 * Get CPTs that represent elements of a StoryOS narrative or production.
+	 *
+	 * Templates and provider connections configure the system; every other
+	 * registered StoryOS CPT is a story or production element with graph context.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function get_story_element_post_types(): array {
+		$cpts = array_keys( \StoryOS\Utils\storyos_get_all_cpts() );
+
+		return array_values( array_diff( $cpts, [ 'storyos_template', 'storyos_connection' ] ) );
+	}
+
+	/**
+	 * Register the agent workflow in classic story-element editors.
+	 *
+	 * @param string   $post_type Current post type.
+	 * @param \WP_Post $post      Current post.
+	 * @return void
+	 */
+	public static function register_story_element_workflow_metabox( string $post_type, \WP_Post $post ): void {
+		if ( ! in_array( $post_type, self::get_story_element_post_types(), true ) ) {
+			return;
+		}
+
+		$post_type_object = get_post_type_object( $post_type );
+		$label            = $post_type_object ? $post_type_object->labels->singular_name : __( 'Story Element', 'storyos' );
+
+		add_meta_box(
+			'storyos_ai_workflow',
+			sprintf( __( 'AI %s Workflow', 'storyos' ), $label ),
+			[ __CLASS__, 'render_story_element_workflow_metabox' ],
+			$post_type,
+			'normal',
+			'high'
+		);
+	}
+
+	/**
+	 * Render the agent workflow UI for a StoryOS story element.
+	 *
+	 * @param \WP_Post $post Current Shot post.
+	 * @return void
+	 */
+	public static function render_story_element_workflow_metabox( \WP_Post $post ): void {
+		?>
+		<div class="storyos-ai-workflow" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
+			<p class="description"><?php esc_html_e( 'Run an agent with this Story Graph element as context. Generated output is a suggestion until you apply it.', 'storyos' ); ?></p>
+			<div class="storyos-ai-workflow__controls">
+				<label for="storyos-ai-workflow-agent-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Agent', 'storyos' ); ?></label>
+				<select class="storyos-ai-workflow__agent" id="storyos-ai-workflow-agent-<?php echo esc_attr( $post->ID ); ?>" disabled>
+					<option><?php esc_html_e( 'Loading agents...', 'storyos' ); ?></option>
+				</select>
+			</div>
+			<label for="storyos-ai-workflow-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Instruction', 'storyos' ); ?></label>
+			<textarea class="widefat storyos-ai-workflow__prompt" id="storyos-ai-workflow-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="4" placeholder="<?php esc_attr_e( 'Describe the work you want the agent to do with this story element.', 'storyos' ); ?>"></textarea>
+			<div class="storyos-ai-workflow__actions">
+				<button type="button" class="button button-primary storyos-ai-workflow__run" data-action="generate"><?php esc_html_e( 'Run agent', 'storyos' ); ?></button>
+				<button type="button" class="button storyos-ai-workflow__run" data-action="analyze"><?php esc_html_e( 'Analyze element', 'storyos' ); ?></button>
+				<button type="button" class="button storyos-ai-workflow__run" data-action="continuity"><?php esc_html_e( 'Check continuity', 'storyos' ); ?></button>
+			</div>
+			<div class="storyos-ai-workflow__status" role="status" aria-live="polite"></div>
+			<div class="storyos-ai-workflow__result" hidden></div>
+		</div>
+		<?php
 	}
 
 	/**

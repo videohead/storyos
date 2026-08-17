@@ -623,6 +623,113 @@ class Prompt_Templates extends AbstractAbilityGroup {
 }
 
 /**
+ * Generate asset abilities.
+ *
+ * Text-to-image generation for StoryOS story elements, stored in the media
+ * library and linked back to the source post.
+ */
+class Asset_Abilities extends AbstractAbilityGroup {
+    protected $slug       = 'storyos-assets';
+    protected $label      = 'Generate Assets';
+    protected $description = 'Generate an initial image for a story element and attach it to the post.';
+
+    public function register(): void {
+        // storyos/suggest-asset-prompt - Build a text-to-image prompt from a story element.
+        $this->register_ability( 'storyos/suggest-asset-prompt', [
+            'label'       => 'Suggest Asset Prompt',
+            'description' => 'Build a text-to-image prompt from a StoryOS story element.',
+            'input_schema' => [
+                'type'  => 'object',
+                'properties' => [
+                    'post_id' => [
+                        'type'        => 'integer',
+                        'description' => 'Story element post ID.',
+                    ],
+                ],
+                'required' => ['post_id'],
+            ],
+            'output_schema' => [
+                'type'  => 'object',
+                'properties' => [
+                    'prompt' => ['type' => 'string'],
+                ],
+            ],
+            'execute_callback' => function( $input ) {
+                return [
+                    'prompt' => \StoryOS\Utils\Asset_Generator::build_prompt( (int) $input['post_id'] ),
+                ];
+            },
+            'permission_callback' => function( $input ) {
+                return current_user_can( 'edit_post', (int) ( $input['post_id'] ?? 0 ) );
+            },
+        ] );
+
+        // storyos/generate-asset - Generate and attach an image.
+        $this->register_ability( 'storyos/generate-asset', [
+            'label'       => 'Generate Asset Image',
+            'description' => 'Generate an image for a story element, upload it to the media library, and link it to the post.',
+            'input_schema' => [
+                'type'  => 'object',
+                'properties' => [
+                    'post_id' => [
+                        'type'        => 'integer',
+                        'description' => 'Story element post ID.',
+                    ],
+                    'prompt'  => [
+                        'type'        => 'string',
+                        'description' => 'Text-to-image prompt. Built from the story element when omitted.',
+                    ],
+                    'size'    => [
+                        'type'        => 'string',
+                        'description' => 'Requested image size, e.g. 1024x1024.',
+                        'enum'        => \StoryOS\AI\AI_Image_Client::ALLOWED_SIZES,
+                    ],
+                    'set_featured' => [
+                        'type'        => 'boolean',
+                        'description' => 'Set the generated image as the featured asset.',
+                    ],
+                    'create_asset' => [
+                        'type'        => 'boolean',
+                        'description' => 'Create a linked StoryOS Asset record.',
+                    ],
+                ],
+                'required' => ['post_id'],
+            ],
+            'output_schema' => [
+                'type'  => 'object',
+                'properties' => [
+                    'attachment_id' => ['type' => 'integer'],
+                    'asset_id'      => ['type' => 'integer'],
+                    'url'           => ['type' => 'string'],
+                    'prompt'        => ['type' => 'string'],
+                ],
+            ],
+            'execute_callback' => function( $input ) {
+                return \StoryOS\Utils\Asset_Generator::generate_for_post( (int) $input['post_id'], [
+                    'prompt'       => (string) ( $input['prompt'] ?? '' ),
+                    'size'         => (string) ( $input['size'] ?? '' ),
+                    'set_featured' => $input['set_featured'] ?? true,
+                    'create_asset' => $input['create_asset'] ?? true,
+                ] );
+            },
+            'permission_callback' => function( $input ) {
+                return current_user_can( 'edit_post', (int) ( $input['post_id'] ?? 0 ) )
+                    && current_user_can( 'upload_files' );
+            },
+            'meta' => [
+                'public' => true,
+                'mcp'    => [ 'type' => 'tool' ],
+                'annotations' => [
+                    'readonly'    => false,
+                    'destructive' => false,
+                    'idempotent'  => false,
+                ],
+            ],
+        ] );
+    }
+}
+
+/**
  * Main StoryOS Abilities class.
  *
  * Registers the StoryOS AI Editor category and all ability groups.
@@ -659,12 +766,27 @@ class Abilities {
      * Private constructor (singleton pattern).
      */
     private function __construct() {
-        // Register ability groups.
         $this->ability_groups = [
-            new Chat_Abilities(),
             new Context_Resources(),
             new Prompt_Templates(),
+            new Asset_Abilities(),
         ];
+
+        if ( self::has_llm_endpoint() ) {
+            array_unshift( $this->ability_groups, new Chat_Abilities() );
+        }
+    }
+
+    /**
+     * Determine whether an LLM endpoint has been configured for agent abilities.
+     *
+     * @return bool
+     */
+    private static function has_llm_endpoint(): bool {
+        $url = trim( (string) get_option( 'storyos_ai_url', '' ) );
+
+        return (bool) filter_var( $url, FILTER_VALIDATE_URL )
+            && in_array( wp_parse_url( $url, PHP_URL_SCHEME ), [ 'http', 'https' ], true );
     }
 
     /**

@@ -74,16 +74,22 @@ class Import {
 		}
 		check_admin_referer( 'storyos_import' );
 
-		$json = isset( $_POST['storyos_json'] ) ? wp_unslash( $_POST['storyos_json'] ) : '';
+		$json = '';
+		if ( ! empty( $_FILES['storyos_json_file']['tmp_name'] ) && is_uploaded_file( $_FILES['storyos_json_file']['tmp_name'] ) ) {
+			$json = file_get_contents( $_FILES['storyos_json_file']['tmp_name'] );
+		} elseif ( isset( $_POST['storyos_json'] ) ) {
+			$json = wp_unslash( $_POST['storyos_json'] );
+		}
+
 		$overwrite = ! empty( $_POST['storyos_overwrite'] );
 
-		if ( empty( $json ) ) {
+		if ( empty( trim( (string) $json ) ) ) {
 			wp_safe_redirect( add_query_arg( [ 'page' => 'storyos-import', 'error' => 'empty' ], admin_url( 'admin.php' ) ) );
 			exit;
 		}
 
 		$importer = new \StoryOS\Importer\StoryOS_Importer();
-		$result   = $importer->import( $json, [ 'overwrite' => $overwrite ] );
+		$result   = $importer->import( (string) $json, [ 'overwrite' => $overwrite ] );
 
 		if ( is_wp_error( $result ) ) {
 			wp_safe_redirect( add_query_arg( [ 'page' => 'storyos-import', 'error' => rawurlencode( $result->get_error_message() ) ], admin_url( 'admin.php' ) ) );
@@ -124,19 +130,19 @@ class Import {
 			<?php endif; ?>
 
 			<p class="description">
-				<?php esc_html_e( 'Paste a StoryOS JSON document (e.g. the Little Red Riding Hood example) to create a complete miniature StoryOS project: Project, World, Characters, Locations, Props, Scenes, Shots, Storyboard Frames, and Sequence.', 'storyos' ); ?>
+				<?php esc_html_e( 'Upload a StoryOS JSON file (for example, the Little Red Riding Hood example) to create a complete miniature StoryOS project: Project, World, Characters, Locations, Props, Scenes, Shots, Storyboard Frames, and Sequence.', 'storyos' ); ?>
 			</p>
 
-			<form method="post" id="storyos-import-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<form method="post" id="storyos-import-form" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="storyos_import_json" />
 				<?php wp_nonce_field( 'storyos_import' ); ?>
 
 				<table class="form-table">
 					<tr>
-						<th scope="row"><label for="storyos_json"><?php esc_html_e( 'StoryOS JSON', 'storyos' ); ?></label></th>
+						<th scope="row"><label for="storyos_json_file"><?php esc_html_e( 'StoryOS JSON File', 'storyos' ); ?></label></th>
 						<td>
-							<textarea name="storyos_json" id="storyos_json" rows="20" class="large-text code" placeholder='{"storyos_version": "1.0", "project": {...}, ...}'></textarea>
-							<p class="description"><?php esc_html_e( 'Paste the full StoryOS JSON document here.', 'storyos' ); ?></p>
+							<input type="file" name="storyos_json_file" id="storyos_json_file" accept=".json,application/json" class="regular-text" />
+							<p class="description"><?php esc_html_e( 'Select the StoryOS JSON file exported from the project, or use the example workflow export.', 'storyos' ); ?></p>
 						</td>
 					</tr>
 					<tr>
