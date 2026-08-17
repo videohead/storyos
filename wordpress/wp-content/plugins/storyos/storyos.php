@@ -239,7 +239,7 @@ function init(): void {
 	}
 
 	// Enqueue search widget assets on frontend.
-	add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\enqueue_search_assets' );
+	add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\Utils\\enqueue_search_assets' );
 
 	// Enqueue continuity panel assets in admin.
 	add_action( 'admin_enqueue_scripts', __NAMESPACE__ . '\\enqueue_continuity_assets' );
