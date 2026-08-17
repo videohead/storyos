@@ -4,6 +4,8 @@
 
 **Status: ✅ Complete**
 
+> **Implementation update:** search, continuity validation, and relationship analytics now run from WordPress data and post metadata. The removed Python intelligence service is historical only; see [Deployment and Connections](Deployment_and_Connections.md).
+
 ## Objective
 
 Transform StoryOS from a content management system into a **narrative intelligence platform** by embedding semantic search, continuity validation, and relationship analytics directly into the WordPress experience.

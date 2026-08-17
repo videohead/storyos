@@ -55,26 +55,8 @@ class Connection_Tester {
 			];
 		}
 
-		$payload = [
-			'endpoint_url'         => $record['endpoint_url'],
-			'environment'          => $record['environment'],
-			'credential_reference' => $record['credential_reference'],
-		];
-
-		$url = Capability_Sync::orchestrator_url()
-			. '/providers/' . rawurlencode( $record['provider_type'] ) . '/health';
-
-		$response = wp_remote_post(
-			$url,
-			[
-				'timeout'    => self::TIMEOUT,
-				'headers'    => [
-					'Content-Type' => 'application/json',
-					'Accept'       => 'application/json',
-				],
-				'body'     => wp_json_encode( $payload ),
-			]
-		);
+		$has_key = defined( 'STORYOS_COMFY_API_KEY' ) || '' !== (string) get_option( 'storyos_comfy_api_key', '' );
+		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
 
 		if ( is_wp_error( $response ) ) {
 			return self::record_result( $connection_id, false, 'Orchestrator unreachable: ' . $response->get_error_message(), [] );

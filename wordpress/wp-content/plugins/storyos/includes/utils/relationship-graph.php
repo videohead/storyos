@@ -15,17 +15,6 @@
 
 namespace StoryOS\Utils;
 
-if ( ! function_exists( __NAMESPACE__ . '\orchestrator_url' ) ) :
-/**
- * Get the orchestrator URL from options.
- *
- * @return string
- */
-function orchestrator_url(): string {
-	return get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
-}
-endif;
-
 /**
  * Fetch relationship graph from orchestrator.
  *
@@ -33,170 +22,57 @@ endif;
  * @return array|WP_Error The relationship graph or error.
  */
 function fetch_relationship_graph( array $params = [] ) {
-	$url = trailingslashit( orchestrator_url() ) . 'intelligence/relationships';
-
-	$query_args = [];
-	if ( ! empty( $params['scene_ids'] ) ) {
-		$query_args['scene_ids'] = implode( ',', array_map( 'absint', (array) $params['scene_ids'] ) );
+	$nodes = [];
+	$edges = [];
+	foreach ( get_posts( [ 'post_type' => array_keys( storyos_get_all_cpts() ), 'post_status' => 'any', 'posts_per_page' => -1 ] ) as $post ) {
+		$nodes[] = [ 'id' => $post->ID, 'type' => $post->post_type, 'title' => $post->post_title ];
+		foreach ( get_relationships( $post->ID, $post->post_type ) as $relationship ) {
+			$edges[] = [ 'source' => $post->ID, 'target' => absint( $relationship['to_id'] ), 'type' => $relationship['type'] ?? 'related_to' ];
+		}
 	}
-
-	$request_args = [
-		'method'  => 'GET',
-		'timeout' => 30,
-		'headers' => [
-			'Accept' => 'application/json',
-		],
-	];
-
-	if ( ! empty( $query_args ) ) {
-		$url = add_query_arg( $query_args, $url );
-	}
-
-	$response = wp_remote_get( $url, $request_args );
-
-	if ( is_wp_error( $response ) ) {
-		return $response;
-	}
-
-	$status = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status ) {
-		return new \WP_Error( 'orchestrator_error', 'Orchestrator returned error: ' . $status );
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-	$data = json_decode( $body, true );
-
-	if ( ! is_array( $data ) ) {
-		return new \WP_Error( 'parse_error', 'Failed to parse orchestrator response.' );
-	}
-
-	return $data;
+	return [ 'nodes' => $nodes, 'edges' => $edges ];
 }
 
 /**
- * Fetch graph analytics from orchestrator.
+ * Build graph analytics from local Story Graph relationships.
  *
  * @return array|WP_Error The graph analytics or error.
  */
 function fetch_graph_analytics() {
-	$url = trailingslashit( orchestrator_url() ) . 'intelligence/graph-analytics';
-
-	$request_args = [
-		'method'  => 'GET',
-		'timeout' => 30,
-		'headers' => [
-			'Accept' => 'application/json',
-		],
-	];
-
-	$response = wp_remote_get( $url, $request_args );
-
-	if ( is_wp_error( $response ) ) {
-		return $response;
-	}
-
-	$status = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status ) {
-		return new \WP_Error( 'orchestrator_error', 'Orchestrator returned error: ' . $status );
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-	$data = json_decode( $body, true );
-
-	if ( ! is_array( $data ) ) {
-		return new \WP_Error( 'parse_error', 'Failed to parse orchestrator response.' );
-	}
-
-	return $data;
+	$graph = fetch_relationship_graph();
+	$degrees = array_count_values( array_merge( array_column( $graph['edges'], 'source' ), array_column( $graph['edges'], 'target' ) ) );
+	usort( $graph['nodes'], static function ( $left, $right ) use ( $degrees ) { return ( $degrees[ $right['id'] ] ?? 0 ) <=> ( $degrees[ $left['id'] ] ?? 0 ); } );
+	$counts = array_count_values( array_column( $graph['nodes'], 'type' ) );
+	$node_count = count( $graph['nodes'] );
+	return [ 'density' => $node_count > 1 ? count( $graph['edges'] ) / ( $node_count * ( $node_count - 1 ) ) : 0, 'most_connected' => $graph['nodes'], 'isolated_entities' => array_values( array_filter( $graph['nodes'], static function ( $node ) use ( $degrees ) { return empty( $degrees[ $node['id'] ] ); } ) ), 'entity_counts' => $counts ];
 }
 
 /**
- * Fetch character network analytics from orchestrator.
+ * Build character network analytics from local Story Graph relationships.
  *
  * @param array $params Query parameters.
  * @return array|WP_Error The character network or error.
  */
 function fetch_character_network( array $params = [] ) {
-	$url = trailingslashit( orchestrator_url() ) . 'intelligence/character-network';
-
-	$query_args = [];
-	if ( ! empty( $params['limit'] ) ) {
-		$query_args['limit'] = absint( $params['limit'] );
-	}
-
-	if ( ! empty( $query_args ) ) {
-		$url = add_query_arg( $query_args, $url );
-	}
-
-	$request_args = [
-		'method'  => 'GET',
-		'timeout' => 30,
-		'headers' => [
-			'Accept' => 'application/json',
-		],
-	];
-
-	$response = wp_remote_get( $url, $request_args );
-
-	if ( is_wp_error( $response ) ) {
-		return $response;
-	}
-
-	$status = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status ) {
-		return new \WP_Error( 'orchestrator_error', 'Orchestrator returned error: ' . $status );
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-	$data = json_decode( $body, true );
-
-	if ( ! is_array( $data ) ) {
-		return new \WP_Error( 'parse_error', 'Failed to parse orchestrator response.' );
-	}
-
-	return $data;
+	$graph = fetch_relationship_graph();
+	$characters = array_values( array_filter( $graph['nodes'], static function ( $node ) { return 'storyos_character' === $node['type']; } ) );
+	$ids = array_column( $characters, 'id' );
+	$edges = array_values( array_filter( $graph['edges'], static function ( $edge ) use ( $ids ) { return in_array( $edge['source'], $ids, true ) && in_array( $edge['target'], $ids, true ); } ) );
+	return [ 'nodes' => array_slice( $characters, 0, absint( $params['limit'] ?? 0 ) ?: null ), 'edges' => $edges ];
 }
 
 /**
- * Fetch character analytics for specific characters.
+ * Build relationship counts for specific characters.
  *
  * @param array $character_ids List of character post IDs.
  * @return array|WP_Error The character analytics or error.
  */
 function fetch_character_analytics( array $character_ids = [] ) {
-	$url = trailingslashit( orchestrator_url() ) . 'intelligence/character-analytics';
-
-	$request_args = [
-		'method'  => 'POST',
-		'timeout' => 30,
-		'headers' => [
-			'Content-Type' => 'application/json',
-			'Accept'       => 'application/json',
-		],
-		'body'    => wp_json_encode( [
-			'character_ids' => array_map( 'absint', $character_ids ),
-		] ),
-	];
-
-	$response = wp_remote_post( $url, $request_args );
-
-	if ( is_wp_error( $response ) ) {
-		return $response;
-	}
-
-	$status = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status ) {
-		return new \WP_Error( 'orchestrator_error', 'Orchestrator returned error: ' . $status );
-	}
-
-	$body = wp_remote_retrieve_body( $response );
-	$data = json_decode( $body, true );
-
-	if ( ! is_array( $data ) ) {
-		return new \WP_Error( 'parse_error', 'Failed to parse orchestrator response.' );
-	}
-
-	return $data;
+	$graph = fetch_relationship_graph();
+	$ids = empty( $character_ids ) ? array_column( array_filter( $graph['nodes'], static function ( $node ) { return 'storyos_character' === $node['type']; } ), 'id' ) : array_map( 'absint', $character_ids );
+	$analytics = [];
+	foreach ( $ids as $id ) { $analytics[] = [ 'character_id' => $id, 'relationship_count' => count( array_filter( $graph['edges'], static function ( $edge ) use ( $id ) { return $edge['source'] === $id || $edge['target'] === $id; } ) ) ]; }
+	return [ 'characters' => $analytics ];
 }
 
 /**

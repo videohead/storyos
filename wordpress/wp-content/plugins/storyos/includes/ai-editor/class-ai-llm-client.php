@@ -122,7 +122,7 @@ class AI_LLM_Client {
 		$fallback_enabled = get_option( 'storyos_ai_fallback_enabled', true );
 		if ( $fallback_enabled && 'dual' !== $backend ) {
 			$fallback_backend = get_option( 'storyos_ai_fallback_backend', 'openai' );
-			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
+			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $this->fallback_api_key() );
 			if ( $result && empty( $result['error'] ) ) {
 				return $result;
 			}
@@ -131,7 +131,7 @@ class AI_LLM_Client {
 		// Dual mode: try both.
 		if ( 'dual' === $backend ) {
 			$fallback_backend = get_option( 'storyos_ai_fallback_backend', 'openai' );
-			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
+			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $this->fallback_api_key() );
 			if ( $result && empty( $result['error'] ) ) {
 				return $result;
 			}
@@ -149,7 +149,7 @@ class AI_LLM_Client {
 	/**
 	 * Call a specific LLM backend.
 	 *
-	 * @param string $backend Backend type (local, openai, anthropic).
+	 * @param string $backend Backend type (openai_compatible, openai, anthropic).
 	 * @param string $prompt The prompt.
 	 * @param string $model Model name.
 	 * @param int    $max_tokens Max tokens.
@@ -158,14 +158,15 @@ class AI_LLM_Client {
 	 * @param array  $context Additional context.
 	 * @return array|false Response array or false on failure.
 	 */
-	private function call_backend( string $backend, string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context ) {
+	private function call_backend( string $backend, string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '' ) {
 		switch ( $backend ) {
 			case 'local':
-				return $this->call_local_llm( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
+			case 'openai_compatible':
+				return $this->call_openai_compatible( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $api_key, $backend );
 			case 'openai':
-				return $this->call_openai( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
+				return $this->call_openai( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $api_key );
 			case 'anthropic':
-				return $this->call_anthropic( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
+				return $this->call_anthropic( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $api_key );
 			default:
 				return [
 					'content' => "Unknown backend: {$backend}",
@@ -175,7 +176,7 @@ class AI_LLM_Client {
 	}
 
 	/**
-	 * Call local vLLM instance.
+	 * Call an OpenAI-compatible endpoint, including local LLMs and BYOK services.
 	 *
 	 * @param string $prompt The prompt.
 	 * @param string $model Model name.
@@ -185,9 +186,10 @@ class AI_LLM_Client {
 	 * @param array  $context Additional context.
 	 * @return array Response array.
 	 */
-	private function call_local_llm( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context ): array {
-		$url = rtrim( get_option( 'storyos_ai_url', 'http://localhost:11434' ), '/' );
-		$url .= '/v1/chat/completions';
+	private function call_openai_compatible( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '', string $backend = 'openai_compatible' ): array {
+		$url = rtrim( get_option( 'storyos_ai_url', 'http://localhost:11434/v1' ), '/' );
+		$url .= ( str_ends_with( $url, '/v1' ) ? '' : '/v1' ) . '/chat/completions';
+		$api_key = '' !== $api_key ? $api_key : $this->primary_api_key();
 
 		$messages = [];
 		if ( ! empty( $system_prompt ) ) {
@@ -208,7 +210,7 @@ class AI_LLM_Client {
 			'method'  => 'POST',
 			'headers' => [
 				'Content-Type'  => 'application/json',
-				'Authorization' => 'Bearer local-dev-key',
+				'Authorization' => 'Bearer ' . ( '' !== $api_key ? $api_key : 'local-dev-key' ),
 			],
 			'body'    => wp_json_encode( [
 				'model'       => $model,
@@ -224,8 +226,8 @@ class AI_LLM_Client {
 
 		if ( is_wp_error( $response ) ) {
 			return [
-				'content' => "Local LLM connection error: " . $response->get_error_message(),
-				'backend' => 'local',
+				'content' => "LLM connection error: " . $response->get_error_message(),
+				'backend' => $backend,
 				'error'   => 'connection_error',
 			];
 		}
@@ -235,17 +237,17 @@ class AI_LLM_Client {
 
 		if ( ! isset( $data['choices'][0]['message']['content'] ) ) {
 			return [
-				'content' => 'Invalid response from local LLM.',
-				'backend' => 'local',
+				'content' => 'Invalid response from OpenAI-compatible LLM.',
+				'backend' => $backend,
 				'error'   => 'invalid_response',
 			];
 		}
 
-		$this->log_request( 'local' );
+		$this->log_request( $backend );
 
 		return [
 			'content' => $data['choices'][0]['message']['content'],
-			'backend' => 'local',
+			'backend' => $backend,
 			'tokens'  => $data['usage']['total_tokens'] ?? 0,
 		];
 	}
@@ -261,8 +263,8 @@ class AI_LLM_Client {
 	 * @param array  $context Additional context.
 	 * @return array Response array.
 	 */
-	private function call_openai( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context ): array {
-		$api_key = get_option( 'storyos_ai_api_key', '' );
+	private function call_openai( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '' ): array {
+		$api_key = '' !== $api_key ? $api_key : $this->primary_api_key();
 		if ( empty( $api_key ) ) {
 			return [
 				'content' => 'No OpenAI API key configured.',
@@ -343,8 +345,8 @@ class AI_LLM_Client {
 	 * @param array  $context Additional context.
 	 * @return array Response array.
 	 */
-	private function call_anthropic( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context ): array {
-		$api_key = get_option( 'storyos_ai_api_key', '' );
+	private function call_anthropic( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '' ): array {
+		$api_key = '' !== $api_key ? $api_key : $this->primary_api_key();
 		if ( empty( $api_key ) ) {
 			return [
 				'content' => 'No Anthropic API key configured.',
@@ -423,6 +425,14 @@ class AI_LLM_Client {
 		return $output;
 	}
 
+	private function primary_api_key(): string {
+		return defined( 'STORYOS_AI_API_KEY' ) ? STORYOS_AI_API_KEY : (string) get_option( 'storyos_ai_api_key', '' );
+	}
+
+	private function fallback_api_key(): string {
+		return defined( 'STORYOS_AI_FALLBACK_API_KEY' ) ? STORYOS_AI_FALLBACK_API_KEY : (string) get_option( 'storyos_ai_fallback_api_key', '' );
+	}
+
 	/**
 	 * Recursively format an array for LLM consumption.
 	 *
@@ -482,15 +492,27 @@ class AI_LLM_Client {
 	 * @return array Health status.
 	 */
 	public function health_check(): array {
-		$backend = get_option( 'storyos_ai_backend', 'local' );
-		$url     = rtrim( get_option( 'storyos_ai_url', 'http://localhost:11434' ), '/' );
-		$url     .= '/v1/models';
+		$backend = get_option( 'storyos_ai_backend', 'openai_compatible' );
+		if ( 'anthropic' === $backend ) {
+			return [
+				'healthy' => '' !== $this->primary_api_key(),
+				'backend' => $backend,
+				'error'   => '' === $this->primary_api_key() ? 'No Anthropic API key configured.' : '',
+			];
+		}
+
+		if ( 'openai' === $backend ) {
+			$url = 'https://api.openai.com/v1/models';
+		} else {
+			$url = rtrim( get_option( 'storyos_ai_url', 'http://localhost:11434/v1' ), '/' );
+			$url .= ( str_ends_with( $url, '/v1' ) ? '' : '/v1' ) . '/models';
+		}
 
 		$args = [
 			'method'  => 'GET',
 			'headers' => [
 				'Content-Type'  => 'application/json',
-				'Authorization' => 'Bearer local-dev-key',
+				'Authorization' => 'Bearer ' . ( '' !== $this->primary_api_key() ? $this->primary_api_key() : 'local-dev-key' ),
 			],
 			'timeout' => 5,
 		];

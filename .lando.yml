@@ -4,7 +4,7 @@ recipe: lamp
 config:
   webroot: wordpress
   php: '8.2'
-  composer_version: '2'
+  composer_version: '2.7.7'
   database: mariadb
 
 services:
@@ -21,8 +21,9 @@ services:
       WORDPRESS_TABLE_PREFIX: wp_
       WP_USERNAME: ${WP_USERNAME:-admin}
       WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
-      COMFYUI_URL: ${COMFYUI_URL:-http://127.0.0.1:8188}
-      REDIS_URL: redis://cache:6379/0
+      STORYOS_COMFY_API_KEY: ${STORYOS_COMFY_API_KEY:-}
+      STORYOS_AI_API_KEY: ${STORYOS_AI_API_KEY:-}
+      STORYOS_AI_FALLBACK_API_KEY: ${STORYOS_AI_FALLBACK_API_KEY:-}
   database:
     type: mariadb:10.6
     portforward: true
@@ -32,172 +33,60 @@ services:
       database: wordpress
     volumes:
       - ./scripts/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
-  cache:
-    type: redis:7
-    portforward: true
-  orchestrator:
-    type: python:3.11
-    port: 8000
-    command:
-      - /bin/bash
-      - -lc
-      - cd /app/orchestrator && pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000
-    environment:
-      WORDPRESS_URL: http://appserver
-      WORDPRESS_USER: ${WP_USERNAME:-admin}
-      WORDPRESSAPPPASSWORD: ${WP_APP_PASSWORD:-admin}
-      WP_USERNAME: ${WP_USERNAME:-admin}
-      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
-      COMFYUI_URL: ${COMFYUI_URL:-http://127.0.0.1:8188}
-      REDIS_URL: redis://cache:6379/0
-  test-framework:
-    type: python:3.11
+  cli:
+    type: node:20
     overrides:
       environment:
         PLAYWRIGHT_BROWSERS_PATH: /home/node/.cache/ms-playwright
     run_as_root:
-      - "apt-get update && apt-get install -y ffmpeg ripgrep python3 python3-pip python3-venv php php-cli php-mbstring php-xml php-curl php-zip php-gd php-intl php-mysql php-dompdf php-sqlite3"
-      - "curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer"
-      - "curl -L https://phar.phpunit.de/phpunit-10.5.64.phar -o /usr/local/bin/phpunit && chmod +x /usr/local/bin/phpunit"
-      - "python3 -m venv /opt/venv && /opt/venv/bin/pip install --upgrade pip"
-      - "/opt/venv/bin/pip install pytest pytest-mock responses httpx pytest-asyncio"
-      - "cd /app/test-framework && npm install sass --save-dev"
-      - "cd /app/test-framework && npm install minify --save-dev"
-      - "cd /app/test-framework && npm install jsonlint --save-dev"
-      - "cd /app/test-framework && npm install @playwright/test playwright --save-dev"
-      - "cd /app/test-framework && npm install @wordpress/e2e-test-utils-playwright --save-dev"
-      - "cd /app/test-framework && npm install pixelmatch pngjs --save-dev"
-      - "cd /app/test-framework && npx playwright install --with-deps chromium"
-      - "cd /app/test-framework && node -p \"'Chromium: ' + require('/app/test-framework/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('chromium').executablePath()\""
-      - "cd /app/test-framework && node -p \"'ffmpeg: ' + require('/app/test-framework/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('ffmpeg').executablePath('linux')\""
-    command:
-      - /bin/bash
-      - -c
-      - cd /app/test-framework && npm install && tail -f /dev/null
-    build_as_root:
-      - apt-get update
-      - apt-get install -y --no-install-recommends curl ca-certificates gnupg
-      - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-      - apt-get install -y nodejs
-      - npm install -g playwright
-      - curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-      - curl -L https://phar.phpunit.de/phpunit-10.5.64.phar -o /usr/local/bin/phpunit && chmod +x /usr/local/bin/phpunit
-    environment:
-      PLAYWRIGHT_BROWSERS_PATH: /usr/local/share/playwright
-      WP_BASE_URL: http://appserver
-      WP_USERNAME: ${WP_USERNAME:-admin}
-      WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
-      PATH: /opt/venv/bin:/usr/local/bin:/usr/bin:/bin
-    volumes:
-      - type: bind
-        source: ./orchestrator/tests
-        target: /app/test-framework/tests/python/orchestrator-tests
+      - "apt-get update && apt-get install -y ffmpeg ripgrep"
+      - "npm install sass --save-dev"
+      - "npm install minify --save-dev"
+      - "npm install jsonlint --save-dev"
+      - "npm install @playwright/test playwright --save-dev"
+      - "npm install @wordpress/e2e-test-utils-playwright --save-dev"
+      - "npm install pixelmatch pngjs --save-dev"
+      - "npx playwright install --with-deps chromium"
+      - "node -p \"'Chromium: ' + require('/app/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('chromium').executablePath()\""
+      - "node -p \"'ffmpeg: ' + require('/app/node_modules/playwright-core/lib/coreBundle').registry.registry.findExecutable('ffmpeg').executablePath('linux')\""
   phpmyadmin:
     type: phpmyadmin
     hosts:
       - database
-  vllm:
-    type: python:3.11
-    port: 11434
-    command:
-      - /bin/bash
-      - -lc
-      - python -m pip install --upgrade pip && python -m pip install "vllm>=0.6.0" && python -m vllm.entrypoints.openai.api_server --model nvidia/Qwen3.6-35B-A3B-NVFP4 --port 11434 --host 0.0.0.0
-    environment:
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
-      STORYOS_ENABLE_VLLM: ${STORYOS_ENABLE_VLLM:-false}
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      test:
-        - CMD
-        - /bin/bash
-        - -lc
-        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/v1/models', timeout=5)"
-  llm-agents:
-    type: python:3.11
-    command:
-      - /bin/bash
-      - -lc
-      - cd /app/multi-agent-framework && pip install -r requirements.txt && python local_agent_framework.py
-    environment:
-      VLLM_URL: http://vllm:11434/v1
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
-      STORYOS_ENABLE_VLLM: ${STORYOS_ENABLE_VLLM:-false}
-  comfyui:
-    type: python:3.11
-    port: 8188
-    command:
-      - /bin/bash
-      - -lc
-      - python -m pip install --upgrade pip && python -m pip install comfyui && python -m comfyui --host 0.0.0.0 --port 8188
-    environment:
-      STORYOS_ENABLE_COMFYUI: ${STORYOS_ENABLE_COMFYUI:-false}
-    healthcheck:
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      test:
-        - CMD
-        - /bin/bash
-        - -lc
-        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8188/', timeout=5)"
 tooling:
   wp:
     service: appserver
     cmd: wp
-  python:
-    service: orchestrator
-    cmd: python
-  pip:
-    service: orchestrator
-    cmd: pip
-  pip-install:
-    service: orchestrator
-    cmd: pip install -r /app/orchestrator/requirements.txt
-  celery:
-    service: orchestrator
-    cmd: cd /app/orchestrator && celery -A tasks worker
-  test:
-    service: orchestrator
-    cmd: cd /app/orchestrator && pytest tests -q
   phpunit:
-    service: test-framework
-    cmd: phpunit
-  storyos-phpunit:
-    service: test-framework
-    cmd: bash -lc 'cd /app/wordpress/wp-content/plugins/storyos && phpunit --configuration tests/phpunit.xml tests'
-  playwright:
-    service: test-framework
-    cmd: playwright
-  node:
-    service: test-framework
-    cmd: node
+    service: appserver
+    cmd: ./vendor/bin/phpunit
+  wp-cron:
+    service: appserver
+    cmd: php wp-cron.php
   npm:
-    service: test-framework
-    cmd: npm
-  composer:
-    service: test-framework
-    cmd: composer
+    service: cli
+    cmd: /usr/local/bin/npm
+  node:
+    service: cli
+    cmd: /usr/local/bin/node
+  npx:
+    service: cli
+    cmd: /usr/local/bin/npx
+  sass:
+    service: cli
+    cmd: /app/node_modules/.bin/sass
+  playwright:
+    service: cli
+    cmd: /usr/local/bin/npx playwright
+  ffmpeg:
+    service: cli
+    cmd: /usr/bin/ffmpeg
+  rg:
+    service: cli
+    cmd: /usr/bin/rg
+  jsonlint:
+    service: cli
+    cmd: /usr/local/bin/npx jsonlint
   pma:
     service: phpmyadmin
     cmd: /bin/sh
-  describe-vllm:
-    service: appserver
-    cmd: "bash -lc 'echo \"Optional service: vLLM. Set STORYOS_ENABLE_VLLM=true and run lando rebuild/start to provision it.\"'"
-  describe-comfyui:
-    service: appserver
-    cmd: "bash -lc 'echo \"Optional service: ComfyUI. Set STORYOS_ENABLE_COMFYUI=true and run lando rebuild/start to provision it.\"'"
-  start-vllm:
-    service: vllm
-    cmd: bash
-  start-comfyui:
-    service: comfyui
-    cmd: bash
-  setup-test-framework:
-    service: test-framework
-    cmd: bash -lc 'cd /app/test-framework && if [ -f package.json ]; then npm install; fi && if [ -f composer.json ]; then composer install; fi'
-  setup-llm:
-    service: llm-agents
-    cmd: bash -lc 'cd /app/multi-agent-framework && pip install -r requirements.txt'

@@ -140,6 +140,8 @@ function init(): void {
 
 	// Load dependencies.
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/continuity-checker.php';
@@ -203,6 +205,7 @@ function init(): void {
 	Admin\Continuity_Panel::init();
 	Admin\Analytics_Panel::init();
 	Admin\Connections::init();
+	Utils\Generation_Batch::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\StoryOS\AI\AI_Editor' ) ) {
@@ -243,10 +246,6 @@ function init(): void {
 	add_action( 'save_post_storyos_scene', __NAMESPACE__ . '\\auto_validate_scene', 20, 3 );
 	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\auto_validate_shot', 20, 3 );
 
-	// Add orchestrator URL constant if not defined.
-	if ( ! defined( 'STORYOS_ORCHESTRATOR_URL' ) ) {
-		define( 'STORYOS_ORCHESTRATOR_URL', 'http://localhost:8000' );
-	}
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
 
@@ -303,12 +302,14 @@ function activate(): void {
 	// Set default StoryOS options.
 	add_option( 'storyos_version', STORYOS_VERSION );
 	add_option( 'storyos_enabled', true );
-	add_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
+	add_option( 'storyos_comfy_api_key', '' );
+	Utils\Generation_Batch::schedule();
 }
 
 /**
  * Flush rewrite rules on deactivation.
  */
 function deactivate(): void {
+	wp_clear_scheduled_hook( Utils\Generation_Batch::HOOK );
 	flush_rewrite_rules();
 }

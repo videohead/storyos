@@ -1,6 +1,6 @@
 <?php
 /**
- * AI MAF Bridge — connects WordPress to the multi-agent framework.
+ * Filmmaking ability registry backed by WordPress-owned agent definitions.
  *
  * @package StoryOS
  */
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * MAF Bridge class.
+ * Filmmaking ability registry class.
  */
 class AI_MAF_Bridge {
 
@@ -58,17 +58,6 @@ class AI_MAF_Bridge {
 			}
 		}
 
-		// Also try to load from multi-agent-framework directory.
-		$maf_agents_dir = dirname( STORYOS_PLUGIN_DIR, 2 ) . '/multi-agent-framework/agents/';
-		if ( is_dir( $maf_agents_dir ) ) {
-			$files = glob( $maf_agents_dir . '*.agent.md' );
-			foreach ( $files as $file ) {
-				$agent = $this->parse_agent_file( $file );
-				if ( $agent && ! isset( $this->agents[ $agent['name'] ] ) ) {
-					$this->agents[ $agent['name'] ] = $agent;
-				}
-			}
-		}
 	}
 
 	/**

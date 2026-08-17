@@ -1,12 +1,14 @@
-# Phase 8: AI Editor — WordPress Content × LLM × Multi-Agent Framework
+# Phase 8: AI Editor — WordPress Content, LLMs, and Abilities
 
 > Build Your Story Once. Create Everywhere.
 
 **Status: ✅ Complete**
 
+> **Implementation update:** WordPress Abilities API and plugin-owned filmmaking agents replace the Microsoft Agent Framework and external orchestrator described in historical sections below. OpenAI, Claude, and OpenAI-compatible local or hosted LLMs are configured as described in [Deployment and Connections](Deployment_and_Connections.md).
+
 ## Objective
 
-Connect the WordPress content editor to local/API-driven LLMs and the multi-agent framework, enabling creators to interact with AI advisors directly from the WordPress admin UI. This phase bridges the gap between content creation and AI intelligence.
+Connect the WordPress content editor to local or API-driven LLMs and WordPress filmmaking abilities, enabling creators to interact with AI advisors directly from the WordPress admin UI.
 
 ---
 

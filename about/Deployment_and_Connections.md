@@ -1,0 +1,40 @@
+# StoryOS Deployment and Connections
+
+StoryOS keeps stories, Story Graph data, and helpful filmmaking agents in WordPress. Generative media workflows run through ComfyUI and MCP. Neither a local GPU nor ComfyUI is required to use StoryOS for writing, planning, continuity, collaboration, or asset tracking.
+
+## Core Runtime
+
+The standard deployment contains WordPress, MariaDB, and the StoryOS plugin. WordPress stores generation jobs and uses WP-Cron to process bounded batches. StoryOS does not require Python, Celery, Redis, or a local GPU service.
+
+For reliable production scheduling, invoke `wp-cron.php` from the host scheduler. Local Lando users can run due events with `lando wp-cron`.
+
+## Comfy Cloud MCP
+
+Comfy Cloud is the supported WordPress generation connection. Create a Comfy Cloud API key, set `STORYOS_COMFY_API_KEY` in the deployment environment, and restart the appserver. StoryOS calls `https://cloud.comfy.org/mcp` with the key and submits or polls work from WP-Cron.
+
+The key can also be entered in the StoryOS settings, but an environment variable is preferred for deployed sites. Do not commit credentials to `.env` or source control.
+
+## Local ComfyUI and MCP
+
+The first-party local `comfy-mcp` server is a Python stdio MCP server launched by an MCP-compatible client. It is not an HTTP service that PHP can call directly.
+
+To use a local ComfyUI installation, connect an MCP-capable desktop or coding agent to both the local `comfy-mcp` server and the StoryOS WordPress MCP/Abilities surface. The agent can then read StoryOS context, operate local ComfyUI workflows, and return generated assets to StoryOS through its normal media workflow. This is an optional development and creator workflow; it is not required by the WordPress deployment.
+
+## LLM Connections
+
+Configure the AI Editor in WordPress under **StoryOS > AI Settings**.
+
+| Connection | Backend selection | Base URL | Credential |
+| --- | --- | --- | --- |
+| OpenAI | OpenAI API | Managed by StoryOS | OpenAI API key |
+| Claude | Anthropic API | Managed by StoryOS | Anthropic API key |
+| Ollama, vLLM, LM Studio | OpenAI-Compatible / Local LLM | The service's `/v1` endpoint | Optional or service-specific key |
+| Hosted compatible API | OpenAI-Compatible / Local LLM | Provider's `/v1` endpoint | Provider API key |
+
+Set `STORYOS_AI_API_KEY` for the primary provider and `STORYOS_AI_FALLBACK_API_KEY` for the optional fallback. These environment variables override keys saved in WordPress. Configure the base URL in WordPress settings; it must point to an OpenAI-compatible endpoint, such as `http://host.docker.internal:11434/v1`.
+
+## StoryOS Without ComfyUI
+
+StoryOS remains fully useful without ComfyUI: creators can write, develop story worlds, run WordPress filmmaking agents, plan production, manage continuity, import/export scripts and EDL data, and register or upload assets from any external generator.
+
+Web-based generation providers such as Veo can participate in the StoryOS framework as external asset sources. StoryOS should store their prompt, provider, model, source URL, usage rights, and generated media as asset provenance. A provider needs an explicit WordPress connector before StoryOS can submit jobs or poll it automatically; direct Veo, Nova, and similar connectors are roadmap work, not current built-in execution paths.

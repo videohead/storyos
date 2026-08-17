@@ -10,18 +10,6 @@
 
 namespace StoryOS\Utils;
 
-if ( ! function_exists( __NAMESPACE__ . '\orchestrator_url' ) ) :
-/**
- * Get the orchestrator URL for continuity validation.
- *
- * @return string
- */
-function orchestrator_url(): string {
-	$url = get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
-	return rtrim( $url, '/' );
-}
-endif;
-
 /**
  * Fetch continuity validation from the orchestrator.
  *
@@ -37,96 +25,20 @@ endif;
  * }
  */
 function fetch_continuity_validation( int $episode_id = 0, array $scene_ids = [] ): array {
-	$endpoint = trailingslashit( orchestrator_url() ) . 'intelligence/validate';
-
-	$body = [];
-	if ( $episode_id > 0 ) {
-		$body['episode_id'] = $episode_id;
-	}
-	if ( ! empty( $scene_ids ) ) {
-		$body['scene_ids'] = array_map( 'absint', $scene_ids );
-	}
-
-	$response = wp_remote_post(
-		$endpoint,
-		[
-			'method'      => 'POST',
-			'body'        => wp_json_encode( $body ),
-			'headers'     => [
-				'Content-Type' => 'application/json',
-			],
-			'timeout'     => 30,
-			'sslverify'   => false,
-		]
-	);
-
-	if ( is_wp_error( $response ) ) {
-		return [
-			'total_issues'     => 0,
-			'errors'           => 0,
-			'warnings'         => 0,
-			'infos'            => 0,
-			'scenes_validated' => 0,
-			'issues'           => [],
-			'error'            => $response->get_error_message(),
-		];
-	}
-
-	$status_code = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status_code ) {
-		return [
-			'total_issues'     => 0,
-			'errors'           => 0,
-			'warnings'         => 0,
-			'infos'            => 0,
-			'scenes_validated' => 0,
-			'issues'           => [],
-			'error'            => "HTTP {$status_code}",
-		];
-	}
-
-	$body_str = wp_remote_retrieve_body( $response );
-	$data     = json_decode( $body_str, true );
-
-	if ( ! is_array( $data ) ) {
-		return [
-			'total_issues'     => 0,
-			'errors'           => 0,
-			'warnings'         => 0,
-			'infos'            => 0,
-			'scenes_validated' => 0,
-			'issues'           => [],
-			'error'            => 'Invalid JSON response from orchestrator',
-		];
-	}
-
 	$issues = [];
-	if ( ! empty( $data['issues'] ) && is_array( $data['issues'] ) ) {
-		foreach ( $data['issues'] as $issue_data ) {
-			$issues[] = [
-				'severity'   => sanitize_text_field( $issue_data['severity'] ?? 'warning' ),
-				'category'   => sanitize_text_field( $issue_data['category'] ?? 'general' ),
-				'description' => sanitize_textarea_field( $issue_data['description'] ?? '' ),
-				'entities'   => isset( $issue_data['entities'] ) ? array_map(
-					function ( $entity ) {
-						return [
-							'type' => sanitize_text_field( $entity['type'] ?? '' ),
-							'id'   => absint( $entity['id'] ?? 0 ),
-						];
-					},
-					$issue_data['entities']
-				) : [],
-				'suggestion' => sanitize_textarea_field( $issue_data['suggestion'] ?? '' ),
-			];
+	$posts = ! empty( $scene_ids ) ? array_map( 'get_post', array_map( 'absint', $scene_ids ) ) : get_posts( [ 'post_type' => 'storyos_scene', 'post_parent' => $episode_id ?: 0, 'post_status' => 'any', 'posts_per_page' => -1 ] );
+	foreach ( array_filter( $posts ) as $post ) {
+		if ( '' === trim( wp_strip_all_tags( $post->post_content ) ) ) {
+			$issues[] = [ 'severity' => 'warning', 'category' => 'content', 'description' => 'Scene has no content.', 'entities' => [ [ 'type' => $post->post_type, 'id' => $post->ID ] ], 'suggestion' => 'Add scene content before editorial review.' ];
 		}
 	}
 
 	return [
-		'total_issues'     => absint( $data['total_issues'] ?? 0 ),
-		'errors'           => absint( $data['errors'] ?? 0 ),
-		'warnings'         => absint( $data['warnings'] ?? 0 ),
-		'infos'            => absint( $data['infos'] ?? 0 ),
-		'scenes_validated' => absint( $data['scenes_validated'] ?? 0 ),
+		'total_issues'     => count( $issues ),
+		'errors'           => 0,
+		'warnings'         => count( $issues ),
+		'infos'            => 0,
+		'scenes_validated' => count( array_filter( $posts ) ),
 		'issues'           => $issues,
 	];
 }

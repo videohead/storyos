@@ -2,11 +2,12 @@
 
 > Build Your Story Once. Create Everywhere.
 >
-> An Open Source AI Storytelling Operating System built on WordPress, ComfyUI, and Agentic AI.
+> An open-source storytelling operating system: stories and helpful agents in WordPress, generative workflows through ComfyUI and MCP.
 
 ## Table of Contents
 
 ### About StoryOS
+- [Deployment and Connections](about/Deployment_and_Connections.md) — Comfy Cloud, local Comfy MCP, LLM, and BYOK setup
 - [StoryOS Architecture](about/StoryOS_Architecture.md) — System overview and component design
 - [Content Model Specification](about/Content_Model_Specification.md) — Data model for stories, characters, scenes, and assets
 - [Story Graph Specification](about/Story_Graph_Specification.md) — Connected story data structure
@@ -53,25 +54,24 @@ Create an open platform where creators can manage story worlds, develop scripts,
 ## Core Architecture
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌────────────┐
-│  WordPress  │───▶ │Orchestrator      │───▶│ ComfyUI    │
-|(Story Graph)│     │(FastAPI + Celery)│     │  (GPU Gen) │
-└─────────────┘     └────────┬─────────┘     └────────────┘
-                             │
-                      ┌───────▼────────┐
-                      │  AI Advisors   │
-                      │ (50 Specialized│
-                      │  + Executive)  │
-                      └────────────────┘
+┌─────────────┐     ┌──────────────────┐     ┌───────────────┐
+│  WordPress  │───▶ │ WP-Cron batches  │───▶ │ Comfy Cloud   │
+│(Story Graph)│     │ + MCP client     │     │ MCP / ComfyUI │
+└──────┬──────┘     └──────────────────┘     └───────────────┘
+  │
+┌──────▼───────────┐
+│ WordPress        │
+│ Abilities API    │
+│ (filmmaking AI)  │
+└──────────────────┘
 ```
 
 **Data Flow:**
 1. WordPress stores structured story data (CPTs, SCFs, Story Graph)
-2. Python Orchestrator queries Story Graph, builds generation context
-3. Workflow templates render ComfyUI JSON with story context
-4. Celery workers submit to ComfyUI, poll for completion
-5. Generated assets upload back to WordPress media library
-6. AI Advisors assist at every stage (story, prompts, production, editorial, technical)
+2. WordPress queues durable generation records and WP-Cron processes bounded batches
+3. The Comfy Cloud MCP client submits templates and polls remote job status
+4. Generated assets and job state remain associated with WordPress records
+5. WordPress Abilities expose filmmaking agents to MCP-compatible AI tooling
 
 ## Technology Stack
 
@@ -81,23 +81,21 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - REST API for Story Graph queries
 - Media library for asset storage
 
-### Python Orchestrator
-- FastAPI for REST API endpoints
-- Celery + Redis for async task queue
-- Workflow template system (JSON-based ComfyUI workflows)
-- Story Graph context builder
-- Asset lineage tracking
-- Health monitoring and metrics
+### Generation Processing
+- WordPress generation records and WP-Cron batch processing
+- Official Comfy Cloud MCP over Streamable HTTP
+- Comfy workflow templates and remote job polling
+- No project-managed Python, Celery, or Redis runtime
 
-### ComfyUI
-- GPU-accelerated image/video generation
-- Template-based workflow system
-- Character sheets, environments, storyboards
+### Comfy Cloud MCP
+- GPU-accelerated image, video, audio, and 3D workflows
+- Template discovery and execution through the first-party MCP endpoint
+- API key supplied with `STORYOS_COMFY_API_KEY` or the StoryOS option
 
 ### AI Advisors
 - 50 specialized advisors from film industry archetypes
-- Executive Orchestrator for intelligent routing (Story, Prompt, Production, Editorial, Technical)
-- Local model integration (BYOK, currently using a 35B MOE from Qwen via vLLM)
+- WordPress Abilities API registration for tools, resources, and prompts
+- Plugin-owned filmmaker agent definitions and context-aware local routing
 - Conversation history and context management
 
 ## Current Status
@@ -106,22 +104,17 @@ Create an open platform where creators can manage story worlds, develop scripts,
 - JSON-based workflow templates
 - Templates: base, character-sheet, environment, storyboard
 - Story Graph context builder (WordPress CPT queries)
-- Celery task refactoring with template support
-- Retry logic with exponential backoff
+- WP-Cron batch scheduling and durable job records
+- Comfy Cloud MCP template execution and status polling
 
 ### ✅ Phase B: Production Hardening (COMPLETE)
-- Health check service (WordPress, ComfyUI, Redis, Celery)
-- Structured logging middleware (JSON format, request IDs)
-- Prometheus-style metrics endpoint
-- Queue management (submit, cancel, prioritize, rate limit)
-- Asset lineage tracking (provenance, versioning)
-- Docker Compose orchestration (6 services)
+- WordPress-native job state, cancellation, and status endpoints
+- Bounded cron batches with overlap locking
 
 ### ✅ Phase C: Agent Integration (COMPLETE)
 - 50 specialized advisors from film industry archetypes
-- 5 specialized advisor adapters (Story, Prompt, Production, Editorial, Technical)
-- Executive Orchestrator with intelligent routing
-- Agent API endpoints (`/agents/*`)
+- WordPress Ability tools, resources, and prompt templates
+- Plugin-owned filmmaker agent registry
 - Conversation history tracking
 - Multi-advisor review capability
 
@@ -184,9 +177,7 @@ lando start
 
 This starts the core local stack, including:
 - WordPress with PHP 8.2 and MariaDB
-- the orchestrator services
 - phpMyAdmin for database inspection
-- the test framework for Playwright and PHPUnit
 
 Once Lando finishes starting, use:
 
@@ -210,43 +201,8 @@ This loads the SQL dump into the MariaDB database. Verify the import with:
 lando db-import --check
 ```
 
-### 4. Optional AI services
-The optional AI services are disabled by default. Start them only when you need them:
-
-```bash
-lando start-vllm
-lando start-comfyui
-```
-
-You can inspect them with:
-
-```bash
-lando describe-vllm
-lando describe-comfyui
-```
-
-### 4b. Running ComfyUI standalone with Docker Compose
-If you prefer to run ComfyUI outside of Lando (e.g. with full GPU access), a standalone `docker-compose.yaml` is provided in the `ComfyUI/` directory.
-
-```bash
-cd ComfyUI
-
-# CPU-only mode (for testing or machines without a GPU)
-docker compose up
-
-# GPU mode (recommended — requires nvidia-container-toolkit)
-docker compose --profile gpu up
-```
-
-The ComfyUI web UI will be available at **http://localhost:8188**.
-
-Downloaded models are persisted in a Docker volume (`comfyui_models`) so they survive container rebuilds.
-
-To stop and clean up:
-
-```bash
-docker compose --profile gpu down
-```
+### 4. Connect Generation and AI
+Configure Comfy Cloud MCP, local Comfy MCP for an MCP-capable agent client, and OpenAI, Claude, or OpenAI-compatible LLMs using the [Deployment and Connections](about/Deployment_and_Connections.md) guide.
 
 ### Useful commands
 
@@ -255,9 +211,9 @@ lando info
 lando wp
 lando wp option update siteurl https://storyos.lndo.site
 lando wp option update home https://storyos.lndo.site
-lando python
 lando phpunit
 lando playwright
+lando wp-cron
 lando pma
 ```
 
@@ -268,65 +224,21 @@ lando pma
 
 ### API Endpoints
 
-#### Generation
-- `POST /generate` — Submit generation task
-- `GET /status/{job_id}` — Check task status
-- `GET /workflows` — List available workflow templates
-- `POST /workflows/build` — Dry-run workflow build
-
-#### Queue Management
-- `POST /queue/submit` — Submit task with priority
-- `POST /queue/cancel` — Cancel pending task
-- `GET /queue/active` — List active tasks
-- `GET /queue/pending` — List pending tasks
-
-#### Asset Lineage
-- `GET /assets` — List assets with filters
-- `GET /assets/{post_id}` — Get asset details
-- `POST /assets/{post_id}/status` — Update asset status
-- `POST /assets/{post_id}/media` — Upload media
-
-#### Health & Monitoring
-- `GET /health` — Service health checks
-- `GET /metrics` — Prometheus-style metrics
-
-#### AI Advisors (Phase 3+)
-- `GET /agents` — List available agents
-- `POST /agents/orchestrator` — Executive Orchestrator
-- `POST /agents/story` — Story Advisor
-- `POST /agents/prompt` — Prompt Advisor
-- `POST /agents/production` — Production Advisor
-- `POST /agents/editorial` — Editorial Advisor
-- `POST /agents/technical` — Technical Advisor
-- `POST /agents/review` — Multi-advisor review
-- `GET /agents/history` — Conversation history
+#### WordPress REST
+- `POST /wp-json/storyos/v1/generation` — Queue a Comfy Cloud MCP generation
+- `GET /wp-json/storyos/v1/generation/{id}` — Read persisted job state
+- `POST /wp-json/storyos/v1/generation/{id}/cancel` — Cancel a queued WordPress job
+- `GET /wp-json/storyos/v1/ai/agents` — List plugin-owned filmmaking agents
 
 ## Project Structure
 
 ```
 storyos/
-├── orchestrator/              # Python orchestrator (FastAPI + Celery)
-│   ├── app.py                 # FastAPI main application
-│   ├── tasks.py               # Celery tasks
-│   ├── models.py              # Pydantic models
-│   ├── story_graph.py         # Story Graph context builder
-│   ├── health.py              # Health check service
-│   ├── middleware.py           # Logging & metrics middleware
-│   ├── queue_manager.py       # Queue management
-│   ├── asset_lineage.py       # Asset tracking
-│   ├── workflows/             # Workflow templates
-│   │   ├── templates/         # JSON workflow templates
-│   │   └── loader.py          # Template loader
-│   └── adapters/              # AI advisor adapters
-│       ├── story_advisor.py
-│       ├── prompt_advisor.py
-│       ├── production_advisor.py
-│       ├── editorial_advisor.py
-│       ├── technical_advisor.py
-│       └── executive_orchestrator.py
-├── multi-agent-framework/     # MAF integration scaffold
-├── wordpress/                 # WordPress core
-├── docker-compose.yml         # Full stack orchestration
+├── wordpress/                 # WordPress core and StoryOS plugin
+│   └── wp-content/plugins/storyos/
+│       ├── includes/ai-editor/ # WordPress Abilities and filmmaker agents
+│       └── includes/utils/     # Comfy Cloud MCP client and WP-Cron batches
+├── .lando.yml                 # PHP, MariaDB, and phpMyAdmin development stack
 └── *.md                       # Architecture docs
 ```
 

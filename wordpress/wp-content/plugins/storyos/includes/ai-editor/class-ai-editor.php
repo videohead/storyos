@@ -96,15 +96,21 @@ class AI_Editor {
 	 * @return void
 	 */
 	public static function register_settings(): void {
+		register_setting( 'storyos_ai', 'storyos_comfy_api_key', [
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+		] );
+
 		register_setting( 'storyos_ai', 'storyos_ai_backend', [
 			'type'              => 'string',
-			'default'           => 'local',
+			'default'           => 'openai_compatible',
 			'sanitize_callback' => 'sanitize_text_field',
 		] );
 
 		register_setting( 'storyos_ai', 'storyos_ai_url', [
 			'type'              => 'string',
-			'default'           => 'http://localhost:11434',
+			'default'           => 'http://localhost:11434/v1',
 			'sanitize_callback' => 'esc_url_raw',
 		] );
 
@@ -204,22 +210,37 @@ class AI_Editor {
 				<?php settings_fields( 'storyos_ai' ); ?>
 				<table class="form-table">
 					<tr>
+						<th scope="row"><label for="storyos_comfy_api_key">Comfy Cloud API Key</label></th>
+						<td>
+							<input type="password" name="storyos_comfy_api_key" id="storyos_comfy_api_key" value="<?php echo esc_attr( get_option( 'storyos_comfy_api_key' ) ); ?>" class="regular-text" <?php disabled( defined( 'STORYOS_COMFY_API_KEY' ) ); ?> />
+							<?php if ( defined( 'STORYOS_COMFY_API_KEY' ) ) : ?>
+								<p class="description">Configured through the `STORYOS_COMFY_API_KEY` environment variable.</p>
+							<?php else : ?>
+								<p class="description">Used by WordPress WP-Cron batches to call Comfy Cloud MCP. An environment variable is preferred for deployed sites.</p>
+							<?php endif; ?>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">Local ComfyUI MCP</th>
+						<td><p class="description">Connect local `comfy-mcp` from an MCP-compatible desktop or coding agent. It is a local stdio service and is not configured in WordPress.</p></td>
+					</tr>
+					<tr>
 						<th scope="row"><label for="storyos_ai_backend">LLM Backend</label></th>
 						<td>
 							<select name="storyos_ai_backend" id="storyos_ai_backend">
-								<option value="local" <?php selected( get_option( 'storyos_ai_backend' ), 'local' ); ?>>Local vLLM (Qwen3.6)</option>
+								<option value="openai_compatible" <?php selected( get_option( 'storyos_ai_backend' ), 'openai_compatible' ); ?>>OpenAI-Compatible / Local LLM</option>
 								<option value="openai" <?php selected( get_option( 'storyos_ai_backend' ), 'openai' ); ?>>OpenAI API</option>
 								<option value="anthropic" <?php selected( get_option( 'storyos_ai_backend' ), 'anthropic' ); ?>>Anthropic API</option>
 								<option value="dual" <?php selected( get_option( 'storyos_ai_backend' ), 'dual' ); ?>>Dual (Local + Fallback)</option>
 							</select>
-							<p class="description">Primary LLM backend for AI Editor responses.</p>
+							<p class="description">Use OpenAI-compatible for Ollama, vLLM, LM Studio, OpenRouter, or another compatible BYOK endpoint.</p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="storyos_ai_url">Local LLM URL</label></th>
+						<th scope="row"><label for="storyos_ai_url">OpenAI-Compatible Base URL</label></th>
 						<td>
 							<input type="url" name="storyos_ai_url" id="storyos_ai_url" value="<?php echo esc_attr( get_option( 'storyos_ai_url' ) ); ?>" class="regular-text" />
-							<p class="description">URL for local vLLM instance (default: http://localhost:11434)</p>
+							<p class="description">Examples: http://host.docker.internal:11434/v1, http://host.docker.internal:1234/v1, or a compatible hosted endpoint.</p>
 						</td>
 					</tr>
 					<tr>

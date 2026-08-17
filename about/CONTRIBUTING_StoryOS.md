@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to StoryOS.
 
-StoryOS is an open-source storytelling operating system that combines WordPress, ComfyUI, Microsoft Agent Framework, and structured story data into a unified creative platform.
+StoryOS is an open-source storytelling operating system that keeps structured story data and helpful filmmaking agents in WordPress and connects generative workflows through ComfyUI and MCP.
 
 ## Our Mission
 
@@ -26,7 +26,7 @@ Build an open, extensible platform that enables creators to manage the complete 
 - Plugin architecture
 - Admin interface improvements
 
-### ComfyUI Integration
+### ComfyUI and MCP Integration
 
 - Workflow templates
 - Asset generation pipelines
@@ -35,8 +35,7 @@ Build an open, extensible platform that enables creators to manage the complete 
 
 ### AI & Agent Development
 
-- Microsoft Agent Framework integration
-- Advisor development
+- WordPress Abilities API and filmmaker-agent development
 - Memory systems
 - Context routing
 - Tool integrations
@@ -124,8 +123,8 @@ Current priorities include:
 - Story Graph architecture
 - WordPress content model design
 - Enahancements to WordPress plugins
-- Additional ComfyUI configurations and assistance (including SCF to JSON mapping)
-- MAF advisor architecture
+- Comfy Cloud MCP workflows and local Comfy MCP creator workflows
+- WordPress Abilities and Story Graph agent context
 - Script import/export workflows
 - EDL integration
 - Production planning workflows

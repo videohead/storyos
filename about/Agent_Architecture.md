@@ -4,7 +4,9 @@
 
 ## Purpose
 
-This document defines the agent architecture for StoryOS using the Microsoft Agent Framework (MAF) as the orchestration layer.
+> **Current architecture:** StoryOS uses WordPress Abilities API and plugin-owned filmmaking agents. The Microsoft Agent Framework and external orchestrator described below have been retired. See [Deployment and Connections](Deployment_and_Connections.md) for the supported runtime.
+
+This document preserves the original agent-role design. Current agents run in WordPress with Story Graph context.
 
 The agent system provides intelligent assistance throughout story development, asset generation, production planning, and editorial workflows while maintaining awareness of the Story Graph.
 

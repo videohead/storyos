@@ -18,7 +18,6 @@ namespace StoryOS\Utils;
  */
 function search_config(): array {
 	return [
-		'orchestrator_url' => defined( 'STORYOS_ORCHESTRATOR_URL' ) ? STORYOS_ORCHESTRATOR_URL : 'http://localhost:8000',
 		'entity_types'     => [
 			'characters' => [
 				'label'       => 'Characters',
@@ -87,51 +86,7 @@ function search_config(): array {
  * @return array Search results from orchestrator.
  */
 function fetch_semantic_search( string $query, array $args = [] ): array {
-	$config = search_config();
-	$url = trailingslashit( $config['orchestrator_url'] ) . 'intelligence/search';
-
-	$entity_types = ! empty( $args['entity_types'] ) ? $args['entity_types'] : array_keys( $config['entity_types'] );
-	$mode = $args['mode'] ?? 'hybrid';
-
-	$body = [
-		'query'         => $query,
-		'entity_types'  => $entity_types,
-		'mode'          => $mode,
-		'top_k'         => $args['top_k'] ?? $config['max_results'],
-		'min_score'     => $args['min_score'] ?? $config['min_semantic_score'],
-	];
-
-	if ( 'hybrid' === $mode || 'semantic' === $mode ) {
-		$mode_config = $config['search_modes'][ $mode ];
-		$body['semantic_weight'] = $mode_config['semantic_weight'];
-		$body['keyword_weight']  = $mode_config['keyword_weight'];
-	}
-
-	$response = wp_remote_post( $url, [
-		'body'        => wp_json_encode( $body ),
-		'headers'     => [ 'Content-Type' => 'application/json' ],
-		'timeout'     => 15,
-		'sslverify'   => false,
-	] );
-
-	if ( is_wp_error( $response ) ) {
-		return [ 'error' => $response->get_error_message(), 'results' => [] ];
-	}
-
-	$status_code = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status_code ) {
-		$body = wp_remote_retrieve_body( $response );
-		return [ 'error' => "HTTP {$status_code}: {$body}", 'results' => [] ];
-	}
-
-	$data = wp_remote_retrieve_body( $response );
-	$parsed = json_decode( $data, true );
-
-	if ( ! is_array( $parsed ) ) {
-		return [ 'error' => 'Invalid response from orchestrator', 'results' => [] ];
-	}
-
-	return $parsed;
+	return fetch_keyword_search( $query, $args );
 }
 
 /**
@@ -143,37 +98,14 @@ function fetch_semantic_search( string $query, array $args = [] ): array {
  */
 function fetch_keyword_search( string $query, array $args = [] ): array {
 	$config = search_config();
-	$url = trailingslashit( $config['orchestrator_url'] ) . 'intelligence/search';
-
 	$entity_types = ! empty( $args['entity_types'] ) ? $args['entity_types'] : array_keys( $config['entity_types'] );
-
-	$body = [
-		'query'        => $query,
-		'entity_types' => $entity_types,
-		'mode'         => 'keyword',
-		'top_k'        => $args['top_k'] ?? $config['max_results'],
-	];
-
-	$response = wp_remote_post( $url, [
-		'body'        => wp_json_encode( $body ),
-		'headers'     => [ 'Content-Type' => 'application/json' ],
-		'timeout'     => 15,
-		'sslverify'   => false,
-	] );
-
-	if ( is_wp_error( $response ) ) {
-		return [ 'error' => $response->get_error_message(), 'results' => [] ];
+	$post_types = array_map( static function ( $type ) use ( $config ) { return entity_to_post_type( $type ); }, $entity_types );
+	$posts = get_posts( [ 'post_type' => $post_types, 'post_status' => 'any', 'posts_per_page' => absint( $args['top_k'] ?? $config['max_results'] ), 's' => $query ] );
+	$results = [];
+	foreach ( $posts as $post ) {
+		$results[] = [ 'entity_type' => array_search( $post->post_type, array_column( $config['entity_types'], 'post_type' ), true ), 'entity_id' => $post->ID, 'title' => $post->post_title, 'score' => 1.0, 'snippet' => wp_trim_words( wp_strip_all_tags( $post->post_content ), 30 ) ];
 	}
-
-	$status_code = wp_remote_retrieve_response_code( $response );
-	if ( 200 !== $status_code ) {
-		return [ 'error' => "HTTP {$status_code}", 'results' => [] ];
-	}
-
-	$data = wp_remote_retrieve_body( $response );
-	$parsed = json_decode( $data, true );
-
-	return is_array( $parsed ) ? $parsed : [ 'error' => 'Invalid response', 'results' => [] ];
+	return [ 'results' => $results ];
 }
 
 /**

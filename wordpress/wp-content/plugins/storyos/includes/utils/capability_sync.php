@@ -2,11 +2,9 @@
 /**
  * Provider Capability Synchronization.
  *
- * Pulls provider descriptors from the StoryOS orchestrator
- * (GET /providers and GET /providers/discovery) and caches them in the
- * storyos_provider_capabilities option. The cache powers the connection
- * management UI (provider type list, model access validation) and the
- * "Sync Capabilities" action.
+ * Provides the fixed capability descriptor for the first-party Comfy Cloud
+ * MCP integration. Provider discovery is intentionally retired because
+ * StoryOS no longer runs a provider orchestration service.
  *
  * @package StoryOS
  */
@@ -26,63 +24,28 @@ class Capability_Sync {
 	const OPTION = 'storyos_provider_capabilities';
 
 	/**
-	 * HTTP timeout in seconds.
-	 *
-	 * @var int
-	 */
-	const TIMEOUT = 10;
-
-	/**
-	 * Resolve the orchestrator base URL.
-	 *
-	 * @return string
-	 */
-	public static function orchestrator_url(): string {
-		$url = defined( 'STORYOS_ORCHESTRATOR_URL' ) ? STORYOS_ORCHESTRATOR_URL : '';
-		if ( '' === $url ) {
-			$url = (string) get_option( 'storyos_orchestrator_url', 'http://localhost:8000' );
-		}
-
-		return untrailingslashit( $url );
-	}
-
-	/**
-	 * Synchronize provider capabilities from the orchestrator.
+	 * Refresh the local Comfy Cloud MCP capability descriptor.
 	 *
 	 * @return array Result: [ 'success' => bool, 'message' => string, 'providers' => array ].
 	 */
 	public static function sync(): array {
-		$base = self::orchestrator_url();
-
-		$providers_response = self::fetch( $base . '/providers' );
-		if ( is_wp_error( $providers_response ) ) {
-			return [
-				'success'   => false,
-				'message'   => 'Orchestrator unreachable: ' . $providers_response->get_error_message(),
-				'providers' => [],
-			];
-		}
-
-		$providers = isset( $providers_response['providers'] ) ? (array) $providers_response['providers'] : [];
-
-		$discovery_response = self::fetch( $base . '/providers/discovery' );
-		$discovery = [];
-		if ( ! is_wp_error( $discovery_response ) && isset( $discovery_response['providers'] ) ) {
-			$discovery = (array) $discovery_response['providers'];
-		}
+		$providers = [ [
+			'provider_type' => 'comfy_cloud_mcp',
+			'label'         => 'Comfy Cloud MCP',
+			'endpoint'      => Comfy_Cloud_MCP::ENDPOINT,
+			'capabilities'  => [ 'image', 'video', 'audio', '3d', 'template_execution' ],
+		] ];
 
 		$snapshot = [
 			'synced_at' => gmdate( 'Y-m-d H:i:s' ),
-			'orchestrator_url' => $base,
 			'providers' => $providers,
-			'discovery' => $discovery,
 		];
 
 		update_option( self::OPTION, $snapshot, false );
 
 		return [
 			'success'   => true,
-			'message'   => sprintf( 'Synchronized %d provider(s) from %s.', count( $providers ), $base ),
+			'message'   => 'Comfy Cloud MCP capabilities refreshed.',
 			'providers' => $providers,
 		];
 	}
@@ -90,7 +53,7 @@ class Capability_Sync {
 	/**
 	 * Get the cached capability snapshot.
 	 *
-	 * @return array Snapshot with synced_at, orchestrator_url, providers, discovery.
+	 * @return array Snapshot with synced_at and providers.
 	 */
 	public static function get_cached(): array {
 		$snapshot = get_option( self::OPTION, [] );
@@ -102,9 +65,7 @@ class Capability_Sync {
 			$snapshot,
 			[
 				'synced_at' => '',
-				'orchestrator_url' => '',
 				'providers' => [],
-				'discovery' => [],
 			]
 		);
 	}
@@ -124,7 +85,7 @@ class Capability_Sync {
 		}
 
 		if ( empty( $types ) ) {
-			$types = [ 'comfyui', 'veo', 'nova_reel' ];
+			$types = [ 'comfy_cloud_mcp' ];
 		}
 
 		return array_values( array_unique( $types ) );
@@ -159,38 +120,4 @@ class Capability_Sync {
 		return $found || empty( $cached['providers'] );
 	}
 
-	/**
-	 * Perform a GET request and decode the JSON body.
-	 *
-	 * @param string $url Absolute URL.
-	 * @return array|\WP_Error Decoded JSON body.
-	 */
-	private static function fetch( string $url ) {
-		$response = wp_remote_get(
-			$url,
-			[
-				'timeout' => self::TIMEOUT,
-				'headers' => [ 'Accept' => 'application/json' ],
-			]
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return $response;
-		}
-
-		$code = (int) wp_remote_retrieve_response_code( $response );
-		if ( $code < 200 || $code >= 300 ) {
-			return new \WP_Error(
-				'storyos_capability_sync_http',
-				sprintf( 'Orchestrator returned HTTP %d for %s.', $code, $url )
-			);
-		}
-
-		$body = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( ! is_array( $body ) ) {
-			return new \WP_Error( 'storyos_capability_sync_decode', 'Orchestrator returned a non-JSON response.' );
-		}
-
-		return $body;
-	}
 }

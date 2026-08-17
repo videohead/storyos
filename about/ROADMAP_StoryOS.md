@@ -4,6 +4,8 @@
 
 This roadmap outlines the planned evolution of StoryOS from a WordPress and ComfyUI integration into a complete open-source storytelling operating system.
 
+> **Deployment update:** StoryOS runs stories and helpful agents in WordPress, with Comfy Cloud MCP for managed generation. References to MAF, Python orchestration, Celery, or Redis describe retired work. See [Deployment and Connections](Deployment_and_Connections.md).
+
 ---
 
 # Guiding Vision

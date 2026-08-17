@@ -435,10 +435,10 @@ class AI_Editor_REST {
 		return new \WP_REST_Response( [
 			'success' => true,
 			'data'    => [
-				'backends' => [
-					'local'  => ! empty( $health['local']['healthy'] ),
-					'openai' => ! empty( $health['openai']['healthy'] ),
-				],
+				'backend'       => $health['backend'] ?? 'unknown',
+				'healthy'       => ! empty( $health['healthy'] ),
+				'error'         => $health['error'] ?? '',
+				'url'           => $health['url'] ?? '',
 				'cache_enabled' => true,
 				'rate_limiting' => true,
 			],

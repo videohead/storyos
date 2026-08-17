@@ -2,7 +2,9 @@ StoryOS Product Requirements Document (PRD) v1.0
 
 ## Executive Summary
 
-StoryOS is an open-source storytelling operating system built around a Story Graph, WordPress, ComfyUI, and AI advisors.
+StoryOS is an open-source storytelling operating system built around a Story Graph and helpful filmmaking agents in WordPress, with generative workflows through ComfyUI and MCP.
+
+> **Implementation update:** Python orchestration and Microsoft Agent Framework references later in this historical PRD are superseded by WordPress Abilities API, WP-Cron, and Comfy Cloud MCP. See [Deployment and Connections](Deployment_and_Connections.md).
 
 ## Vision
 

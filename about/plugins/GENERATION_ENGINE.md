@@ -6,6 +6,8 @@ Mickey Mouse
 **Status:** Planning
 **Priority:** High
 
+> **Implementation update:** the Python provider adapters and orchestration queue referenced below have been retired. WordPress persists jobs and processes Comfy Cloud MCP batches through WP-Cron. External web-generation providers require dedicated WordPress connectors; see [Deployment and Connections](../Deployment_and_Connections.md).
+
 ## Epic 1: Decouple From ComfyUI
 
 ### Goal

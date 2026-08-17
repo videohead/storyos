@@ -2,7 +2,7 @@ StoryOS Architecture Document v1.0
 
 ## Executive Summary
 
-StoryOS is an open-source storytelling operating system built around a Story Graph, WordPress, ComfyUI, and AI advisors.
+StoryOS is an open-source storytelling operating system built around a Story Graph in WordPress, helpful filmmaking agents exposed through the WordPress Abilities API, and generative workflows through ComfyUI and MCP.
 
 ## Vision
 
@@ -17,11 +17,9 @@ Structured story management, asset generation, AI advisory, production planning,
 | Component | Location | Description |
 |-----------|----------|-------------|
 | WordPress Plugin | `wordpress/wp-content/plugins/storyos/` | Main plugin with 11 CPTs, taxonomies, REST API, AI Editor |
-| Orchestrator | `orchestrator/` | FastAPI service with Celery, 5 advisors, 32+ agents |
-| MAF Framework | `multi-agent-framework/` | 32+ filmmaking agent definitions (`.agent.md`) |
-| Local LLM | `llm/qwen35MOE/` | Qwen3.6-35B-A3B-NVFP4 via vLLM/Ollama |
-| ComfyUI | `ComfyUI/` | GPU-based asset generation |
-| Test Framework | `test-framework/` | PHPUnit + pytest test suites |
+| LLM Connection | WordPress AI Settings | OpenAI, Claude, or any OpenAI-compatible local or hosted endpoint |
+| Comfy Cloud MCP | `https://cloud.comfy.org/mcp` | Managed generative media workflows |
+| Local Comfy MCP | Creator MCP client | Optional local ComfyUI development and workflow operation |
 
 ## Core Workstreams
 
@@ -51,17 +49,14 @@ Story Graph (canonical source of truth)
 │  │ • Gutenberg UI   │  │ • Semantic search        │ │
 │  │ • REST API       │  │ • Continuity validation  │ │
 │  │ • LLM client     │  │ • Relationship analytics │ │
-│  │ • MAF bridge     │  │                          │ │
+│  │ • WordPress      │  │                          │ │
+│  │   Abilities API  │  │                          │ │
 │  │ • Abilities API  │  │                          │ │
 │  └────────┬─────────┘  └──────────┬───────────────┘ │
 │           │                      │                  │
 │           ▼                      ▼                  │
 │  ┌──────────────────────────────────────────────────┐│
-│  │  Orchestrator (FastAPI + Celery)                 ││
-│  │  • ExecutiveOrchestrator                         ││
-│  │  • 5 Advisors (Story, Prompt, Production, etc.)  ││
-│  │  • 32+ MAF Agents                                ││
-│  │  • Embedding backends (Dummy, Ollama, ST)        ││
+│  │  ComfyUI MCP       ││
 │  └──────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────┘
    ↓                      ↓

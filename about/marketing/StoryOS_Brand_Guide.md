@@ -376,7 +376,7 @@ Build your story once and reuse it everywhere.
 # GitHub Repository Description
 
 ```text
-Open-source storytelling operating system powered by WordPress, ComfyUI, Microsoft Agent Framework, and the Story Graph.
+Open-source storytelling operating system with stories and helpful agents in WordPress, plus generative workflows through ComfyUI and MCP.
 ```
 
 ---

@@ -70,7 +70,7 @@ class Plugins {
 				'StoryOS - Generation Engine',
 				[
 					'name'        => 'Generation Engine',
-					'description' => 'Adds a generation button to WordPress posts and forwards jobs to the StoryOS orchestrator.',
+					'description' => 'Adds a generation button to WordPress posts and queues Comfy Cloud MCP jobs through WP-Cron.',
 					'version'     => '1.0.0',
 					'author'      => 'StoryOS Contributors',
 					'icon'        => 'dashicons-video-alt3',
@@ -181,8 +181,7 @@ class Plugins {
 					if ( class_exists( '\\StoryOSGenerationEngine\\Settings' ) ) {
 						return \StoryOSGenerationEngine\Settings::is_configured();
 				}
-					$settings = get_option( 'storyos_generation_engine_settings', [] );
-					return is_array( $settings ) && ! empty( $settings['orchestrator_url'] );
+					return defined( 'STORYOS_COMFY_API_KEY' ) || '' !== (string) get_option( 'storyos_comfy_api_key', '' );
 
 			case 'edl':
 				return true;
