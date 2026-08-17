@@ -53,6 +53,7 @@ function autoloader( string $class ): void {
 		'Taxonomies\\' => 'taxonomies/',
 		'Admin\\' => 'admin/',
 		'Utils\\' => 'utils/',
+		'Importer\\' => 'importer/',
 	];
 	foreach ( $special_mappings as $ns => $dir ) {
 		if ( strpos( $relative_class, $ns ) === 0 ) {
@@ -152,6 +153,7 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/import.php';
 
 	// Register CPTs.
 	CPT\Project::init();
@@ -198,6 +200,7 @@ function init(): void {
 	REST\Production_Controller::init();
 	REST\Editorial_Controller::init();
 	REST\Connections_Controller::init();
+	REST\Import_Controller::init();
 
 	// Register admin pages and hooks.
 	Admin\Dashboard::init();
@@ -207,6 +210,7 @@ function init(): void {
 	Admin\Continuity_Panel::init();
 	Admin\Analytics_Panel::init();
 	Admin\Connections::init();
+	Admin\Import::init();
 	Utils\Generation_Batch::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
