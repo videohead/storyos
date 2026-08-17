@@ -2,9 +2,9 @@
 /**
  * Story Graph Intelligence Search — WordPress search enhancement.
  *
- * Enhances default WordPress search with StoryOS entity type filters,
- * semantic search results from the orchestrator, and hybrid keyword+semantic
- * ranking. Integrates seamlessly with WP_Query and the WordPress admin bar.
+ * Enhances default WordPress search with StoryOS entity type filters
+ * and hybrid keyword+semantic ranking. Integrates seamlessly with WP_Query
+ * and the WordPress admin bar using local graph analysis.
  *
  * @package StoryOS\Utils
  */
@@ -79,22 +79,22 @@ function search_config(): array {
 }
 
 /**
- * Fetch semantic search results from the orchestrator.
+ * Fetch semantic search results using local keyword analysis.
  *
  * @param string $query The search query.
  * @param array  $args Optional search arguments.
- * @return array Search results from orchestrator.
+ * @return array Search results.
  */
 function fetch_semantic_search( string $query, array $args = [] ): array {
 	return fetch_keyword_search( $query, $args );
 }
 
 /**
- * Fetch fuzzy/keyword search results from the orchestrator.
+ * Fetch keyword search results using WordPress post search.
  *
  * @param string $query The search query.
  * @param array  $args Optional search arguments.
- * @return array Search results from orchestrator.
+ * @return array Search results.
  */
 function fetch_keyword_search( string $query, array $args = [] ): array {
 	$config = search_config();

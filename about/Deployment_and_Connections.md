@@ -14,7 +14,7 @@ Browser-only subscriptions, including ChatGPT, Claude, and Claude Code subscript
 
 ## Core Runtime
 
-The standard deployment contains WordPress, MariaDB, and the StoryOS plugin. WordPress stores generation jobs and uses WP-Cron to process bounded batches. StoryOS does not require Python, Celery, Redis, or a local GPU service.
+The standard deployment contains WordPress, MariaDB, and the StoryOS plugin. WordPress stores generation jobs and uses WP-Cron to process bounded batches.
 
 For reliable production scheduling, invoke `wp-cron.php` from the host scheduler. Local Lando users can run due events with `lando wp-cron`.
 

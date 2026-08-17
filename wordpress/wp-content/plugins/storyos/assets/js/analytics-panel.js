@@ -25,7 +25,7 @@
 		}
 
 		/**
-		 * Fetch analytics from orchestrator.
+		 * Fetch analytics from local Story Graph.
 		 */
 		fetchAnalytics() {
 			const self = this;
@@ -61,7 +61,7 @@
 						$content.show();
 						$network.show();
 
-						const source = response.data.cached ? ' (cached)' : ' (from orchestrator)';
+						const source = response.data.cached ? ' (cached)' : ' (local analysis)';
 						self.showNotice('Analytics loaded' + source, 'success');
 					} else {
 						self.showError(response.data.message || storyosAnalytics.strings.error);
@@ -78,7 +78,7 @@
 		}
 
 		/**
-		 * Fetch character network from orchestrator.
+		 * Fetch character network from local Story Graph.
 		 */
 		fetchNetwork() {
 			const self = this;
@@ -103,7 +103,7 @@
 						self.renderScenePresence(response.data);
 						$content.show();
 
-						const source = response.data.cached ? ' (cached)' : ' (from orchestrator)';
+						const source = response.data.cached ? ' (cached)' : ' (local analysis)';
 						self.showNotice('Network data loaded' + source, 'success');
 					} else {
 						self.showError(response.data.message || storyosAnalytics.strings.networkError);

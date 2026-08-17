@@ -175,7 +175,7 @@ class Connections_Controller extends Base_Controller {
 	}
 
 	/**
-	 * Run a health check against the orchestrator for a connection.
+	 * Validate a Comfy Cloud MCP connection.
 	 *
 	 * @param \WP_REST_Request $request Request.
 	 * @return \WP_REST_Response|\WP_Error
@@ -191,7 +191,7 @@ class Connections_Controller extends Base_Controller {
 	}
 
 	/**
-	 * Synchronize provider capabilities from the orchestrator.
+	 * Refresh the Comfy Cloud MCP provider capabilities.
 	 *
 	 * @param \WP_REST_Request $request Request.
 	 * @return \WP_REST_Response|\WP_Error

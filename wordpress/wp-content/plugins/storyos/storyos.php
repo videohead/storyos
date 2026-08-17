@@ -306,6 +306,11 @@ function activate(): void {
 	add_option( 'storyos_enabled', true );
 	add_option( 'storyos_comfy_api_key', '' );
 	Utils\Generation_Batch::schedule();
+
+	// Send the admin to the connection setup wizard on first activation.
+	if ( ! get_option( 'storyos_setup_complete', false ) ) {
+		set_transient( 'storyos_activation_redirect', true, MINUTE_IN_SECONDS );
+	}
 }
 
 /**

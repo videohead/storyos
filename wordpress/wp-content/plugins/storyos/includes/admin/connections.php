@@ -5,8 +5,8 @@
  * Admin page under StoryOS > Connections. Lists all provider connections
  * with status, environment, and quota configuration, and provides:
  *
- * - "Test Connection" per row (POST /providers/{type}/health via orchestrator)
- * - "Sync Capabilities" (pulls provider descriptors from the orchestrator)
+ * - "Test Connection" per row (validates Comfy Cloud MCP configuration)
+ * - "Sync Capabilities" (refreshes Comfy Cloud MCP provider descriptor)
  * - Environment and quota management via the storyos_connection CPT meta box
  *
  * @package StoryOS
@@ -302,7 +302,7 @@ class Connections {
 				?>
 			</p>
 			<p class="description">
-				<?php esc_html_e( 'Provider types are synchronized from the orchestrator. Use "Sync Capabilities" after deploying new providers.', 'storyos' ); ?>
+					<?php esc_html_e( 'Provider capabilities are cached from Comfy Cloud MCP. Use "Sync Capabilities" to refresh provider descriptors.', 'storyos' ); ?>
 			</p>
 		</div>
 		<?php

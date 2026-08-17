@@ -4,7 +4,7 @@
 
 ## Purpose
 
-> **Current architecture:** StoryOS uses WordPress Abilities API and plugin-owned filmmaking agents. The Microsoft Agent Framework and external orchestrator described below have been retired. See [Deployment and Connections](Deployment_and_Connections.md) for the supported runtime.
+> **Current architecture:** StoryOS uses WordPress Abilities API and plugin-owned filmmaking agents. See [Deployment and Connections](Deployment_and_Connections.md) for the supported runtime.
 
 This document preserves the original agent-role design. Current agents run in WordPress with Story Graph context.
 
@@ -63,9 +63,6 @@ Creator
    v
 StoryOS Interface
    |
-   v
-MAF Orchestrator
-   |
    +-------------------+
    |                   |
    v                   v
@@ -82,7 +79,7 @@ Context          WordPress
 # Agent Hierarchy
 
 ```text
-Executive Orchestrator
+Agent Abilities
         |
         +-----------------------------+
         |             |               |
@@ -96,20 +93,6 @@ Advisor
 Prompt        Editorial Advisor
 Advisor
 ```
-
----
-
-# Executive Orchestrator
-
-## Responsibilities
-
-- Receive user requests
-- Determine intent
-- Route work
-- Aggregate responses
-- Maintain project context
-
-The orchestrator serves as the primary MAF coordinator.
 
 ---
 
@@ -185,21 +168,6 @@ Assist post-production workflows.
 
 ---
 
-# Technical Advisor
-
-## Purpose
-
-Assist developers and administrators.
-
-## Capabilities
-
-- Architecture guidance
-- API recommendations
-- Plugin development support
-- Workflow troubleshooting
-
----
-
 # Tooling Layer
 
 Agents access tools through controlled interfaces.
@@ -254,9 +222,6 @@ Role-specific instructions and workflows.
 
 ```text
 User Request
-      |
-      v
-MAF Router
       |
       v
 Story Graph Query

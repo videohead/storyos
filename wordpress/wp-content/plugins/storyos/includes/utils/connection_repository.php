@@ -7,7 +7,7 @@
  *
  * The repository only ever exposes non-secret configuration. Raw credentials
  * are never read from or written to WordPress; the credential_reference field
- * is a pointer (e.g. env://COMFYUI_API_KEY) that the orchestrator resolves.
+ * is a pointer (e.g. env://COMFYUI_API_KEY) that the environment or configuration provides.
  *
  * @package StoryOS
  */
@@ -27,7 +27,7 @@ class Connection_Repository {
 	const CPT = 'storyos_connection';
 
 	/**
-	 * Non-secret fields exposed to the orchestrator and UI.
+	 * Non-secret fields exposed to the generation engine and UI.
 	 *
 	 * @var array<int, string>
 	 */
@@ -99,7 +99,7 @@ class Connection_Repository {
 	/**
 	 * Resolve the non-secret configuration for a connection.
 	 *
-	 * This is the shape the orchestrator consumes when a generation job
+	 * This is the shape the generation engine consumes when a generation job
 	 * carries { "provider_type": "...", "connection_id": N }.
 	 *
 	 * @param int $id Connection post ID.

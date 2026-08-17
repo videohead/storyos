@@ -2,369 +2,354 @@
 
 > Build Your Story Once. Create Everywhere.
 
-This roadmap outlines the planned evolution of StoryOS from a WordPress and ComfyUI integration into a complete open-source storytelling operating system.
+This roadmap describes StoryOS as a WordPress storytelling operating system.
+WordPress owns the Story Graph, editorial workflows, AI abilities, generation
+records, and assets. ComfyUI workflows are accessed through MCP.
 
-> **Deployment update:** StoryOS runs stories and helpful agents in WordPress, with Comfy Cloud MCP for managed generation. References to MAF, Python orchestration, Celery, or Redis describe retired work. See [Deployment and Connections](Deployment_and_Connections.md).
+**Roadmap status:** Phases 1-4, 7, and 8 are complete. Phases 5, 6, and 9 are
+on hold as of 2026-08-17.
 
----
+## Guiding Vision
 
-# Guiding Vision
+StoryOS provides one place to manage:
 
-StoryOS will provide a single platform for:
+- Story development and structured world building.
+- Script and screenplay data.
+- AI-assisted writing and editorial analysis.
+- ComfyUI media workflows.
+- Storyboarding and production planning.
+- Editorial and NLE exchange.
+- Story Graph intelligence.
 
-- Story Development
-- Script Management
-- AI Asset Generation
-- Storyboarding
-- Production Planning
-- Editorial Workflows
-- Story Graph Intelligence
+The Story Graph is the canonical source of truth in every phase. External tools
+and MCP clients read approved context or exchange artifacts through explicit
+WordPress integrations.
 
-The Story Graph remains the canonical source of truth throughout all phases.
+## Current Architecture
 
----
+```text
+Creators and MCP Clients
+          |
+          v
+WordPress + StoryOS Plugin
+  CPTs, SCF, REST, Abilities, AI Editor
+          |
+          v
+Story Graph and WordPress Media Library
+          |
+   +------+------+
+   |             |
+   v             v
+AI abilities   ComfyUI MCP
+and LLMs       Cloud or local client
+   |             |
+   +------+------+
+          v
+Production, scripts, editorial, and asset workflows
+```
 
-# Phase 1: Story Core
+The standard deployment is WordPress, MariaDB, and the StoryOS plugin. An API
+connected LLM and ComfyUI are optional connections, not required for core story
+management.
 
-## Objective
+## Phase 1: Story Core - Complete
 
-Establish the foundational Story Graph and WordPress content model.
+### Objective
 
-## Deliverables
+Establish the canonical Story Graph and WordPress content model.
 
-- Projects
-- Story Worlds
-- Characters
-- Locations
-- Props
-- Scenes
-- Assets
-- WordPress CPT Architecture
-- SCF Data Models
-- Taxonomies
-- REST API Foundation
+### Delivered
 
-## Primary Repository
+- Projects and story worlds.
+- Characters, locations, props, scenes, shots, and assets.
+- Storyboard frames and editorial artifacts.
+- WordPress custom post type architecture.
+- Structured Content Fields and taxonomies.
+- Relationship storage and graph traversal.
+- WordPress REST API foundations.
+- Schema and metadata alignment for interoperability.
 
-- storyos/
+### Source of Truth
 
----
+`wordpress/wp-content/plugins/storyos/`
 
-# Phase 2: Generation Core
+## Phase 2: Generation Core - Complete
 
-## Objective
+### Objective
 
-Connect story data to AI asset generation workflows.
+Connect Story Graph context to reusable generative media workflows.
 
-## Deliverables
+### Delivered
 
-- ComfyUI Integration
-- Workflow Templates
-- Prompt Storage
-- Generation History
-- Asset Versioning
-- Concept Art Generation
-- Character Generation
-- Environment Generation
-- Lookbook Generation
-- Storyboard Asset Generation
+- Comfy Cloud MCP connection.
+- Optional local ComfyUI workflow through an MCP-capable client.
+- WordPress generation records.
+- Prompt and template configuration.
+- Generation provenance and asset linkage.
+- Character, environment, concept-art, lookbook, and storyboard use cases.
+- ComfyUI connection settings and capability information.
 
-## Primary Repository
+### Current Boundary
 
-- storyos/
+WordPress prepares and records generation requests. ComfyUI owns workflow
+execution. Generated media returns to the WordPress media and Story Graph asset
+pipeline.
 
----
+See [GENERATION_ENGINE.md](plugins/GENERATION_ENGINE.md) and
+[Deployment and Connections](Deployment_and_Connections.md).
 
-# Phase 3: Agent Core
+## Phase 3: Filmmaking Abilities - Complete
 
-## Objective
+### Objective
 
-Introduce AI advisors and multi-agent orchestration.
+Make StoryOS expertise available as typed, permission-aware WordPress
+Abilities for the editor and MCP-compatible clients.
 
-## Deliverables
+### Delivered
 
-- Microsoft Agent Framework Integration
-- Context Routing
-- Advisor Memory
-- Tool Integration
-- Project Context Retrieval
+- Plugin-owned filmmaking ability definitions.
+- Story Graph context retrieval.
+- Story, prompt, production, editorial, and technical assistance profiles.
+- WordPress Abilities API registration.
+- Permission callbacks and structured input/output schemas.
+- MCP metadata for tools, resources, and prompts.
 
-### Initial Advisors
+### Current Boundary
 
-- Project Advisor
-- Story Advisor
-- Prompt Advisor
-- Technical Advisor
+Abilities execute through WordPress services and configured LLM connections.
+They are not a separate application or execution runtime. Ability callbacks
+must reuse the same context, continuity, search, and generation services used by
+the WordPress UI and REST API.
 
-## Primary Repository
+## Phase 4: Storyboarding and Production - Complete
 
-- maf-agent-framework
+### Objective
 
----
+Support production planning through StoryOS data and WordPress extensions.
 
-# Phase 4: Storyboarding & Production (WordPress Plugins)
+### Delivered
 
-## Approach
+- Storyboard frames and shot relationships.
+- Asset-to-scene and asset-to-shot mapping.
+- Production metadata stored with Story Graph entities.
+- WordPress plugin integration points for scheduling and production tools.
+- Media library access for generated and uploaded assets.
 
-Storyboarding and production planning are handled via WordPress plugins and extensions rather than built-in StoryOS modules. This keeps StoryOS focused on the Story Graph while leveraging the WordPress plugin ecosystem.
+### Extension Approach
 
-## Recommended Plugins
+Production scheduling, call sheets, and specialized planning interfaces may be
+provided by WordPress plugins. They should query Story Graph data through
+WordPress APIs and preserve StoryOS relationships as the canonical record.
 
-- **Storyboarder** — Visual storyboard management with shot frames
-- **The Events Calendar / Modern Tribe** — Production scheduling and call sheets
-- **Advanced Custom Fields (ACF)** — Custom shot list and production breakdown fields
-- **WP All Import/Export** — Import/export production data
-- **Custom Post Type UI** — Extend CPTs for storyboards, shot lists, call sheets
+## Phase 5: Script Ecosystem - On Hold
 
-## Integration
+### Objective
 
-- Story Graph entities (Scenes, Shots, Assets) remain the source of truth
-- Plugins query Story Graph via WordPress REST API
-- Asset-to-Scene/Shot mapping via CPT relationships
-- Generated assets accessible through WordPress media library
+Support screenplay import, export, and synchronization with writing tools.
 
----
+### Delivered
 
-# Phase 5: Script Ecosystem ⏸️ ON HOLD
+Celtx synchronization is operational through the `storyos-celtx` plugin:
 
-## Objective
+- Projects, characters, locations, scenes, and shots.
+- Bidirectional ID mapping in post metadata.
+- Celtx GEM API synchronization.
+- WordPress settings and authentication support.
+- Sync REST endpoints under `storyos-celtx/v1`.
 
-Integrate with industry-standard writing tools and enable bidirectional script synchronization.
+### Deferred
 
-## Celtx Integration (Primary)
+- Fountain import and export.
+- Final Draft FDX import.
+- Fade In and Highland import.
+- Story Architect and Markdown import.
+- Screenplay and shooting-script export.
+- Script parsing and Story Graph entity extraction.
+- Duplicate detection and import preview.
+- Additional synchronization providers.
 
-Full bi-directional synchronization with Celtx via the Celtx GEM API:
+Further script work remains deferred while the current Celtx integration is
+maintained.
 
-- **CPT Synchronization**: Projects, Characters, Locations, Scenes, Shots sync between StoryOS and Celtx
-- **Bidirectional Sync**: Changes in either platform propagate to the other
-- **API Authentication**: API key, Basic Auth, and Cookie Auth support
-- **Settings UI**: WordPress admin interface for Celtx API credentials
-- **REST API**: Sync endpoints via `wp-json/storyos-celtx/v1/*`
-- **Element Mapping**: Persistent StoryOS ↔ Celtx ID mapping stored in post meta
+## Phase 6: Editorial Ecosystem - On Hold
 
-## Import Support (Planned)
+### Objective
 
-- [ ] Fountain — scene headings, action, dialogue, character extraction
-- [ ] Final Draft (FDX) — XML parsing → Story Graph entities
-- [ ] Fade In — import screenplay format
-- [ ] Highland — import screenplay format
-- [ ] Story Architect — import project data
-- [ ] Markdown — basic scene detection
-- [ ] PDF — text extraction (future)
+Exchange Story Graph production data with editorial and NLE workflows.
 
-## Export Support (Planned)
+### Delivered
 
-- [ ] Fountain — export Scene CPTs to Fountain syntax
-- [ ] Screenplay — formatted screenplay export
-- [ ] Shooting Script — scene numbers, shot descriptions, asset references
-- [ ] Production Script — call sheet data, location info
-- [ ] Markdown — structured markdown export
+- EDL export.
+- CMX 3600 ASCII and SMPTE 436m XML support.
+- Drop-frame timecode support for common NTSC rates.
+- Frame handles.
+- Multi-track video and audio support.
+- Clip naming suitable for common NLE workflows.
+- Compatibility testing for Premiere Pro, DaVinci Resolve, Avid, Final Cut Pro,
+  and Unreal Engine workflows.
 
-## Script-to-Story Graph Conversion (Planned)
+### Deferred
 
-- [ ] Parse script → extract entities (characters, locations, props)
-- [ ] Parse script → extract scene structure and numbering
-- [ ] Auto-create Story Graph entities from script content
-- [ ] Entity deduplication and relationship inference
-- [ ] Import preview before committing
+- Timeline metadata surface.
+- Formal scene and shot mapping export contract.
+- Asset reference exchange.
+- AAF and OMF export.
+- NLE-specific panels and plugins.
+- Direct media linking with deployment-specific paths.
 
-## Current Status (as of 2026-08-08)
+EDL functionality remains available while the broader editorial roadmap is on
+hold.
 
-**On Hold.** Celtx bi-directional sync is operational but no further development planned at this time. Import/export for Fountain, FDX, and other screenplay formats deferred.
+## Phase 7: Story Graph Intelligence - Complete
 
----
+### Objective
 
-# Phase 6: Editorial Ecosystem ⏸️ ON HOLD
+Make Story Graph data useful by meaning, consistency, and relationship.
 
-## Objective
+### Delivered
 
-Extend StoryOS into post-production workflows.
+- WordPress search enhancement with StoryOS entity filters.
+- Keyword and optional semantic search modes with fallback behavior.
+- Continuity checks on relevant entity saves and manual actions.
+- Severity-based continuity issue storage.
+- Relationship traversal and graph summaries.
+- Character co-occurrence and entity connectivity analytics.
+- Isolated entity detection.
+- WordPress admin panels for continuity and analytics.
+- WordPress REST and Abilities integration points.
 
-## Deliverables
+### Current Boundary
 
-- ✅ EDL Export (CMX 3600 ASCII & SMPTE 436m XML)
-- ✅ Drop-Frame Timecode for 29.97/59.94fps NTSC
-- ✅ Frame Handles (Pre-Roll / Post-Roll) for Unreal Engine
-- ✅ 32-Character Clip Names for Premiere Pro
-- ✅ Multi-Track Support (Video + Audio)
-- ✅ NLE Compatibility (Unreal Engine, Premiere Pro, DaVinci Resolve, Avid, FCP)
-- [ ] Timeline Metadata
-- [ ] Scene Mapping
-- [ ] Shot Mapping
-- [ ] Asset References
+Search, continuity rules, and relationship calculations run against WordPress
+entities, SCF values, post metadata, and canonical relationships. Results are
+stored and displayed through WordPress. Optional LLM assistance may explain or
+help explore findings, but deterministic WordPress data remains authoritative.
 
-## Future Deliverables
+See [Phase_7_Story_Graph_Intelligence.md](Phase_7_Story_Graph_Intelligence.md).
 
-- [ ] AAF Export
-- [ ] OMF Export
-- [ ] NLE-Specific Plugins (Premiere Pro Panel, DaVinci Resolve Plugin)
-- [ ] Direct Media Linking (EDL with absolute file paths)
+### Future Improvements
 
-## Current Status (as of 2026-08-08)
+- Better cache invalidation for large Story Graphs.
+- Incremental search indexing.
+- Search ranking and relevance benchmarks.
+- Interactive graph visualization.
+- Larger-scale performance testing.
+- Optional narrative reasoning abilities.
 
-**On Hold.** EDL export is implemented and functional. Timeline metadata, scene/shot mapping, asset references, AAF/OMF export, and NLE-specific plugins are deferred.
+## Phase 8: AI Editor - Complete
 
----
+### Objective
 
-# Phase 7: Story Graph Intelligence ✅ COMPLETE
+Bring Story Graph-aware AI assistance into the WordPress content editor.
 
-## Objective
+### Delivered
 
-Transform StoryOS into a narrative intelligence platform.
+- Gutenberg AI Editor sidebar.
+- Story Graph context builder.
+- Local and hosted LLM connection settings.
+- Chat, analysis, generation, and continuity REST routes.
+- WordPress Abilities API integration.
+- Four tool abilities:
+  - `storyos/chat`
+  - `storyos/analyze`
+  - `storyos/generate`
+  - `storyos/continuity-check`
+- Three context resources:
+  - `storyos/post-context`
+  - `storyos/character-context`
+  - `storyos/scene-context`
+- Two prompt abilities:
+  - `storyos/story-review-prompt`
+  - `storyos/continuity-prompt`
+- Permission-aware schemas and MCP metadata.
+- AI settings for OpenAI, Claude, and OpenAI-compatible endpoints.
 
-## Deliverables
+### Next Work
 
-- ✅ Semantic Search (hybrid/semantic/keyword modes, WP_Query integration, admin bar)
-- ✅ Continuity Validation (auto-check on save, admin panel, severity levels)
-- ✅ Relationship Analytics (network density, co-occurrence, isolated entity detection)
-- ✅ Knowledge Graph Queries (orchestrator `/intelligence/*` endpoints)
-- ✅ Story Consistency Checks (structured issue storage, filter by error/warning/info)
-- ✅ Narrative Reasoning (orchestrator intelligence engine)
+- Complete live MCP Adapter discovery tests.
+- Complete browser and accessibility coverage.
+- Add durable audit records for accepted AI edits.
+- Improve context and response caching.
+- Add explicit editor insertion actions.
+- Label and preserve AI-generated content provenance.
+- Continue security and input/output audits.
 
-## Current Status (as of 2026-08-08)
+See [Phase_8_AI_Editor.md](Phase_8_AI_Editor.md).
 
-Phase 7 is fully implemented and operational. Core intelligence engine (story_intelligence.py) provides hybrid search, continuity validation (6 check categories), and relationship analytics. REST endpoints are live in the orchestrator FastAPI service.
+## Phase 9: Community Platform - On Hold
 
-## Performance Optimizations (Completed — 2026-08-08)
+### Objective
 
-### 1. Persistent Embedding Storage ✅
-- Embedding index saved to disk (JSON) via `save_index()` / `load_index()`
-- Atomic file writes using temp file + `os.replace()`
-- Index loaded on orchestrator startup — no full re-index on restart
-- Configurable via `EMBEDDING_INDEX_PATH` environment variable
+Build an ecosystem around StoryOS extensions and reusable creative resources.
 
-### 2. Incremental Indexing ✅
-- Hash-based change detection (`_text_hash`) per entity
-- Only re-embeds entities that changed or are new
-- Tracks modification timestamps per entity
-- Drastically reduces API calls and embedding time on partial updates
-- Merges with existing index rather than full rebuild
+### Deferred
 
-### 3. Cache TTL Increase ✅
-- Default TTL increased from 60s → 300s (5 minutes)
-- Configurable via `CACHE_TTL` environment variable
-- Applied to both `StoryGraphContextBuilder` and `StoryGraphIntelligence`
+- Plugin marketplace.
+- Workflow and template marketplace.
+- Ability and integration directory.
+- Educational resources.
+- Contributor programs.
+- Community governance and review process.
 
-### 4. Temp File Cleanup ✅
-- Media downloads tracked in `_temp_files` list
-- `cleanup_temp_files()` method removes all temp files
-- Prevents disk space accumulation from orphaned downloads
+The community phase should begin after the WordPress integration contracts,
+security model, and extension documentation are stable.
 
-### 5. WordPress Transient Cache ✅
-- 3-tier caching: WordPress transient → in-memory → API fetch
-- Persists across orchestrator restarts (unlike in-memory cache)
-- Shared cache across multiple orchestrator instances
-- WordPress plugin provides REST API endpoints:
-  - `GET /wp-json/storyos/v1/transient/{key}`
-  - `POST /wp-json/storyos/v1/transient/{key}`
-  - `DELETE /wp-json/storyos/v1/transient/{key}`
-  - `POST /wp-json/storyos/v1/transients/flush`
-  - `GET /wp-json/storyos/v1/transients/stats`
-- Configurable via `TRANSIENT_TTL` environment variable (default: 900s / 15 min)
-- Plugin location: `wordpress/wp-content/plugins/storyos-transient-cache/`
+## Cross-Phase Priorities
 
-### 6. Neo4j Integration ⏸️ ON HOLD
-- Only needed at scale (multi-instance, large datasets)
-- Will replace in-memory index with graph database queries
-- Planned for future when semantic search performance becomes a bottleneck
+### WordPress Integrity
 
----
+- Keep the Story Graph canonical.
+- Use registered CPT, SCF, taxonomy, and relationship definitions.
+- Preserve permissions and auditability across every integration.
+- Keep generated and imported assets linked to their source context.
 
-# Phase 8: AI Editor ✅ COMPLETE
+### MCP and External Connections
 
-## Objective
+- Treat Comfy Cloud MCP as the supported server-side media connection.
+- Treat local ComfyUI MCP as an optional creator workflow.
+- Use WordPress Abilities as the public AI and MCP capability contract.
+- Never place secrets in source control, JavaScript, prompts, or context data.
 
-Connect the WordPress content editor to local/API-driven LLMs and the multi-agent framework, enabling creators to interact with AI advisors directly from the WordPress admin UI.
+### Quality
 
-## Deliverables
+- Prefer narrow, deterministic WordPress services.
+- Validate input and escape output.
+- Provide keyword or manual fallbacks when optional AI services are unavailable.
+- Test permissions, empty states, failures, and large Story Graphs.
+- Update the relevant specification when a public REST, Ability, or MCP
+  contract changes.
 
-- ✅ WordPress Gutenberg AI Editor panel (React sidebar, CSS/JS assets)
-- ✅ 8 REST API endpoints (`/storyos/v1/ai/chat`, `/ai/analyze`, `/ai/generate`, `/ai/continuity`, `/ai/context`, `/ai/agents`, `/ai/settings`, `/ai/health`)
-- ✅ Local LLM integration (Qwen3.6 via vLLM/Ollama)
-- ✅ Cloud LLM fallback (OpenAI, Anthropic)
-- ✅ Multi-agent framework bridge (32+ specialized agents)
-- ✅ Context builder for Story Graph data (characters, scenes, projects)
-- ✅ Agent routing system (keyword-based: story, prompt, production, technical, editorial)
-- ✅ AI Settings configuration UI
-- ✅ Agent skills loader (`.agent.md` parsing)
-- ✅ Response caching & rate limiting
-- ✅ WordPress Abilities API (4 Tool, 3 Resource, 2 Prompt abilities)
-- ✅ MCP integration documentation (VS Code, Cursor, Claude)
+## Success Metrics
 
-## Planned Polish
+### Product
 
-- [ ] Clone WordPress/agent-skills repository
-- [ ] Copy MAF agent `.agent.md` files to plugin's agents directory
-- [ ] Install & configure WordPress MCP Adapter plugin
-- [ ] Test MCP discovery flow (discover-abilities, execute-ability)
-- [ ] Configure MCP client connections (VS Code, Cursor)
-- [ ] Keyboard shortcuts for AI panel
-- [ ] Content generation actions (insert into editor)
-- [ ] AI-generated content labeling
-- [ ] Performance optimization (caching, rate limiting)
-- [ ] Accessibility audit
-- [ ] Security audit (input sanitization, output escaping)
-- [ ] E2E tests with real content
+- Projects and Story Graphs created.
+- Story Graph entities managed.
+- Assets generated, imported, and linked with provenance.
+- Continuity issues detected and resolved.
+- AI Editor sessions that produce accepted editorial changes.
 
-## Integration Points
+### Reliability
 
-- WordPress/agent-skills repository — expert WordPress knowledge for AI assistants (documented, not yet cloned)
-- Orchestrator FastAPI service — multi-agent orchestration
-- Qwen3.6-35B vLLM instance — local LLM backend
-- Multi-agent framework — 32+ specialized filmmaking agents
+- Successful Comfy Cloud MCP workflow completion.
+- Successful asset registration in WordPress.
+- Search fallback coverage when optional semantic services are unavailable.
+- Continuity check accuracy reviewed by creators.
+- Ability and REST permission violations prevented.
 
-## Detailed Specification
+### Ecosystem
 
-See [Phase_8_AI_Editor.md](Phase_8_AI_Editor.md) for full architecture, implementation plan, and testing strategy.
+- WordPress integrations using documented Story Graph contracts.
+- MCP clients using StoryOS abilities.
+- Community plugins and templates.
+- Contributors and maintained extensions.
 
----
+## Long-Term Goal
 
-# Phase 9: Community Platform ⏸️ ON HOLD
-
-## Objective
-
-Grow the StoryOS ecosystem.
-
-## Deliverables
-
-- [ ] Plugin Marketplace
-- [ ] Workflow Marketplace
-- [ ] Advisor Marketplace
-- [ ] Community Templates
-- [ ] Educational Resources
-- [ ] Contributor Programs
-
----
-
-# Success Metrics
-
-## Community
-
-- Contributors
-- GitHub Stars
-- Pull Requests
-- Community Discussions
-
-## Product
-
-- Projects Created
-- Story Graphs Managed
-- Assets Generated
-- Advisors Used
-
-## Ecosystem
-
-- Third-Party Integrations
-- Community Plugins
-- Advisor Extensions
-
----
-
-# Long-Term Goal
-
-StoryOS is not another AI generation platform.
-
-StoryOS is an open storytelling operating system that enables creators to manage stories, assets, production, and editorial workflows from a unified Story Graph.
+StoryOS is not another isolated media-generation service. It is an open
+storytelling operating system where structured stories, AI assistance,
+generative workflows, production planning, and editorial assets meet in one
+WordPress-owned Story Graph.
 
 **The future of storytelling is structured.**
 

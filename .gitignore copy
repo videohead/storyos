@@ -2,5 +2,3 @@
 wordpress/wp-config.php
 .venv/
 db-data/
-orchestrator/__pycache__
-orchestrator/tests/__pychache__

@@ -74,7 +74,7 @@ class Analytics_Panel {
 				'strings'      => [
 					'loading'       => 'Loading analytics...',
 					'error'         => 'Error loading analytics.',
-					'fetching'      => 'Fetching from orchestrator...',
+					'fetching'      => 'Analyzing Story Graph...'
 					'noData'        => 'No analytics data available.',
 					'clearCache'    => 'Clear Cache',
 					'cacheCleared'  => 'Cache cleared.',
@@ -238,7 +238,7 @@ class Analytics_Panel {
 
 				<!-- No Data State -->
 				<div class="storyos-no-data" id="no-data-state">
-					<p>No analytics data available. Click "Fetch Analytics" to load data from the orchestrator.</p>
+					<p>No analytics data available. Click "Fetch Analytics" to analyze your Story Graph.</p>
 				</div>
 			</div>
 		</div>
@@ -246,7 +246,7 @@ class Analytics_Panel {
 	}
 
 	/**
-	 * AJAX handler: Fetch analytics from orchestrator.
+	 * AJAX handler: Fetch analytics from Story Graph.
 	 */
 	public static function ajax_fetch_analytics(): void {
 		check_ajax_referer( 'storyos_analytics_nonce', 'nonce' );
@@ -264,7 +264,7 @@ class Analytics_Panel {
 			] );
 		}
 
-		// Fetch from orchestrator.
+		// Fetch from local Story Graph.
 		$analytics = \StoryOS\Utils\fetch_graph_analytics();
 
 		if ( is_wp_error( $analytics ) ) {
@@ -283,7 +283,7 @@ class Analytics_Panel {
 	}
 
 	/**
-	 * AJAX handler: Fetch character network from orchestrator.
+	 * AJAX handler: Fetch character network from Story Graph.
 	 */
 	public static function ajax_fetch_network(): void {
 		check_ajax_referer( 'storyos_analytics_nonce', 'nonce' );
@@ -301,7 +301,7 @@ class Analytics_Panel {
 			] );
 		}
 
-		// Fetch from orchestrator.
+		// Fetch from local Story Graph.
 		$network = \StoryOS\Utils\fetch_character_network();
 
 		if ( is_wp_error( $network ) ) {

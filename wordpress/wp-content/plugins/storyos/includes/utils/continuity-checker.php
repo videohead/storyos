@@ -2,7 +2,7 @@
 /**
  * Continuity Checker for StoryOS.
  *
- * Provides continuity validation against the orchestrator intelligence engine,
+ * Provides continuity validation through local analysis,
  * auto-check on save, and persistence of continuity issues in WordPress.
  *
  * @package StoryOS
@@ -11,11 +11,9 @@
 namespace StoryOS\Utils;
 
 /**
- * Fetch continuity validation from the orchestrator.
+ * Fetch continuity validation from local analysis.
  *
- * @param int   $episode_id Optional episode ID to validate.
- * @param array $scene_ids  Optional list of scene IDs to validate.
- * @return array {
+ * Analyzes scenes and shots in the Story Graph for common continuity issues.
  *     @type int   $total_issues   Total number of issues found.
  *     @type int   $errors         Number of error-level issues.
  *     @type int   $warnings       Number of warning-level issues.
@@ -86,7 +84,7 @@ function auto_check_continuity_on_save( int $post_id, \WP_Post $post, bool $upda
 		return;
 	}
 
-	// Fetch validation from orchestrator.
+	// Validate using local analysis.
 	$result = fetch_continuity_validation( 0, [ $post_id ] );
 
 	// Store issues in post meta for display in admin.

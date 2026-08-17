@@ -79,7 +79,7 @@ class Connection {
 				'label'       => 'Provider Type',
 				'required'    => true,
 				'options'     => array_combine( $provider_types, $provider_types ),
-				'description' => 'Provider type registered by the StoryOS orchestrator.',
+				'description' => 'Provider type (currently: Comfy Cloud MCP).',
 			],
 			'environment'          => [
 				'type'        => 'select',

@@ -2,7 +2,7 @@
 /**
  * Relationship Graph Analytics — network analysis over Story Graph entities.
  *
- * Provides relationship analytics including:
+ * Provides relationship analytics from locally-stored WordPress post data including:
  * - Network density and connectivity metrics
  * - Character co-occurrence analysis
  * - Most connected entities
@@ -16,10 +16,9 @@
 namespace StoryOS\Utils;
 
 /**
- * Fetch relationship graph from orchestrator.
+ * Fetch relationship graph from local Story Graph.
  *
- * @param array $params Query parameters (scene_ids, etc.).
- * @return array|WP_Error The relationship graph or error.
+ * Constructs a relationship graph from WordPress posts and relationships.
  */
 function fetch_relationship_graph( array $params = [] ) {
 	$nodes = [];
