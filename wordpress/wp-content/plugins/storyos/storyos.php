@@ -79,14 +79,20 @@ function autoloader( string $class ): void {
 	
 	$path_parts[] = $filename;
 	$kebab_class = implode( '/', $path_parts );
+	$class_prefixed_parts = $path_parts;
+	$class_prefixed_parts[ count( $class_prefixed_parts ) - 1 ] = 'class-' . $filename;
+	$class_prefixed_class = implode( '/', $class_prefixed_parts );
 	
 	// Also try lowercase version of the full path (e.g., cpts/story-world.php).
 	$lower_class = strtolower( $relative_class ) . '.php';
 	$file = $base_dir . $relative_class . '.php';
 
-	// Try kebab-case, then lowercase, then original case.
+	// Try kebab-case, WordPress class-prefixed, then lowercase and original case.
 	if ( ! file_exists( $file ) ) {
 		$file = $base_dir . $kebab_class;
+	}
+	if ( ! file_exists( $file ) ) {
+		$file = $base_dir . $class_prefixed_class;
 	}
 	if ( ! file_exists( $file ) ) {
 		$file = $base_dir . $lower_class;
