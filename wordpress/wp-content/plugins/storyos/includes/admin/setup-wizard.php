@@ -141,6 +141,22 @@ class Setup_Wizard {
 			update_option( 'storyos_comfy_local_workflow', is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '' );
 		}
 
+		// Populate the "Generation" Connection record from this section.
+		$comfy_api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? '' : sanitize_text_field( wp_unslash( $_POST['storyos_comfy_api_key'] ?? '' ) );
+		$comfy_local_url = esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ?? '' ) );
+		if ( 'none' !== $comfy_mode ) {
+			\StoryOS\CPT\Connection::upsert_managed(
+				'generation',
+				'ComfyUI (Setup Wizard)',
+				[
+					'provider_type'        => 'comfyui',
+					'environment'          => 'local_mcp' === $comfy_mode ? 'local' : 'production',
+					'endpoint_url'         => 'local_mcp' === $comfy_mode ? $comfy_local_url : \StoryOS\Utils\Comfy_Cloud_MCP::ENDPOINT,
+					'credential_reference' => $comfy_api_key,
+				]
+			);
+		}
+
 		// Primary LLM Configuration
 		$backend = sanitize_key( $_POST['storyos_ai_backend'] ?? 'openai_compatible' );
 		if ( ! in_array( $backend, [ 'openai_compatible', 'openai', 'anthropic', 'dual' ], true ) ) {
@@ -154,23 +170,26 @@ class Setup_Wizard {
 		}
 
 		// Advanced LLM Configuration
-		if ( isset( $_POST['storyos_ai_max_tokens'] ) ) {
-			update_option( 'storyos_ai_max_tokens', absint( wp_unslash( $_POST['storyos_ai_max_tokens'] ) ) );
-		}
-		if ( isset( $_POST['storyos_ai_temperature'] ) ) {
-			update_option( 'storyos_ai_temperature', floatval( wp_unslash( $_POST['storyos_ai_temperature'] ) ) );
-		}
+		$ai_max_tokens = isset( $_POST['storyos_ai_max_tokens'] ) ? absint( wp_unslash( $_POST['storyos_ai_max_tokens'] ) ) : 2048;
+		$ai_temperature = isset( $_POST['storyos_ai_temperature'] ) ? floatval( wp_unslash( $_POST['storyos_ai_temperature'] ) ) : 0.7;
+		update_option( 'storyos_ai_max_tokens', $ai_max_tokens );
+		update_option( 'storyos_ai_temperature', $ai_temperature );
 
-		// Fallback LLM Configuration
-		$fallback_backend = sanitize_key( $_POST['storyos_ai_fallback_backend'] ?? 'openai' );
-		if ( ! in_array( $fallback_backend, [ 'openai', 'anthropic' ], true ) ) {
-			$fallback_backend = 'openai';
-		}
-		update_option( 'storyos_ai_fallback_backend', $fallback_backend );
-
-		if ( ! defined( 'STORYOS_AI_FALLBACK_API_KEY' ) && isset( $_POST['storyos_ai_fallback_api_key'] ) ) {
-			update_option( 'storyos_ai_fallback_api_key', sanitize_text_field( wp_unslash( $_POST['storyos_ai_fallback_api_key'] ) ) );
-		}
+		// Populate the "LLM" Connection record from this section.
+		$ai_api_key = defined( 'STORYOS_AI_API_KEY' ) ? '' : sanitize_text_field( wp_unslash( $_POST['storyos_ai_api_key'] ?? '' ) );
+		\StoryOS\CPT\Connection::upsert_managed(
+			'llm',
+			'Primary LLM (Setup Wizard)',
+			[
+				'provider_type'        => $backend,
+				'environment'          => 'local',
+				'endpoint_url'         => get_option( 'storyos_ai_url', '' ),
+				'credential_reference' => $ai_api_key,
+				'model'                => get_option( 'storyos_ai_model', '' ),
+				'max_tokens'           => (string) $ai_max_tokens,
+				'temperature'          => (string) $ai_temperature,
+			]
+		);
 
 		update_option( 'storyos_setup_complete', true );
 
@@ -243,7 +262,6 @@ class Setup_Wizard {
 	public static function render(): void {
 		$comfy_mode = get_option( 'storyos_comfy_connection_mode', 'none' );
 		$backend = get_option( 'storyos_ai_backend', 'openai_compatible' );
-		$fallback_backend = get_option( 'storyos_ai_fallback_backend', 'openai' );
 		?>
 		<div class="wrap">
 			<h1>Set Up StoryOS</h1>
@@ -263,6 +281,7 @@ class Setup_Wizard {
 				<h2>1. WordPress Runtime</h2>
 				<p>WordPress is connected. For production, configure a host scheduler to run WP-Cron. Local Lando users can run <code>lando wp-cron</code>.</p>
 				<h2>2. Generation Connection (Optional)</h2>
+				<p class="description">This section only establishes <em>how</em> StoryOS reaches a generation provider (ComfyUI, Comfy Cloud, etc.). <em>What</em> gets generated for a given asset type and provider &mdash; workflow JSON, model, parameters &mdash; is configured per combination as a <strong>Template</strong> post, not here. Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-connections' ) ); ?>">StoryOS &gt; Connections</a>.</p>
 				<p><label><input type="radio" name="storyos_comfy_connection_mode" value="cloud" <?php checked( $comfy_mode, 'cloud' ); ?> /> Comfy Cloud MCP</label><br />
 				<label><input type="radio" name="storyos_comfy_connection_mode" value="local_mcp" <?php checked( $comfy_mode, 'local_mcp' ); ?> /> Local ComfyUI HTTP API</label><br />
 				<label><input type="radio" name="storyos_comfy_connection_mode" value="none" <?php checked( $comfy_mode, 'none' ); ?> /> No ComfyUI connection yet</label></p>
@@ -272,12 +291,13 @@ class Setup_Wizard {
 				<p><label for="storyos_comfy_local_url">Local ComfyUI API URL</label><br />
 				<input type="url" class="regular-text" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" placeholder="http://host.docker.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.docker.internal:8188</code>; do not use <code>localhost</code>.</span></p>
 				<p><button type="button" class="button" id="storyos-test-comfy-connection">Test ComfyUI</button> <span id="storyos-comfy-test-result" aria-live="polite"></span></p>
-				<p><label for="storyos_comfy_local_workflow">Local ComfyUI API Workflow</label><br />
+				<p><label for="storyos_comfy_local_workflow">Default Local ComfyUI API Workflow</label><br />
 				<textarea class="large-text code" name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10"><?php echo esc_textarea( get_option( 'storyos_comfy_local_workflow', '' ) ); ?></textarea><br />
-				<span class="description">In ComfyUI, export with “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here.</span></p>
+				<span class="description">In ComfyUI, export with “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. This is only the fallback workflow used when an asset type has no matching <strong>Template</strong>. Per-asset-type, per-provider generation configuration (ComfyUI workflow JSON, Veo parameters, etc.) is defined as <strong>Templates</strong> (<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=storyos_template' ) ); ?>">manage Templates</a>), not entered here.</span></p>
 				<p class="description">Choose <strong>No ComfyUI connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
 				<h2>3. LLM Connection (Required for AI Agents)</h2>
 				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration. Without one, leave these fields empty and use StoryOS for story data, WordPress media, and external-generation asset tracking.</p>
+				<p class="description">Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-connections' ) ); ?>">StoryOS &gt; Connections</a>. Configure additional connections (e.g. a fallback or secondary LLM) directly on the Connections screen.</p>
 				
 				<h3>Primary LLM Configuration</h3>
 				<p><label for="storyos_ai_backend">Provider</label><br /><select name="storyos_ai_backend" id="storyos_ai_backend">
@@ -295,15 +315,6 @@ class Setup_Wizard {
 				<h3>Advanced LLM Settings (Optional)</h3>
 				<p><label for="storyos_ai_max_tokens">Max Tokens</label><br /><input type="number" class="small-text" name="storyos_ai_max_tokens" id="storyos_ai_max_tokens" value="<?php echo esc_attr( get_option( 'storyos_ai_max_tokens', '2048' ) ); ?>" min="256" max="32768" /> <span class="description">Maximum tokens for LLM responses.</span></p>
 				<p><label for="storyos_ai_temperature">Temperature</label><br /><input type="number" class="small-text" name="storyos_ai_temperature" id="storyos_ai_temperature" value="<?php echo esc_attr( get_option( 'storyos_ai_temperature', '0.7' ) ); ?>" step="0.1" min="0" max="1" /> <span class="description">Creativity level (0.0 = deterministic, 1.0 = creative).</span></p>
-				
-				<h3>Fallback LLM (Optional)</h3>
-				<p class="description">Configure a backup cloud provider (OpenAI or Anthropic) for failover if your primary LLM becomes unavailable.</p>
-				<p><label for="storyos_ai_fallback_backend">Fallback Provider</label><br /><select name="storyos_ai_fallback_backend" id="storyos_ai_fallback_backend">
-					<option value="openai" <?php selected( $fallback_backend, 'openai' ); ?>>OpenAI</option>
-					<option value="anthropic" <?php selected( $fallback_backend, 'anthropic' ); ?>>Anthropic</option>
-				</select></p>
-				<p><label for="storyos_ai_fallback_api_key">Fallback API Key</label><br /><input type="password" class="regular-text" name="storyos_ai_fallback_api_key" id="storyos_ai_fallback_api_key" value="<?php echo esc_attr( get_option( 'storyos_ai_fallback_api_key' ) ); ?>" <?php disabled( defined( 'STORYOS_AI_FALLBACK_API_KEY' ) ); ?> />
-				<?php if ( defined( 'STORYOS_AI_FALLBACK_API_KEY' ) ) : ?> <span class="description">Configured through the deployment environment.</span><?php endif; ?></p>
 				
 				<h2>4. External Generator Workflow</h2>
 				<ol>

@@ -53,8 +53,63 @@ class Connection_Tester {
 			];
 		}
 
+		$llm_backends = [ 'openai_compatible', 'openai', 'anthropic', 'dual' ];
+		if ( in_array( $record['provider_type'], $llm_backends, true ) ) {
+			return self::test_llm( $connection_id, $record );
+		}
+
+		if ( 'comfyui' === $record['provider_type'] && '' !== $record['endpoint_url'] && Comfy_Cloud_MCP::ENDPOINT !== untrailingslashit( $record['endpoint_url'] ) ) {
+			return self::test_local_comfyui( $connection_id, $record );
+		}
+
 		$has_key = defined( 'STORYOS_COMFY_API_KEY' ) || '' !== (string) get_option( 'storyos_comfy_api_key', '' );
 		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
+	}
+
+	/**
+	 * Test an LLM-backed connection.
+	 *
+	 * @param int   $connection_id Connection post ID.
+	 * @param array $record        Connection record.
+	 * @return array
+	 */
+	private static function test_llm( int $connection_id, array $record ): array {
+		$configuration = [
+			'backend' => $record['provider_type'],
+			'url'     => $record['endpoint_url'],
+			'model'   => $record['model'],
+			'api_key' => $record['credential_reference'],
+		];
+
+		$result = ( new \StoryOS\AI\AI_LLM_Client() )->test_connection( $configuration );
+		$message = $result['healthy']
+			? ( ! empty( $result['url'] ) ? sprintf( 'Connected to %s.', $result['url'] ) : 'Provider credentials are configured.' )
+			: ( $result['error'] ?? 'Unable to reach the LLM endpoint.' );
+
+		return self::record_result( $connection_id, ! empty( $result['healthy'] ), $message, $result );
+	}
+
+	/**
+	 * Test a local ComfyUI HTTP API connection.
+	 *
+	 * @param int   $connection_id Connection post ID.
+	 * @param array $record        Connection record.
+	 * @return array
+	 */
+	private static function test_local_comfyui( int $connection_id, array $record ): array {
+		$url = untrailingslashit( $record['endpoint_url'] );
+		$response = wp_remote_get( $url . '/system_stats', [ 'timeout' => self::TIMEOUT ] );
+
+		if ( is_wp_error( $response ) ) {
+			return self::record_result( $connection_id, false, sprintf( 'Unable to reach ComfyUI: %s', $response->get_error_message() ), [] );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( $code < 200 || $code >= 300 ) {
+			return self::record_result( $connection_id, false, sprintf( 'ComfyUI returned HTTP %d from /system_stats.', $code ), [] );
+		}
+
+		return self::record_result( $connection_id, true, sprintf( 'Connected to ComfyUI at %s.', $url ), [] );
 	}
 
 	/**

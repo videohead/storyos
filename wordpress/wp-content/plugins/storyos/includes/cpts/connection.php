@@ -48,7 +48,7 @@ class Connection {
 	 * @return array<int, string>
 	 */
 	public static function provider_types(): array {
-		$types = [ 'comfyui', 'veo', 'nova_reel' ];
+		$types = [ 'comfyui', 'veo', 'nova_reel', 'openai_compatible', 'openai', 'anthropic', 'dual' ];
 		return apply_filters( 'storyos_connection_provider_types', $types );
 	}
 
@@ -115,6 +115,24 @@ class Connection {
 				'label'       => 'API Key / OAuth (Reference)',
 				'required'    => false,
 				'description' => 'Reference only, e.g. env://COMFYUI_API_KEY or secret://comfyui/local. Raw credentials must never be stored in WordPress.',
+			],
+			'model'                => [
+				'type'        => 'text',
+				'label'       => 'Model',
+				'required'    => false,
+				'description' => 'Concrete model name used by this connection, e.g. gpt-4, claude-3-sonnet, or a local model name.',
+			],
+			'max_tokens'           => [
+				'type'        => 'text',
+				'label'       => 'Max Tokens',
+				'required'    => false,
+				'description' => 'Maximum tokens for LLM responses.',
+			],
+			'temperature'          => [
+				'type'        => 'text',
+				'label'       => 'Temperature',
+				'required'    => false,
+				'description' => 'Creativity level (0.0 = deterministic, 1.0 = creative).',
 			],
 			'model_access'         => [
 				'type'        => 'textarea',
@@ -279,6 +297,18 @@ class Connection {
 					$value = sanitize_text_field( $raw );
 					break;
 
+				case 'model':
+					$value = sanitize_text_field( $raw );
+					break;
+
+				case 'max_tokens':
+					$value = '' === trim( (string) $raw ) ? '' : (string) absint( $raw );
+					break;
+
+				case 'temperature':
+					$value = '' === trim( (string) $raw ) ? '' : (string) floatval( $raw );
+					break;
+
 				case 'model_access':
 				case 'enabled_structures':
 				case 'rate_limits':
@@ -296,6 +326,48 @@ class Connection {
 
 			update_post_meta( $post_id, $field_name, $value );
 		}
+	}
+
+	/**
+	 * Create or update the single Connection post managed for a given setup-wizard slot.
+	 *
+	 * Used by the setup wizard so that saving "Generation Connection" or "LLM
+	 * Connection" populates a real Connection record instead of only options.
+	 *
+	 * @param string $slot  Wizard slot marker, e.g. 'generation' or 'llm'.
+	 * @param string $title Post title / connection name.
+	 * @param array  $meta  Meta fields to set (subset of the registered fields).
+	 * @return int Connection post ID.
+	 */
+	public static function upsert_managed( string $slot, string $title, array $meta ): int {
+		$existing = get_posts( [
+			'post_type'      => self::CPT,
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'meta_key'       => 'storyos_wizard_slot', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'     => $slot, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+			'fields'         => 'ids',
+		] );
+
+		$post_id = $existing ? (int) $existing[0] : 0;
+		$post_id = wp_insert_post( [
+			'ID'          => $post_id ?: 0,
+			'post_type'   => self::CPT,
+			'post_title'  => $title,
+			'post_status' => 'publish',
+		], true );
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return 0;
+		}
+
+		update_post_meta( $post_id, 'storyos_wizard_slot', $slot );
+		update_post_meta( $post_id, 'connection_name', $title );
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		return (int) $post_id;
 	}
 
 	/**
