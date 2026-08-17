@@ -16,6 +16,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Comfy_Cloud_MCP {
 	const ENDPOINT = 'https://cloud.comfy.org/mcp';
 
+	/**
+	 * Whether Comfy Cloud MCP credentials are available to WordPress.
+	 *
+	 * @return bool
+	 */
+	public static function is_configured(): bool {
+		$api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? STORYOS_COMFY_API_KEY : get_option( 'storyos_comfy_api_key', '' );
+
+		return '' !== trim( (string) $api_key );
+	}
+
 	public static function run_template( string $template, string $prompt, array $parameters ) {
 		$arguments = array_filter( $parameters, static function ( $value ) {
 			return null !== $value;
@@ -81,7 +92,7 @@ class Comfy_Cloud_MCP {
 
 	private static function request( string $method, array $params, string $session_id = '' ) {
 		$api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? STORYOS_COMFY_API_KEY : get_option( 'storyos_comfy_api_key', '' );
-		if ( '' === trim( (string) $api_key ) ) {
+		if ( ! self::is_configured() ) {
 			return new WP_Error( 'comfy_mcp_api_key_missing', 'Set STORYOS_COMFY_API_KEY or the StoryOS Comfy API key option before submitting generations.' );
 		}
 

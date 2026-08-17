@@ -15,6 +15,7 @@
 		const [ input, setInput ] = useState( '' );
 		const [ isLoading, setIsLoading ] = useState( false );
 		const [ error, setError ] = useState( null );
+		const [ actionMessage, setActionMessage ] = useState( null );
 		const [ agents, setAgents ] = useState( [] );
 		const [ selectedAgent, setSelectedAgent ] = useState( 'story' );
 		const [ currentPostId, setCurrentPostId ] = useState( window.storyosAI?.postId || 0 );
@@ -207,6 +208,54 @@
 			}
 		}
 
+		/**
+		 * Copy an AI suggestion without modifying the current post.
+		 *
+		 * @param {string} content The content to copy.
+		 * @return {void}
+		 */
+		function copySuggestion( content ) {
+			if ( ! content ) return;
+
+			if ( ! navigator.clipboard || ! navigator.clipboard.writeText ) {
+				setError( __( 'Copying is not available in this browser. Select the suggestion text and copy it manually.' ) );
+				return;
+			}
+
+			navigator.clipboard.writeText( content ).then( function() {
+				setError( null );
+				setActionMessage( __( 'Suggestion copied to clipboard.' ) );
+			} ).catch( function() {
+				setError( __( 'Could not copy the suggestion. Select the text and copy it manually.' ) );
+			} );
+		}
+
+		/**
+		 * Replace the complete post content with an accepted AI suggestion.
+		 *
+		 * @param {string} content The content to use as the new post body.
+		 * @return {void}
+		 */
+		function replacePostContent( content ) {
+			if ( ! content || ! wp.data || ! wp.data.dispatch ) return;
+
+			if ( ! window.confirm( __( 'Replace the entire post content with this AI suggestion? This changes the current draft but can be undone before saving.' ) ) ) {
+				return;
+			}
+
+			var paragraphs = content.split( /\n\s*\n/ ).filter( function( paragraph ) {
+				return paragraph.trim();
+			} );
+			var blocks = paragraphs.map( function( paragraph ) {
+				return wp.blocks.createBlock( 'core/paragraph', { content: paragraph.replace( /<[^>]*>/g, '' ) } );
+			} );
+			var postContent = blocks.length > 0 && wp.blocks ? wp.blocks.serialize( blocks ) : content;
+
+			wp.data.dispatch( 'core/editor' ).editPost( { content: postContent } );
+			setError( null );
+			setActionMessage( __( 'Post content replaced with the AI suggestion.' ) );
+		}
+
 		const messageStyle = function( role ) {
 			return {
 				marginBottom: '10px',
@@ -266,6 +315,19 @@
 							React.createElement( Button, {
 								variant: 'secondary',
 								size: 'small',
+								onClick: function() { copySuggestion( msg.content ); }
+							}, __( 'Copy suggestion' ) ),
+							' ',
+							React.createElement( Button, {
+								variant: 'secondary',
+								size: 'small',
+								onClick: function() { replacePostContent( msg.content ); },
+								disabled: ! wp.data || ! wp.data.dispatch || ! wp.blocks
+							}, __( 'Replace post content' ) ),
+							' ',
+							React.createElement( Button, {
+								variant: 'secondary',
+								size: 'small',
 								onClick: function() { insertIntoEditor( msg.content, 'block' ); },
 								disabled: ! wp.editor || ! wp.editor.dispatch
 							}, 'Insert as Blocks' ),
@@ -316,6 +378,12 @@
 				isDismissible: true,
 				onRemove: function() { setError( null ); },
 			}, error ),
+
+			actionMessage && React.createElement( Notice, {
+				status: 'success',
+				isDismissible: true,
+				onRemove: function() { setActionMessage( null ); },
+			}, actionMessage ),
 
 			// Input area with accessibility improvements.
 			React.createElement( TextareaControl, {

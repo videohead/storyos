@@ -98,6 +98,17 @@ class Generation_Batch {
 			if ( in_array( $status, [ 'completed', 'failed', 'cancelled' ], true ) ) {
 				update_post_meta( $job_id, '_storyos_generation_status', $status );
 				update_post_meta( $job_id, '_storyos_generation_result', $result );
+
+				if ( 'completed' === $status && 'image' === get_post_meta( $job_id, '_storyos_generation_type', true ) ) {
+					$asset = Asset_Generator::import_completed_job( $job_id, $result );
+					if ( is_wp_error( $asset ) ) {
+						update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
+						update_post_meta( $job_id, '_storyos_generation_error', $asset->get_error_message() );
+					} else {
+						update_post_meta( $job_id, '_storyos_generation_attachment_id', $asset['attachment_id'] );
+						update_post_meta( $job_id, '_storyos_generation_asset_id', $asset['asset_id'] );
+					}
+				}
 			}
 		}
 	}

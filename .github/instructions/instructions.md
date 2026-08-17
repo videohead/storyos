@@ -136,6 +136,7 @@ The full feature specification is in `about/Phase_8_AI_Editor.md`.
 
 - Lando is the preferred environment for local validation.
 - Use `lando ssh` or the service-specific Lando command for tests.
+- Node.js is available in Lando's `cli` service, not the host or `appserver` service. Run JavaScript checks with `lando node --check /app/path/to/file.js`.
 
 ### WordPress: Do Not Restart
 

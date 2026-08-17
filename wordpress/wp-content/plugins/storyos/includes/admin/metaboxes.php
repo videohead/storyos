@@ -82,6 +82,7 @@ class MetaBoxes {
 			'nonce'   => wp_create_nonce( 'wp_rest' ),
 			'i18n'    => [
 				'generating'   => __( 'Generating image…', 'storyos' ),
+				'queued'       => __( 'Image generation queued. WP-Cron will import the completed Comfy MCP image into this post.', 'storyos' ),
 				'loading'      => __( 'Building a prompt from this story element…', 'storyos' ),
 				'done'         => __( 'Image generated and attached.', 'storyos' ),
 				'featured'     => __( 'Set as the featured asset.', 'storyos' ),
@@ -97,7 +98,7 @@ class MetaBoxes {
 	 * Register meta boxes.
 	 */
 	public static function register_meta_boxes(): void {
-		$cpts = \StoryOS\Utils\storyos_get_all_cpts();
+		$cpts = array_keys( \StoryOS\Utils\storyos_get_all_cpts() );
 
 		foreach ( $cpts as $cpt ) {
 			// Add details meta box.

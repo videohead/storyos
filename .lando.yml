@@ -13,6 +13,9 @@ services:
     webroot: wordpress
     ssl: true
     xdebug: false
+    overrides:
+      extra_hosts:
+        - "host.docker.internal:host-gateway"
     environment:
       WORDPRESS_DB_HOST: database
       WORDPRESS_DB_NAME: wordpress

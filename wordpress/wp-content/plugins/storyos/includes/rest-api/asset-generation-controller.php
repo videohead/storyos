@@ -127,7 +127,7 @@ class Asset_Generation_Controller extends Base_Controller {
 	 * @return \WP_REST_Response|WP_Error
 	 */
 	public static function generate( WP_REST_Request $request ) {
-		$result = Asset_Generator::generate_for_post( absint( $request->get_param( 'post_id' ) ), [
+		$result = Asset_Generator::queue_for_post( absint( $request->get_param( 'post_id' ) ), [
 			'prompt'       => (string) $request->get_param( 'prompt' ),
 			'size'         => (string) $request->get_param( 'size' ),
 			'set_featured' => $request->get_param( 'set_featured' ),
@@ -154,14 +154,14 @@ class Asset_Generation_Controller extends Base_Controller {
 			return new WP_Error( 'storyos_asset_invalid_post', __( 'That post cannot have a StoryOS asset generated for it.', 'storyos' ), [ 'status' => 404 ] );
 		}
 
-		$config = ( new AI_Image_Client() )->get_config();
+		$configured = \StoryOS\Utils\Comfy_Cloud_MCP::is_configured();
 
 		return rest_ensure_response( [
 			'post_id'    => $post_id,
 			'prompt'     => Asset_Generator::build_prompt( $post_id ),
-			'configured' => $config['configured'],
-			'model'      => $config['model'],
-			'size'       => $config['size'],
+			'configured' => $configured,
+			'model'      => 'Comfy Cloud MCP',
+			'size'       => AI_Image_Client::DEFAULT_SIZE,
 			'sizes'      => AI_Image_Client::ALLOWED_SIZES,
 		] );
 	}

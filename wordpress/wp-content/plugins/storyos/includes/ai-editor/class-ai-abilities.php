@@ -78,14 +78,13 @@ abstract class AbstractAbilityGroup {
             'output_schema'  => [],
             'execute_callback' => null,
             'permission_callback' => null,
-            'meta'           => [],
-        ] );
-
+			'meta'           => [],
+		] );
         // Ensure meta array exists.
         $args['meta'] = wp_parse_args( $args['meta'], [
             'public' => true,
             'mcp'    => [ 'type' => 'tool' ],
-        ] );
+		] );
 
         // Set default annotations if not provided.
         if ( ! isset( $args['meta']['annotations'] ) ) {
@@ -667,7 +666,7 @@ class Asset_Abilities extends AbstractAbilityGroup {
         // storyos/generate-asset - Generate and attach an image.
         $this->register_ability( 'storyos/generate-asset', [
             'label'       => 'Generate Asset Image',
-            'description' => 'Generate an image for a story element, upload it to the media library, and link it to the post.',
+            'description' => 'Queue a Comfy Cloud MCP image generation for a story element.',
             'input_schema' => [
                 'type'  => 'object',
                 'properties' => [
@@ -698,14 +697,13 @@ class Asset_Abilities extends AbstractAbilityGroup {
             'output_schema' => [
                 'type'  => 'object',
                 'properties' => [
-                    'attachment_id' => ['type' => 'integer'],
-                    'asset_id'      => ['type' => 'integer'],
-                    'url'           => ['type' => 'string'],
+                    'generation_id' => ['type' => 'integer'],
+                    'status'        => ['type' => 'string'],
                     'prompt'        => ['type' => 'string'],
                 ],
             ],
             'execute_callback' => function( $input ) {
-                return \StoryOS\Utils\Asset_Generator::generate_for_post( (int) $input['post_id'], [
+                return \StoryOS\Utils\Asset_Generator::queue_for_post( (int) $input['post_id'], [
                     'prompt'       => (string) ( $input['prompt'] ?? '' ),
                     'size'         => (string) ( $input['size'] ?? '' ),
                     'set_featured' => $input['set_featured'] ?? true,

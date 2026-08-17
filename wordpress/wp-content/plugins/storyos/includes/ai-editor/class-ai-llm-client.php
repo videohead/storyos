@@ -492,19 +492,48 @@ class AI_LLM_Client {
 	 * @return array Health status.
 	 */
 	public function health_check(): array {
-		$backend = get_option( 'storyos_ai_backend', 'openai_compatible' );
+		return $this->test_connection();
+	}
+
+	/**
+	 * Test an LLM configuration without saving it to WordPress options.
+	 *
+	 * @param array $configuration Optional backend, URL, model, and API key values.
+	 * @return array Connection result.
+	 */
+	public function test_connection( array $configuration = [] ): array {
+		$backend = $configuration['backend'] ?? get_option( 'storyos_ai_backend', 'openai_compatible' );
+		$url     = $configuration['url'] ?? get_option( 'storyos_ai_url', 'http://localhost:11434/v1' );
+		$model   = $configuration['model'] ?? get_option( 'storyos_ai_model', '' );
+		$api_key = $configuration['api_key'] ?? $this->primary_api_key();
+
+		if ( ! in_array( $backend, [ 'openai_compatible', 'openai', 'anthropic', 'dual' ], true ) ) {
+			return [
+				'healthy' => false,
+				'backend' => $backend,
+				'error'   => 'Unsupported LLM backend.',
+			];
+		}
+
 		if ( 'anthropic' === $backend ) {
 			return [
-				'healthy' => '' !== $this->primary_api_key(),
+				'healthy' => '' !== $api_key,
 				'backend' => $backend,
-				'error'   => '' === $this->primary_api_key() ? 'No Anthropic API key configured.' : '',
+				'error'   => '' === $api_key ? 'No Anthropic API key configured.' : '',
 			];
 		}
 
 		if ( 'openai' === $backend ) {
 			$url = 'https://api.openai.com/v1/models';
 		} else {
-			$url = rtrim( get_option( 'storyos_ai_url', 'http://localhost:11434/v1' ), '/' );
+			if ( '' === trim( $url ) ) {
+				return [
+					'healthy' => false,
+					'backend' => $backend,
+					'error'   => 'An OpenAI-compatible base URL is required.',
+				];
+			}
+			$url = rtrim( $url, '/' );
 			$url .= ( str_ends_with( $url, '/v1' ) ? '' : '/v1' ) . '/models';
 		}
 
@@ -512,7 +541,7 @@ class AI_LLM_Client {
 			'method'  => 'GET',
 			'headers' => [
 				'Content-Type'  => 'application/json',
-				'Authorization' => 'Bearer ' . ( '' !== $this->primary_api_key() ? $this->primary_api_key() : 'local-dev-key' ),
+				'Authorization' => 'Bearer ' . ( '' !== $api_key ? $api_key : 'local-dev-key' ),
 			],
 			'timeout' => 5,
 		];
@@ -520,20 +549,44 @@ class AI_LLM_Client {
 		$response = wp_remote_get( $url, $args );
 
 		if ( is_wp_error( $response ) ) {
+			$error = $response->get_error_message();
+			$host  = wp_parse_url( $url, PHP_URL_HOST );
+			if ( in_array( $host, [ 'localhost', '127.0.0.1', '::1' ], true ) ) {
+				$error .= ' WordPress makes this request from its container, where localhost is not your development host. Use host.docker.internal or a Docker service hostname.';
+			}
+
 			return [
 				'healthy' => false,
 				'backend' => $backend,
-				'error'   => $response->get_error_message(),
+				'error'   => $error,
 			];
 		}
 
 		$status = wp_remote_retrieve_response_code( $response );
+		$body   = json_decode( wp_remote_retrieve_body( $response ), true );
+		$models = [];
+		if ( isset( $body['data'] ) && is_array( $body['data'] ) ) {
+			$models = array_filter( array_column( $body['data'], 'id' ) );
+		}
+
+		if ( 200 === $status && '' !== $model && ! empty( $models ) && ! in_array( $model, $models, true ) ) {
+			return [
+				'healthy' => false,
+				'backend' => $backend,
+				'url'     => $url,
+				'status'  => $status,
+				'models'  => $models,
+				'error'   => sprintf( 'The endpoint is reachable, but model "%s" is not available.', $model ),
+			];
+		}
 
 		return [
 			'healthy' => ( 200 === $status ),
 			'backend' => $backend,
 			'url'     => $url,
 			'status'  => $status,
+			'models'  => $models,
+			'error'   => 200 === $status ? '' : sprintf( 'Endpoint returned HTTP %d.', $status ),
 		];
 	}
 }

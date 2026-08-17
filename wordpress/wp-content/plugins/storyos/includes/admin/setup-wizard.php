@@ -16,6 +16,7 @@ class Setup_Wizard {
 	public static function init(): void {
 		add_action( 'admin_menu', [ __CLASS__, 'add_menu' ] );
 		add_action( 'admin_post_storyos_save_setup', [ __CLASS__, 'save' ] );
+		add_action( 'wp_ajax_storyos_test_llm_connection', [ __CLASS__, 'test_llm_connection' ] );
 		add_action( 'admin_init', [ __CLASS__, 'maybe_redirect_after_activation' ] );
 		add_action( 'admin_init', [ __CLASS__, 'maybe_redirect_to_setup' ] );
 		add_action( 'admin_notices', [ __CLASS__, 'render_setup_notice' ] );
@@ -169,6 +170,41 @@ class Setup_Wizard {
 		exit;
 	}
 
+	/**
+	 * Test the LLM values currently entered in the setup form.
+	 *
+	 * @return void
+	 */
+	public static function test_llm_connection(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => 'You do not have permission to test this connection.' ], 403 );
+		}
+
+		check_ajax_referer( 'storyos_test_llm_connection', 'nonce' );
+
+		$backend = sanitize_key( $_POST['backend'] ?? 'openai_compatible' );
+		if ( ! in_array( $backend, [ 'openai_compatible', 'openai', 'anthropic', 'dual' ], true ) ) {
+			wp_send_json_error( [ 'message' => 'Unsupported LLM backend.' ], 400 );
+		}
+
+		$configuration = [
+			'backend' => $backend,
+			'url'     => esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ),
+			'model'   => sanitize_text_field( wp_unslash( $_POST['model'] ?? '' ) ),
+			'api_key' => defined( 'STORYOS_AI_API_KEY' ) ? STORYOS_AI_API_KEY : sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) ),
+		];
+
+		$result = ( new \StoryOS\AI\AI_LLM_Client() )->test_connection( $configuration );
+		if ( empty( $result['healthy'] ) ) {
+			wp_send_json_error( [ 'message' => $result['error'] ?? 'Unable to reach the LLM endpoint.' ] );
+		}
+
+		wp_send_json_success( [
+			'message' => ! empty( $result['url'] ) ? sprintf( 'Connected to %s.', $result['url'] ) : 'Provider credentials are configured.',
+			'models'  => array_values( $result['models'] ?? [] ),
+		] );
+	}
+
 	public static function render(): void {
 		$comfy_mode = get_option( 'storyos_comfy_connection_mode', 'none' );
 		$backend = get_option( 'storyos_ai_backend', 'openai_compatible' );
@@ -210,10 +246,11 @@ class Setup_Wizard {
 					<option value="anthropic" <?php selected( $backend, 'anthropic' ); ?>>Anthropic API</option>
 					<option value="dual" <?php selected( $backend, 'dual' ); ?>>Dual (Local + Fallback Cloud)</option>
 				</select></p>
-				<p><label for="storyos_ai_url">Base URL or Endpoint</label><br /><input type="url" class="regular-text" name="storyos_ai_url" id="storyos_ai_url" value="<?php echo esc_attr( get_option( 'storyos_ai_url', 'http://localhost:11434/v1' ) ); ?>" /> <span class="description">For llama.cpp, Ollama, vLLM, LM Studio, or another `/v1` endpoint. Leave blank if using OpenAI or Anthropic.</span></p>
-				<p><label for="storyos_ai_model">Model Name</label><br /><input type="text" class="regular-text" name="storyos_ai_model" id="storyos_ai_model" value="<?php echo esc_attr( get_option( 'storyos_ai_model', '' ) ); ?>" /> <span class="description">Examples: gpt-4, claude-3-sonnet, or local model name.</span></p>
+				<p><label for="storyos_ai_url">Base URL or Endpoint</label><br /><input type="url" class="regular-text" name="storyos_ai_url" id="storyos_ai_url" value="<?php echo esc_attr( get_option( 'storyos_ai_url', 'http://host.docker.internal:11434/v1' ) ); ?>" /> <span class="description">For llama.cpp, Ollama, vLLM, LM Studio, or another `/v1` endpoint. In Docker or Lando, use <code>host.docker.internal</code> for an LLM running on the development host; <code>localhost</code> refers to the WordPress container. Leave blank if using OpenAI or Anthropic.</span></p>
+				<p><label for="storyos_ai_model">Model Name</label><br /><input type="text" class="regular-text" name="storyos_ai_model" id="storyos_ai_model" list="storyos-ai-models" value="<?php echo esc_attr( get_option( 'storyos_ai_model', '' ) ); ?>" /> <datalist id="storyos-ai-models"></datalist> <span class="description">Examples: gpt-4, claude-3-sonnet, or local model name. Testing a local endpoint loads its available models.</span></p>
 				<p><label for="storyos_ai_api_key">API Key / Token</label><br /><input type="password" class="regular-text" name="storyos_ai_api_key" id="storyos_ai_api_key" value="<?php echo esc_attr( get_option( 'storyos_ai_api_key' ) ); ?>" <?php disabled( defined( 'STORYOS_AI_API_KEY' ) ); ?> />
 				<?php if ( defined( 'STORYOS_AI_API_KEY' ) ) : ?> <span class="description">Configured through the deployment environment.</span><?php else : ?> <span class="description">Required for hosted providers and some local servers.</span><?php endif; ?></p>
+				<p><button type="button" class="button" id="storyos-test-llm-connection">Test LLM Connection</button> <span id="storyos-llm-test-result" aria-live="polite"></span></p>
 				
 				<h3>Advanced LLM Settings (Optional)</h3>
 				<p><label for="storyos_ai_max_tokens">Max Tokens</label><br /><input type="number" class="small-text" name="storyos_ai_max_tokens" id="storyos_ai_max_tokens" value="<?php echo esc_attr( get_option( 'storyos_ai_max_tokens', '2048' ) ); ?>" min="256" max="32768" /> <span class="description">Maximum tokens for LLM responses.</span></p>
@@ -238,6 +275,51 @@ class Setup_Wizard {
 				<p class="description">Direct connectors for services such as Sora, Runway, Veo, Kling, Seedance, Firefly, Midjourney, and Amazon video endpoints require additional API discovery and provider-specific implementation.</p>
 				<?php submit_button( 'Save All Configurations' ); ?>
 			</form>
+			<script>
+				(function () {
+					var button = document.getElementById('storyos-test-llm-connection');
+					var result = document.getElementById('storyos-llm-test-result');
+					if (!button || !result) {
+						return;
+					}
+					button.addEventListener('click', function () {
+						var modelInput = document.getElementById('storyos_ai_model');
+						button.disabled = true;
+						result.textContent = 'Testing...';
+						var data = new URLSearchParams({
+							action: 'storyos_test_llm_connection',
+							nonce: '<?php echo esc_js( wp_create_nonce( 'storyos_test_llm_connection' ) ); ?>',
+							backend: document.getElementById('storyos_ai_backend').value,
+							url: document.getElementById('storyos_ai_url').value,
+							model: document.getElementById('storyos_ai_model').value,
+							api_key: document.getElementById('storyos_ai_api_key').value
+						});
+						fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: data })
+							.then(function (response) { return response.json(); })
+							.then(function (response) {
+								var models = response.data && Array.isArray(response.data.models) ? response.data.models : [];
+								var modelList = document.getElementById('storyos-ai-models');
+								modelList.replaceChildren();
+								models.forEach(function (model) {
+									modelList.append(new Option(model, model));
+								});
+								if (response.success && !modelInput.value.trim() && models.length === 1) {
+									modelInput.value = models[0];
+								}
+								result.textContent = response.data && response.data.message ? response.data.message : 'Connection test failed.';
+								if (response.success && !modelInput.value.trim() && models.length > 1) {
+									result.textContent += ' Select a model from the Model Name field.';
+								}
+								result.style.color = response.success ? '#008a20' : '#b32d2e';
+							})
+							.catch(function () {
+								result.textContent = 'Connection test could not be completed.';
+								result.style.color = '#b32d2e';
+							})
+							.finally(function () { button.disabled = false; });
+					});
+				}());
+			</script>
 		</div>
 		<?php
 	}

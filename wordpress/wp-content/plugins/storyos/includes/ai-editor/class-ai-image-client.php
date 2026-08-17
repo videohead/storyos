@@ -140,9 +140,13 @@ class AI_Image_Client {
 		$body   = json_decode( wp_remote_retrieve_body( $response ), true );
 
 		if ( $status < 200 || $status >= 300 ) {
-			$message = is_array( $body ) && isset( $body['error']['message'] )
-				? (string) $body['error']['message']
-				: __( 'The image provider rejected the request.', 'storyos' );
+			if ( is_array( $body ) && isset( $body['error']['message'] ) ) {
+				$message = (string) $body['error']['message'];
+			} elseif ( 404 === $status ) {
+				$message = __( 'The configured image endpoint does not support the OpenAI-compatible /images/generations API. Configure an image provider that supports this API in StoryOS AI Settings.', 'storyos' );
+			} else {
+				$message = __( 'The image provider rejected the request.', 'storyos' );
+			}
 
 			return new WP_Error( 'storyos_image_request_failed', $message, [ 'status' => 502 ] );
 		}

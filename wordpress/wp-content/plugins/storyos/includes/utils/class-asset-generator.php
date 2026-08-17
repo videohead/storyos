@@ -113,6 +113,59 @@ class Asset_Generator {
 	}
 
 	/**
+	 * Queue an MCP image generation job for a story element.
+	 *
+	 * @param int   $post_id Source post ID.
+	 * @param array $args Optional prompt, size, set_featured, and create_asset settings.
+	 * @return array|WP_Error
+	 */
+	public static function queue_for_post( int $post_id, array $args = [] ) {
+		$post = get_post( $post_id );
+		if ( ! $post instanceof \WP_Post || ! self::supports( $post_id ) ) {
+			return new WP_Error( 'storyos_asset_invalid_post', __( 'That post cannot have a StoryOS asset generated for it.', 'storyos' ), [ 'status' => 404 ] );
+		}
+
+		if ( ! Comfy_Cloud_MCP::is_configured() ) {
+			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'Set a Comfy Cloud MCP API key in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
+		}
+
+		$args   = wp_parse_args( $args, [ 'prompt' => '', 'size' => '', 'set_featured' => true, 'create_asset' => true ] );
+		$prompt = trim( wp_strip_all_tags( (string) $args['prompt'] ) );
+		$prompt = '' !== $prompt ? $prompt : self::build_prompt( $post_id );
+		$size   = trim( (string) $args['size'] );
+		$job_id = wp_insert_post( [
+			'post_type'   => 'storyos_generation',
+			'post_title'  => sprintf( __( 'Image generation: %s', 'storyos' ), $post->post_title ),
+			'post_status' => 'draft',
+			'post_parent' => $post_id,
+		], true );
+
+		if ( is_wp_error( $job_id ) ) {
+			return $job_id;
+		}
+
+		$template = 'storyos_character' === $post->post_type ? 'character-sheet' : 'scene-image';
+		update_post_meta( $job_id, '_storyos_generation_type', 'image' );
+		update_post_meta( $job_id, '_storyos_generation_prompt', $prompt );
+		update_post_meta( $job_id, '_storyos_generation_params', [ 'size' => $size ?: null ] );
+		update_post_meta( $job_id, '_storyos_generation_workflow', $template );
+		update_post_meta( $job_id, '_storyos_generation_provider_type', 'comfy_cloud_mcp' );
+		update_post_meta( $job_id, '_storyos_generation_source_post_id', $post_id );
+		update_post_meta( $job_id, '_storyos_generation_set_featured', rest_sanitize_boolean( $args['set_featured'] ) );
+		update_post_meta( $job_id, '_storyos_generation_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );
+		update_post_meta( $job_id, '_storyos_generation_status', 'queued' );
+		update_post_meta( $job_id, '_storyos_generation_created', current_time( 'mysql' ) );
+		Generation_Batch::schedule();
+
+		return [
+			'generation_id' => (int) $job_id,
+			'post_id'       => $post_id,
+			'prompt'        => $prompt,
+			'status'        => 'queued',
+		];
+	}
+
+	/**
 	 * Generate an image for a story element and attach it.
 	 *
 	 * @param int   $post_id Source post ID.
@@ -189,6 +242,54 @@ class Asset_Generator {
 	}
 
 	/**
+	 * Import a completed MCP image result and link it to the originating post.
+	 *
+	 * @param int   $job_id Generation job ID.
+	 * @param array $result MCP job status result.
+	 * @return array|WP_Error Imported asset data.
+	 */
+	public static function import_completed_job( int $job_id, array $result ) {
+		$post_id = (int) get_post_field( 'post_parent', $job_id );
+		$post    = get_post( $post_id );
+		if ( ! $post instanceof \WP_Post || ! self::supports( $post_id ) ) {
+			return new WP_Error( 'storyos_generation_source_missing', __( 'The source story element for this generation no longer exists.', 'storyos' ) );
+		}
+
+		$url = self::find_result_url( $result );
+		if ( '' === $url ) {
+			return new WP_Error( 'storyos_generation_output_missing', __( 'Comfy MCP completed the job but did not return a downloadable image URL.', 'storyos' ) );
+		}
+
+		$download = wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
+		if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
+			return new WP_Error( 'storyos_generation_download_failed', __( 'The completed image could not be downloaded from Comfy MCP.', 'storyos' ) );
+		}
+
+		$image = self::validate_image_bytes( (string) wp_remote_retrieve_body( $download ) );
+		if ( is_wp_error( $image ) ) {
+			return $image;
+		}
+
+		$attachment_id = self::sideload( $image, $post );
+		if ( is_wp_error( $attachment_id ) ) {
+			return $attachment_id;
+		}
+
+		if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_set_featured', true ) ) && post_type_supports( $post->post_type, 'thumbnail' ) ) {
+			set_post_thumbnail( $post->ID, $attachment_id );
+		}
+		self::add_to_gallery( $post->ID, $attachment_id );
+
+		$prompt   = (string) get_post_meta( $job_id, '_storyos_generation_prompt', true );
+		$asset_id = 0;
+		if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_create_asset', true ) ) && 'storyos_asset' !== $post->post_type ) {
+			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $image, [ 'model' => 'comfy-mcp', 'size' => (string) ( get_post_meta( $job_id, '_storyos_generation_params', true )['size'] ?? '' ), 'revised_prompt' => '' ] ) );
+		}
+
+		return [ 'attachment_id' => $attachment_id, 'asset_id' => $asset_id, 'url' => (string) wp_get_attachment_url( $attachment_id ) ];
+	}
+
+	/**
 	 * Store raw image bytes in the media library.
 	 *
 	 * @param array    $image Image payload from AI_Image_Client.
@@ -239,6 +340,57 @@ class Asset_Generator {
 		update_post_meta( $attachment_id, self::SOURCE_META, $post->ID );
 
 		return (int) $attachment_id;
+	}
+
+	/**
+	 * Find the first image URL in a Comfy MCP job result.
+	 *
+	 * @param array $result MCP result payload.
+	 * @return string
+	 */
+	private static function find_result_url( array $result ): string {
+		foreach ( [ 'image_url', 'output_url', 'url' ] as $key ) {
+			if ( isset( $result[ $key ] ) && is_string( $result[ $key ] ) && filter_var( $result[ $key ], FILTER_VALIDATE_URL ) ) {
+				return $result[ $key ];
+			}
+		}
+
+		foreach ( $result as $value ) {
+			if ( is_array( $value ) ) {
+				$url = self::find_result_url( $value );
+				if ( '' !== $url ) {
+					return $url;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Validate generated image bytes for media-library import.
+	 *
+	 * @param string $bytes Raw image data.
+	 * @return array|WP_Error
+	 */
+	private static function validate_image_bytes( string $bytes ) {
+		if ( '' === $bytes || strlen( $bytes ) > AI_Image_Client::MAX_IMAGE_BYTES ) {
+			return new WP_Error( 'storyos_generation_invalid_payload', __( 'The completed image is empty or too large to store.', 'storyos' ) );
+		}
+
+		$info = @getimagesizefromstring( $bytes ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( ! is_array( $info ) || empty( $info['mime'] ) || ! in_array( $info['mime'], AI_Image_Client::ALLOWED_MIME_TYPES, true ) ) {
+			return new WP_Error( 'storyos_generation_unsupported_type', __( 'Comfy MCP returned a file that is not a supported image.', 'storyos' ) );
+		}
+
+		$extensions = [ 'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif' ];
+		return [
+			'data'      => $bytes,
+			'mime'      => $info['mime'],
+			'extension' => $extensions[ $info['mime'] ],
+			'width'     => (int) $info[0],
+			'height'    => (int) $info[1],
+		];
 	}
 
 	/**
