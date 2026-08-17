@@ -8,6 +8,7 @@
 
 ### About StoryOS
 - [Deployment and Connections](about/Deployment_and_Connections.md) — Comfy Cloud, local Comfy MCP, LLM, and BYOK setup
+- [Web GenAI Platform Support](about/WEB_GENAI.md) — current support matrix and paths for external web generators
 - [StoryOS Architecture](about/StoryOS_Architecture.md) — System overview and component design
 - [Content Model Specification](about/Content_Model_Specification.md) — Data model for stories, characters, scenes, and assets
 - [Story Graph Specification](about/Story_Graph_Specification.md) — Connected story data structure

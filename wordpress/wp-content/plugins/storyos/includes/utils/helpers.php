@@ -53,7 +53,7 @@ function register_cpt( string $cpt, string $label, array $args = [], array $fiel
 		'rewrite'            => ['slug' => $cpt],
 		'show_in_rest'       => true,
 		'rest_base'          => $cpt,
-		'supports'           => ['title', 'editor', 'excerpt', 'custom-fields', 'revisions'],
+		'supports'           => ['title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions'],
 		'capability_type'    => 'post',
 		'map_meta_cap'       => true,
 	];

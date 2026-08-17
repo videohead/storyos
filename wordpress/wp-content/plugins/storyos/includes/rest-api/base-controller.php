@@ -121,6 +121,28 @@ abstract class Base_Controller extends WP_REST_Controller {
 			$schema_hints['description'] = wp_strip_all_tags( $post->post_content );
 		}
 
+		$thumbnail_id = get_post_thumbnail_id( $post->ID );
+		$featured_image = $thumbnail_id ? [
+			'id'            => $thumbnail_id,
+			'url'           => wp_get_attachment_url( $thumbnail_id ),
+			'thumbnail_url' => wp_get_attachment_image_url( $thumbnail_id, 'thumbnail' ),
+			'alt'           => get_post_meta( $thumbnail_id, '_wp_attachment_image_alt', true ),
+		] : null;
+		$gallery_ids = array_values( array_filter( array_map( 'absint', (array) get_post_meta( $post->ID, '_storyos_asset_gallery_ids', true ) ) ) );
+		$asset_gallery = array_values( array_filter( array_map( static function ( int $attachment_id ): ?array {
+			if ( 'attachment' !== get_post_type( $attachment_id ) ) {
+				return null;
+			}
+
+			return [
+				'id'            => $attachment_id,
+				'url'           => wp_get_attachment_url( $attachment_id ),
+				'thumbnail_url' => wp_get_attachment_image_url( $attachment_id, 'thumbnail' ),
+				'alt'           => get_post_meta( $attachment_id, '_wp_attachment_image_alt', true ),
+				'mime_type'     => get_post_mime_type( $attachment_id ),
+			];
+		}, $gallery_ids ) ) );
+
 		$schema_relationships = array_map(
 			static function( array $rel ) use ( $post ) {
 				$rel['schema_property'] = \StoryOS\Utils\storyos_schema_property_for_relationship(
@@ -141,6 +163,8 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'title'        => $post->post_title,
 			'content'      => $post->post_content,
 			'excerpt'      => $post->post_excerpt,
+			'featured_image' => $featured_image,
+			'asset_gallery'  => $asset_gallery,
 			'status'       => $post->post_status,
 			'author'       => (int) $post->post_author,
 			'created'      => $post->post_date,

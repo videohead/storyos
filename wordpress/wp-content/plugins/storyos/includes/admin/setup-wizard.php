@@ -69,7 +69,10 @@ class Setup_Wizard {
 			<?php if ( isset( $_GET['updated'] ) ) : ?>
 				<div class="notice notice-success"><p>StoryOS connections saved.</p></div>
 			<?php endif; ?>
-			<p>StoryOS requires a WordPress.org host or local Docker/Lando deployment, plus an API-connected LLM. ComfyUI is optional for story work; select a connection to enable generation workflows.</p>
+			<p>StoryOS requires a WordPress.org host or local Docker/Lando deployment. An API-connected LLM enables the StoryOS agents, while ComfyUI is optional for media generation.</p>
+			<div class="notice notice-info inline">
+				<p><strong>Do not have API access?</strong> You can still use StoryOS to develop stories, manage characters and scenes, track continuity, and organize media. Generate content in a browser-based service using its own web app, download the result, and attach it to a StoryOS post as the featured asset or in its asset gallery. Browser subscriptions and web login credentials cannot be used as server API credentials.</p>
+			</div>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="storyos_save_setup" />
 				<?php wp_nonce_field( 'storyos_save_setup' ); ?>
@@ -83,8 +86,9 @@ class Setup_Wizard {
 				<input type="password" class="regular-text" name="storyos_comfy_api_key" id="storyos_comfy_api_key" value="<?php echo esc_attr( get_option( 'storyos_comfy_api_key' ) ); ?>" <?php disabled( defined( 'STORYOS_COMFY_API_KEY' ) ); ?> />
 				<?php if ( defined( 'STORYOS_COMFY_API_KEY' ) ) : ?> Configured through the deployment environment.<?php endif; ?></p>
 				<p class="description">Local <code>comfy-mcp</code> is configured in an MCP-compatible desktop or coding agent, not in WordPress. It cannot be called directly by PHP.</p>
+				<p class="description">Choose <strong>No ComfyUI connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
 				<h2>3. LLM Connection</h2>
-				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration.</p>
+				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration. Without one, leave these fields empty and use StoryOS for story data, WordPress media, and external-generation asset tracking.</p>
 				<p><label for="storyos_ai_backend">Provider</label><br /><select name="storyos_ai_backend" id="storyos_ai_backend">
 					<option value="openai_compatible" <?php selected( $backend, 'openai_compatible' ); ?>>OpenAI-compatible local or hosted LLM</option>
 					<option value="openai" <?php selected( $backend, 'openai' ); ?>>OpenAI API</option>
@@ -94,6 +98,14 @@ class Setup_Wizard {
 				<p><label for="storyos_ai_model">Model</label><br /><input type="text" class="regular-text" name="storyos_ai_model" id="storyos_ai_model" value="<?php echo esc_attr( get_option( 'storyos_ai_model', '' ) ); ?>" /></p>
 				<p><label for="storyos_ai_api_key">LLM API Key</label><br /><input type="password" class="regular-text" name="storyos_ai_api_key" id="storyos_ai_api_key" value="<?php echo esc_attr( get_option( 'storyos_ai_api_key' ) ); ?>" <?php disabled( defined( 'STORYOS_AI_API_KEY' ) ); ?> />
 				<?php if ( defined( 'STORYOS_AI_API_KEY' ) ) : ?> Configured through the deployment environment.<?php endif; ?></p>
+				<h2>4. External Generator Workflow</h2>
+				<ol>
+					<li>Generate the image, video, audio, or other media in the provider's web application.</li>
+					<li>Download the final file and retain the provider, model, prompt, source URL, and usage-rights information.</li>
+					<li>On the relevant StoryOS post, use <strong>StoryOS Assets</strong> to set the primary file as the featured asset and add supporting files to the gallery.</li>
+					<li>Save the post. The featured asset and gallery are available in the StoryOS API.</li>
+				</ol>
+				<p class="description">Direct connectors for services such as Sora, Runway, Veo, Kling, Seedance, Firefly, Midjourney, and Amazon video endpoints require additional API discovery and provider-specific implementation.</p>
 				<?php submit_button( 'Save Connections' ); ?>
 			</form>
 		</div>
