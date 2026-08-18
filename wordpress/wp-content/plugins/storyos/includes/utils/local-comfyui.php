@@ -93,22 +93,36 @@ class Local_ComfyUI {
 			return [ 'status' => 'failed', 'error' => __( 'ComfyUI reported that the workflow failed.', 'storyos' ) ];
 		}
 
-		$images = [];
+		// ComfyUI's SaveVideo node writes its output under the same "images"
+		// output key as SaveImage, so a workflow with both a still frame and
+		// its source video (e.g. an LTX-Video Template) can list either one
+		// first depending on node execution order. Keep them separate so
+		// `image_url` reliably points at a real image, not a video file.
+		$image_urls = [];
+		$video_urls = [];
 		foreach ( (array) ( $history['outputs'] ?? [] ) as $output ) {
 			foreach ( (array) ( $output['images'] ?? [] ) as $image ) {
-				if ( ! empty( $image['filename'] ) ) {
-					$images[] = self::view_url( $image );
+				if ( empty( $image['filename'] ) ) {
+					continue;
+				}
+
+				$ext = strtolower( pathinfo( (string) $image['filename'], PATHINFO_EXTENSION ) );
+				if ( in_array( $ext, [ 'mp4', 'webm', 'mov', 'avi' ], true ) ) {
+					$video_urls[] = self::view_url( $image );
+				} else {
+					$image_urls[] = self::view_url( $image );
 				}
 			}
 		}
 
+		$images = array_merge( $image_urls, $video_urls );
 		if ( empty( $images ) ) {
 			Generation_Log::add( 'debug', 'local_comfyui', 'History present but no output images yet.', [], $job_id, $connection_id );
 			return [ 'status' => 'submitted' ];
 		}
 
 		Generation_Log::add( 'info', 'local_comfyui', 'Job completed with ' . count( $images ) . ' image(s).', [], $job_id, $connection_id );
-		return [ 'status' => 'completed', 'image_url' => $images[0], 'images' => $images ];
+		return [ 'status' => 'completed', 'image_url' => $image_urls[0] ?? $images[0], 'images' => $images ];
 	}
 
 	/**

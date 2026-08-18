@@ -29,6 +29,23 @@ class Asset_Generator {
 	const GALLERY_META = '_storyos_asset_gallery_ids';
 
 	/**
+	 * Maximum accepted size for a generated video download, in bytes.
+	 */
+	const MAX_VIDEO_BYTES = 209715200; // 200MB.
+
+	/**
+	 * Accepted mime types for a generated video, keyed by file extension.
+	 *
+	 * @var array<string, string>
+	 */
+	const VIDEO_MIME_TYPES = [
+		'mp4'  => 'video/mp4',
+		'webm' => 'video/webm',
+		'mov'  => 'video/quicktime',
+		'avi'  => 'video/x-msvideo',
+	];
+
+	/**
 	 * Meta key on an attachment/asset pointing at the source story element.
 	 */
 	const SOURCE_META = '_storyos_generated_from';
@@ -282,12 +299,12 @@ class Asset_Generator {
 		}
 
 		$provider = (string) get_post_meta( $job_id, '_storyos_generation_provider_type', true );
-		$download = 'local_comfyui' === $provider ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
-		if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
-			return new WP_Error( 'storyos_generation_download_failed', __( 'The completed image could not be downloaded from Comfy MCP.', 'storyos' ) );
+		$download = self::download_bytes( $url, $provider );
+		if ( is_wp_error( $download ) ) {
+			return $download;
 		}
 
-		$image = self::validate_image_bytes( (string) wp_remote_retrieve_body( $download ) );
+		$image = self::validate_image_bytes( $download );
 		if ( is_wp_error( $image ) ) {
 			return $image;
 		}
@@ -301,6 +318,22 @@ class Asset_Generator {
 			set_post_thumbnail( $post->ID, $attachment_id );
 		}
 		self::add_to_gallery( $post->ID, $attachment_id );
+
+		// Import the source video alongside its still frame, when the workflow
+		// produced one (e.g. an LTX-Video Template with a frame-extraction node).
+		$video_url = self::find_result_video_url( $result );
+		if ( '' !== $video_url ) {
+			$video_download = self::download_bytes( $video_url, $provider );
+			if ( ! is_wp_error( $video_download ) ) {
+				$video = self::validate_video_bytes( $video_download, $video_url );
+				if ( ! is_wp_error( $video ) ) {
+					$video_attachment_id = self::sideload( $video, $post );
+					if ( ! is_wp_error( $video_attachment_id ) ) {
+						self::add_to_gallery( $post->ID, $video_attachment_id );
+					}
+				}
+			}
+		}
 
 		$prompt   = (string) get_post_meta( $job_id, '_storyos_generation_prompt', true );
 		$asset_id = 0;
@@ -335,7 +368,7 @@ class Asset_Generator {
 
 		$title = sprintf(
 			/* translators: %s: story element title. */
-			__( 'Generated image for %s', 'storyos' ),
+			0 === strpos( $image['mime'], 'video/' ) ? __( 'Generated video for %s', 'storyos' ) : __( 'Generated image for %s', 'storyos' ),
 			$post->post_title
 		);
 
@@ -357,6 +390,7 @@ class Asset_Generator {
 		}
 
 		require_once ABSPATH . 'wp-admin/includes/image.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
 		wp_update_attachment_metadata( $attachment_id, wp_generate_attachment_metadata( $attachment_id, $upload['file'] ) );
 		update_post_meta( $attachment_id, '_wp_attachment_image_alt', $title );
 		update_post_meta( $attachment_id, self::SOURCE_META, $post->ID );
@@ -390,6 +424,56 @@ class Asset_Generator {
 	}
 
 	/**
+	 * Find the first video URL in a Comfy MCP job result, so a workflow that
+	 * returns both a still frame and its source video can import both.
+	 *
+	 * @param array $result MCP result payload.
+	 * @return string
+	 */
+	private static function find_result_video_url( array $result ): string {
+		$extensions = array_keys( self::VIDEO_MIME_TYPES );
+
+		foreach ( $result as $value ) {
+			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
+				$path = (string) wp_parse_url( $value, PHP_URL_PATH );
+				$ext  = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+				if ( '' === $ext ) {
+					// ComfyUI's /view URL keeps the real name in a query arg.
+					$filename = (string) wp_parse_url( $value, PHP_URL_QUERY );
+					parse_str( $filename, $query );
+					$ext = strtolower( pathinfo( (string) ( $query['filename'] ?? '' ), PATHINFO_EXTENSION ) );
+				}
+				if ( in_array( $ext, $extensions, true ) ) {
+					return $value;
+				}
+			} elseif ( is_array( $value ) ) {
+				$url = self::find_result_video_url( $value );
+				if ( '' !== $url ) {
+					return $url;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Download bytes from a generation provider's output URL.
+	 *
+	 * @param string $url      Output URL.
+	 * @param string $provider Generation provider type.
+	 * @return string|WP_Error Raw bytes, or an error.
+	 */
+	private static function download_bytes( string $url, string $provider ) {
+		$download = 'local_comfyui' === $provider ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
+		if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
+			return new WP_Error( 'storyos_generation_download_failed', __( 'The completed output could not be downloaded from Comfy MCP.', 'storyos' ) );
+		}
+
+		return (string) wp_remote_retrieve_body( $download );
+	}
+
+	/**
 	 * Validate generated image bytes for media-library import.
 	 *
 	 * @param string $bytes Raw image data.
@@ -412,6 +496,39 @@ class Asset_Generator {
 			'extension' => $extensions[ $info['mime'] ],
 			'width'     => (int) $info[0],
 			'height'    => (int) $info[1],
+		];
+	}
+
+	/**
+	 * Validate generated video bytes for media-library import. Video content
+	 * can't be sniffed the way getimagesizefromstring() sniffs images, so the
+	 * source URL's extension (already restricted to VIDEO_MIME_TYPES by
+	 * find_result_video_url()) determines the mime type.
+	 *
+	 * @param string $bytes Raw video data.
+	 * @param string $url   Source URL the bytes were downloaded from.
+	 * @return array|WP_Error
+	 */
+	private static function validate_video_bytes( string $bytes, string $url ) {
+		if ( '' === $bytes || strlen( $bytes ) > self::MAX_VIDEO_BYTES ) {
+			return new WP_Error( 'storyos_generation_invalid_payload', __( 'The completed video is empty or too large to store.', 'storyos' ) );
+		}
+
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		$ext  = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+		if ( '' === $ext ) {
+			parse_str( (string) wp_parse_url( $url, PHP_URL_QUERY ), $query );
+			$ext = strtolower( pathinfo( (string) ( $query['filename'] ?? '' ), PATHINFO_EXTENSION ) );
+		}
+
+		if ( ! isset( self::VIDEO_MIME_TYPES[ $ext ] ) ) {
+			return new WP_Error( 'storyos_generation_unsupported_type', __( 'Comfy MCP returned a video file type that is not supported.', 'storyos' ) );
+		}
+
+		return [
+			'data'      => $bytes,
+			'mime'      => self::VIDEO_MIME_TYPES[ $ext ],
+			'extension' => $ext,
 		];
 	}
 
