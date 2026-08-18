@@ -86,6 +86,70 @@ class Scenes_Controller extends Base_Controller {
 			'callback'            => [ __CLASS__, 'get_graph' ],
 			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
 		] );
+
+		// Reorder scenes within a sequence (or across the project by menu_order).
+		register_rest_route( 'storyos/v1', '/scenes/reorder', [
+			'methods'             => 'POST',
+			'callback'            => [ __CLASS__, 'reorder_items' ],
+			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'args'                => [
+				'ordered_ids' => [
+					'description' => 'Scene post IDs in the new order.',
+					'type'        => 'array',
+					'items'       => [ 'type' => 'integer' ],
+					'required'    => true,
+				],
+				'sequence_id' => [
+					'description' => 'Optional sequence term ID the scenes belong to.',
+					'type'        => 'integer',
+				],
+			],
+		] );
+	}
+
+	/**
+	 * Reorder scenes and optionally assign them to a sequence.
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public static function reorder_items( \WP_REST_Request $request ) {
+		$ordered_ids = array_values( array_unique( array_map( 'absint', (array) $request->get_param( 'ordered_ids' ) ) ) );
+		$sequence_id = $request->get_param( 'sequence_id' ) ? absint( $request->get_param( 'sequence_id' ) ) : 0;
+
+		if ( empty( $ordered_ids ) ) {
+			return new WP_Error( 'rest_invalid_ordered_ids', 'ordered_ids cannot be empty.', [ 'status' => 400 ] );
+		}
+
+		$sequence = null;
+		if ( $sequence_id ) {
+			$sequence = get_term( $sequence_id, 'storyos_sequence' );
+			if ( ! $sequence || is_wp_error( $sequence ) ) {
+				return new WP_Error( 'rest_invalid_sequence', 'Sequence term not found.', [ 'status' => 404 ] );
+			}
+		}
+
+		$updated = [];
+		foreach ( $ordered_ids as $index => $scene_id ) {
+			$post = get_post( $scene_id );
+			if ( ! $post || 'storyos_scene' !== $post->post_type ) {
+				continue;
+			}
+
+			wp_update_post( [
+				'ID'         => $post->ID,
+				'menu_order' => $index + 1,
+			] );
+
+			if ( $sequence ) {
+				wp_set_object_terms( $post->ID, [ (int) $sequence->term_id ], 'storyos_sequence', false );
+				update_post_meta( $post->ID, 'sequence_order', $index + 1 );
+			}
+
+			$updated[] = $post->ID;
+		}
+
+		return rest_ensure_response( [ 'updated' => $updated ] );
 	}
 
 	/**
@@ -121,6 +185,10 @@ class Scenes_Controller extends Base_Controller {
 		if ( $sequences && ! is_wp_error( $sequences ) ) {
 			$data['meta']['sequences'] = array_map( fn( $t ) => [ 'id' => $t->term_id, 'name' => $t->name, 'slug' => $t->slug ], $sequences );
 		}
+
+		// Position of the scene within its sequence / the project cut.
+		$data['meta']['sequence_order'] = get_post_meta( $post->ID, 'sequence_order', true );
+		$data['meta']['menu_order']     = (int) $post->menu_order;
 
 		// Count related shots.
 		$data['meta']['shot_count'] = self::count_related( $post->ID, 'storyos_shot', 'storyos_scene' );

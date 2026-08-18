@@ -332,7 +332,7 @@ class StoryOS_Exporter {
 
 			if ( $relationship_found ) {
 				$shot_type = get_post_meta( $shot->ID, 'shot_type', true );
-				$scene_shots[] = '### Shot ' . ( get_post_meta( $shot->ID, 'shot_number', true ) ?: '1' ) . ' - ' . ucfirst( (string) $shot_type );
+				$scene_shots[] = '### ' . \StoryOS\Utils\storyos_get_shot_display_name( $shot->ID ) . ( $shot_type ? ' — ' . ucfirst( (string) $shot_type ) : '' );
 			}
 		}
 

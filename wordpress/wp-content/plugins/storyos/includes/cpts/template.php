@@ -18,6 +18,8 @@ class Template {
 		self::register_cpt();
 		self::register_meta_boxes();
 		add_action( 'save_post_storyos_template', [ __CLASS__, 'save_meta' ], 10, 2 );
+		add_action( 'wp_ajax_storyos_check_template_requirements', [ __CLASS__, 'ajax_check_requirements' ] );
+		add_action( 'wp_ajax_storyos_install_template_models', [ __CLASS__, 'ajax_install_models' ] );
 	}
 
 	/**
@@ -40,6 +42,13 @@ class Template {
 				'label'       => 'Generation Structure',
 				'required'    => true,
 			],
+			'modality'            => [
+				'type'        => 'select',
+				'label'       => 'Modality',
+				'required'    => true,
+				'options'     => \StoryOS\Utils\Generation_Modality::labels(),
+				'description' => 'What this Template generates and which inputs it consumes. Determines the built-in workflow and the ComfyUI nodes and models StoryOS checks for.',
+			],
 			'connection_id'       => [
 				'type'        => 'text',
 				'label'       => 'Connection ID',
@@ -56,13 +65,25 @@ class Template {
 				'type'        => 'textarea',
 				'label'       => 'ComfyUI API Workflow (optional)',
 				'required'    => false,
-				'description' => 'Leave blank to use the built-in single-image text-to-image workflow with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, replace the positive prompt text with {{prompt}}, then paste the JSON here.',
+				'description' => 'Leave blank to use the built-in workflow for the selected modality with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, then replace each input value with its slot placeholder: {{prompt}}, {{negative_prompt}}, {{image}}, {{start_frame}}, {{end_frame}}, {{video}}, {{audio}}.',
 			],
 			'configuration_json'  => [
 				'type'        => 'textarea',
 				'label'       => 'Configuration JSON',
 				'required'    => true,
-				'description' => 'Provider-neutral JSON for parameters, references, and SCF field mappings.',
+				'description' => 'Provider-neutral JSON for parameters, references, and SCF field mappings. Recognized parameters include width, height, length, frame_rate, steps, cfg, denoise, sampler, and scheduler.',
+			],
+			'input_bindings'      => [
+				'type'        => 'textarea',
+				'label'       => 'Input Bindings JSON',
+				'required'    => false,
+				'description' => 'Optional JSON mapping this modality\'s input slots (image, start_frame, end_frame, video, audio) to a Story Graph source, e.g. {"image":{"source":"featured_image"}}.',
+			],
+			'model_requirements'  => [
+				'type'        => 'textarea',
+				'label'       => 'Model Requirements JSON',
+				'required'    => false,
+				'description' => 'Optional JSON array of download sources for the models this Template loads: [{"filename":"ltx-2.3.safetensors","folder":"checkpoints","url":"https://…"}]. Used by the requirement check to offer a one-click install.',
 			],
 			'default_values'     => [
 				'type'        => 'textarea',
@@ -112,6 +133,14 @@ class Template {
 				[ self::class, 'render_template_meta_box' ],
 				'storyos_template',
 				'normal',
+				'default'
+			);
+			add_meta_box(
+				'storyos_template_requirements',
+				'ComfyUI Requirements',
+				[ self::class, 'render_requirements_meta_box' ],
+				'storyos_template',
+				'side',
 				'default'
 			);
 		} );
@@ -179,6 +208,169 @@ class Template {
 	}
 
 	/**
+	 * Render the ComfyUI requirements panel: what this Template will ask
+	 * ComfyUI for, and whether the connected instance can supply it.
+	 *
+	 * @param \WP_Post $post Post object.
+	 */
+	public static function render_requirements_meta_box( \WP_Post $post ): void {
+		$manifest = \StoryOS\Utils\Comfy_Manifest::for_template( $post->ID );
+		if ( is_wp_error( $manifest ) ) {
+			echo '<p>' . esc_html__( 'Save this Template to see its ComfyUI requirements.', 'storyos' ) . '</p>';
+			return;
+		}
+		?>
+		<p>
+			<strong><?php echo esc_html( $manifest['modality_label'] ); ?></strong><br />
+			<span class="description">
+				<?php
+				printf(
+					/* translators: 1: output media kind, 2: workflow source. */
+					esc_html__( 'Outputs %1$s using the %2$s workflow.', 'storyos' ),
+					esc_html( $manifest['output_type'] ),
+					esc_html( 'custom' === $manifest['workflow_source'] ? __( 'pasted custom', 'storyos' ) : __( 'built-in', 'storyos' ) )
+				);
+				?>
+			</span>
+		</p>
+		<p><strong><?php echo esc_html__( 'Inputs', 'storyos' ); ?></strong><br />
+		<?php foreach ( $manifest['inputs'] as $slot => $input ) : ?>
+			<code>{{<?php echo esc_html( $slot ); ?>}}</code>
+			<?php echo esc_html( empty( $input['required'] ) ? __( '(optional)', 'storyos' ) : __( '(required)', 'storyos' ) ); ?><br />
+		<?php endforeach; ?>
+		</p>
+		<p><strong><?php echo esc_html__( 'Models', 'storyos' ); ?></strong><br />
+		<?php if ( empty( $manifest['models'] ) ) : ?>
+			<span class="description"><?php echo esc_html__( 'None detected. Set a checkpoint above.', 'storyos' ); ?></span>
+		<?php else : ?>
+			<?php foreach ( $manifest['models'] as $model ) : ?>
+				<code><?php echo esc_html( $model['filename'] ); ?></code> &rarr; <code>models/<?php echo esc_html( $model['folder'] ); ?></code><br />
+			<?php endforeach; ?>
+		<?php endif; ?>
+		</p>
+		<p>
+			<button type="button" class="button" id="storyos-check-requirements"><?php echo esc_html__( 'Check ComfyUI', 'storyos' ); ?></button>
+			<button type="button" class="button" id="storyos-install-models"><?php echo esc_html__( 'Install missing models', 'storyos' ); ?></button>
+		</p>
+		<div id="storyos-requirements-result" aria-live="polite"></div>
+		<script>
+			(function () {
+				var result = document.getElementById('storyos-requirements-result');
+				var nonce = '<?php echo esc_js( wp_create_nonce( 'storyos_template_requirements' ) ); ?>';
+				var postId = '<?php echo esc_js( (string) $post->ID ); ?>';
+
+				function call(action, button) {
+					button.disabled = true;
+					result.textContent = '<?php echo esc_js( __( 'Checking…', 'storyos' ) ); ?>';
+					fetch(ajaxurl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+						body: new URLSearchParams({ action: action, nonce: nonce, post_id: postId })
+					})
+						.then(function (response) { return response.json(); })
+						.then(function (response) {
+							result.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'The requirement check could not be completed.', 'storyos' ) ); ?>';
+							result.style.color = response.success ? '#008a20' : '#b32d2e';
+						})
+						.catch(function () {
+							result.textContent = '<?php echo esc_js( __( 'The requirement check could not be completed.', 'storyos' ) ); ?>';
+							result.style.color = '#b32d2e';
+						})
+						.finally(function () { button.disabled = false; });
+				}
+
+				document.getElementById('storyos-check-requirements').addEventListener('click', function () {
+					call('storyos_check_template_requirements', this);
+				});
+				document.getElementById('storyos-install-models').addEventListener('click', function () {
+					call('storyos_install_template_models', this);
+				});
+			}());
+		</script>
+		<?php
+	}
+
+	/**
+	 * Report whether the connected ComfyUI can run this Template.
+	 */
+	public static function ajax_check_requirements(): void {
+		$post_id = self::authorize_requirements_request();
+		\StoryOS\Utils\Comfy_Manifest::flush_catalog();
+		$report = \StoryOS\Utils\Comfy_Manifest::validate( $post_id );
+		if ( is_wp_error( $report ) ) {
+			wp_send_json_error( [ 'message' => $report->get_error_message() ] );
+		}
+
+		if ( ! empty( $report['ok'] ) ) {
+			wp_send_json_success( [
+				'message' => sprintf(
+					/* translators: %s: ComfyUI base URL. */
+					__( 'ComfyUI at %s has every node and model this Template needs.', 'storyos' ),
+					$report['endpoint']
+				),
+				'report'  => $report,
+			] );
+		}
+
+		$problems = [];
+		if ( ! empty( $report['missing_nodes'] ) ) {
+			$problems[] = sprintf(
+				/* translators: %s: comma-separated node class names. */
+				__( 'Missing nodes: %s.', 'storyos' ),
+				implode( ', ', $report['missing_nodes'] )
+			);
+		}
+		foreach ( $report['missing_models'] as $model ) {
+			$problems[] = sprintf(
+				/* translators: 1: model filename, 2: ComfyUI models sub-directory. */
+				__( 'Missing model %1$s in models/%2$s.', 'storyos' ),
+				$model['filename'],
+				$model['folder']
+			);
+		}
+
+		wp_send_json_error( [ 'message' => implode( ' ', $problems ), 'report' => $report ] );
+	}
+
+	/**
+	 * Ask Comfy MCP to fetch the model files this Template is missing.
+	 */
+	public static function ajax_install_models(): void {
+		$post_id = self::authorize_requirements_request();
+		$result  = \StoryOS\Utils\Comfy_Manifest::request_downloads( $post_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		\StoryOS\Utils\Comfy_Manifest::flush_catalog();
+		wp_send_json_success( [
+			'message' => empty( $result['requested'] )
+				? (string) $result['message']
+				: sprintf(
+					/* translators: %d: number of model downloads requested. */
+					_n( 'Requested %d model download.', 'Requested %d model downloads.', count( $result['requested'] ), 'storyos' ),
+					count( $result['requested'] )
+				),
+			'result'  => $result,
+		] );
+	}
+
+	/**
+	 * Shared permission and nonce gate for the requirements panel actions.
+	 *
+	 * @return int Template post ID.
+	 */
+	private static function authorize_requirements_request(): int {
+		check_ajax_referer( 'storyos_template_requirements', 'nonce' );
+		$post_id = absint( $_POST['post_id'] ?? 0 );
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			wp_send_json_error( [ 'message' => __( 'You do not have permission to inspect this Template.', 'storyos' ) ], 403 );
+		}
+
+		return $post_id;
+	}
+
+	/**
 	 * Save template meta fields.
 	 *
 	 * @param int      $post_id Post ID.
@@ -206,6 +398,9 @@ class Template {
 			$value = sanitize_textarea_field( wp_unslash( $_POST[ $field_name ] ) );
 			if ( 'status' === $field_name || 'provider_type' === $field_name || 'version' === $field_name || 'generation_structure' === $field_name || 'checkpoint' === $field_name ) {
 				$value = sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) );
+			}
+			if ( 'modality' === $field_name ) {
+				$value = \StoryOS\Utils\Generation_Modality::sanitize( sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) );
 			}
 			if ( 'connection_id' === $field_name ) {
 				$value = (string) absint( wp_unslash( $_POST[ $field_name ] ) );

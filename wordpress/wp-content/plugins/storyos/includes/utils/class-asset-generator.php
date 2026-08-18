@@ -293,35 +293,46 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_generation_source_missing', __( 'The source story element for this generation no longer exists.', 'storyos' ) );
 		}
 
-		$url = self::find_result_url( $result );
-		if ( '' === $url ) {
-			return new WP_Error( 'storyos_generation_output_missing', __( 'Comfy MCP completed the job but did not return a downloadable image URL.', 'storyos' ) );
-		}
-
-		$provider = (string) get_post_meta( $job_id, '_storyos_generation_provider_type', true );
-		$download = self::download_bytes( $url, $provider );
-		if ( is_wp_error( $download ) ) {
-			return $download;
-		}
-
-		$image = self::validate_image_bytes( $download );
-		if ( is_wp_error( $image ) ) {
-			return $image;
-		}
-
-		$attachment_id = self::sideload( $image, $post );
-		if ( is_wp_error( $attachment_id ) ) {
-			return $attachment_id;
-		}
-
-		if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_set_featured', true ) ) && post_type_supports( $post->post_type, 'thumbnail' ) ) {
-			set_post_thumbnail( $post->ID, $attachment_id );
-		}
-		self::add_to_gallery( $post->ID, $attachment_id );
-
-		// Import the source video alongside its still frame, when the workflow
-		// produced one (e.g. an LTX-Video Template with a frame-extraction node).
+		$provider  = (string) get_post_meta( $job_id, '_storyos_generation_provider_type', true );
 		$video_url = self::find_result_video_url( $result );
+		$image_url = self::find_result_url( $result );
+
+		// A video-only workflow reports its file through the same result keys
+		// as an image, so do not try to decode the video as a still frame.
+		if ( $image_url === $video_url ) {
+			$image_url = '';
+		}
+
+		if ( '' === $image_url && '' === $video_url ) {
+			return new WP_Error( 'storyos_generation_output_missing', __( 'The generation provider completed the job but did not return a downloadable image or video URL.', 'storyos' ) );
+		}
+
+		$attachment_id = 0;
+		$media         = [];
+		if ( '' !== $image_url ) {
+			$download = self::download_bytes( $image_url, $provider );
+			if ( is_wp_error( $download ) ) {
+				return $download;
+			}
+
+			$media = self::validate_image_bytes( $download );
+			if ( is_wp_error( $media ) ) {
+				return $media;
+			}
+
+			$attachment_id = self::sideload( $media, $post );
+			if ( is_wp_error( $attachment_id ) ) {
+				return $attachment_id;
+			}
+
+			if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_set_featured', true ) ) && post_type_supports( $post->post_type, 'thumbnail' ) ) {
+				set_post_thumbnail( $post->ID, $attachment_id );
+			}
+			self::add_to_gallery( $post->ID, $attachment_id );
+		}
+
+		// Import the source video alongside its still frame, or on its own for
+		// a text-to-video Template that produces no separate frame.
 		if ( '' !== $video_url ) {
 			$video_download = self::download_bytes( $video_url, $provider );
 			if ( ! is_wp_error( $video_download ) ) {
@@ -330,15 +341,23 @@ class Asset_Generator {
 					$video_attachment_id = self::sideload( $video, $post );
 					if ( ! is_wp_error( $video_attachment_id ) ) {
 						self::add_to_gallery( $post->ID, $video_attachment_id );
+						if ( ! $attachment_id ) {
+							$attachment_id = $video_attachment_id;
+							$media         = $video;
+						}
 					}
 				}
 			}
 		}
 
+		if ( ! $attachment_id ) {
+			return new WP_Error( 'storyos_generation_output_missing', __( 'The generated media could not be imported into the media library.', 'storyos' ) );
+		}
+
 		$prompt   = (string) get_post_meta( $job_id, '_storyos_generation_prompt', true );
 		$asset_id = 0;
 		if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_create_asset', true ) ) && 'storyos_asset' !== $post->post_type ) {
-			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $image, [ 'model' => 'comfy-mcp', 'size' => (string) ( get_post_meta( $job_id, '_storyos_generation_params', true )['size'] ?? '' ), 'revised_prompt' => '' ] ) );
+			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $media, [ 'model' => 'comfy-mcp', 'size' => (string) ( get_post_meta( $job_id, '_storyos_generation_params', true )['size'] ?? '' ), 'revised_prompt' => '', 'workflow' => (string) get_post_meta( $job_id, '_storyos_generation_workflow', true ) ] ) );
 		}
 
 		return [ 'attachment_id' => $attachment_id, 'asset_id' => $asset_id, 'url' => (string) wp_get_attachment_url( $attachment_id ) ];
@@ -600,7 +619,7 @@ class Asset_Generator {
 	 * @param array  $image         Image payload.
 	 */
 	private static function store_asset_fields( int $asset_id, int $attachment_id, string $prompt, array $image ): void {
-		update_post_meta( $asset_id, 'workflow_name', 'text-to-image' );
+		update_post_meta( $asset_id, 'workflow_name', (string) ( $image['workflow'] ?? '' ) ?: 'text-to-image' );
 		update_post_meta( $asset_id, 'prompt', $prompt );
 		update_post_meta( $asset_id, 'model_name', $image['model'] );
 		update_post_meta( $asset_id, 'status', 'done' );

@@ -161,6 +161,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'slug'         => $post->post_slug ?? $post->post_name,
 			'type'         => $post->post_type,
 			'title'        => $post->post_title,
+			'menu_order'   => (int) $post->menu_order,
 			'content'      => $post->post_content,
 			'excerpt'      => $post->post_excerpt,
 			'featured_image' => $featured_image,
@@ -300,6 +301,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'post_status' => $request->get_param( 'status' ) ?: 'draft',
 			'post_excerpt'=> $request->get_param( 'excerpt' ),
 			'post_content'=> $request->get_param( 'content' ),
+			'menu_order'  => absint( $request->get_param( 'menu_order' ) ),
 		];
 
 		$post_id = wp_insert_post( $post_data, true );
@@ -400,6 +402,16 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'paged'       => absint( $request->get_param( 'page' ) ) ?: 1,
 		];
 
+		// Optional ordering (e.g. orderby=menu_order&order=ASC for editorial cuts).
+		$orderby = $request->get_param( 'orderby' );
+		if ( $orderby && in_array( (string) $orderby, [ 'date', 'title', 'menu_order', 'modified' ], true ) ) {
+			$args['orderby'] = (string) $orderby;
+		}
+		$order = $request->get_param( 'order' );
+		if ( $order && in_array( strtoupper( (string) $order ), [ 'ASC', 'DESC' ], true ) ) {
+			$args['order'] = strtoupper( (string) $order );
+		}
+
 		$tax_query = [];
 
 		// Filter by status taxonomy if provided.
@@ -488,6 +500,10 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'post_excerpt'=> $request->get_param( 'excerpt' ),
 			'post_content'=> $request->get_param( 'content' ),
 		];
+
+		if ( $request->get_param( 'menu_order' ) !== null ) {
+			$post_data['menu_order'] = absint( $request->get_param( 'menu_order' ) );
+		}
 
 		wp_update_post( $post_data );
 

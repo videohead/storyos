@@ -68,6 +68,10 @@ class Generation_Controller extends Base_Controller {
 					'description' => 'Generation parameters.',
 					'type'        => 'object',
 				],
+				'inputs'     => [
+					'description' => 'Modality input slots (prompt, negative_prompt, image, start_frame, end_frame, video, audio). Media slots accept an attachment ID or URL.',
+					'type'        => 'object',
+				],
 				'workflow'   => [
 					'description' => 'Workflow template slug.',
 					'type'        => 'string',
@@ -128,6 +132,50 @@ class Generation_Controller extends Base_Controller {
 				'per_page' => [ 'default' => 20, 'maximum' => 100 ],
 			],
 		] );
+
+		// Inspect what a Template needs from ComfyUI, and whether it is installed.
+		register_rest_route( 'storyos/v1', '/generation/templates/(?P<id>\d+)/requirements', [
+			'methods'             => 'GET',
+			'callback'            => [ __CLASS__, 'get_template_requirements' ],
+			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'args'                => [
+				'id'       => [
+					'description' => 'Template post ID.',
+					'type'        => 'integer',
+					'required'    => true,
+				],
+				'validate' => [
+					'description' => 'Also check the requirements against the configured ComfyUI instance.',
+					'type'        => 'boolean',
+					'default'     => true,
+				],
+			],
+		] );
+	}
+
+	/**
+	 * Return a Template's ComfyUI requirement manifest, optionally validated
+	 * against the configured ComfyUI instance.
+	 *
+	 * @param WP_REST_Request $request
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function get_template_requirements( WP_REST_Request $request ) {
+		$manifest = \StoryOS\Utils\Comfy_Manifest::for_template( absint( $request->get_param( 'id' ) ) );
+		if ( is_wp_error( $manifest ) ) {
+			return $manifest;
+		}
+
+		if ( ! rest_sanitize_boolean( $request->get_param( 'validate' ) ) ) {
+			return rest_ensure_response( $manifest );
+		}
+
+		$report = \StoryOS\Utils\Comfy_Manifest::validate( absint( $request->get_param( 'id' ) ) );
+		$manifest['validation'] = is_wp_error( $report )
+			? [ 'ok' => false, 'error' => $report->get_error_message() ]
+			: $report;
+
+		return rest_ensure_response( $manifest );
 	}
 
 	/**
@@ -175,6 +223,7 @@ class Generation_Controller extends Base_Controller {
 		update_post_meta( $post_id, '_storyos_generation_type', $type );
 		update_post_meta( $post_id, '_storyos_generation_prompt', $prompt );
 		update_post_meta( $post_id, '_storyos_generation_params', $params );
+		update_post_meta( $post_id, '_storyos_generation_inputs', self::sanitize_inputs( $request->get_param( 'inputs' ) ) );
 		update_post_meta( $post_id, '_storyos_generation_workflow', $workflow );
 		update_post_meta( $post_id, '_storyos_generation_provider_type', $provider_type );
 		update_post_meta( $post_id, '_storyos_generation_connection_id', $connection_id );
@@ -192,6 +241,42 @@ class Generation_Controller extends Base_Controller {
 			'connection_id' => $connection_id,
 			'created_at' => current_time( 'mysql' ),
 		] );
+	}
+
+	/**
+	 * Reduce submitted modality inputs to known slots and scalar values. Media
+	 * slots stay as an attachment ID or URL; the provider client resolves and
+	 * uploads them at submission time.
+	 *
+	 * @param mixed $inputs Raw `inputs` parameter.
+	 * @return array<string, string>
+	 */
+	private static function sanitize_inputs( $inputs ): array {
+		if ( ! is_array( $inputs ) ) {
+			return [];
+		}
+
+		$slots     = array_merge( [ 'prompt', 'negative_prompt' ], \StoryOS\Utils\Generation_Modality::MEDIA_SLOTS );
+		$sanitized = [];
+		foreach ( $slots as $slot ) {
+			if ( ! isset( $inputs[ $slot ] ) || ! is_scalar( $inputs[ $slot ] ) ) {
+				continue;
+			}
+
+			$value = trim( (string) $inputs[ $slot ] );
+			if ( '' === $value ) {
+				continue;
+			}
+
+			if ( ! in_array( $slot, \StoryOS\Utils\Generation_Modality::MEDIA_SLOTS, true ) ) {
+				$sanitized[ $slot ] = sanitize_textarea_field( $value );
+				continue;
+			}
+
+			$sanitized[ $slot ] = preg_match( '#^https?://#', $value ) ? esc_url_raw( $value ) : sanitize_text_field( $value );
+		}
+
+		return $sanitized;
 	}
 
 	/**

@@ -497,6 +497,11 @@ class Prompt_Templates extends AbstractAbilityGroup {
                                 'name'                => [ 'type' => 'string' ],
                                 'description'         => [ 'type' => 'string' ],
                                 'generation_structure' => [ 'type' => 'string' ],
+                                'modality'            => [ 'type' => 'string' ],
+                                'output_type'         => [ 'type' => 'string' ],
+                                'inputs'              => [ 'type' => 'object' ],
+                                'required_nodes'      => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+                                'models'              => [ 'type' => 'array', 'items' => [ 'type' => 'object' ] ],
                                 'provider_type'       => [ 'type' => 'string' ],
                                 'version'             => [ 'type' => 'string' ],
                                 'configuration_schema' => [ 'type' => 'object' ],
@@ -521,6 +526,7 @@ class Prompt_Templates extends AbstractAbilityGroup {
                 foreach ( $templates as $template ) {
                     $configuration = json_decode( (string) get_post_meta( $template->ID, 'configuration_json', true ), true );
                     $defaults = json_decode( (string) get_post_meta( $template->ID, 'default_values', true ), true );
+                    $requirements = \StoryOS\Utils\Comfy_Manifest::for_template( (int) $template->ID );
 
                     $manifest[] = [
                         'id'                   => (int) $template->ID,
@@ -528,6 +534,11 @@ class Prompt_Templates extends AbstractAbilityGroup {
                         'name'                 => (string) get_post_meta( $template->ID, 'template_name', true ),
                         'description'          => wp_strip_all_tags( (string) get_post_meta( $template->ID, 'description', true ) ),
                         'generation_structure' => (string) get_post_meta( $template->ID, 'generation_structure', true ),
+                        'modality'             => is_wp_error( $requirements ) ? '' : (string) $requirements['modality'],
+                        'output_type'          => is_wp_error( $requirements ) ? '' : (string) $requirements['output_type'],
+                        'inputs'               => is_wp_error( $requirements ) ? [] : $requirements['inputs'],
+                        'required_nodes'       => is_wp_error( $requirements ) ? [] : $requirements['nodes'],
+                        'models'               => is_wp_error( $requirements ) ? [] : $requirements['models'],
                         'provider_type'        => (string) get_post_meta( $template->ID, 'provider_type', true ),
                         'version'              => (string) get_post_meta( $template->ID, 'version', true ),
                         'configuration_schema' => is_array( $configuration ) ? $configuration : [],
@@ -544,6 +555,62 @@ class Prompt_Templates extends AbstractAbilityGroup {
                 'public' => true,
                 'mcp'    => [ 'type' => 'resource' ],
                 'uri'     => 'storyos://templates-manifest',
+                'annotations' => [
+                    'readonly'    => true,
+                    'destructive' => false,
+                    'idempotent'  => true,
+                ],
+            ],
+        ] );
+
+        // storyos/template-requirements - Reciprocal ComfyUI requirement discovery.
+        $this->register_ability( 'storyos/template-requirements', [
+            'label'       => 'Generation Template Requirements',
+            'description' => 'Report the ComfyUI node types and model files a StoryOS generation Template needs, and whether the configured ComfyUI instance already has them.',
+            'input_schema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'template_id' => [ 'type' => 'integer', 'description' => 'Template post ID.' ],
+                    'validate'    => [ 'type' => 'boolean', 'description' => 'Check the requirements against the configured ComfyUI instance.' ],
+                ],
+                'required'   => [ 'template_id' ],
+            ],
+            'output_schema' => [
+                'type'       => 'object',
+                'properties' => [
+                    'modality'    => [ 'type' => 'string' ],
+                    'output_type' => [ 'type' => 'string' ],
+                    'inputs'      => [ 'type' => 'object' ],
+                    'nodes'       => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+                    'models'      => [ 'type' => 'array', 'items' => [ 'type' => 'object' ] ],
+                    'downloads'   => [ 'type' => 'array', 'items' => [ 'type' => 'object' ] ],
+                    'validation'  => [ 'type' => 'object' ],
+                ],
+            ],
+            'execute_callback' => function( $input ) {
+                $template_id = (int) ( $input['template_id'] ?? 0 );
+                $manifest = \StoryOS\Utils\Comfy_Manifest::for_template( $template_id );
+                if ( is_wp_error( $manifest ) ) {
+                    return $manifest;
+                }
+
+                if ( isset( $input['validate'] ) && ! $input['validate'] ) {
+                    return $manifest;
+                }
+
+                $report = \StoryOS\Utils\Comfy_Manifest::validate( $template_id );
+                $manifest['validation'] = is_wp_error( $report )
+                    ? [ 'ok' => false, 'error' => $report->get_error_message() ]
+                    : $report;
+
+                return $manifest;
+            },
+            'permission_callback' => function() {
+                return current_user_can( 'edit_posts' );
+            },
+            'meta' => [
+                'public' => true,
+                'mcp'    => [ 'type' => 'tool' ],
                 'annotations' => [
                     'readonly'    => true,
                     'destructive' => false,

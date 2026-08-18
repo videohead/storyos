@@ -56,13 +56,85 @@ Local ComfyUI has a minimal WordPress HTTP client in
 
 - Endpoint: a WordPress-container-reachable ComfyUI base URL, such as
   `http://host.docker.internal:8188` for a Lando host installation.
-- Transport: `POST /prompt`, `GET /history/{prompt_id}`, and `GET /view`.
+- Transport: `POST /prompt`, `GET /history/{prompt_id}`, `POST /upload/image`,
+  `GET /object_info`, and `GET /view`.
 - Authentication: none by default; an exposed local endpoint must be protected
   by the deployment network boundary.
-- Configuration: one API-format workflow JSON document with a `{{prompt}}`
-  binding.
-- WordPress responsibility: queue and poll the request, then import the first
-  returned image output as a StoryOS asset.
+- Configuration: a Template's modality plus either its pasted API-format
+  workflow JSON or the built-in graph generated for that modality.
+- WordPress responsibility: resolve and upload the Template's media inputs,
+  refuse the job when ComfyUI is missing a required node or model, queue and
+  poll the request, then import the returned image and/or video outputs as
+  StoryOS assets.
+
+## Template Modalities
+
+A Template declares a `modality` that determines its inputs, its built-in
+ComfyUI graph, and the requirements StoryOS validates. The registry is
+`StoryOS\\Utils\\Generation_Modality` in
+`includes/utils/generation-modality.php`.
+
+| Modality | Output | Required inputs | Optional inputs |
+| --- | --- | --- | --- |
+| `text_to_image` | image | `prompt` | `negative_prompt` |
+| `image_to_image` | image | `image` | `prompt`, `negative_prompt` |
+| `image_text_to_image` | image | `image`, `prompt` | `negative_prompt` |
+| `text_to_video` | video | `prompt` | `negative_prompt` |
+| `text_image_to_video` | video | `image`, `prompt` | `negative_prompt` |
+| `video_to_video` | video | `start_frame` | `end_frame`, `prompt`, `negative_prompt` |
+| `video_with_audio` | video | `prompt`, `audio` | `negative_prompt` |
+
+Every input slot is addressed in a workflow by a `{{slot}}` placeholder:
+`{{prompt}}`, `{{negative_prompt}}`, `{{image}}`, `{{start_frame}}`,
+`{{end_frame}}`, `{{video}}`, `{{audio}}`. Media slots accept a WordPress
+attachment ID or a URL; the client uploads the file into ComfyUI's input
+directory and substitutes the resulting filename before submission.
+
+Built-in video graphs target the LTX-Video nodes shipped with ComfyUI
+(`EmptyLTXVLatentVideo`, `LTXVConditioning`, `LTXVImgToVideo`, `LTXVAddGuide`,
+`LTXVCropGuides`) and mux output through `CreateVideo` and `SaveVideo`. A
+Template that needs a different model family pastes its own API-format graph;
+requirement discovery then reads that graph instead.
+
+## Requirement Manifests and Preflight
+
+`StoryOS\\Utils\\Comfy_Manifest` in `includes/utils/comfy-manifest.php` derives
+what a Template asks ComfyUI for and whether the connected instance can supply
+it:
+
+- Node requirements come from the workflow's `class_type` values, falling back
+  to the modality's declared node list for built-in graphs.
+- Model requirements come from recognized loader inputs (`ckpt_name`,
+  `unet_name`, `vae_name`, `clip_name*`, `lora_name`, `control_net_name`,
+  `style_model_name`, `clip_vision_name`, `gligen_name`, `upscale_model_name`)
+  and map to the `models/` sub-directory each file belongs in.
+- Validation reads `GET /object_info` (cached for five minutes) and compares
+  each requirement against the node list and the loader's installed-file enum.
+- A Template may declare download sources in its Model Requirements JSON:
+  `[{"filename":"…","folder":"…","url":"…"}]`.
+
+The Template editor shows this as a ComfyUI Requirements panel with a
+**Check ComfyUI** action and an **Install missing models** action; the latter
+forwards declared URLs to the MCP `download_models` tool. Generation submission
+runs the same check and fails the job in StoryOS with a specific message rather
+than letting ComfyUI raise an opaque execution error. An unreachable catalog is
+treated as a connectivity problem and does not block submission.
+
+## Reciprocal Discovery
+
+Discovery works in both directions across MCP:
+
+- **StoryOS to Comfy**: `Comfy_Cloud_MCP::available_tools()` reads `tools/list`
+  and gates the template-system calls `list_templates`, `get_template`, and
+  `download_models`, so an MCP server that does not implement a tool reports
+  that directly instead of failing inside a job.
+  `Comfy_Manifest::discover()` maps a StoryOS modality to a Comfy task type and
+  returns candidate templates with their required nodes, models, and model URLs.
+- **Comfy to StoryOS**: the `storyos/templates-manifest` resource and the
+  `storyos/template-requirements` tool publish each Template's modality, input
+  slots, required nodes, model files, and validation state.
+- **REST**: `GET /storyos/v1/generation/templates/{id}/requirements` returns the
+  same manifest, with `validate=false` to skip the live ComfyUI check.
 
 This is deliberately not a generic ComfyUI workflow manager. It is a bridge for
 a known workflow while the Connections-backed local workflow project is
@@ -80,16 +152,23 @@ connection, implement all of the following:
 
 1. A versioned workflow catalog linked to a specific Connection, including
    parameter schemas, input/output bindings, Story Graph mappings, validation,
-   and compatibility metadata.
+   and compatibility metadata. *Partially delivered: Templates now declare a
+   modality with typed input slots, and the built-in graph per modality.*
 2. Dependency manifests for checkpoints, LoRAs, VAEs, custom nodes, and
    workflow assets, including source provenance, checksums, licenses, versions,
-   and compatible ComfyUI versions.
+   and compatible ComfyUI versions. *Partially delivered: `Comfy_Manifest`
+   derives node and model requirements and reads declared download sources;
+   checksums, licenses, and version pinning are still outstanding.*
 3. An administrator-approved dependency discovery and installation workflow.
    Downloads must use allowlisted sources, report storage requirements and
    progress, preserve audit data, and support retries and recovery.
+   *Partially delivered: installation is routed through the MCP
+   `download_models` tool from the Template editor; allowlisting, progress, and
+   audit data are still outstanding.*
 4. ComfyUI capability and installed-dependency synchronization, connection
    health checks, and preflight validation that prevents jobs from starting
-   against an incompatible workflow or missing model.
+   against an incompatible workflow or missing model. *Delivered for node and
+   model availability through `GET /object_info`.*
 5. Per-connection queue routing, cancellation/status semantics, artifact
    output selection, provenance capture, and realistic end-to-end coverage.
 
@@ -136,6 +215,8 @@ and prompts. StoryOS ability groups currently cover:
 - `storyos/analyze` - Analyze the current post or story content.
 - `storyos/generate` - Prepare or request generation from WordPress context.
 - `storyos/continuity-check` - Check continuity against Story Graph context.
+- `storyos/template-requirements` - Report a Template's ComfyUI node and model
+  requirements and whether the configured instance satisfies them.
 
 ### Resources
 
@@ -159,7 +240,8 @@ The `storyos/templates-manifest` resource is read-only and requires the
 WordPress `edit_posts` capability. It is exposed at
 `storyos://templates-manifest` and returns published Templates CPT records
 whose `status` is `active`. Each entry includes the template ID and slug,
-display name, description, generation structure, provider type, version,
+display name, description, generation structure, modality, output type, input
+slots, required ComfyUI nodes, model files, provider type, version,
 configuration schema, and default values. Invalid JSON configuration is
 returned as an empty object so discovery cannot make an invalid template
 executable.

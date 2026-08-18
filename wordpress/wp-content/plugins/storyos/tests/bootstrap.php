@@ -8,6 +8,12 @@
 // Define plugin constants for testing.
 define( 'STORYOS_VERSION', '1.0.0' );
 define( 'STORYOS_PLUGIN_DIR', dirname( dirname( __DIR__ ) ) . '/' );
+
+// Plugin files guard against direct access with `exit`, which would end the
+// PHPUnit run silently, so stand in for the WordPress root constant.
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', dirname( STORYOS_PLUGIN_DIR, 3 ) . '/' );
+}
 define( 'STORYOS_PLUGIN_URL', 'file://' . STORYOS_PLUGIN_DIR );
 define( 'STORYOS_PLUGIN_BASE', 'storyos/storyos.php' );
 define( 'STORYOS_API_NAMESPACE', 'storyos/v1' );

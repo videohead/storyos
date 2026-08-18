@@ -160,8 +160,10 @@ function init(): void {
 	// Load dependencies.
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-log.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-modality.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/local-comfyui.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-manifest.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';
@@ -174,6 +176,7 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/import.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/editorial-cut.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/generation-log-viewer.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/exporter/class-storyos-exporter.php';
 
@@ -213,6 +216,7 @@ function init(): void {
 	REST\Episodes_Controller::init();
 	REST\Scenes_Controller::init();
 	REST\Shots_Controller::init();
+	REST\Sequences_Controller::init();
 	REST\StoryboardFrames_Controller::init();
 	REST\Assets_Controller::init();
 	REST\Asset_Generation_Controller::init();
@@ -235,6 +239,7 @@ function init(): void {
 	Admin\Connections::init();
 	Admin\Import::init();
 	Admin\Export::init();
+	Admin\Editorial_Cut::init();
 	Admin\Generation_Log_Viewer::init();
 	Utils\Generation_Batch::init();
 
@@ -277,6 +282,52 @@ function init(): void {
 	add_action( 'save_post_storyos_scene', __NAMESPACE__ . '\\auto_validate_scene', 20, 3 );
 	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\auto_validate_shot', 20, 3 );
 
+	// Auto-generate useful shot names for shots with placeholder titles.
+	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\storyos_maybe_name_shot', 5, 3 );
+
+}
+
+/**
+ * Auto-generate a useful name for shots with default placeholder titles.
+ *
+ * Runs at priority 5 (before continuity validation) and guards against
+ * recursion when it updates the post title.
+ *
+ * @param int      $post_id Post ID.
+ * @param \WP_Post $post    Post object.
+ * @param bool     $update  Whether this is an update.
+ * @return void
+ */
+function storyos_maybe_name_shot( int $post_id, \WP_Post $post, bool $update ): void {
+	// Only runs on our own plugin saves; never during autosave or batch operations.
+	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+		return;
+	}
+
+	if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+		return;
+	}
+
+	// Never rename shots that already have an intentional title.
+	$title = trim( (string) $post->post_title );
+	if ( '' !== $title && ! preg_match( '/^shot \d+$/i', $title ) ) {
+		return;
+	}
+
+	$name = \StoryOS\Utils\storyos_get_shot_display_name( $post_id );
+	if ( '' === $name || $name === $title ) {
+		return;
+	}
+
+	// Remove this hook before the nested update to avoid infinite recursion.
+	remove_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\storyos_maybe_name_shot', 5 );
+
+	wp_update_post( [
+		'ID'         => $post_id,
+		'post_title' => $name,
+	] );
+
+	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\storyos_maybe_name_shot', 5, 3 );
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
 

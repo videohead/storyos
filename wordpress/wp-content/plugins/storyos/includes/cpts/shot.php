@@ -23,6 +23,12 @@ class Shot {
 	 */
 	private static function register_cpt(): void {
 		$fields = [
+			'shot_name'       => [
+				'type'        => 'text',
+				'label'       => 'Shot Name',
+				'required'    => false,
+				'description' => 'Short, human-friendly name for this shot. Leave empty to auto-generate one from the scene, shot type and description.',
+			],
 			'shot_number'     => [
 				'type'        => 'number',
 				'label'       => 'Shot Number',
@@ -97,6 +103,13 @@ class Shot {
 			'required'    => true,
 			'related_cpt' => 'storyos_scene',
 		],
+		'sequence'        => [
+			'type'        => 'taxonomy',
+			'taxonomy'    => 'storyos_sequence',
+			'label'       => 'Sequence',
+			'required'    => false,
+			'description' => 'The editorial sequence this shot belongs to.',
+		],
 	];
 
 	\StoryOS\Utils\register_cpt(
@@ -104,6 +117,8 @@ class Shot {
 		'Shots',
 		[
 			'menu_icon' => 'dashicons-camera',
+			// page-attributes exposes menu_order, the shot's position in the cut.
+			'supports'  => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions', 'page-attributes' ],
 		],
 		$fields
 	);
@@ -123,6 +138,14 @@ class Shot {
 		}
 
 		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_shot' );
+
+		// Ordering within the cut: page-attributes menu_order.
+		if ( isset( $_POST['menu_order'] ) ) {
+			wp_update_post( [
+				'ID'         => $post_id,
+				'menu_order' => absint( $_POST['menu_order'] ),
+			] );
+		}
 
 		foreach ( $fields as $key => $field ) {
 			if ( isset( $_POST[ $key ] ) ) {

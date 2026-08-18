@@ -125,7 +125,7 @@ function storyos_expected_fields_for_cpt( string $cpt ): array {
 		'storyos_organization'       => [ 'organization_name', 'organization_type', 'description', 'leadership', 'goals', 'story_world' ],
 		'storyos_episode'            => [ 'episode_number', 'title', 'synopsis', 'status', 'project' ],
 		'storyos_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
-		'storyos_shot'               => [ 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene' ],
+		'storyos_shot'               => [ 'shot_name', 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene', 'sequence' ],
 		'storyos_storyboard_frame'   => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
 		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
 		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
@@ -344,6 +344,7 @@ function storyos_schema_field_map(): array {
 			'episode'           => [ 'property' => 'isPartOf', 'match' => 'exact' ],
 		],
 		'storyos_shot' => [
+			'shot_name'         => [ 'property' => 'name', 'match' => 'close' ],
 			'shot_number'       => [ 'property' => 'position', 'match' => 'close' ],
 			'shot_type'         => [ 'property' => 'additionalType', 'match' => 'close' ],
 			'camera_angle'      => [ 'property' => 'description', 'match' => 'weak' ],
@@ -352,6 +353,7 @@ function storyos_schema_field_map(): array {
 			'shot_description'  => [ 'property' => 'description', 'match' => 'exact' ],
 			'editorial_notes'   => [ 'property' => 'text', 'match' => 'weak' ],
 			'scene'             => [ 'property' => 'isPartOf', 'match' => 'exact' ],
+			'sequence'          => [ 'property' => 'isPartOf', 'match' => 'close' ],
 		],
 		'storyos_storyboard_frame' => [
 			'frame_number'      => [ 'property' => 'position', 'match' => 'close' ],
@@ -639,4 +641,231 @@ function storyos_log( string $message, string $level = 'info' ): void {
 	);
 
 	error_log( $log_entry );
+}
+
+/**
+ * Canonical shot type map (slug => display label).
+ *
+ * Kept in one place so the CPT, name generator, exporter and UI agree.
+ *
+ * @return array<string, string>
+ */
+function storyos_shot_types(): array {
+	return [
+		'establishing'      => 'Establishing',
+		'extreme_close_up'  => 'Extreme Close Up',
+		'close_up'          => 'Close Up',
+		'closeup'           => 'Close Up',
+		'medium_close_up'   => 'Medium Close Up',
+		'medium'            => 'Medium',
+		'medium_wide'       => 'Medium Wide',
+		'wide'              => 'Wide',
+		'extreme_wide'      => 'Extreme Wide',
+		'over_the_shoulder' => 'Over The Shoulder',
+		'point_of_view'     => 'Point of View',
+		'cutaway'           => 'Cutaway',
+		'reaction'          => 'Reaction Shot',
+		'insert'            => 'Insert',
+		'close-up'          => 'Close Up',
+		'closeup_shot'      => 'Close Up',
+	];
+}
+
+/**
+ * Human-friendly label for a shot type slug.
+ *
+ * @param string $slug Raw shot type value.
+ * @return string
+ */
+function storyos_shot_type_label( string $slug ): string {
+	$slug = strtolower( trim( $slug ) );
+	$types = storyos_shot_types();
+
+	if ( isset( $types[ $slug ] ) ) {
+		return $types[ $slug ];
+	}
+
+	return ucwords( str_replace( [ '_', '-' ], ' ', $slug ) );
+}
+
+/**
+ * Normalize a shot type slug to its canonical representation.
+ *
+ * @param string $slug Raw shot type value.
+ * @return string Canonical slug (or a best-effort slug when unknown).
+ */
+function storyos_normalize_shot_type( string $slug ): string {
+	$slug = strtolower( trim( $slug ) );
+
+	$aliases = [
+		'closeup'            => 'close_up',
+		'close-up'           => 'close_up',
+		'closeup_shot'       => 'close_up',
+		'extreme-close-up'   => 'extreme_close_up',
+		'point-of-view'      => 'point_of_view',
+		'over-the-shoulder'  => 'over_the_shoulder',
+	];
+
+	if ( isset( $aliases[ $slug ] ) ) {
+		return $aliases[ $slug ];
+	}
+
+	return in_array( $slug, array_keys( storyos_shot_types() ), true ) ? $slug : str_replace( '-', '_', $slug );
+}
+
+/**
+ * Generate a useful, human-friendly name for a shot.
+ *
+ * Pure function so it is unit-testable without a WordPress bootstrap.
+ * Example: "Shot 1: Wide — The Assignment (Village cottage exterior)".
+ *
+ * @param array $shot Shot data with optional keys:
+ *                    - shot_number      (int|string)
+ *                    - shot_type        (string) e.g. 'wide' or 'close_up'
+ *                    - shot_description (string)
+ *                    - scene_title      (string) scene post title
+ *                    - scene_number     (int|string)
+ * @return string
+ */
+function storyos_generate_shot_name( array $shot ): string {
+	$number = isset( $shot['shot_number'] ) && '' !== $shot['shot_number'] ? $shot['shot_number'] : '';
+
+	$type_label = isset( $shot['shot_type'] ) && '' !== $shot['shot_type']
+		? storyos_shot_type_label( (string) $shot['shot_type'] )
+		: '';
+
+	$scene_title = isset( $shot['scene_title'] ) ? trim( (string) $shot['scene_title'] ) : '';
+
+	$description = '';
+	if ( ! empty( $shot['shot_description'] ) ) {
+		$description = wp_strip_all_tags( (string) $shot['shot_description'] );
+		$description = trim( preg_replace( '/\s+/', ' ', $description ) ?? $description );
+		if ( function_exists( 'wp_trim_words' ) ) {
+			$description = wp_trim_words( $description, 10, '…' );
+		}
+	}
+
+	$parts = [];
+
+	if ( '' !== $number ) {
+		$parts[] = 'Shot ' . $number;
+	}
+
+	if ( '' !== $type_label ) {
+		$parts[] = $type_label;
+	}
+
+	if ( '' !== $scene_title ) {
+		$parts[] = $scene_title;
+	}
+
+	if ( '' !== $description ) {
+		$parts[] = '(' . $description . ')';
+	}
+
+	if ( empty( $parts ) ) {
+		return 'Untitled Shot';
+	}
+
+	return implode( ': ', array_slice( $parts, 0, 2 ) ) . implode( ' ', array_slice( $parts, 2 ) );
+}
+
+/**
+ * Get the display name for a shot post.
+ *
+ * Prefers the post title when it looks intentional (not the default
+ * "Shot N" placeholder), otherwise falls back to a generated name.
+ *
+ * @param int $shot_id Shot post ID.
+ * @return string
+ */
+function storyos_get_shot_display_name( int $shot_id ): string {
+	$post = get_post( $shot_id );
+	if ( ! $post || 'storyos_shot' !== $post->post_type ) {
+		return '';
+	}
+
+	$title = trim( (string) $post->post_title );
+	if ( '' !== $title && ! preg_match( '/^shot \d+$/i', $title ) ) {
+		return $title;
+	}
+
+	$scene_id = 0;
+	foreach ( get_relationships( $shot_id, 'storyos_shot', 'outgoing' ) as $rel ) {
+		if ( 'storyos_scene' === ( $rel['to_type'] ?? '' ) ) {
+			$scene_id = (int) ( $rel['to_id'] ?? 0 );
+			break;
+		}
+	}
+
+	$scene     = $scene_id ? get_post( $scene_id ) : null;
+	$shot_name = get_post_meta( $shot_id, 'shot_name', true );
+
+	return storyos_generate_shot_name( [
+		'shot_number'      => get_post_meta( $shot_id, 'shot_number', true ),
+		'shot_type'        => get_post_meta( $shot_id, 'shot_type', true ),
+		'shot_description' => $shot_name ?: get_post_meta( $shot_id, 'shot_description', true ),
+		'scene_title'      => $scene ? $scene->post_title : '',
+		'scene_number'     => $scene ? get_post_meta( $scene->ID, 'scene_number', true ) : '',
+	] );
+}
+
+/**
+ * Get the editorial order of a sequence term.
+ *
+ * @param int $term_id Sequence term ID.
+ * @return int
+ */
+function storyos_get_sequence_order( int $term_id ): int {
+	$order = get_term_meta( $term_id, \StoryOS\Taxonomies\Sequence::ORDER_META_KEY, true );
+	return '' !== $order ? absint( $order ) : PHP_INT_MAX;
+}
+
+/**
+ * Set the editorial order of a sequence term.
+ *
+ * @param int $term_id Sequence term ID.
+ * @param int $order   New position (1-based).
+ * @return void
+ */
+function storyos_set_sequence_order( int $term_id, int $order ): void {
+	update_term_meta( $term_id, \StoryOS\Taxonomies\Sequence::ORDER_META_KEY, max( 1, $order ) );
+}
+
+/**
+ * Get all sequence terms ordered for the editorial cut.
+ *
+ * @return array<int, array{id:int,name:string,slug:string,order:int}>
+ */
+function storyos_get_ordered_sequences(): array {
+	$terms = get_terms( [
+		'taxonomy'   => \StoryOS\Taxonomies\Sequence::TAXONOMY,
+		'hide_empty' => false,
+		'orderby'    => 'term_id',
+		'order'      => 'ASC',
+	] );
+
+	if ( is_wp_error( $terms ) || empty( $terms ) ) {
+		return [];
+	}
+
+	$sequences = array_map( static function( $term ) {
+		return [
+			'id'    => (int) $term->term_id,
+			'name'  => $term->name,
+			'slug'  => $term->slug,
+			'order' => storyos_get_sequence_order( (int) $term->term_id ),
+		];
+	}, $terms );
+
+	usort( $sequences, static function( array $a, array $b ) {
+		// Terms without an explicit order stay at the end, stable by term id.
+		$cmp = $a['order'] <=> $b['order'];
+		if ( 0 !== $cmp ) {
+			return $cmp;
+		}
+		return $a['id'] <=> $b['id'];
+	} );
+
+	return $sequences;
 }

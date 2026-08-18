@@ -28,32 +28,56 @@ class Local_ComfyUI {
 	 * @return bool
 	 */
 	public static function is_configured(): bool {
-		return '' !== self::endpoint() && is_array( self::workflow() );
+		return '' !== self::endpoint();
 	}
 
 	/**
 	 * Submit a workflow to ComfyUI.
 	 *
-	 * @param string $template Unused compatibility parameter for cloud templates.
+	 * @param string $template Template post ID, slug, or wizard slot to run.
 	 * @param string $prompt Text prompt.
-	 * @param array  $parameters Unused generation parameters.
+	 * @param array  $parameters Generation parameters; `inputs` carries modality input slots.
 	 * @param int    $connection_id Optional parent storyos_connection post ID, for log correlation.
 	 * @return array|WP_Error
 	 */
 	public static function run_template( string $template, string $prompt, array $parameters, int $connection_id = 0 ) {
-		$workflow = self::workflow();
-		if ( '' === self::endpoint() || ! is_array( $workflow ) ) {
+		if ( '' === self::endpoint() ) {
 			Generation_Log::add( 'error', 'local_comfyui', 'Local ComfyUI is not configured.', [], '', $connection_id );
 			return new WP_Error( 'local_comfyui_unconfigured', __( 'Set a local ComfyUI URL in StoryOS AI Settings before generating an asset.', 'storyos' ) );
 		}
 
-		Generation_Log::add( 'info', 'local_comfyui', 'Submitting workflow to ' . self::url( 'prompt' ), [ 'prompt' => $prompt ], '', $connection_id );
+		$template_post = self::resolve_template( $template );
+		$template_id   = $template_post ? (int) $template_post->ID : 0;
+		$modality      = self::modality( $template_id );
+
+		$inputs = isset( $parameters['inputs'] ) && is_array( $parameters['inputs'] ) ? $parameters['inputs'] : [];
+		if ( '' !== $prompt && '' === trim( (string) ( $inputs['prompt'] ?? '' ) ) ) {
+			$inputs['prompt'] = $prompt;
+		}
+
+		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id );
+		if ( is_wp_error( $resolved ) ) {
+			Generation_Log::add( 'error', 'local_comfyui', $resolved->get_error_message(), [], '', $connection_id );
+			return $resolved;
+		}
+
+		$workflow = self::workflow( $template_id, $modality, [ 'has_end_frame' => '' !== ( $resolved['end_frame'] ?? '' ) ] );
+		if ( ! is_array( $workflow ) || empty( $workflow ) ) {
+			return new WP_Error( 'local_comfyui_unconfigured', __( 'This Template has no runnable ComfyUI workflow.', 'storyos' ) );
+		}
+
+		$preflight = self::preflight( $template_id, $connection_id );
+		if ( is_wp_error( $preflight ) ) {
+			return $preflight;
+		}
+
+		Generation_Log::add( 'info', 'local_comfyui', 'Submitting workflow to ' . self::url( 'prompt' ), [ 'modality' => $modality, 'inputs' => $resolved ], '', $connection_id );
 
 		$response = wp_remote_post( self::url( 'prompt' ), [
 			'timeout' => 60,
 			'headers' => [ 'Content-Type' => 'application/json' ],
 			'body'    => wp_json_encode( [
-				'prompt'    => self::replace_prompt( $workflow, $prompt ),
+				'prompt'    => self::apply_inputs( $workflow, $resolved ),
 				'client_id' => wp_generate_uuid4(),
 			] ),
 		] );
@@ -132,7 +156,7 @@ class Local_ComfyUI {
 	 *
 	 * @return string
 	 */
-	private static function endpoint(): string {
+	public static function endpoint(): string {
 		$url = untrailingslashit( esc_url_raw( (string) get_option( 'storyos_comfy_local_url', '' ) ) );
 		if ( '' !== $url ) {
 			return $url;
@@ -145,6 +169,39 @@ class Local_ComfyUI {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Resolve the Template a generation job names. Accepts a Template post ID,
+	 * post slug, or wizard slot marker, and falls back to the single default
+	 * local ComfyUI Template so legacy jobs keep working.
+	 *
+	 * @param string $reference Template post ID, slug, or wizard slot.
+	 * @return \WP_Post|null
+	 */
+	private static function resolve_template( string $reference ): ?\WP_Post {
+		$reference = trim( $reference );
+
+		if ( ctype_digit( $reference ) ) {
+			$post = get_post( (int) $reference );
+			if ( $post instanceof \WP_Post && 'storyos_template' === $post->post_type ) {
+				return $post;
+			}
+		}
+
+		if ( '' !== $reference ) {
+			$posts = get_posts( [
+				'post_type'      => 'storyos_template',
+				'post_status'    => 'any',
+				'posts_per_page' => 1,
+				'name'           => sanitize_title( $reference ),
+			] );
+			if ( $posts ) {
+				return $posts[0];
+			}
+		}
+
+		return self::default_template();
 	}
 
 	/**
@@ -166,104 +223,233 @@ class Local_ComfyUI {
 	}
 
 	/**
-	 * Decode the configured API workflow, or build a default text-to-image
-	 * workflow from the configured checkpoint when none is pasted. Reads from
-	 * the default Template record, falling back to the legacy global option
-	 * only until it has been migrated.
+	 * The modality a Template generates.
 	 *
-	 * @return array|null
-	 */
-	private static function workflow() {
-		$template = self::default_template();
-		$raw      = $template ? (string) get_post_meta( $template->ID, 'workflow_json', true ) : (string) get_option( 'storyos_comfy_local_workflow', '' );
-		$workflow = json_decode( $raw, true );
-
-		return is_array( $workflow ) && ! empty( $workflow ) ? $workflow : self::default_workflow();
-	}
-
-	/**
-	 * The configured checkpoint/model filename for the default workflow. Reads
-	 * from the default Template record, falling back to the legacy global
-	 * option only until it has been migrated.
-	 *
+	 * @param int $template_id Template post ID, or 0 for none.
 	 * @return string
 	 */
-	private static function checkpoint(): string {
-		$template = self::default_template();
-		$raw      = $template ? (string) get_post_meta( $template->ID, 'checkpoint', true ) : (string) get_option( 'storyos_comfy_local_checkpoint', '' );
-		$checkpoint = trim( $raw );
-
-		return '' !== $checkpoint ? $checkpoint : 'ltx-2.3.safetensors';
+	private static function modality( int $template_id ): string {
+		return Generation_Modality::sanitize( $template_id ? (string) get_post_meta( $template_id, 'modality', true ) : '' );
 	}
 
 	/**
-	 * A standard ComfyUI API-format text-to-image graph (checkpoint loader,
-	 * positive/negative CLIP text encode, KSampler, VAE decode, save image)
-	 * built from the configured checkpoint. Used when no custom workflow has
-	 * been pasted in StoryOS AI Settings.
+	 * Decode a Template's pasted API workflow, or build the modality's
+	 * built-in graph from its checkpoint and parameter overrides.
 	 *
+	 * @param int    $template_id Template post ID, or 0 for none.
+	 * @param string $modality    Modality slug.
+	 * @param array  $context     Runtime hints for the built-in graph.
 	 * @return array
 	 */
-	private static function default_workflow(): array {
-		return [
-			'3' => [
-				'class_type' => 'KSampler',
-				'inputs'     => [
-					'seed'          => wp_rand( 0, PHP_INT_MAX >> 1 ),
-					'steps'         => 20,
-					'cfg'           => 7,
-					'sampler_name'  => 'euler',
-					'scheduler'     => 'normal',
-					'denoise'       => 1,
-					'model'         => [ '4', 0 ],
-					'positive'      => [ '6', 0 ],
-					'negative'      => [ '7', 0 ],
-					'latent_image'  => [ '5', 0 ],
-				],
-			],
-			'4' => [
-				'class_type' => 'CheckpointLoaderSimple',
-				'inputs'     => [ 'ckpt_name' => self::checkpoint() ],
-			],
-			'5' => [
-				'class_type' => 'EmptyLatentImage',
-				'inputs'     => [ 'width' => 1024, 'height' => 1024, 'batch_size' => 1 ],
-			],
-			'6' => [
-				'class_type' => 'CLIPTextEncode',
-				'inputs'     => [ 'text' => '{{prompt}}', 'clip' => [ '4', 1 ] ],
-			],
-			'7' => [
-				'class_type' => 'CLIPTextEncode',
-				'inputs'     => [ 'text' => '', 'clip' => [ '4', 1 ] ],
-			],
-			'8' => [
-				'class_type' => 'VAEDecode',
-				'inputs'     => [ 'samples' => [ '3', 0 ], 'vae' => [ '4', 2 ] ],
-			],
-			'9' => [
-				'class_type' => 'SaveImage',
-				'inputs'     => [ 'filename_prefix' => 'StoryOS', 'images' => [ '8', 0 ] ],
-			],
-		];
+	private static function workflow( int $template_id, string $modality, array $context = [] ): array {
+		$raw = $template_id
+			? (string) get_post_meta( $template_id, 'workflow_json', true )
+			: (string) get_option( 'storyos_comfy_local_workflow', '' );
+		$workflow = json_decode( $raw, true );
+		if ( is_array( $workflow ) && ! empty( $workflow ) ) {
+			return $workflow;
+		}
+
+		$settings = $template_id
+			? Comfy_Manifest::template_settings( $template_id, $modality )
+			: [ 'checkpoint' => trim( (string) get_option( 'storyos_comfy_local_checkpoint', '' ) ) ];
+		if ( '' === trim( (string) ( $settings['checkpoint'] ?? '' ) ) ) {
+			$settings['checkpoint'] = 'ltx-2.3.safetensors';
+		}
+
+		return Generation_Modality::default_workflow( $modality, array_merge( $settings, $context ) );
 	}
 
 	/**
-	 * Replace prompt placeholders in a ComfyUI API workflow.
+	 * Refuse to submit a job whose Template needs a node or model that this
+	 * ComfyUI instance does not have, so the failure is reported in StoryOS
+	 * instead of surfacing as an opaque ComfyUI execution error.
 	 *
-	 * @param mixed  $value Workflow value.
-	 * @param string $prompt Text prompt.
+	 * @param int $template_id   Template post ID, or 0 when none is resolvable.
+	 * @param int $connection_id Connection post ID, for log correlation.
+	 * @return true|WP_Error
+	 */
+	private static function preflight( int $template_id, int $connection_id ) {
+		if ( ! $template_id ) {
+			return true;
+		}
+
+		$report = Comfy_Manifest::validate( $template_id );
+		if ( is_wp_error( $report ) ) {
+			// A catalog that cannot be read is a transient connectivity
+			// problem, not a Template defect; let ComfyUI report it instead.
+			Generation_Log::add( 'debug', 'local_comfyui', 'Requirement check skipped: ' . $report->get_error_message(), [], '', $connection_id );
+			return true;
+		}
+		if ( ! empty( $report['ok'] ) ) {
+			return true;
+		}
+
+		$problems = [];
+		if ( ! empty( $report['missing_nodes'] ) ) {
+			$problems[] = sprintf(
+				/* translators: %s: comma-separated list of ComfyUI node class names. */
+				__( 'missing node types: %s', 'storyos' ),
+				implode( ', ', $report['missing_nodes'] )
+			);
+		}
+		foreach ( $report['missing_models'] as $model ) {
+			$problems[] = sprintf(
+				/* translators: 1: model filename, 2: ComfyUI models sub-directory. */
+				__( 'missing model %1$s (install into models/%2$s)', 'storyos' ),
+				(string) $model['filename'],
+				(string) $model['folder']
+			);
+		}
+
+		$message = sprintf(
+			/* translators: %s: semicolon-separated list of unmet requirements. */
+			__( 'ComfyUI cannot run this Template yet: %s.', 'storyos' ),
+			implode( '; ', $problems )
+		);
+		Generation_Log::add( 'error', 'local_comfyui', $message, $report, '', $connection_id );
+
+		return new WP_Error( 'local_comfyui_requirements_missing', $message, $report );
+	}
+
+	/**
+	 * Validate the modality's input slots and upload every media input to
+	 * ComfyUI's input directory, returning a placeholder value map.
+	 *
+	 * @param string $modality      Modality slug.
+	 * @param array  $inputs        Raw input slot values.
+	 * @param int    $connection_id Connection post ID, for log correlation.
+	 * @return array<string, string>|WP_Error
+	 */
+	private static function resolve_inputs( string $modality, array $inputs, int $connection_id ) {
+		$resolved = [];
+		foreach ( Generation_Modality::inputs( $modality ) as $slot => $definition ) {
+			$value = $inputs[ $slot ] ?? '';
+			$value = is_scalar( $value ) ? trim( (string) $value ) : '';
+
+			if ( '' === $value ) {
+				if ( ! empty( $definition['required'] ) ) {
+					return new WP_Error(
+						'local_comfyui_missing_input',
+						sprintf(
+							/* translators: 1: input label, 2: modality label. */
+							__( '%1$s is required for %2$s generations.', 'storyos' ),
+							(string) $definition['label'],
+							(string) Generation_Modality::get( $modality )['label']
+						)
+					);
+				}
+
+				$resolved[ $slot ] = '';
+				continue;
+			}
+
+			if ( ! in_array( $definition['type'], [ 'image', 'video', 'audio' ], true ) ) {
+				$resolved[ $slot ] = $value;
+				continue;
+			}
+
+			$uploaded = self::upload_input( $value, $connection_id );
+			if ( is_wp_error( $uploaded ) ) {
+				return $uploaded;
+			}
+
+			$resolved[ $slot ] = $uploaded;
+		}
+
+		return $resolved;
+	}
+
+	/**
+	 * Push a media input into ComfyUI's input directory and return the name
+	 * its Load* nodes should reference.
+	 *
+	 * @param string $reference     Attachment ID, URL, or absolute file path.
+	 * @param int    $connection_id Connection post ID, for log correlation.
+	 * @return string|WP_Error
+	 */
+	private static function upload_input( string $reference, int $connection_id ) {
+		$path    = '';
+		$cleanup = false;
+
+		if ( ctype_digit( $reference ) ) {
+			$path = (string) get_attached_file( (int) $reference );
+		} elseif ( preg_match( '#^https?://#', $reference ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			$path = download_url( $reference, 60 );
+			if ( is_wp_error( $path ) ) {
+				return new WP_Error( 'local_comfyui_input_download_failed', sprintf( __( 'Unable to download the generation input %s.', 'storyos' ), $reference ) );
+			}
+			$cleanup = true;
+		} else {
+			$path = $reference;
+		}
+
+		if ( '' === $path || ! is_readable( $path ) ) {
+			return new WP_Error( 'local_comfyui_input_unreadable', __( 'A generation input file could not be read.', 'storyos' ) );
+		}
+
+		$filename = wp_basename( $path );
+		$boundary = wp_generate_uuid4();
+		$body     = '';
+		foreach ( [ 'type' => 'input', 'overwrite' => 'true', 'subfolder' => 'storyos' ] as $field => $field_value ) {
+			$body .= "--{$boundary}\r\nContent-Disposition: form-data; name=\"{$field}\"\r\n\r\n{$field_value}\r\n";
+		}
+		$body .= "--{$boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{$filename}\"\r\n";
+		$body .= 'Content-Type: ' . ( wp_check_filetype( $filename )['type'] ?: 'application/octet-stream' ) . "\r\n\r\n";
+		$body .= file_get_contents( $path ) . "\r\n--{$boundary}--\r\n"; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+
+		if ( $cleanup ) {
+			wp_delete_file( $path );
+		}
+
+		$response = wp_remote_post( self::url( 'upload/image' ), [
+			'timeout' => 120,
+			'headers' => [ 'Content-Type' => 'multipart/form-data; boundary=' . $boundary ],
+			'body'    => $body,
+		] );
+
+		$result = self::decode_response( $response, 'upload a generation input', $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		if ( empty( $result['name'] ) ) {
+			return new WP_Error( 'local_comfyui_input_upload_failed', __( 'ComfyUI did not accept a generation input file.', 'storyos' ) );
+		}
+
+		$subfolder = trim( (string) ( $result['subfolder'] ?? '' ), '/' );
+
+		return '' !== $subfolder ? $subfolder . '/' . $result['name'] : (string) $result['name'];
+	}
+
+	/**
+	 * Replace `{{slot}}` placeholders in a ComfyUI API workflow with the
+	 * resolved input values for the job.
+	 *
+	 * @param mixed $value  Workflow value.
+	 * @param array $inputs Resolved slot => value map.
 	 * @return mixed
 	 */
-	private static function replace_prompt( $value, string $prompt ) {
+	private static function apply_inputs( $value, array $inputs ) {
 		if ( is_array( $value ) ) {
 			foreach ( $value as $key => $item ) {
-				$value[ $key ] = self::replace_prompt( $item, $prompt );
+				$value[ $key ] = self::apply_inputs( $item, $inputs );
 			}
 			return $value;
 		}
 
-		return is_string( $value ) ? str_replace( '{{prompt}}', $prompt, $value ) : $value;
+		if ( ! is_string( $value ) ) {
+			return $value;
+		}
+
+		$search  = [];
+		$replace = [];
+		foreach ( $inputs as $slot => $slot_value ) {
+			$search[]  = '{{' . $slot . '}}';
+			$replace[] = (string) $slot_value;
+		}
+
+		return str_replace( $search, $replace, $value );
 	}
 
 	/**

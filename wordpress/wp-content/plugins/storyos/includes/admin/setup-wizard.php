@@ -159,12 +159,14 @@ class Setup_Wizard {
 				$workflow = json_decode( wp_unslash( $_POST['storyos_comfy_local_workflow'] ), true );
 				$workflow_json = is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '';
 			}
+			$modality = \StoryOS\Utils\Generation_Modality::sanitize( sanitize_text_field( wp_unslash( $_POST['storyos_comfy_local_modality'] ?? '' ) ) );
 			\StoryOS\CPT\Template::upsert_managed(
 				\StoryOS\Utils\Local_ComfyUI::TEMPLATE_SLOT,
 				'Local ComfyUI (Default)',
 				[
 					'connection_id'        => (string) $connection_id,
-					'generation_structure' => 'image',
+					'generation_structure' => \StoryOS\Utils\Generation_Modality::output_type( $modality ),
+					'modality'             => $modality,
 					'provider_type'        => 'comfyui',
 					'status'               => 'active',
 					'checkpoint'           => isset( $_POST['storyos_comfy_local_checkpoint'] ) ? sanitize_text_field( wp_unslash( $_POST['storyos_comfy_local_checkpoint'] ) ) : '',
@@ -289,6 +291,7 @@ class Setup_Wizard {
 		$default_template_id = $default_template ? $default_template[0]->ID : 0;
 		$checkpoint = $default_template_id ? get_post_meta( $default_template_id, 'checkpoint', true ) : 'ltx-2.3.safetensors';
 		$workflow_json = $default_template_id ? get_post_meta( $default_template_id, 'workflow_json', true ) : '';
+		$modality = \StoryOS\Utils\Generation_Modality::sanitize( $default_template_id ? (string) get_post_meta( $default_template_id, 'modality', true ) : '' );
 		?>
 		<div class="wrap">
 			<h1>Set Up StoryOS</h1>
@@ -318,8 +321,14 @@ class Setup_Wizard {
 				<p><label for="storyos_comfy_local_url">Local ComfyUI API URL</label><br />
 				<input type="url" class="regular-text" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" placeholder="http://host.docker.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.docker.internal:8188</code>; do not use <code>localhost</code>.</span></p>
 				<p><button type="button" class="button" id="storyos-test-comfy-connection">Test ComfyUI</button> <span id="storyos-comfy-test-result" aria-live="polite"></span></p>
+				<p><label for="storyos_comfy_local_modality">Modality</label><br />
+				<select name="storyos_comfy_local_modality" id="storyos_comfy_local_modality">
+					<?php foreach ( \StoryOS\Utils\Generation_Modality::labels() as $modality_slug => $modality_label ) : ?>
+						<option value="<?php echo esc_attr( $modality_slug ); ?>" <?php selected( $modality, $modality_slug ); ?>><?php echo esc_html( $modality_label ); ?></option>
+					<?php endforeach; ?>
+				</select> <span class="description">What the default Template generates. StoryOS builds the matching ComfyUI graph and checks that the required nodes and models are installed before submitting a job.</span></p>
 				<p><label for="storyos_comfy_local_checkpoint">Checkpoint / Model</label><br />
-				<input type="text" class="regular-text" name="storyos_comfy_local_checkpoint" id="storyos_comfy_local_checkpoint" value="<?php echo esc_attr( $checkpoint ?: 'ltx-2.3.safetensors' ); ?>" placeholder="ltx-2.3.safetensors" /> <span class="description">Checkpoint filename installed in ComfyUI's <code>models/checkpoints</code>, used by the built-in text-to-image workflow. Saved to the single default <strong>Template</strong> record, not the Connection &mdash; one Connection can back many checkpoints.</span></p>
+				<input type="text" class="regular-text" name="storyos_comfy_local_checkpoint" id="storyos_comfy_local_checkpoint" value="<?php echo esc_attr( $checkpoint ?: 'ltx-2.3.safetensors' ); ?>" placeholder="ltx-2.3.safetensors" /> <span class="description">Checkpoint filename installed in ComfyUI's <code>models/checkpoints</code>, used by the built-in workflow for the modality above. Saved to the single default <strong>Template</strong> record, not the Connection &mdash; one Connection can back many checkpoints.</span></p>
 				<p><label for="storyos_comfy_local_workflow">Default Local ComfyUI API Workflow (optional)</label><br />
 				<textarea class="large-text code" name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10"><?php echo esc_textarea( $workflow_json ); ?></textarea><br />
 				<span class="description">Leave blank to use StoryOS's built-in single-image text-to-image workflow with the checkpoint above. To use a custom graph instead, export it with ComfyUI's “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. This is saved as the single default <strong>Template</strong> (<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=storyos_template' ) ); ?>">manage Templates</a>) so it can later be extended to more than one.</span></p>

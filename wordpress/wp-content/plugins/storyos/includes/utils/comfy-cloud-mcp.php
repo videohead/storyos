@@ -17,6 +17,11 @@ class Comfy_Cloud_MCP {
 	const ENDPOINT = 'https://cloud.comfy.org/mcp';
 
 	/**
+	 * Transient holding the MCP server's advertised tool names.
+	 */
+	const TOOLS_TRANSIENT = 'storyos_comfy_mcp_tools';
+
+	/**
 	 * Whether Comfy Cloud MCP credentials are available to WordPress.
 	 *
 	 * @return bool
@@ -54,6 +59,123 @@ class Comfy_Cloud_MCP {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * The tool names this MCP server advertises, cached for an hour so a
+	 * capability probe does not cost a round trip per call.
+	 *
+	 * @param int $connection_id Connection post ID, for log correlation.
+	 * @return array<int, string>|WP_Error
+	 */
+	public static function available_tools( int $connection_id = 0 ) {
+		$cached = get_transient( self::TOOLS_TRANSIENT );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$session = self::initialize( $connection_id );
+		if ( is_wp_error( $session ) ) {
+			return $session;
+		}
+
+		$result = self::request( 'tools/list', [], $session, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$tools = [];
+		foreach ( (array) ( $result['tools'] ?? [] ) as $tool ) {
+			if ( is_array( $tool ) && ! empty( $tool['name'] ) ) {
+				$tools[] = (string) $tool['name'];
+			}
+		}
+
+		set_transient( self::TOOLS_TRANSIENT, $tools, HOUR_IN_SECONDS );
+
+		return $tools;
+	}
+
+	/**
+	 * Whether the MCP server exposes a tool.
+	 *
+	 * @param string $name Tool name.
+	 * @return bool
+	 */
+	public static function supports_tool( string $name ): bool {
+		$tools = self::available_tools();
+
+		return is_array( $tools ) && in_array( $name, $tools, true );
+	}
+
+	/**
+	 * Discover ComfyUI workflow templates the MCP template system knows about.
+	 *
+	 * @param array $filters Optional `model_type` / `task_type` filters.
+	 * @param int   $connection_id Connection post ID, for log correlation.
+	 * @return array|WP_Error
+	 */
+	public static function list_templates( array $filters = [], int $connection_id = 0 ) {
+		return self::call_discovery_tool( 'list_templates', array_filter( $filters, static function ( $value ) {
+			return null !== $value && '' !== $value;
+		} ), $connection_id );
+	}
+
+	/**
+	 * Load one discovered template, including its workflow graph, required
+	 * nodes, and default settings.
+	 *
+	 * @param string $template_id Template identifier from list_templates().
+	 * @param array  $parameters  Optional parameter overrides.
+	 * @param int    $connection_id Connection post ID, for log correlation.
+	 * @return array|WP_Error
+	 */
+	public static function get_template( string $template_id, array $parameters = [], int $connection_id = 0 ) {
+		return self::call_discovery_tool( 'get_template', [
+			'templateId' => $template_id,
+			'parameters' => (object) $parameters,
+		], $connection_id );
+	}
+
+	/**
+	 * Ask the MCP server to fetch model files into the ComfyUI workspace.
+	 *
+	 * @param array $urls Model download URLs.
+	 * @param int   $connection_id Connection post ID, for log correlation.
+	 * @return array|WP_Error
+	 */
+	public static function download_models( array $urls, int $connection_id = 0 ) {
+		$urls = array_values( array_filter( array_map( 'esc_url_raw', $urls ) ) );
+		if ( empty( $urls ) ) {
+			return new WP_Error( 'comfy_mcp_no_models', 'No model download URLs were supplied.' );
+		}
+
+		return self::call_discovery_tool( 'download_models', [ 'urls' => $urls ], $connection_id );
+	}
+
+	/**
+	 * Call a template-system tool, reporting clearly when the connected MCP
+	 * server does not implement it rather than failing deep inside a job.
+	 *
+	 * @param string $name Tool name.
+	 * @param array  $arguments Tool arguments.
+	 * @param int    $connection_id Connection post ID, for log correlation.
+	 * @return array|WP_Error
+	 */
+	private static function call_discovery_tool( string $name, array $arguments, int $connection_id ) {
+		$tools = self::available_tools( $connection_id );
+		if ( is_wp_error( $tools ) ) {
+			return $tools;
+		}
+		if ( ! in_array( $name, $tools, true ) ) {
+			return new WP_Error(
+				'comfy_mcp_tool_unavailable',
+				sprintf( 'The connected Comfy MCP server does not expose the "%s" tool.', $name ),
+				[ 'available_tools' => $tools ]
+			);
+		}
+
+		return self::call_tool( $name, $arguments, $connection_id );
 	}
 
 	private static function call_tool( string $name, array $arguments, int $connection_id = 0 ) {

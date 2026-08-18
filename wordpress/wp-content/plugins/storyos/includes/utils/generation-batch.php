@@ -59,11 +59,19 @@ class Generation_Batch {
 		foreach ( $jobs as $job_id ) {
 			$provider_type = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? 'local_comfyui' : 'comfy_cloud_mcp';
 			$client = 'local_comfyui' === $provider_type ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
+			$connection_id = absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) );
+			$params = (array) get_post_meta( $job_id, '_storyos_generation_params', true );
+			$inputs = get_post_meta( $job_id, '_storyos_generation_inputs', true );
+			if ( is_array( $inputs ) && ! empty( $inputs ) ) {
+				$params['inputs'] = $inputs;
+			}
+
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Submitting job %d via %s.', $job_id, $provider_type ), [], (string) $job_id );
 			$result = $client::run_template(
 				(string) get_post_meta( $job_id, '_storyos_generation_workflow', true ),
 				(string) get_post_meta( $job_id, '_storyos_generation_prompt', true ),
-				(array) get_post_meta( $job_id, '_storyos_generation_params', true )
+				$params,
+				$connection_id
 			);
 
 			if ( is_wp_error( $result ) ) {
@@ -99,7 +107,10 @@ class Generation_Batch {
 
 		foreach ( $jobs as $job_id ) {
 			$client = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
-			$result = $client::get_job_status( (string) get_post_meta( $job_id, '_storyos_generation_job_id', true ) );
+			$result = $client::get_job_status(
+				(string) get_post_meta( $job_id, '_storyos_generation_job_id', true ),
+				absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) )
+			);
 			if ( is_wp_error( $result ) ) {
 				continue;
 			}
@@ -110,7 +121,7 @@ class Generation_Batch {
 				update_post_meta( $job_id, '_storyos_generation_result', $result );
 				Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d reached status: %s.', $job_id, $status ), [], (string) $job_id );
 
-				if ( 'completed' === $status && 'image' === get_post_meta( $job_id, '_storyos_generation_type', true ) ) {
+				if ( 'completed' === $status && in_array( get_post_meta( $job_id, '_storyos_generation_type', true ), [ 'image', 'video' ], true ) ) {
 					$asset = Asset_Generator::import_completed_job( $job_id, $result );
 					if ( is_wp_error( $asset ) ) {
 						update_post_meta( $job_id, '_storyos_generation_status', 'failed' );

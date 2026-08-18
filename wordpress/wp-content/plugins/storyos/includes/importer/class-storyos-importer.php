@@ -464,6 +464,13 @@ class StoryOS_Importer {
 	 */
 	private function import_shots(): void {
 		$shot_index = 1;
+
+		// Build a scene external ID → title lookup for useful shot names.
+		$scene_titles = [];
+		foreach ( $this->document['scenes'] as $scene ) {
+			$scene_titles[ sanitize_text_field( $scene['id'] ) ] = sanitize_text_field( $scene['title'] ?? '' );
+		}
+
 		foreach ( $this->document['shots'] as $shot ) {
 			$external_id = sanitize_text_field( $shot['id'] );
 
@@ -476,11 +483,22 @@ class StoryOS_Importer {
 				continue;
 			}
 
+			// Normalize the shot type so it matches the canonical options.
+			$shot_type = isset( $shot['type'] ) ? \StoryOS\Utils\storyos_normalize_shot_type( (string) $shot['type'] ) : '';
+
+			$shot_name = \StoryOS\Utils\storyos_generate_shot_name( [
+				'shot_number'      => $shot_index,
+				'shot_type'        => $shot_type,
+				'shot_description' => $shot['description'] ?? '',
+				'scene_title'      => $scene_titles[ sanitize_text_field( $shot['scene'] ?? '' ) ] ?? '',
+			] );
+
 			$post_data = [
 				'post_type'    => 'storyos_shot',
-				'post_title'   => sprintf( 'Shot %d', $shot_index ),
+				'post_title'   => $shot_name,
 				'post_status'  => 'publish',
 				'post_content' => isset( $shot['description'] ) ? wp_kses_post( $shot['description'] ) : '',
+				'menu_order'   => $shot_index,
 			];
 
 			if ( $post_id ) {
@@ -503,8 +521,9 @@ class StoryOS_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			update_post_meta( $post_id, 'shot_number', $shot_index );
-			if ( isset( $shot['type'] ) ) {
-				update_post_meta( $post_id, 'shot_type', sanitize_text_field( $shot['type'] ) );
+			update_post_meta( $post_id, 'shot_name', $shot_name );
+			if ( '' !== $shot_type ) {
+				update_post_meta( $post_id, 'shot_type', $shot_type );
 			}
 			if ( isset( $shot['description'] ) ) {
 				update_post_meta( $post_id, 'shot_description', wp_kses_post( $shot['description'] ) );
@@ -601,6 +620,21 @@ class StoryOS_Importer {
 			update_post_meta( $scene_post_id, 'sequence_order', $order );
 			$order++;
 		}
+
+		// Assign every shot that belongs to a scene in the sequence.
+		foreach ( $this->document['shots'] as $shot ) {
+			$scene_external_id = sanitize_text_field( $shot['scene'] ?? '' );
+			$shot_post_id      = $this->id_map[ sanitize_text_field( $shot['id'] ) ] ?? 0;
+
+			if ( ! $shot_post_id || ! in_array( $scene_external_id, (array) $sequence['order'], true ) ) {
+				continue;
+			}
+
+			wp_set_object_terms( $shot_post_id, $term_id, 'storyos_sequence', false );
+		}
+
+		// Record the editorial order of the sequence term itself.
+		\StoryOS\Utils\storyos_set_sequence_order( (int) $term_id, 1 );
 
 		$this->report['sequence'] = [
 			'term_id' => $term_id,
