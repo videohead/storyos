@@ -231,7 +231,7 @@ class AI_Editor {
 	 */
 	public static function add_settings_page(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-administration',
 			'StoryOS AI Settings',
 			'AI Settings',
 			'manage_options',

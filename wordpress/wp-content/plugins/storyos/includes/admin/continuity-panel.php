@@ -29,7 +29,7 @@ class Continuity_Panel {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-analysis',
 			'Continuity Validation',
 			'Continuity',
 			'manage_options',

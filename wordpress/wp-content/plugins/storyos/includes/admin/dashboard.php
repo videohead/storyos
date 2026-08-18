@@ -81,110 +81,81 @@ class Dashboard {
 	 * Render the dashboard page.
 	 */
 	public static function render_dashboard(): void {
+		$areas = [
+			[
+				'title'       => 'Story Elements',
+				'description' => 'Build the people, places, worlds, props, and projects that make up your story.',
+				'icon'        => 'dashicons-book-alt',
+				'url'         => admin_url( 'admin.php?page=storyos-story-elements' ),
+			],
+			[
+				'title'       => 'Editorial',
+				'description' => 'Shape episodes, scenes, shots, assets, and your editorial cut.',
+				'icon'        => 'dashicons-edit',
+				'url'         => admin_url( 'admin.php?page=storyos-editorial' ),
+			],
+			[
+				'title'       => 'Story Analysis',
+				'description' => 'Explore analysis, summaries, continuity, dramaturgy, and character tools.',
+				'icon'        => 'dashicons-chart-area',
+				'url'         => admin_url( 'admin.php?page=storyos-analysis' ),
+			],
+			[
+				'title'       => 'Administration',
+				'description' => 'Manage setup, connections, templates, and StoryOS logs.',
+				'icon'        => 'dashicons-admin-generic',
+				'url'         => admin_url( 'admin.php?page=storyos-administration' ),
+			],
+			[
+				'title'       => 'Plugins',
+				'description' => 'Import, export, and connect StoryOS with Celtx, EDL, and Google Story.',
+				'icon'        => 'dashicons-admin-plugins',
+				'url'         => admin_url( 'admin.php?page=storyos-plugins' ),
+				'actions'     => [
+					[ 'label' => 'Import JSON', 'url' => admin_url( 'admin.php?page=storyos-import' ) ],
+					[ 'label' => 'Export Markdown', 'url' => admin_url( 'admin.php?page=storyos-export' ) ],
+				],
+			],
+		];
 		?>
 		<div class="wrap storyos-dashboard">
-			<h1>StoryOS Dashboard</h1>
-			
-			<div class="storyos-stats">
-				<?php self::render_stat_cards(); ?>
-			</div>
+			<h1>StoryOS</h1>
+			<p class="storyos-dashboard-intro">Choose where you want to work.</p>
 
-			<div class="storyos-quick-actions">
-				<h2>Quick Actions</h2>
-				<div class="storyos-actions">
-					<a href="<?php echo admin_url( 'post-new.php?post_type=storyos_project' ); ?>" class="button button-primary">
-						<span class="dashicons dashicons-plus"></span> New Project
-					</a>
-					<a href="<?php echo admin_url( 'post-new.php?post_type=storyos_story-world' ); ?>" class="button">
-						<span class="dashicons dashicons-admin-site"></span> New Story World
-					</a>
-					<a href="<?php echo admin_url( 'post-new.php?post_type=storyos_character' ); ?>" class="button">
-						<span class="dashicons dashicons-admin-users"></span> New Character
-					</a>
-					<a href="<?php echo admin_url( 'post-new.php?post_type=storyos_scene' ); ?>" class="button">
-						<span class="dashicons dashicons-video-alt3"></span> New Scene
-					</a>
+			<section class="storyos-setup-panel" aria-labelledby="storyos-setup-title">
+				<div class="storyos-setup-icon"><span class="dashicons dashicons-admin-tools" aria-hidden="true"></span></div>
+				<div class="storyos-setup-content">
+					<h2 id="storyos-setup-title">Set up StoryOS</h2>
+					<p>Connect your services and configure the workspace before you begin building.</p>
 				</div>
-			</div>
+				<a class="button button-primary button-hero" href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-setup' ) ); ?>">Open Setup</a>
+			</section>
 
-			<div class="storyos-recent">
-				<h2>Recent Activity</h2>
-				<?php self::render_recent_activity(); ?>
-			</div>
-		</div>
-		<?php
-	}
-
-	/**
-	 * Render stat cards.
-	 */
-	private static function render_stat_cards(): void {
-		$cpts = \StoryOS\Utils\storyos_get_all_cpts();
-		?>
-		<div class="stat-cards">
-			<?php foreach ( $cpts as $cpt ) : ?>
-				<?php
-				$count = wp_count_posts( $cpt );
-				$total = is_object( $count ) ? array_sum( (array) $count ) : 0;
-				$post_type_object = get_post_type_object( $cpt );
-				$label = ( $post_type_object && isset( $post_type_object->labels->name ) ) ? $post_type_object->labels->name : $cpt;
-				?>
-				<div class="stat-card">
-					<div class="stat-number"><?php echo esc_html( $total ); ?></div>
-					<div class="stat-label">
-						<a href="<?php echo admin_url( 'edit.php?post_type=storyos_' . strtolower($cpt) ); ?>">
-							<?php echo esc_html( $label ); ?>
-						</a>
-					</div>
-				</div>
-			<?php endforeach; ?>
-		</div>
-		<?php
-	}
-
-	/**
-	 * Render recent activity.
-	 */
-	private static function render_recent_activity(): void {
-		$recent = new \WP_Query( [
-			'post_type'      => array_values( \StoryOS\Utils\storyos_get_all_cpts() ),
-			'posts_per_page' => 10,
-			'meta_key'       => 'generated_date',
-			'orderby'        => 'modified',
-			'order'          => 'DESC',
-		] );
-
-		if ( ! $recent->have_posts() ) {
-			echo '<p>No recent activity.</p>';
-			return;
-		}
-
-		?>
-		<table class="widefat">
-			<thead>
-				<tr>
-					<th>Title</th>
-					<th>Type</th>
-					<th>Status</th>
-					<th>Modified</th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php while ( $recent->have_posts() ) : $recent->the_post(); ?>
-					<tr>
-						<td>
-							<a href="<?php echo get_edit_post_link(); ?>">
-								<?php the_title(); ?>
+			<section aria-labelledby="storyos-areas-title">
+				<h2 id="storyos-areas-title">Workspaces</h2>
+				<div class="storyos-area-cards">
+					<?php foreach ( $areas as $area ) : ?>
+						<div class="storyos-area-card">
+							<span class="storyos-area-icon dashicons <?php echo esc_attr( $area['icon'] ); ?>" aria-hidden="true"></span>
+							<span class="storyos-area-card-content">
+								<strong><a href="<?php echo esc_url( $area['url'] ); ?>"><?php echo esc_html( $area['title'] ); ?></a></strong>
+								<span><?php echo esc_html( $area['description'] ); ?></span>
+								<?php if ( ! empty( $area['actions'] ) ) : ?>
+									<span class="storyos-area-actions">
+										<?php foreach ( $area['actions'] as $action ) : ?>
+											<a href="<?php echo esc_url( $action['url'] ); ?>"><?php echo esc_html( $action['label'] ); ?></a>
+										<?php endforeach; ?>
+									</span>
+								<?php endif; ?>
+							</span>
+							<a class="storyos-area-card-open" href="<?php echo esc_url( $area['url'] ); ?>" aria-label="Open <?php echo esc_attr( $area['title'] ); ?>">
+								<span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
 							</a>
-						</td>
-						<td><?php echo esc_html( get_post_type() ); ?></td>
-						<td><?php echo esc_html( get_post_status() ); ?></td>
-						<td><?php echo esc_html( get_the_modified_date() ); ?></td>
-					</tr>
-				<?php endwhile; ?>
-			</tbody>
-		</table>
+						</div>
+					<?php endforeach; ?>
+				</div>
+			</section>
+		</div>
 		<?php
-		wp_reset_postdata();
 	}
 }

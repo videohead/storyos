@@ -124,6 +124,7 @@ class Template {
 			'Templates',
 			[
 				'menu_icon' => 'dashicons-media-document',
+				'show_in_menu' => 'storyos-administration',
 			],
 			$fields
 		);

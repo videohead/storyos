@@ -4,45 +4,145 @@
  * Minimal styling that relies on WordPress default admin styles.
  */
 
-.storyos-dashboard .stat-cards {
-	display: grid;
-	grid-template-columns: repeat( auto-fill, minmax( 200px, 1fr ) );
-	gap: 16px;
-	margin: 20px 0;
+.storyos-dashboard-intro {
+	font-size: 15px;
+	margin: 8px 0 24px;
 }
 
-.storyos-dashboard .stat-card {
+.storyos-dashboard h2 {
+	font-size: 18px;
+}
+
+.storyos-setup-panel {
+	align-items: center;
+	background: #1d2327;
+	color: #fff;
+	display: flex;
+	gap: 18px;
+	margin: 0 0 32px;
+	max-width: 900px;
+	padding: 24px 28px;
+}
+
+.storyos-setup-icon {
+	align-items: center;
+	background: #2271b1;
+	display: flex;
+	height: 52px;
+	justify-content: center;
+	min-width: 52px;
+}
+
+.storyos-setup-icon .dashicons {
+	font-size: 28px;
+	height: 28px;
+	width: 28px;
+}
+
+.storyos-setup-content {
+	flex: 1;
+}
+
+.storyos-setup-content h2 {
+	color: #fff;
+	margin: 0 0 4px;
+}
+
+.storyos-setup-content p {
+	color: #dcdcde;
+	margin: 0;
+}
+
+.storyos-area-cards {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat( auto-fit, minmax(280px, 1fr) );
+	max-width: 1000px;
+}
+
+.storyos-area-card {
+	align-items: center;
 	background: #fff;
 	border: 1px solid #c3c4c7;
-	border-left: 4px solid #2271b1;
-	padding: 16px;
-	box-shadow: 0 1px 1px rgba( 0, 0, 0, .04 );
+	color: #1d2327;
+	display: flex;
+	gap: 16px;
+	min-height: 112px;
+	padding: 20px;
+	text-decoration: none;
 }
 
-.storyos-dashboard .stat-number {
-	font-size: 32px;
-	font-weight: 460;
+.storyos-area-card:hover,
+.storyos-area-card:focus {
+	border-color: #2271b1;
+	box-shadow: 0 2px 5px rgba( 0, 0, 0, .12 );
+	color: #135e96;
+}
+
+.storyos-area-card-content strong a {
+	color: #1d2327;
+	text-decoration: none;
+}
+
+.storyos-area-card-content strong a:hover,
+.storyos-area-card-content strong a:focus {
+	color: #135e96;
+	text-decoration: underline;
+}
+
+.storyos-area-icon {
 	color: #2271b1;
-	line-height: 1.25;
+	font-size: 34px;
+	height: 34px;
+	width: 34px;
 }
 
-.storyos-dashboard .stat-label {
-	font-size: 13px;
+.storyos-area-card-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.storyos-area-card-content strong {
+	font-size: 16px;
+}
+
+.storyos-area-card-content span {
 	color: #646970;
+	line-height: 1.45;
 }
 
-.storyos-dashboard .stat-label a {
+.storyos-area-card-content .storyos-area-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.storyos-area-actions a {
 	color: #2271b1;
+	font-weight: 600;
 }
 
-.storyos-dashboard .storyos-actions {
-	margin: 16px 0;
+.storyos-area-card-open {
+	color: #646970;
+	display: flex;
+	text-decoration: none;
 }
 
-.storyos-dashboard .storyos-actions .button {
-	margin-right: 8px;
+.storyos-area-card-open:hover,
+.storyos-area-card-open:focus {
+	color: #135e96;
 }
 
-.storyos-dashboard .widefat tbody tr:hover {
-	background: #f0f0f1;
+@media screen and ( max-width: 600px ) {
+	.storyos-setup-panel {
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+
+	.storyos-setup-panel .button {
+		margin-left: 70px;
+	}
 }

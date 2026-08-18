@@ -40,7 +40,7 @@ class Connections {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-administration',
 			'Connections',
 			'Connections',
 			'manage_options',

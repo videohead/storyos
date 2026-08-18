@@ -68,6 +68,7 @@ class StoryboardFrame {
 		'Storyboard Frames',
 		[
 			'menu_icon' => 'dashicons-images-alt2',
+			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
 	);

@@ -71,6 +71,7 @@ class StoryWorld {
 		'Story Worlds',
 		[
 			'menu_icon' => 'dashicons-earth',
+			'show_in_menu' => 'storyos-story-elements',
 		],
 		$fields
 	);

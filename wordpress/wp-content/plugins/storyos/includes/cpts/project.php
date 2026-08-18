@@ -137,6 +137,7 @@ class Project {
 		'Projects',
 		[
 			'menu_icon' => 'dashicons-video-alt3',
+			'show_in_menu' => 'storyos-story-elements',
 			'menu_position' => 5,
 		],
 		$fields

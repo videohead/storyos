@@ -92,6 +92,7 @@ class Scene {
 		'Scenes',
 		[
 			'menu_icon' => 'dashicons-screenoptions',
+			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
 	);

@@ -108,7 +108,7 @@ class Setup_Wizard {
 
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-administration',
 			'Setup StoryOS',
 			'Setup & Settings',
 			'manage_options',
@@ -135,6 +135,7 @@ class Setup_Wizard {
 		}
 		if ( isset( $_POST['storyos_comfy_local_url'] ) ) {
 			update_option( 'storyos_comfy_local_url', esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ) ) );
+			\StoryOS\Utils\Comfy_Bootstrap::flush();
 		}
 
 		// Populate the "Generation" Connection record from this section.
@@ -173,6 +174,13 @@ class Setup_Wizard {
 					'workflow_json'        => $workflow_json,
 				]
 			);
+
+			// A local ComfyUI has to be able to run text-to-image before any
+			// story element can generate an asset, so provision that Template
+			// here and let the readiness checklist report what is still missing.
+			if ( 'local_mcp' === $comfy_mode ) {
+				\StoryOS\Utils\Comfy_Bootstrap::ensure_template( $connection_id );
+			}
 		}
 
 		// Primary LLM Configuration
@@ -333,6 +341,9 @@ class Setup_Wizard {
 				<textarea class="large-text code" name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10"><?php echo esc_textarea( $workflow_json ); ?></textarea><br />
 				<span class="description">Leave blank to use StoryOS's built-in single-image text-to-image workflow with the checkpoint above. To use a custom graph instead, export it with ComfyUI's “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. This is saved as the single default <strong>Template</strong> (<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=storyos_template' ) ); ?>">manage Templates</a>) so it can later be extended to more than one.</span></p>
 				<p class="description">Choose <strong>No ComfyUI connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
+				<h3>ComfyUI Readiness</h3>
+				<p class="description">ComfyUI loads its default text-to-image workflow on first launch only when the matching nodes and a checkpoint are installed. StoryOS checks that here, provisions the text-to-image <strong>Template</strong> it generates against, and lists whatever is still missing.</p>
+				<?php \StoryOS\Admin\Comfy_Readiness::render_panel(); ?>
 				<h2>3. LLM Connection (Required for AI Agents)</h2>
 				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration. Without one, leave these fields empty and use StoryOS for story data, WordPress media, and external-generation asset tracking.</p>
 				<p class="description">Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-connections' ) ); ?>">StoryOS &gt; Connections</a>. Configure additional connections (e.g. a fallback or secondary LLM) directly on the Connections screen.</p>

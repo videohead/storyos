@@ -57,6 +57,7 @@ class Episode {
 		'Episodes',
 		[
 			'menu_icon' => 'dashicons-video-alt2',
+			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
 	);

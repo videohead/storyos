@@ -164,14 +164,18 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/local-comfyui.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-manifest.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-bootstrap.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/continuity-checker.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationship-graph.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/dashboard.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/navigation.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/setup-wizard.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/metaboxes.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/asset-generator-metabox.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/comfy-readiness.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
@@ -231,8 +235,10 @@ function init(): void {
 
 	// Register admin pages and hooks.
 	Admin\Dashboard::init();
+	Admin\Navigation::init();
 	Admin\Setup_Wizard::init();
 	Admin\MetaBoxes::init();
+	Admin\Comfy_Readiness::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();
 	Admin\Analytics_Panel::init();

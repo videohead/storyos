@@ -76,6 +76,7 @@ class EditorialArtifact {
 		'Editorial Artifacts',
 		[
 			'menu_icon' => 'dashicons-media-video',
+			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
 	);

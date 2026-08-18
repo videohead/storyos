@@ -111,6 +111,7 @@ class Asset {
 		'Assets',
 		[
 			'menu_icon' => 'dashicons-portfolio',
+			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
 	);

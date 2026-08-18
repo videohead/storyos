@@ -31,7 +31,7 @@ class Export {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-plugins',
 			'Export',
 			'Export',
 			'manage_options',

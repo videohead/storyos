@@ -145,6 +145,39 @@ class Comfy_Manifest {
 	}
 
 	/**
+	 * The model filenames a live ComfyUI offers for a loader input, e.g. the
+	 * checkpoints its default text-to-image workflow can load.
+	 *
+	 * @param string $node_class Node class type.
+	 * @param string $field      Input name.
+	 * @param string $endpoint   Optional ComfyUI base URL; defaults to the configured one.
+	 * @return array<int, string>|WP_Error Filenames, or an error when the catalog or node is unavailable.
+	 */
+	public static function installed_files( string $node_class, string $field, string $endpoint = '' ) {
+		$endpoint = '' !== $endpoint ? untrailingslashit( esc_url_raw( $endpoint ) ) : Local_ComfyUI::endpoint();
+		if ( '' === $endpoint ) {
+			return new WP_Error( 'storyos_comfy_endpoint_missing', __( 'Set a local ComfyUI URL before reading its installed models.', 'storyos' ), [ 'status' => 400 ] );
+		}
+
+		$catalog = self::catalog( $endpoint );
+		if ( is_wp_error( $catalog ) ) {
+			return $catalog;
+		}
+		if ( ! isset( $catalog[ $node_class ] ) ) {
+			return new WP_Error(
+				'storyos_comfy_node_missing',
+				sprintf(
+					/* translators: %s: ComfyUI node class name. */
+					__( 'ComfyUI has not loaded the %s node.', 'storyos' ),
+					$node_class
+				)
+			);
+		}
+
+		return self::installed_options( $catalog, $node_class, $field ) ?? [];
+	}
+
+	/**
 	 * Sampling and model settings a Template overrides on the built-in graph.
 	 *
 	 * @param int    $template_id Template post ID.

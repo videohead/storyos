@@ -32,7 +32,7 @@ class Import {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-plugins',
 			'Import',
 			'Import',
 			'manage_options',

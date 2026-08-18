@@ -56,6 +56,7 @@ class Prop {
 		'Props',
 		[
 			'menu_icon' => 'dashicons-cart',
+			'show_in_menu' => 'storyos-story-elements',
 		],
 		$fields
 	);

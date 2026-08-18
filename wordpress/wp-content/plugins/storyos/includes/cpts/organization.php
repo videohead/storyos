@@ -62,6 +62,7 @@ class Organization {
 		'Organizations',
 		[
 			'menu_icon' => 'dashicons-building',
+			'show_in_menu' => 'storyos-story-elements',
 		],
 		$fields
 	);

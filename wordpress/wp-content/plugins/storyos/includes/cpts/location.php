@@ -76,6 +76,7 @@ class Location {
 		'Locations',
 		[
 			'menu_icon' => 'dashicons-location-alt',
+			'show_in_menu' => 'storyos-story-elements',
 		],
 		$fields
 	);

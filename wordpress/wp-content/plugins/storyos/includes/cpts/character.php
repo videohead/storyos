@@ -82,6 +82,7 @@ class Character {
 		'Characters',
 		[
 			'menu_icon' => 'dashicons-groups',
+			'show_in_menu' => 'storyos-story-elements',
 		],
 		$fields
 	);

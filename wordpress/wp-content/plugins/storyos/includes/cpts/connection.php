@@ -165,6 +165,7 @@ class Connection {
 			'Connections',
 			[
 				'menu_icon' => 'dashicons-admin-network',
+				'show_in_menu' => 'storyos-administration',
 			],
 			$fields
 		);

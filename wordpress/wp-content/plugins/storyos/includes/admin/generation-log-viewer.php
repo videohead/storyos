@@ -33,7 +33,7 @@ class Generation_Log_Viewer {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-administration',
 			'Generation Log',
 			'Generation Log',
 			'manage_options',

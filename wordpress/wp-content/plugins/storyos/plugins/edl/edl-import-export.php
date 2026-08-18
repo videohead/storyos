@@ -85,7 +85,7 @@ function deactivate(): void {
  */
 function add_admin_page(): void {
 	add_submenu_page(
-		'storyos',
+		'storyos-plugins',
 		'EDL Manager',
 		'EDL Manager',
 		'manage_storyos',

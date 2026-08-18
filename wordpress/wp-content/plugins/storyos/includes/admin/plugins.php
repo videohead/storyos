@@ -278,7 +278,7 @@ class Plugins {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-administration',
 			'Plugins',
 			'Plugins',
 			'manage_options',
@@ -331,75 +331,93 @@ class Plugins {
 				<div class="notice notice-info">
 					<p>No plugins registered yet. Integrations will appear here.</p>
 				</div>
-			<?php else : ?>
-				<table class="wp-list-table widefat fixed striped">
-					<thead>
-						<tr>
-							<th>Plugin</th>
-							<th>Status</th>
-							<th>Configuration</th>
-							<th>Actions</th>
-						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( self::$plugins as $slug => $plugin ) : ?>
-							<tr data-plugin="<?php echo esc_attr( $slug ); ?>">
-								<td>
-									<strong>
-										<span class="dashicons <?php echo esc_attr( $plugin['icon'] ); ?>" style="margin-right: 5px;"></span>
-										<?php echo esc_html( $plugin['name'] ); ?>
-									</strong>
-									<br>
-									<small>
-										<?php echo esc_html( $plugin['description'] ); ?>
-										<br>
-										<span class="storyos-plugin-meta">
-											Version <?php echo esc_html( $plugin['version'] ); ?> &middot; <?php echo esc_html( $plugin['author'] ); ?>
-										</span>
-									</small>
-								</td>
-								<td>
-									<?php if ( $plugin['active'] ) : ?>
-										<span class="status-active">Active</span>
-									<?php else : ?>
-										<span class="status-inactive">Inactive</span>
-									<?php endif; ?>
-									<?php if ( $plugin['configured'] ) : ?>
-										<br><span class="status-configured">✓ Configured</span>
-									<?php else : ?>
-										<br><span class="status-unconfigured">Not configured</span>
-									<?php endif; ?>
-								</td>
-								<td>
-									<?php if ( $plugin['has_settings'] ) : ?>
-										<a href="<?php echo esc_url( $plugin['settings_url'] ); ?>" class="button button-small">
-											<span class="dashicons dashicons-admin-generic"></span> Settings
-										</a>
-									<?php else : ?>
-										<span class="dashicons dashicons-info" style="color: #999;"></span>
-									<?php endif; ?>
-								</td>
-								<td>
-									<?php
-									$requires_configuration = ! $plugin['active'] && ! $plugin['configured'] && $plugin['has_settings'];
-									?>
-									<button class="button button-small storyos-toggle-plugin" data-plugin="<?php echo esc_attr( $slug ); ?>" <?php disabled( $requires_configuration ); ?>>
-										<?php echo $plugin['active'] ? 'Disable' : 'Enable'; ?>
-									</button>
-									<?php if ( $requires_configuration ) : ?>
-										<a href="<?php echo esc_url( $plugin['settings_url'] ); ?>" class="button button-small button-primary">Configure First</a>
-									<?php endif; ?>
-									<?php if ( $plugin['active'] && $plugin['configured'] ) : ?>
-										<button class="button button-small storyos-test-connection" data-plugin="<?php echo esc_attr( $slug ); ?>">
-											Test Connection
-										</button>
-									<?php endif; ?>
-								</td>
-							</tr>
-						<?php endforeach; ?>
-					</tbody>
-				</table>
 			<?php endif; ?>
+
+			<table class="wp-list-table widefat fixed striped">
+				<thead>
+					<tr>
+						<th>Plugin</th>
+						<th>Status</th>
+						<th>Configuration</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( self::$plugins as $slug => $plugin ) : ?>
+						<tr data-plugin="<?php echo esc_attr( $slug ); ?>">
+							<td>
+								<strong>
+									<span class="dashicons <?php echo esc_attr( $plugin['icon'] ); ?>" style="margin-right: 5px;"></span>
+									<?php echo esc_html( $plugin['name'] ); ?>
+								</strong>
+								<br>
+								<small>
+									<?php echo esc_html( $plugin['description'] ); ?>
+									<br>
+									<span class="storyos-plugin-meta">
+										Version <?php echo esc_html( $plugin['version'] ); ?> &middot; <?php echo esc_html( $plugin['author'] ); ?>
+									</span>
+								</small>
+							</td>
+							<td>
+								<?php if ( $plugin['active'] ) : ?>
+									<span class="status-active">Active</span>
+								<?php else : ?>
+									<span class="status-inactive">Inactive</span>
+								<?php endif; ?>
+								<?php if ( $plugin['configured'] ) : ?>
+									<br><span class="status-configured">✓ Configured</span>
+								<?php else : ?>
+									<br><span class="status-unconfigured">Not configured</span>
+								<?php endif; ?>
+							</td>
+							<td>
+								<?php if ( $plugin['has_settings'] ) : ?>
+									<a href="<?php echo esc_url( $plugin['settings_url'] ); ?>" class="button button-small">
+										<span class="dashicons dashicons-admin-generic"></span> Settings
+									</a>
+								<?php else : ?>
+									<span class="dashicons dashicons-info" style="color: #999;"></span>
+								<?php endif; ?>
+							</td>
+							<td>
+								<?php
+								$requires_configuration = ! $plugin['active'] && ! $plugin['configured'] && $plugin['has_settings'];
+								?>
+								<button class="button button-small storyos-toggle-plugin" data-plugin="<?php echo esc_attr( $slug ); ?>" <?php disabled( $requires_configuration ); ?>>
+									<?php echo $plugin['active'] ? 'Disable' : 'Enable'; ?>
+								</button>
+								<?php if ( $requires_configuration ) : ?>
+									<a href="<?php echo esc_url( $plugin['settings_url'] ); ?>" class="button button-small button-primary">Configure First</a>
+								<?php endif; ?>
+								<?php if ( $plugin['active'] && $plugin['configured'] ) : ?>
+									<button class="button button-small storyos-test-connection" data-plugin="<?php echo esc_attr( $slug ); ?>">
+										Test Connection
+									</button>
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+					<tr class="storyos-plugin-tool-row">
+						<td>
+							<strong><span class="dashicons dashicons-upload" style="margin-right: 5px;"></span>JSON Import</strong>
+							<br><small>Import a StoryOS project document and its story graph data.</small>
+						</td>
+						<td><span class="status-active">Available</span></td>
+						<td><span class="status-configured">Built in</span></td>
+						<td><a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-import' ) ); ?>" class="button button-small button-primary">Import JSON</a></td>
+					</tr>
+					<tr class="storyos-plugin-tool-row">
+						<td>
+							<strong><span class="dashicons dashicons-download" style="margin-right: 5px;"></span>Markdown Export</strong>
+							<br><small>Export a StoryOS project as a Markdown screenplay file.</small>
+						</td>
+						<td><span class="status-active">Available</span></td>
+						<td><span class="status-configured">Built in</span></td>
+						<td><a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-export' ) ); ?>" class="button button-small button-primary">Export Markdown</a></td>
+					</tr>
+				</tbody>
+			</table>
 		</div>
 		<?php
 	}

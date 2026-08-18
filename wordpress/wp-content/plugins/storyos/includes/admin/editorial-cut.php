@@ -24,7 +24,7 @@ class Editorial_Cut {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'storyos',
+			'storyos-editorial',
 			'Editorial Cut',
 			'Editorial Cut',
 			'edit_posts',

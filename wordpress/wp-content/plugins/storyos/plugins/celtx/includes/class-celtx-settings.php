@@ -69,7 +69,7 @@ class Settings {
 	 */
 	public function add_settings_menu(): void {
 		add_submenu_page(
-			'storyos', // Parent menu slug.
+			'storyos-plugins', // Parent menu slug.
 			'Celtx Sync', // Page title.
 			'Celtx Sync', // Menu title.
 			'manage_options', // Capability.

@@ -117,6 +117,7 @@ class Shot {
 		'Shots',
 		[
 			'menu_icon' => 'dashicons-camera',
+			'show_in_menu' => 'storyos-editorial',
 			// page-attributes exposes menu_order, the shot's position in the cut.
 			'supports'  => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions', 'page-attributes' ],
 		],
