@@ -40,6 +40,24 @@ class Template {
 				'label'       => 'Generation Structure',
 				'required'    => true,
 			],
+			'connection_id'       => [
+				'type'        => 'text',
+				'label'       => 'Connection ID',
+				'required'    => false,
+				'description' => 'The storyos_connection post ID this template runs against (a Connection can back many Templates/checkpoints).',
+			],
+			'checkpoint'          => [
+				'type'        => 'text',
+				'label'       => 'Checkpoint / Model',
+				'required'    => false,
+				'description' => 'Checkpoint filename installed on the Connection, e.g. LTX-2.3/ltx-2.3-22b-dev-fp8.safetensors.',
+			],
+			'workflow_json'       => [
+				'type'        => 'textarea',
+				'label'       => 'ComfyUI API Workflow (optional)',
+				'required'    => false,
+				'description' => 'Leave blank to use the built-in single-image text-to-image workflow with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, replace the positive prompt text with {{prompt}}, then paste the JSON here.',
+			],
 			'configuration_json'  => [
 				'type'        => 'textarea',
 				'label'       => 'Configuration JSON',
@@ -186,8 +204,11 @@ class Template {
 			}
 
 			$value = sanitize_textarea_field( wp_unslash( $_POST[ $field_name ] ) );
-			if ( 'status' === $field_name || 'provider_type' === $field_name || 'version' === $field_name || 'generation_structure' === $field_name ) {
+			if ( 'status' === $field_name || 'provider_type' === $field_name || 'version' === $field_name || 'generation_structure' === $field_name || 'checkpoint' === $field_name ) {
 				$value = sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) );
+			}
+			if ( 'connection_id' === $field_name ) {
+				$value = (string) absint( wp_unslash( $_POST[ $field_name ] ) );
 			}
 
 			if ( 'status' === $field_name && ! in_array( $value, [ 'draft', 'active', 'archived' ], true ) ) {
@@ -196,5 +217,46 @@ class Template {
 
 			update_post_meta( $post_id, $field_name, $value );
 		}
+	}
+
+	/**
+	 * Create or update the single Template post managed for a given setup-wizard
+	 * slot, so a Connection's checkpoint/workflow configuration lives on one
+	 * default Template instead of a separate global option.
+	 *
+	 * @param string $slot  Wizard slot marker, e.g. 'local_comfyui_default'.
+	 * @param string $title Post title / template name.
+	 * @param array  $meta  Meta fields to set (subset of the registered fields).
+	 * @return int Template post ID.
+	 */
+	public static function upsert_managed( string $slot, string $title, array $meta ): int {
+		$existing = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'meta_key'       => 'storyos_wizard_slot', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'     => $slot, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+			'fields'         => 'ids',
+		] );
+
+		$post_id = $existing ? (int) $existing[0] : 0;
+		$post_id = wp_insert_post( [
+			'ID'          => $post_id ?: 0,
+			'post_type'   => 'storyos_template',
+			'post_title'  => $title,
+			'post_status' => 'publish',
+		], true );
+
+		if ( is_wp_error( $post_id ) || ! $post_id ) {
+			return 0;
+		}
+
+		update_post_meta( $post_id, 'storyos_wizard_slot', $slot );
+		update_post_meta( $post_id, 'template_name', $title );
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $post_id, $key, $value );
+		}
+
+		return (int) $post_id;
 	}
 }

@@ -27,22 +27,37 @@ class Comfy_Cloud_MCP {
 		return '' !== trim( (string) $api_key );
 	}
 
-	public static function run_template( string $template, string $prompt, array $parameters ) {
+	public static function run_template( string $template, string $prompt, array $parameters, int $connection_id = 0 ) {
 		$arguments = array_filter( $parameters, static function ( $value ) {
 			return null !== $value;
 		} );
 		$arguments['template_name'] = $template;
 		$arguments['prompt'] = $prompt;
 
-		return self::call_tool( 'run_template', $arguments );
+		Generation_Log::add( 'info', 'comfy_cloud_mcp', 'Calling run_template tool.', [ 'template' => $template, 'prompt' => $prompt ], '', $connection_id );
+		$result = self::call_tool( 'run_template', $arguments, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			Generation_Log::add( 'error', 'comfy_cloud_mcp', $result->get_error_message(), [], '', $connection_id );
+		} else {
+			Generation_Log::add( 'info', 'comfy_cloud_mcp', 'run_template tool call succeeded.', $result, (string) ( $result['job_id'] ?? $result['id'] ?? '' ), $connection_id );
+		}
+
+		return $result;
 	}
 
-	public static function get_job_status( string $job_id ) {
-		return self::call_tool( 'get_job_status', [ 'job_id' => $job_id ] );
+	public static function get_job_status( string $job_id, int $connection_id = 0 ) {
+		$result = self::call_tool( 'get_job_status', [ 'job_id' => $job_id ], $connection_id );
+		if ( is_wp_error( $result ) ) {
+			Generation_Log::add( 'error', 'comfy_cloud_mcp', $result->get_error_message(), [], $job_id, $connection_id );
+		} else {
+			Generation_Log::add( 'debug', 'comfy_cloud_mcp', 'get_job_status tool call returned status: ' . (string) ( $result['status'] ?? 'unknown' ), $result, $job_id, $connection_id );
+		}
+
+		return $result;
 	}
 
-	private static function call_tool( string $name, array $arguments ) {
-		$session = self::initialize();
+	private static function call_tool( string $name, array $arguments, int $connection_id = 0 ) {
+		$session = self::initialize( $connection_id );
 		if ( is_wp_error( $session ) ) {
 			return $session;
 		}
@@ -50,7 +65,7 @@ class Comfy_Cloud_MCP {
 		$result = self::request( 'tools/call', [
 			'name'      => $name,
 			'arguments' => $arguments,
-		], $session );
+		], $session, $connection_id );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
@@ -69,7 +84,7 @@ class Comfy_Cloud_MCP {
 		return is_array( $result ) ? $result : new WP_Error( 'comfy_mcp_invalid_response', 'Comfy Cloud MCP returned an invalid tool response.' );
 	}
 
-	private static function initialize() {
+	private static function initialize( int $connection_id = 0 ) {
 		$result = self::request( 'initialize', [
 			'protocolVersion' => '2025-03-26',
 			'capabilities'    => new \stdClass(),
@@ -77,7 +92,7 @@ class Comfy_Cloud_MCP {
 				'name'    => 'StoryOS WordPress',
 				'version' => defined( 'STORYOS_VERSION' ) ? STORYOS_VERSION : '1.0.0',
 			],
-		] );
+		], '', $connection_id );
 
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -90,7 +105,7 @@ class Comfy_Cloud_MCP {
 		return $result['_session_id'];
 	}
 
-	private static function request( string $method, array $params, string $session_id = '' ) {
+	private static function request( string $method, array $params, string $session_id = '', int $connection_id = 0 ) {
 		$api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? STORYOS_COMFY_API_KEY : get_option( 'storyos_comfy_api_key', '' );
 		if ( ! self::is_configured() ) {
 			return new WP_Error( 'comfy_mcp_api_key_missing', 'Set STORYOS_COMFY_API_KEY or the StoryOS Comfy API key option before submitting generations.' );
@@ -117,6 +132,7 @@ class Comfy_Cloud_MCP {
 		] );
 
 		if ( is_wp_error( $response ) ) {
+			Generation_Log::add( 'error', 'comfy_cloud_mcp', 'Unreachable: ' . $response->get_error_message(), [ 'method' => $method ], '', $connection_id );
 			return new WP_Error( 'comfy_mcp_unreachable', $response->get_error_message() );
 		}
 
@@ -124,12 +140,15 @@ class Comfy_Cloud_MCP {
 		$payload = self::decode_response( wp_remote_retrieve_body( $response ) );
 		if ( $status < 200 || $status >= 300 ) {
 			$message = is_array( $payload ) ? ( $payload['error']['message'] ?? 'Comfy Cloud MCP request failed.' ) : 'Comfy Cloud MCP request failed.';
+			Generation_Log::add( 'error', 'comfy_cloud_mcp', sprintf( 'HTTP %d on %s: %s', $status, $method, $message ), [ 'method' => $method, 'params' => $params ], '', $connection_id );
 			return new WP_Error( 'comfy_mcp_request_failed', $message, [ 'status' => $status ] );
 		}
 		if ( ! is_array( $payload ) ) {
+			Generation_Log::add( 'error', 'comfy_cloud_mcp', 'Non-JSON response on ' . $method, [ 'method' => $method ], '', $connection_id );
 			return new WP_Error( 'comfy_mcp_invalid_response', 'Comfy Cloud MCP returned non-JSON content.' );
 		}
 		if ( isset( $payload['error'] ) ) {
+			Generation_Log::add( 'error', 'comfy_cloud_mcp', sprintf( 'MCP error on %s: %s', $method, (string) ( $payload['error']['message'] ?? '' ) ), [ 'method' => $method, 'error' => $payload['error'] ], '', $connection_id );
 			return new WP_Error( 'comfy_mcp_tool_error', (string) ( $payload['error']['message'] ?? 'Comfy Cloud MCP returned an error.' ), $payload['error'] );
 		}
 

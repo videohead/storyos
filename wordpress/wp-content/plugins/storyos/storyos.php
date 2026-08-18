@@ -159,6 +159,7 @@ function init(): void {
 
 	// Load dependencies.
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-log.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/local-comfyui.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
@@ -173,6 +174,7 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/import.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/generation-log-viewer.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/exporter/class-storyos-exporter.php';
 
 	// Register CPTs.
@@ -233,6 +235,7 @@ function init(): void {
 	Admin\Connections::init();
 	Admin\Import::init();
 	Admin\Export::init();
+	Admin\Generation_Log_Viewer::init();
 	Utils\Generation_Batch::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).

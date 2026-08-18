@@ -136,16 +136,12 @@ class Setup_Wizard {
 		if ( isset( $_POST['storyos_comfy_local_url'] ) ) {
 			update_option( 'storyos_comfy_local_url', esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ) ) );
 		}
-		if ( isset( $_POST['storyos_comfy_local_workflow'] ) ) {
-			$workflow = json_decode( wp_unslash( $_POST['storyos_comfy_local_workflow'] ), true );
-			update_option( 'storyos_comfy_local_workflow', is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '' );
-		}
 
 		// Populate the "Generation" Connection record from this section.
 		$comfy_api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? '' : sanitize_text_field( wp_unslash( $_POST['storyos_comfy_api_key'] ?? '' ) );
 		$comfy_local_url = esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ?? '' ) );
 		if ( 'none' !== $comfy_mode ) {
-			\StoryOS\CPT\Connection::upsert_managed(
+			$connection_id = \StoryOS\CPT\Connection::upsert_managed(
 				'generation',
 				'ComfyUI (Setup Wizard)',
 				[
@@ -153,6 +149,26 @@ class Setup_Wizard {
 					'environment'          => 'local_mcp' === $comfy_mode ? 'local' : 'production',
 					'endpoint_url'         => 'local_mcp' === $comfy_mode ? $comfy_local_url : \StoryOS\Utils\Comfy_Cloud_MCP::ENDPOINT,
 					'credential_reference' => $comfy_api_key,
+				]
+			);
+
+			// Populate the single default Template with this connection's checkpoint/workflow,
+			// so a Connection can back many checkpoints without duplicating endpoint settings.
+			$workflow_json = '';
+			if ( isset( $_POST['storyos_comfy_local_workflow'] ) ) {
+				$workflow = json_decode( wp_unslash( $_POST['storyos_comfy_local_workflow'] ), true );
+				$workflow_json = is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '';
+			}
+			\StoryOS\CPT\Template::upsert_managed(
+				\StoryOS\Utils\Local_ComfyUI::TEMPLATE_SLOT,
+				'Local ComfyUI (Default)',
+				[
+					'connection_id'        => (string) $connection_id,
+					'generation_structure' => 'image',
+					'provider_type'        => 'comfyui',
+					'status'               => 'active',
+					'checkpoint'           => isset( $_POST['storyos_comfy_local_checkpoint'] ) ? sanitize_text_field( wp_unslash( $_POST['storyos_comfy_local_checkpoint'] ) ) : '',
+					'workflow_json'        => $workflow_json,
 				]
 			);
 		}
@@ -262,6 +278,17 @@ class Setup_Wizard {
 	public static function render(): void {
 		$comfy_mode = get_option( 'storyos_comfy_connection_mode', 'none' );
 		$backend = get_option( 'storyos_ai_backend', 'openai_compatible' );
+
+		$default_template = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'meta_key'       => 'storyos_wizard_slot', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'     => \StoryOS\Utils\Local_ComfyUI::TEMPLATE_SLOT, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+		] );
+		$default_template_id = $default_template ? $default_template[0]->ID : 0;
+		$checkpoint = $default_template_id ? get_post_meta( $default_template_id, 'checkpoint', true ) : 'ltx-2.3.safetensors';
+		$workflow_json = $default_template_id ? get_post_meta( $default_template_id, 'workflow_json', true ) : '';
 		?>
 		<div class="wrap">
 			<h1>Set Up StoryOS</h1>
@@ -291,9 +318,11 @@ class Setup_Wizard {
 				<p><label for="storyos_comfy_local_url">Local ComfyUI API URL</label><br />
 				<input type="url" class="regular-text" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" placeholder="http://host.docker.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.docker.internal:8188</code>; do not use <code>localhost</code>.</span></p>
 				<p><button type="button" class="button" id="storyos-test-comfy-connection">Test ComfyUI</button> <span id="storyos-comfy-test-result" aria-live="polite"></span></p>
-				<p><label for="storyos_comfy_local_workflow">Default Local ComfyUI API Workflow</label><br />
-				<textarea class="large-text code" name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10"><?php echo esc_textarea( get_option( 'storyos_comfy_local_workflow', '' ) ); ?></textarea><br />
-				<span class="description">In ComfyUI, export with “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. This is only the fallback workflow used when an asset type has no matching <strong>Template</strong>. Per-asset-type, per-provider generation configuration (ComfyUI workflow JSON, Veo parameters, etc.) is defined as <strong>Templates</strong> (<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=storyos_template' ) ); ?>">manage Templates</a>), not entered here.</span></p>
+				<p><label for="storyos_comfy_local_checkpoint">Checkpoint / Model</label><br />
+				<input type="text" class="regular-text" name="storyos_comfy_local_checkpoint" id="storyos_comfy_local_checkpoint" value="<?php echo esc_attr( $checkpoint ?: 'ltx-2.3.safetensors' ); ?>" placeholder="ltx-2.3.safetensors" /> <span class="description">Checkpoint filename installed in ComfyUI's <code>models/checkpoints</code>, used by the built-in text-to-image workflow. Saved to the single default <strong>Template</strong> record, not the Connection &mdash; one Connection can back many checkpoints.</span></p>
+				<p><label for="storyos_comfy_local_workflow">Default Local ComfyUI API Workflow (optional)</label><br />
+				<textarea class="large-text code" name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10"><?php echo esc_textarea( $workflow_json ); ?></textarea><br />
+				<span class="description">Leave blank to use StoryOS's built-in single-image text-to-image workflow with the checkpoint above. To use a custom graph instead, export it with ComfyUI's “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. This is saved as the single default <strong>Template</strong> (<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=storyos_template' ) ); ?>">manage Templates</a>) so it can later be extended to more than one.</span></p>
 				<p class="description">Choose <strong>No ComfyUI connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
 				<h2>3. LLM Connection (Required for AI Agents)</h2>
 				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration. Without one, leave these fields empty and use StoryOS for story data, WordPress media, and external-generation asset tracking.</p>

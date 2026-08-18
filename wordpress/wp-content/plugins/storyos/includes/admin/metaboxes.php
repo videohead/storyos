@@ -83,6 +83,7 @@ class MetaBoxes {
 			'i18n'    => [
 				'generating'   => __( 'Generating image…', 'storyos' ),
 				'queued'       => __( 'Image generation queued. WP-Cron will import the completed Comfy MCP image into this post.', 'storyos' ),
+				'job'          => __( 'Job', 'storyos' ),
 				'loading'      => __( 'Building a prompt from this story element…', 'storyos' ),
 				'done'         => __( 'Image generated and attached.', 'storyos' ),
 				'featured'     => __( 'Set as the featured asset.', 'storyos' ),

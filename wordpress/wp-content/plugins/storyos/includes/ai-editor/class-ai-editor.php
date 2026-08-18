@@ -109,12 +109,6 @@ class AI_Editor {
 			'sanitize_callback' => 'esc_url_raw',
 		] );
 
-		register_setting( 'storyos_ai', 'storyos_comfy_local_workflow', [
-			'type'              => 'string',
-			'default'           => '',
-			'sanitize_callback' => [ __CLASS__, 'sanitize_comfy_workflow' ],
-		] );
-
 		register_setting( 'storyos_ai', 'storyos_ai_backend', [
 			'type'              => 'string',
 			'default'           => 'openai_compatible',
@@ -231,18 +225,6 @@ class AI_Editor {
 	}
 
 	/**
-	 * Store only valid ComfyUI API-format workflow JSON.
-	 *
-	 * @param string $value Workflow JSON.
-	 * @return string
-	 */
-	public static function sanitize_comfy_workflow( $value ): string {
-		$workflow = json_decode( (string) $value, true );
-
-		return is_array( $workflow ) && ! empty( $workflow ) ? wp_json_encode( $workflow ) : '';
-	}
-
-	/**
 	 * Add AI Settings page to admin menu.
 	 *
 	 * @return void
@@ -274,6 +256,37 @@ class AI_Editor {
 	}
 
 	/**
+	 * Render a link to the single default local ComfyUI Template record,
+	 * creating it first if the Setup Wizard hasn't run yet.
+	 *
+	 * @return void
+	 */
+	private static function render_default_template_link(): void {
+		$posts = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'meta_key'       => 'storyos_wizard_slot', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'     => \StoryOS\Utils\Local_ComfyUI::TEMPLATE_SLOT, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+		] );
+
+		if ( $posts ) {
+			printf(
+				'<a href="%s">%s</a>',
+				esc_url( get_edit_post_link( $posts[0]->ID, '' ) ),
+				esc_html__( 'Edit the default Template', 'storyos' )
+			);
+			return;
+		}
+
+		printf(
+			'<a href="%s">%s</a>',
+			esc_url( admin_url( 'edit.php?post_type=storyos_template' ) ),
+			esc_html__( 'Manage Templates', 'storyos' )
+		);
+	}
+
+	/**
 	 * Render the AI Settings page.
 	 *
 	 * @return void
@@ -302,9 +315,7 @@ class AI_Editor {
 							<label for="storyos_comfy_local_url">ComfyUI API URL</label><br />
 							<input type="url" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" class="regular-text" placeholder="http://host.docker.internal:8188" />
 							<p class="description">The address reachable from the WordPress container, not the browser's localhost.</p>
-							<label for="storyos_comfy_local_workflow">ComfyUI API Workflow</label><br />
-							<textarea name="storyos_comfy_local_workflow" id="storyos_comfy_local_workflow" rows="10" class="large-text code"><?php echo esc_textarea( get_option( 'storyos_comfy_local_workflow' ) ); ?></textarea>
-							<p class="description">Export the workflow with ComfyUI's “Save (API Format)”, replace the positive prompt text with <code>{{prompt}}</code>, then paste the JSON here. StoryOS posts it to <code>/prompt</code>, polls <code>/history</code>, and imports the generated image.</p>
+							<p class="description">The checkpoint/model and workflow JSON for this connection are set on its Template, not here &mdash; one Connection can back many checkpoints. <?php self::render_default_template_link(); ?></p>
 						</td>
 					</tr>
 					<tr>

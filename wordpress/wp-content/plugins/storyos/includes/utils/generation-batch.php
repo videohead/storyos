@@ -27,10 +27,12 @@ class Generation_Batch {
 
 	public static function process(): void {
 		if ( get_transient( self::LOCK ) ) {
+			Generation_Log::add( 'debug', 'generation_batch', 'Batch already running; skipped.' );
 			return;
 		}
 
 		set_transient( self::LOCK, 1, 55 );
+		Generation_Log::add( 'debug', 'generation_batch', 'Batch run starting.' );
 		try {
 			self::poll_submitted_jobs();
 			self::submit_queued_jobs();
@@ -40,6 +42,7 @@ class Generation_Batch {
 
 		if ( self::has_active_jobs() ) {
 			wp_schedule_single_event( time() + 60, self::HOOK );
+			Generation_Log::add( 'debug', 'generation_batch', 'Active jobs remain; rescheduled in 60s.' );
 		}
 	}
 
@@ -54,7 +57,9 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
-			$client = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
+			$provider_type = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? 'local_comfyui' : 'comfy_cloud_mcp';
+			$client = 'local_comfyui' === $provider_type ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
+			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Submitting job %d via %s.', $job_id, $provider_type ), [], (string) $job_id );
 			$result = $client::run_template(
 				(string) get_post_meta( $job_id, '_storyos_generation_workflow', true ),
 				(string) get_post_meta( $job_id, '_storyos_generation_prompt', true ),
@@ -64,18 +69,21 @@ class Generation_Batch {
 			if ( is_wp_error( $result ) ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
 				update_post_meta( $job_id, '_storyos_generation_error', $result->get_error_message() );
+				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d failed to submit: %s', $job_id, $result->get_error_message() ), [], (string) $job_id );
 				continue;
 			}
 
-			$remote_job_id = sanitize_text_field( (string) ( $result['job_id'] ?? $result['id'] ?? '' ) );
+			$remote_job_id = sanitize_text_field( (string) ( $result['job_id'] ?? $result['id'] ?? $result['prompt_id'] ?? '' ) );
 			if ( '' === $remote_job_id ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
 				update_post_meta( $job_id, '_storyos_generation_error', 'The generation provider did not return a job ID.' );
+				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d: provider did not return a job ID.', $job_id ), $result, (string) $job_id );
 				continue;
 			}
 
 			update_post_meta( $job_id, '_storyos_generation_job_id', $remote_job_id );
 			update_post_meta( $job_id, '_storyos_generation_status', 'submitted' );
+			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d submitted as remote job %s.', $job_id, $remote_job_id ), [], (string) $job_id );
 		}
 	}
 
@@ -100,12 +108,14 @@ class Generation_Batch {
 			if ( in_array( $status, [ 'completed', 'failed', 'cancelled' ], true ) ) {
 				update_post_meta( $job_id, '_storyos_generation_status', $status );
 				update_post_meta( $job_id, '_storyos_generation_result', $result );
+				Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d reached status: %s.', $job_id, $status ), [], (string) $job_id );
 
 				if ( 'completed' === $status && 'image' === get_post_meta( $job_id, '_storyos_generation_type', true ) ) {
 					$asset = Asset_Generator::import_completed_job( $job_id, $result );
 					if ( is_wp_error( $asset ) ) {
 						update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
 						update_post_meta( $job_id, '_storyos_generation_error', $asset->get_error_message() );
+						Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d asset import failed: %s', $job_id, $asset->get_error_message() ), [], (string) $job_id );
 					} else {
 						update_post_meta( $job_id, '_storyos_generation_attachment_id', $asset['attachment_id'] );
 						update_post_meta( $job_id, '_storyos_generation_asset_id', $asset['asset_id'] );

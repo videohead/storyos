@@ -109,7 +109,7 @@
 		request( settings.restUrl, { method: 'POST', body: JSON.stringify( payload ) } )
 			.then( function ( body ) {
 				if ( 'queued' === body.status ) {
-					setStatus( panel, strings.queued + ( body.generation_id ? ' #' + body.generation_id : '' ) );
+					setStatus( panel, strings.queued + ( body.generation_id ? ' (' + strings.job + ' #' + body.generation_id + ')' : '' ) );
 					return;
 				}
 

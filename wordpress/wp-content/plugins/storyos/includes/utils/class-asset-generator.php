@@ -127,7 +127,7 @@ class Asset_Generator {
 
 		$provider = 'local_mcp' === get_option( 'storyos_comfy_connection_mode', 'none' ) ? 'local_comfyui' : 'comfy_cloud_mcp';
 		if ( 'local_comfyui' === $provider && ! Local_ComfyUI::is_configured() ) {
-			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'Set a local ComfyUI URL and paste an API-format workflow in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
+			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'Set a local ComfyUI URL in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
 		}
 		if ( 'comfy_cloud_mcp' === $provider && ! Comfy_Cloud_MCP::is_configured() ) {
 			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'Set a Comfy Cloud MCP API key in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
@@ -154,6 +154,7 @@ class Asset_Generator {
 		update_post_meta( $job_id, '_storyos_generation_params', [ 'size' => $size ?: null ] );
 		update_post_meta( $job_id, '_storyos_generation_workflow', $template );
 		update_post_meta( $job_id, '_storyos_generation_provider_type', $provider );
+		update_post_meta( $job_id, '_storyos_generation_connection_id', self::resolve_connection_id( $provider ) );
 		update_post_meta( $job_id, '_storyos_generation_source_post_id', $post_id );
 		update_post_meta( $job_id, '_storyos_generation_set_featured', rest_sanitize_boolean( $args['set_featured'] ) );
 		update_post_meta( $job_id, '_storyos_generation_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );
@@ -167,6 +168,22 @@ class Asset_Generator {
 			'prompt'        => $prompt,
 			'status'        => 'queued',
 		];
+	}
+
+	/**
+	 * Resolve the Connection record that owns a generation provider, so
+	 * generation jobs and their log entries can be traced back to their
+	 * parent Connection. Mirrors the connection lookup fallback used by
+	 * Local_ComfyUI and the Setup Wizard's managed "generation" connection.
+	 *
+	 * @param string $provider 'local_comfyui' or 'comfy_cloud_mcp'.
+	 * @return int Connection post ID, or 0 when none is configured.
+	 */
+	private static function resolve_connection_id( string $provider ): int {
+		$environment = 'local_comfyui' === $provider ? 'local' : 'production';
+		$connections = Connection_Repository::get_all( [ 'provider_type' => 'comfyui', 'environment' => $environment ] );
+
+		return ! empty( $connections ) ? (int) $connections[0]['id'] : 0;
 	}
 
 	/**
