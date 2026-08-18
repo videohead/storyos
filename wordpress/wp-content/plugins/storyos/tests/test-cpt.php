@@ -88,4 +88,16 @@ class Test_StoryOS_CPT extends TestCase {
 		$this->assertSame( 'storyos', $args['show_in_menu'] );
 		$this->assertTrue( $args['show_ui'] );
 	}
+
+	/**
+	 * Test the generic Details meta box excludes redundant built-in name/description fields.
+	 */
+	public function test_storyos_details_filters_redundant_name_and_description_fields() {
+		$this->assertTrue( \StoryOS\Utils\storyos_should_exclude_from_details( 'description' ) );
+		$this->assertTrue( \StoryOS\Utils\storyos_should_exclude_from_details( 'project_name' ) );
+		$this->assertTrue( \StoryOS\Utils\storyos_should_exclude_from_details( 'shot_description' ) );
+		$this->assertFalse( \StoryOS\Utils\storyos_should_exclude_from_details( 'status' ) );
+		$this->assertFalse( \StoryOS\Utils\storyos_should_exclude_from_details( 'target_medium' ) );
+		$this->assertFalse( \StoryOS\Utils\storyos_should_exclude_from_details( 'story_world' ) );
+	}
 }

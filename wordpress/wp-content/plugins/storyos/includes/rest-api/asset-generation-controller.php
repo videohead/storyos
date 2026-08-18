@@ -10,8 +10,10 @@
 
 namespace StoryOS\REST;
 
-use StoryOS\AI\AI_Image_Client;
 use StoryOS\Utils\Asset_Generator;
+use StoryOS\Utils\Connection_Repository;
+use StoryOS\Utils\Generation_Modality;
+use StoryOS\Utils\Template_Bindings;
 use WP_Error;
 use WP_REST_Request;
 
@@ -60,11 +62,6 @@ class Asset_Generation_Controller extends Base_Controller {
 					'description' => 'Text-to-image prompt. Built from the story element when omitted.',
 					'type'        => 'string',
 				],
-				'size'         => [
-					'description' => 'Requested image size, e.g. 1024x1024.',
-					'type'        => 'string',
-					'enum'        => AI_Image_Client::ALLOWED_SIZES,
-				],
 				'set_featured' => [
 					'description' => 'Set the generated image as the featured asset.',
 					'type'        => 'boolean',
@@ -74,6 +71,11 @@ class Asset_Generation_Controller extends Base_Controller {
 					'description' => 'Create a linked StoryOS Asset record.',
 					'type'        => 'boolean',
 					'default'     => true,
+				],
+				'template_id'  => [
+					'description' => 'Active Template post ID to run instead of the built-in default.',
+					'type'        => 'integer',
+					'default'     => 0,
 				],
 			],
 		] );
@@ -129,9 +131,9 @@ class Asset_Generation_Controller extends Base_Controller {
 	public static function generate( WP_REST_Request $request ) {
 		$result = Asset_Generator::queue_for_post( absint( $request->get_param( 'post_id' ) ), [
 			'prompt'       => (string) $request->get_param( 'prompt' ),
-			'size'         => (string) $request->get_param( 'size' ),
 			'set_featured' => $request->get_param( 'set_featured' ),
 			'create_asset' => $request->get_param( 'create_asset' ),
+			'template_id'  => absint( $request->get_param( 'template_id' ) ),
 		] );
 
 		if ( is_wp_error( $result ) ) {
@@ -161,8 +163,54 @@ class Asset_Generation_Controller extends Base_Controller {
 			'prompt'     => Asset_Generator::build_prompt( $post_id ),
 			'configured' => $configured,
 			'model'      => 'Comfy Cloud MCP',
-			'size'       => AI_Image_Client::DEFAULT_SIZE,
-			'sizes'      => AI_Image_Client::ALLOWED_SIZES,
+			'profile'    => Asset_Generator::project_media_profile( $post_id ),
+			'templates'  => self::runnable_templates( $post_id ),
 		] );
+	}
+
+	/**
+	 * Active Templates this panel can run for a given post without error. A
+	 * Template needing more than a prompt is still offered when its
+	 * `input_bindings` resolve from this post's featured image, media gallery,
+	 * or a StoryOS Details / SCF field; otherwise it's left out so a selection
+	 * here can never fail with a missing-input error. If a Template names an
+	 * explicit Connection, that Connection must also be available. This keeps
+	 * the dropdown inextricably tied to the Templates area while guaranteeing a
+	 * selection here can actually be generated.
+	 *
+	 * @param int $post_id Source story element post ID.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function runnable_templates( int $post_id ): array {
+		$templates = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'meta_key'       => 'status',
+			'meta_value'     => 'active',
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+		] );
+
+		$options = [];
+		foreach ( $templates as $template ) {
+			$modality = Generation_Modality::sanitize( (string) get_post_meta( $template->ID, 'modality', true ) );
+			if ( ! empty( Template_Bindings::missing_required( $template->ID, $post_id ) ) ) {
+				continue;
+			}
+
+			$connection_id = absint( get_post_meta( $template->ID, 'connection_id', true ) );
+			if ( $connection_id && ! Connection_Repository::is_available( $connection_id ) ) {
+				continue;
+			}
+
+			$options[] = [
+				'id'       => (int) $template->ID,
+				'name'     => (string) ( get_post_meta( $template->ID, 'template_name', true ) ?: $template->post_title ),
+				'modality' => $modality,
+			];
+		}
+
+		return $options;
 	}
 }

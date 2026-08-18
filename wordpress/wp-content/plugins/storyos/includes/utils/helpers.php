@@ -110,6 +110,30 @@ function storyos_get_fields( string $cpt ): array {
 }
 
 /**
+ * Determine whether a field is redundant in the generic StoryOS Details meta box.
+ *
+ * WordPress already provides the post title and content fields, so dedicated
+ * per-CPT name/description fields are duplicated and should be hidden there.
+ *
+ * @param string $field_name Field key.
+ * @param array  $field_config Optional field definition.
+ * @return bool
+ */
+function storyos_should_exclude_from_details( string $field_name, array $field_config = [] ): bool {
+	$normalized_field_name = strtolower( $field_name );
+	if ( preg_match( '/(^|_)(name|description)$/', $normalized_field_name ) ) {
+		return true;
+	}
+
+	if ( empty( $field_config['label'] ) ) {
+		return false;
+	}
+
+	$label = strtolower( trim( (string) $field_config['label'] ) );
+	return 'name' === $label || 'description' === $label || preg_match( '/\s+(name|description)$/', $label );
+}
+
+/**
  * Get the expected field names for a StoryOS CPT from the canonical schema contract.
  *
  * @param string $cpt CPT slug.
@@ -117,7 +141,7 @@ function storyos_get_fields( string $cpt ): array {
  */
 function storyos_expected_fields_for_cpt( string $cpt ): array {
 	$expected_fields = [
-		'storyos_project'            => [ 'project_name', 'project_slug', 'description', 'genre', 'target_medium', 'status', 'owner', 'start_date', 'end_date', 'team_members', 'production_stage' ],
+		'storyos_project'            => [ 'project_name', 'project_slug', 'description', 'genre', 'target_medium', 'status', 'owner', 'start_date', 'end_date', 'team_members', 'production_stage', 'frame_width', 'frame_height', 'aspect_ratio', 'frame_rate' ],
 		'storyos_story_world'        => [ 'world_name', 'synopsis', 'timeline', 'rules', 'themes', 'geography', 'references', 'project' ],
 		'storyos_character'          => [ 'display_name', 'biography', 'age', 'appearance', 'personality', 'motivation', 'backstory', 'voice_profile', 'avatar_asset', 'story_world' ],
 		'storyos_location'           => [ 'location_name', 'description', 'environment_type', 'geography', 'mood', 'visual_reference', 'story_world' ],

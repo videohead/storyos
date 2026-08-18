@@ -821,11 +821,6 @@ class Asset_Abilities extends AbstractAbilityGroup {
                         'type'        => 'string',
                         'description' => 'Text-to-image prompt. Built from the story element when omitted.',
                     ],
-                    'size'    => [
-                        'type'        => 'string',
-                        'description' => 'Requested image size, e.g. 1024x1024.',
-                        'enum'        => \StoryOS\AI\AI_Image_Client::ALLOWED_SIZES,
-                    ],
                     'set_featured' => [
                         'type'        => 'boolean',
                         'description' => 'Set the generated image as the featured asset.',
@@ -848,7 +843,6 @@ class Asset_Abilities extends AbstractAbilityGroup {
             'execute_callback' => function( $input ) {
                 return \StoryOS\Utils\Asset_Generator::queue_for_post( (int) $input['post_id'], [
                     'prompt'       => (string) ( $input['prompt'] ?? '' ),
-                    'size'         => (string) ( $input['size'] ?? '' ),
                     'set_featured' => $input['set_featured'] ?? true,
                     'create_asset' => $input['create_asset'] ?? true,
                 ] );

@@ -208,8 +208,10 @@ class MetaBoxes {
 			<label for="storyos-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Prompt', 'storyos' ); ?></label>
 			<textarea class="widefat storyos-generate-asset__prompt" id="storyos-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="4" placeholder="<?php esc_attr_e( 'Describe the image to generate.', 'storyos' ); ?>"></textarea>
 			<p class="storyos-generate-asset__options">
-				<label for="storyos-generate-asset-size-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Size', 'storyos' ); ?></label>
-				<select class="storyos-generate-asset__size" id="storyos-generate-asset-size-<?php echo esc_attr( $post->ID ); ?>"></select>
+				<label for="storyos-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Template', 'storyos' ); ?></label>
+				<select class="storyos-generate-asset__template" id="storyos-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>">
+					<option value=""><?php esc_html_e( 'Default Template', 'storyos' ); ?></option>
+				</select>
 				<label><input type="checkbox" class="storyos-generate-asset__featured" checked /> <?php esc_html_e( 'Set as featured asset', 'storyos' ); ?></label>
 				<label><input type="checkbox" class="storyos-generate-asset__create" checked /> <?php esc_html_e( 'Create linked Asset record', 'storyos' ); ?></label>
 			</p>
@@ -345,8 +347,12 @@ class MetaBoxes {
 
 		?>
 		<table class="form-table">
-			<?php foreach ( $cpt_fields as $field ) : ?>
+			<?php foreach ( $cpt_fields as $field_name => $field ) : ?>
 				<?php
+				if ( \StoryOS\Utils\storyos_should_exclude_from_details( $field_name, $field ) ) {
+					continue;
+				}
+
 				$value = get_post_meta( $post->ID, $field['name'], true );
 				if ( empty( $value ) && isset( $field['default'] ) ) {
 					$value = $field['default'];

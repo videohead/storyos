@@ -61,6 +61,13 @@ class Template {
 				'required'    => false,
 				'description' => 'Checkpoint filename installed on the Connection, e.g. LTX-2.3/ltx-2.3-22b-dev-fp8.safetensors.',
 			],
+			'model_family'        => [
+				'type'        => 'select',
+				'label'       => 'Model Family',
+				'required'    => false,
+				'options'     => \StoryOS\Utils\Model_Family::labels(),
+				'description' => 'The generative model this Template runs, e.g. LTX 2.3, MiniMax, SCAIL, or Wan 2.1. Used to group Templates and cross-check against the Connection\'s allowed models.',
+			],
 			'workflow_json'       => [
 				'type'        => 'textarea',
 				'label'       => 'ComfyUI API Workflow (optional)',
@@ -401,6 +408,9 @@ class Template {
 			}
 			if ( 'modality' === $field_name ) {
 				$value = \StoryOS\Utils\Generation_Modality::sanitize( sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) );
+			}
+			if ( 'model_family' === $field_name ) {
+				$value = \StoryOS\Utils\Model_Family::sanitize( sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) );
 			}
 			if ( 'connection_id' === $field_name ) {
 				$value = (string) absint( wp_unslash( $_POST[ $field_name ] ) );

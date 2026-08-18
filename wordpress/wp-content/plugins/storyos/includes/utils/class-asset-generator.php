@@ -133,7 +133,7 @@ class Asset_Generator {
 	 * Queue an MCP image generation job for a story element.
 	 *
 	 * @param int   $post_id Source post ID.
-	 * @param array $args Optional prompt, size, set_featured, and create_asset settings.
+	 * @param array $args Optional prompt, set_featured, and create_asset settings.
 	 * @return array|WP_Error
 	 */
 	public static function queue_for_post( int $post_id, array $args = [] ) {
@@ -150,10 +150,34 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'Set a Comfy Cloud MCP API key in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
 		}
 
-		$args   = wp_parse_args( $args, [ 'prompt' => '', 'size' => '', 'set_featured' => true, 'create_asset' => true ] );
+		$args   = wp_parse_args( $args, [ 'prompt' => '', 'set_featured' => true, 'create_asset' => true, 'template_id' => 0 ] );
 		$prompt = trim( wp_strip_all_tags( (string) $args['prompt'] ) );
 		$prompt = '' !== $prompt ? $prompt : self::build_prompt( $post_id );
-		$size   = trim( (string) $args['size'] );
+		$profile = self::project_media_profile( $post_id );
+
+		$template_id = absint( $args['template_id'] );
+		if ( $template_id && ! self::is_active_template( $template_id ) ) {
+			return new WP_Error( 'storyos_asset_invalid_template', __( 'That Template is not available to generate from.', 'storyos' ), [ 'status' => 400 ] );
+		}
+
+		$bound_inputs = [];
+		if ( $template_id ) {
+			$missing = Template_Bindings::missing_required( $template_id, $post_id );
+			if ( ! empty( $missing ) ) {
+				return new WP_Error(
+					'storyos_asset_missing_template_input',
+					sprintf(
+						/* translators: %s: comma-separated missing input slot names. */
+						__( 'That Template needs %s, which could not be found on this story element.', 'storyos' ),
+						implode( ', ', $missing )
+					),
+					[ 'status' => 400 ]
+				);
+			}
+
+			$bound_inputs = Template_Bindings::resolve( $template_id, $post_id );
+		}
+
 		$job_id = wp_insert_post( [
 			'post_type'   => 'storyos_generation',
 			'post_title'  => sprintf( __( 'Image generation: %s', 'storyos' ), $post->post_title ),
@@ -165,10 +189,15 @@ class Asset_Generator {
 			return $job_id;
 		}
 
-		$template = 'storyos_character' === $post->post_type ? 'character-sheet' : 'scene-image';
+		// A user-selected Template wins; otherwise keep the legacy per-CPT
+		// workflow name so existing jobs without a Template keep working.
+		$template = $template_id ? (string) $template_id : ( 'storyos_character' === $post->post_type ? 'character-sheet' : 'scene-image' );
 		update_post_meta( $job_id, '_storyos_generation_type', 'image' );
 		update_post_meta( $job_id, '_storyos_generation_prompt', $prompt );
-		update_post_meta( $job_id, '_storyos_generation_params', [ 'size' => $size ?: null ] );
+		update_post_meta( $job_id, '_storyos_generation_params', $profile );
+		if ( ! empty( $bound_inputs ) ) {
+			update_post_meta( $job_id, '_storyos_generation_inputs', $bound_inputs );
+		}
 		update_post_meta( $job_id, '_storyos_generation_workflow', $template );
 		update_post_meta( $job_id, '_storyos_generation_provider_type', $provider );
 		update_post_meta( $job_id, '_storyos_generation_connection_id', self::resolve_connection_id( $provider ) );
@@ -188,6 +217,40 @@ class Asset_Generator {
 	}
 
 	/**
+	 * Resolve the media profile from the containing project.
+	 *
+	 * @param int $post_id Source story element ID.
+	 * @return array<string, int|float|string>
+	 */
+	public static function project_media_profile( int $post_id ): array {
+		$project_id = 0;
+		foreach ( get_relationships( $post_id, get_post_type( $post_id ), 'incoming' ) as $relationship ) {
+			if ( 'storyos_project' === ( $relationship['from_type'] ?? '' ) && 'contains' === ( $relationship['type'] ?? '' ) ) {
+				$project_id = absint( $relationship['from_id'] ?? 0 );
+				break;
+			}
+		}
+
+		$profile = [
+			'width'        => 1024,
+			'height'       => 1024,
+			'aspect_ratio' => '1:1',
+			'frame_rate'   => 24,
+		];
+
+		if ( $project_id ) {
+			$profile['width']        = max( 1, absint( get_post_meta( $project_id, 'frame_width', true ) ?: $profile['width'] ) );
+			$profile['height']       = max( 1, absint( get_post_meta( $project_id, 'frame_height', true ) ?: $profile['height'] ) );
+			$profile['aspect_ratio'] = sanitize_text_field( (string) ( get_post_meta( $project_id, 'aspect_ratio', true ) ?: $profile['aspect_ratio'] ) );
+			$profile['frame_rate']   = max( 0.001, (float) ( get_post_meta( $project_id, 'frame_rate', true ) ?: $profile['frame_rate'] ) );
+		}
+
+		$profile['size'] = $profile['width'] . 'x' . $profile['height'];
+
+		return $profile;
+	}
+
+	/**
 	 * Resolve the Connection record that owns a generation provider, so
 	 * generation jobs and their log entries can be traced back to their
 	 * parent Connection. Mirrors the connection lookup fallback used by
@@ -201,6 +264,21 @@ class Asset_Generator {
 		$connections = Connection_Repository::get_all( [ 'provider_type' => 'comfyui', 'environment' => $environment ] );
 
 		return ! empty( $connections ) ? (int) $connections[0]['id'] : 0;
+	}
+
+	/**
+	 * Whether a post ID is a published, active storyos_template.
+	 *
+	 * @param int $template_id Template post ID.
+	 * @return bool
+	 */
+	private static function is_active_template( int $template_id ): bool {
+		$template = get_post( $template_id );
+
+		return $template instanceof \WP_Post
+			&& 'storyos_template' === $template->post_type
+			&& 'publish' === $template->post_status
+			&& 'active' === get_post_meta( $template_id, 'status', true );
 	}
 
 	/**
@@ -218,10 +296,10 @@ class Asset_Generator {
 
 		$args = wp_parse_args( $args, [
 			'prompt'       => '',
-			'size'         => '',
 			'model'        => '',
 			'set_featured' => true,
 			'create_asset' => true,
+			'template_id'  => 0,
 		] );
 
 		$prompt = trim( wp_strip_all_tags( (string) $args['prompt'] ) );
@@ -231,7 +309,7 @@ class Asset_Generator {
 
 		$client = new AI_Image_Client();
 		$image  = $client->generate( $prompt, [
-			'size'  => (string) $args['size'],
+			'size'  => self::project_media_profile( $post_id )['size'],
 			'model' => (string) $args['model'],
 		] );
 		if ( is_wp_error( $image ) ) {

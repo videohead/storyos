@@ -106,6 +106,30 @@ class Project {
 				'released'      => 'Released',
 			],
 		],
+		'frame_width'        => [
+			'type'        => 'number',
+			'label'       => 'Frame Width (px)',
+			'required'    => false,
+			'description' => 'Pixel width used for generated images and video.',
+		],
+		'frame_height'       => [
+			'type'        => 'number',
+			'label'       => 'Frame Height (px)',
+			'required'    => false,
+			'description' => 'Pixel height used for generated images and video.',
+		],
+		'aspect_ratio'       => [
+			'type'        => 'text',
+			'label'       => 'Aspect Ratio',
+			'required'    => false,
+			'description' => 'Project frame ratio, for example 16:9 or 2.39:1.',
+		],
+		'frame_rate'         => [
+			'type'        => 'number',
+			'label'       => 'Frame Rate (fps)',
+			'required'    => false,
+			'description' => 'Frames per second used for generated video.',
+		],
 	];
 
 	\StoryOS\Utils\register_cpt(
@@ -165,6 +189,10 @@ function project_details_meta_box( \WP_Post $post ): void {
 			case 'text':
 			case 'date':
 				echo '<input type="' . esc_attr( $field['type'] ) . '" id="storyos_' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $value ) . '" class="widefat" />';
+				break;
+
+			case 'number':
+				echo '<input type="number" id="storyos_' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $value ) . '" min="0" step="any" class="widefat" />';
 				break;
 
 			case 'select':

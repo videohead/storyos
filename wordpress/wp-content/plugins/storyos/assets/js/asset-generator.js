@@ -32,16 +32,15 @@
 		} );
 	}
 
-	function fillSizes( panel, sizes, selected ) {
-		var select = panel.querySelector( '.storyos-generate-asset__size' );
-		if ( select.options.length ) {
+	function fillTemplates( panel, templates ) {
+		var select = panel.querySelector( '.storyos-generate-asset__template' );
+		if ( ! select || select.options.length > 1 ) {
 			return;
 		}
-		( sizes || [] ).forEach( function ( size ) {
+		( templates || [] ).forEach( function ( template ) {
 			var option = document.createElement( 'option' );
-			option.value = size;
-			option.textContent = size;
-			option.selected = size === selected;
+			option.value = template.id;
+			option.textContent = template.name + ( template.modality ? ' (' + template.modality + ')' : '' );
 			select.appendChild( option );
 		} );
 	}
@@ -57,7 +56,7 @@
 		request( settings.restUrl + '/prompt?post_id=' + encodeURIComponent( panel.dataset.postId ) )
 			.then( function ( body ) {
 				prompt.value = body.prompt || '';
-				fillSizes( panel, body.sizes, body.size );
+				fillTemplates( panel, body.templates );
 				setStatus( panel, body.configured ? '' : strings.unconfigured, ! body.configured );
 			} )
 			.catch( function ( error ) {
@@ -98,9 +97,9 @@
 		var payload = {
 			post_id: parseInt( panel.dataset.postId, 10 ),
 			prompt: panel.querySelector( '.storyos-generate-asset__prompt' ).value,
-			size: panel.querySelector( '.storyos-generate-asset__size' ).value,
 			set_featured: panel.querySelector( '.storyos-generate-asset__featured' ).checked,
-			create_asset: panel.querySelector( '.storyos-generate-asset__create' ).checked
+			create_asset: panel.querySelector( '.storyos-generate-asset__create' ).checked,
+			template_id: parseInt( panel.querySelector( '.storyos-generate-asset__template' ).value, 10 ) || 0
 		};
 
 		button.disabled = true;
