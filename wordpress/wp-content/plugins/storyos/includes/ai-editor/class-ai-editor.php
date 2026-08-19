@@ -97,12 +97,6 @@ class AI_Editor {
 	 * @return void
 	 */
 	public static function register_settings(): void {
-		register_setting( 'storyos_ai', 'storyos_comfy_api_key', [
-			'type'              => 'string',
-			'default'           => '',
-			'sanitize_callback' => 'sanitize_text_field',
-		] );
-
 		register_setting( 'storyos_ai', 'storyos_comfy_local_url', [
 			'type'              => 'string',
 			'default'           => 'http://host.docker.internal:8188',
@@ -299,16 +293,6 @@ class AI_Editor {
 				<?php settings_fields( 'storyos_ai' ); ?>
 				<table class="form-table">
 					<tr>
-						<th scope="row"><label for="storyos_comfy_api_key">Comfy Cloud API Key</label></th>
-						<td>
-							<input type="password" name="storyos_comfy_api_key" id="storyos_comfy_api_key" value="<?php echo esc_attr( get_option( 'storyos_comfy_api_key' ) ); ?>" class="regular-text" <?php disabled( defined( 'STORYOS_COMFY_API_KEY' ) ); ?> />
-							<?php if ( defined( 'STORYOS_COMFY_API_KEY' ) ) : ?>
-								<p class="description">Configured through the `STORYOS_COMFY_API_KEY` environment variable.</p>
-							<?php else : ?>
-								<p class="description">Used by WordPress WP-Cron batches to call Comfy Cloud MCP. An environment variable is preferred for deployed sites.</p>
-							<?php endif; ?>
-						</td>
-					</tr>
 					<tr>
 						<th scope="row">Local ComfyUI MCP</th>
 						<td>

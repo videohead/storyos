@@ -253,6 +253,63 @@ class Comfy_Manifest {
 	}
 
 	/**
+	 * Search the provider's own Comfy MCP template catalog.
+	 *
+	 * @param string $search Optional provider template name or ID.
+	 * @param int    $connection_id Comfy Connection post ID.
+	 * @return array|WP_Error
+	 */
+	public static function discover_provider_templates( string $search = '', int $connection_id = 0 ) {
+		$filters = '' !== trim( $search ) ? [ 'search' => sanitize_text_field( $search ) ] : [];
+		$result  = Comfy_Cloud_MCP::list_templates( $filters, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$templates = $result['templates'] ?? $result;
+		if ( ! is_array( $templates ) ) {
+			return new WP_Error( 'storyos_comfy_discovery_invalid', __( 'Comfy MCP returned no usable template list.', 'storyos' ) );
+		}
+
+		return array_values( array_filter( array_map( static function ( $template ) {
+			if ( ! is_array( $template ) ) {
+				return null;
+			}
+
+			return [
+				'id'   => (string) ( $template['id'] ?? $template['template_id'] ?? $template['name'] ?? '' ),
+				'name' => (string) ( $template['name'] ?? $template['template_name'] ?? '' ),
+			];
+		}, $templates ) ) );
+	}
+
+	/**
+	 * Download files advertised by a provider template.
+	 *
+	 * @param string $provider_template_id Provider template ID.
+	 * @param int    $connection_id Comfy Connection post ID.
+	 * @return array|WP_Error
+	 */
+	public static function request_provider_template_downloads( string $provider_template_id, int $connection_id = 0 ) {
+		$template = Comfy_Cloud_MCP::get_template( $provider_template_id, [], $connection_id );
+		if ( is_wp_error( $template ) ) {
+			return $template;
+		}
+
+		$urls = self::extract_model_urls( $template );
+		if ( empty( $urls ) ) {
+			return new WP_Error( 'storyos_comfy_template_no_downloads', __( 'The provider Template did not advertise downloadable requirements.', 'storyos' ) );
+		}
+
+		$result = Comfy_Cloud_MCP::download_models( $urls, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return [ 'requested' => $urls, 'result' => $result ];
+	}
+
+	/**
 	 * Ask Comfy MCP to fetch the models a Template is missing.
 	 *
 	 * @param int $template_id Template post ID.

@@ -200,7 +200,7 @@ class Asset_Generation_Controller extends Base_Controller {
 			}
 
 			$connection_id = absint( get_post_meta( $template->ID, 'connection_id', true ) );
-			if ( $connection_id && ! Connection_Repository::is_available( $connection_id ) ) {
+			if ( ! $connection_id || ! Connection_Repository::is_available( $connection_id ) ) {
 				continue;
 			}
 

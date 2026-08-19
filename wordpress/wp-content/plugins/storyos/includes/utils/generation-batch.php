@@ -57,9 +57,22 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
-			$provider_type = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? 'local_comfyui' : 'comfy_cloud_mcp';
-			$client = 'local_comfyui' === $provider_type ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
 			$connection_id = absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) );
+			$connection = Connection_Repository::get( $connection_id );
+			if ( ! $connection || 'disabled' === $connection['status'] ) {
+				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
+				update_post_meta( $job_id, '_storyos_generation_error', 'The generation Template has no available Connection.' );
+				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no available Connection.', $job_id ), [], (string) $job_id );
+				continue;
+			}
+			$provider_type = $connection['provider_type'];
+			if ( 'comfyui' !== $provider_type ) {
+				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
+				update_post_meta( $job_id, '_storyos_generation_error', sprintf( 'No generation adapter is registered for provider: %s.', $provider_type ) );
+				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no adapter for provider %s.', $job_id, $provider_type ), [], (string) $job_id );
+				continue;
+			}
+			$client = Comfy_Cloud_MCP::class;
 			$params = (array) get_post_meta( $job_id, '_storyos_generation_params', true );
 			$inputs = get_post_meta( $job_id, '_storyos_generation_inputs', true );
 			if ( is_array( $inputs ) && ! empty( $inputs ) ) {
@@ -106,7 +119,13 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
-			$client = 'local_comfyui' === get_post_meta( $job_id, '_storyos_generation_provider_type', true ) ? Local_ComfyUI::class : Comfy_Cloud_MCP::class;
+			$connection = Connection_Repository::get( absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) ) );
+			if ( ! $connection || 'comfyui' !== $connection['provider_type'] ) {
+				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
+				update_post_meta( $job_id, '_storyos_generation_error', 'No generation adapter is registered for this Connection provider.' );
+				continue;
+			}
+			$client = Comfy_Cloud_MCP::class;
 			$result = $client::get_job_status(
 				(string) get_post_meta( $job_id, '_storyos_generation_job_id', true ),
 				absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) )

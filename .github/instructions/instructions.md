@@ -8,12 +8,13 @@ an optional external generation service used by the relevant plugin.
 
 ## Local Entry Points
 
-When Lando is already running, use these service entry points for local
+When Lando and docker containers are already running, use these service entry points for local
 validation:
 
 - WordPress app: http://storyos.lndo.site/ or https://storyos.lndo.site/
-- ComfyUI service: http://localhost:32778
-- phpMyAdmin: http://localhost:32773
+- ComfyUI service: http://localhost:8188
+- ComfyUI MCP: http://localhost:8188
+- Local LLM: http://localhost:11434
 
 If the environment is already running, prefer `lando info` to refresh the URLs
 before testing. WordPress is the application and control plane; do not assume a
@@ -26,21 +27,54 @@ separate Python, queue, or orchestration service exists.
   integrations live under `wordpress/wp-content/plugins/storyos/`.
 - ComfyUI integration lives in the relevant StoryOS plugin and should fail
   clearly when the optional service is unavailable.
+- ComfyUI MCP is the authority on what ComfyUI can do, WordPress and PHP should be aligned as closely with the MCP as possible.
 - The Story Graph is the canonical model for projects, story worlds,
   characters, locations, scenes, shots, and assets.
 - Keep architecture and API changes synchronized with the specifications in
   `about/`.
 
+## Project Structure
+
+### Root Level
+- `.github/` - GitHub configuration, including agent definitions and testing utilities
+  - `agents/` - VS Code Copilot Agent definitions (builder, code-reviewer, feature-builder, implementer, planner, researcher, thorough-reviewer)
+  - `instructions/` - Build and development instructions (this file)
+  - `testing/` - Testing documentation and utilities
+- `about/` - Comprehensive documentation, specifications, and roadmap
+- `scripts/` - Setup and utility scripts (database, initialization, etc.)
+- `wordpress/` - WordPress core and plugins
+  - `wp-content/plugins/storyos/` - Main StoryOS plugin with expanded structure:
+    - `includes/admin/` - WordPress admin functionality
+    - `includes/agents/` - Agent-related code and integrations
+    - `includes/ai-editor/` - AI Editor implementation
+    - `includes/cpts/` - Custom Post Type definitions and handlers
+    - `includes/exporter/` - Export functionality (EDL, Markdown, screenplay formats)
+    - `includes/importer/` - Import functionality (JSON, screenplay formats)
+    - `includes/rest-api/` - REST API controllers and endpoints
+    - `includes/taxonomies/` - Custom taxonomy definitions
+    - `includes/utils/` - Utility functions and helpers (generation, search, relationships, continuity)
+    - `plugins/` - Sub-plugins and integrations:
+      - `celtx/` - Celtx GEM API integration
+      - `edl/` - EDL export functionality
+      - `web-stories/` - Web Stories integration
+    - `assets/` - Frontend assets
+      - `ai-editor/` - AI Editor React components and styles
+      - `css/` - Stylesheets
+      - `js/` - JavaScript files
+    - `tests/` - Test files and test utilities
+  - `wp-content/plugins/secure-custom-fields/` - Structured Content Fields (SCF) plugin
+
 ## Current Roadmap
 
 ### Script Ecosystem
 
-- Celtx GEM API bi-directional sync through the `storyos-celtx` plugin.
 - CPT synchronization for projects, characters, locations, scenes, and shots.
-- Persistent StoryOS to Celtx ID mapping in post meta.
-- WordPress REST API endpoints and settings UI for Celtx credentials.
+- Import from JSON and export scripts to Markdown
 - Planned file-based import and export for Fountain, FDX, Fade In, Highland,
   Markdown, screenplay, and shooting-script formats.
+- Persistent StoryOS to Celtx ID mapping in post meta.
+- Celtx GEM API bi-directional sync through the `storyos-celtx` plugin.
+- WordPress REST API endpoints and settings UI for Celtx credentials.
 
 ### Editorial Ecosystem
 
@@ -56,7 +90,7 @@ separate Python, queue, or orchestration service exists.
 
 ### AI Editor
 
-The planned AI Editor is a Gutenberg sidebar backed by a direct LLM connection
+The AI Editor is a Gutenberg sidebar backed by a direct LLM connection
 layer and Story Graph context. Keep its boundary inside WordPress:
 
 - Chat, analysis, generation, and continuity-check REST endpoints.
@@ -66,15 +100,17 @@ layer and Story Graph context. Keep its boundary inside WordPress:
 - Settings for backend selection, credentials, and model configuration.
 
 Do not add a router, framework bridge, or separate execution service to this
-module. The current module files are:
+module. Implementation files are located in:
 
-- `class-ai-editor.php` - Main bootstrap/controller.
-- `class-ai-llm-client.php` - LLM communication.
-- `class-ai-context-builder.php` - Story Graph context assembly.
-- `class-ai-editor-rest.php` - REST API endpoints.
-- `class-ai-abilities.php` - Abilities API registration.
-- `assets/ai-editor/js/ai-editor.js` - React Gutenberg sidebar panel.
-- `assets/ai-editor/css/ai-editor.css` - Panel styles.
+- `includes/ai-editor/` - AI Editor PHP implementation
+  - `class-ai-editor.php` - Main bootstrap/controller
+  - `class-ai-llm-client.php` - LLM communication
+  - `class-ai-context-builder.php` - Story Graph context assembly
+  - `class-ai-editor-rest.php` - REST API endpoints
+  - `class-ai-abilities.php` - Abilities API registration
+- `assets/ai-editor/` - Frontend assets
+  - `js/` - React Gutenberg sidebar components
+  - `css/` - Panel and component styles
 
 The full feature specification is in `about/Phase_8_AI_Editor.md`.
 
@@ -178,6 +214,32 @@ existing definition and guard duplicates with the established
 6. Ask before guessing when a specification is ambiguous.
 7. Preserve working code unless its removal is explicitly required.
 
+## VS Code Agent System
+
+The project includes agent definitions in `.github/agents/` for use with VS Code
+Copilot. These agents are specialized for different development tasks:
+
+- `builder.agent.md` - Build and deployment tasks
+- `code-reviewer.agent.md` - Code review and quality checks
+- `feature-builder.agent.md` - Feature implementation
+- `implementer.agent.md` - Implementation details
+- `planner.agent.md` - Project planning and architecture
+- `researcher.agent.md` - Research and investigation
+- `thorough-reviewer.agent.md` - Comprehensive review and analysis
+
+See `AGENTS.md` in the project root for agent instructions and usage guidance.
+
+## Testing and Quality Assurance
+
+Testing documentation and utilities are maintained in `.github/testing/`. The
+StoryOS plugin includes a `tests/` directory for unit and integration tests.
+
+Key testing principles:
+- Run tests locally via Lando to ensure environment consistency
+- Test narrowly after each code change
+- Ensure all tests pass before merging changes
+- Use the testing utilities and documentation in `.github/testing/` for setup and execution
+
 ## Reference Documents
 
 - Story Graph: `about/Story_Graph_Specification.md`
@@ -185,3 +247,33 @@ existing definition and guard duplicates with the established
 - REST API: `about/REST_API_Specification.md`
 - Roadmap: `about/ROADMAP_StoryOS.md`
 - AI Editor: `about/Phase_8_AI_Editor.md`
+- Story Graph Intelligence: `about/Phase_7_Story_Graph_Intelligence.md`
+- Script EDL Integration: `about/Script_EDL_Integration.md`
+- CPT and SCF Schema: `about/CPT_and_SCF_Schema.md`
+- Deployment: `about/Deployment_and_Connections.md`
+
+## Key Utilities and Components
+
+### Story Graph and Relationships
+- `includes/utils/relationship-graph.php` - Story graph relationship management
+- `includes/utils/relationships.php` - Relationship utilities
+- `includes/utils/story-search.php` - Semantic search within Story Graph
+- `includes/utils/continuity-checker.php` - Continuity validation and analysis
+
+### Generation and ComfyUI Integration
+- `includes/utils/generation-log.php` - Generation history tracking
+- `includes/utils/generation-batch.php` - Batch generation handling
+- `includes/utils/generation-modality.php` - Media type and modality management
+- `includes/utils/comfy-bootstrap.php` - ComfyUI initialization
+- `includes/utils/comfy-cloud-mcp.php` - Cloud ComfyUI MCP integration
+- `includes/utils/local-comfyui.php` - Local ComfyUI instance management
+- `includes/utils/comfy-manifest.php` - ComfyUI node/workflow manifest
+- `includes/utils/connection_tester.php` - Service connection validation
+
+### Data and Model Management
+- `includes/utils/model_family.php` - Model family definitions and handling
+- `includes/utils/template_bindings.php` - Template binding utilities
+- `includes/utils/capability_sync.php` - Capability synchronization
+- `includes/utils/class-asset-generator.php` - Asset generation utilities
+- `includes/utils/connection_repository.php` - Connection configuration repository
+- `includes/utils/helpers.php` - General helper functions

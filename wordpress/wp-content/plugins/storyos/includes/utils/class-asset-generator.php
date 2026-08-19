@@ -142,22 +142,34 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_asset_invalid_post', __( 'That post cannot have a StoryOS asset generated for it.', 'storyos' ), [ 'status' => 404 ] );
 		}
 
-		$provider = 'local_mcp' === get_option( 'storyos_comfy_connection_mode', 'none' ) ? 'local_comfyui' : 'comfy_cloud_mcp';
-		if ( 'local_comfyui' === $provider && ! Local_ComfyUI::is_configured() ) {
-			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'Set a local ComfyUI URL in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
-		}
-		if ( 'comfy_cloud_mcp' === $provider && ! Comfy_Cloud_MCP::is_configured() ) {
-			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'Set a Comfy Cloud MCP API key in StoryOS AI Settings before generating an asset.', 'storyos' ), [ 'status' => 400 ] );
-		}
-
 		$args   = wp_parse_args( $args, [ 'prompt' => '', 'set_featured' => true, 'create_asset' => true, 'template_id' => 0 ] );
 		$prompt = trim( wp_strip_all_tags( (string) $args['prompt'] ) );
 		$prompt = '' !== $prompt ? $prompt : self::build_prompt( $post_id );
 		$profile = self::project_media_profile( $post_id );
 
 		$template_id = absint( $args['template_id'] );
-		if ( $template_id && ! self::is_active_template( $template_id ) ) {
+		if ( ! $template_id || ! self::is_active_template( $template_id ) ) {
 			return new WP_Error( 'storyos_asset_invalid_template', __( 'That Template is not available to generate from.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		$connection_id = absint( get_post_meta( $template_id, 'connection_id', true ) );
+		$connection = Connection_Repository::get( $connection_id );
+		$template_provider = sanitize_key( (string) get_post_meta( $template_id, 'provider_type', true ) );
+		if ( ! $connection || '' === $template_provider || 'disabled' === $connection['status'] || $template_provider !== $connection['provider_type'] ) {
+			return new WP_Error( 'storyos_asset_invalid_connection', __( 'That Template and Connection must use the same provider.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template_id, 'provider_template_id', true ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) ) );
+		if ( '' === $provider_template_id ) {
+			return new WP_Error( 'storyos_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		$provider = $connection['provider_type'];
+		if ( 'comfyui' !== $provider ) {
+			return new WP_Error( 'storyos_asset_provider_unsupported', __( 'This provider has no StoryOS asset generation adapter yet.', 'storyos' ), [ 'status' => 501 ] );
+		}
+		if ( 'local' === $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
+			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'The Template Connection has no configured local ComfyUI MCP endpoint.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		if ( 'local' !== $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
+			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'The Template Connection has no configured Comfy Cloud API key.', 'storyos' ), [ 'status' => 400 ] );
 		}
 
 		$bound_inputs = [];
@@ -191,7 +203,7 @@ class Asset_Generator {
 
 		// A user-selected Template wins; otherwise keep the legacy per-CPT
 		// workflow name so existing jobs without a Template keep working.
-		$template = $template_id ? (string) $template_id : ( 'storyos_character' === $post->post_type ? 'character-sheet' : 'scene-image' );
+		$template = $provider_template_id;
 		update_post_meta( $job_id, '_storyos_generation_type', 'image' );
 		update_post_meta( $job_id, '_storyos_generation_prompt', $prompt );
 		update_post_meta( $job_id, '_storyos_generation_params', $profile );
@@ -200,7 +212,7 @@ class Asset_Generator {
 		}
 		update_post_meta( $job_id, '_storyos_generation_workflow', $template );
 		update_post_meta( $job_id, '_storyos_generation_provider_type', $provider );
-		update_post_meta( $job_id, '_storyos_generation_connection_id', self::resolve_connection_id( $provider ) );
+		update_post_meta( $job_id, '_storyos_generation_connection_id', $connection_id );
 		update_post_meta( $job_id, '_storyos_generation_source_post_id', $post_id );
 		update_post_meta( $job_id, '_storyos_generation_set_featured', rest_sanitize_boolean( $args['set_featured'] ) );
 		update_post_meta( $job_id, '_storyos_generation_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );

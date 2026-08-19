@@ -136,6 +136,64 @@
 	color: #135e96;
 }
 
+.storyos-group-intro {
+	font-size: 15px;
+	margin: 8px 0 24px;
+}
+
+.storyos-group-cards {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat( auto-fit, minmax( 280px, 1fr ) );
+	max-width: 1000px;
+}
+
+.storyos-group-card {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	color: #1d2327;
+	display: flex;
+	gap: 16px;
+	min-height: 92px;
+	padding: 18px 20px;
+	text-decoration: none;
+}
+
+.storyos-group-card:hover,
+.storyos-group-card:focus {
+	border-color: #2271b1;
+	box-shadow: 0 2px 5px rgba( 0, 0, 0, .12 );
+	color: #135e96;
+}
+
+.storyos-group-card-icon {
+	color: #2271b1;
+	font-size: 30px;
+	height: 30px;
+	width: 30px;
+}
+
+.storyos-group-card-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.storyos-group-card-content strong {
+	font-size: 15px;
+}
+
+.storyos-group-card-content span {
+	color: #646970;
+	line-height: 1.4;
+}
+
+.storyos-group-card > .dashicons:last-child {
+	color: #646970;
+}
+
 @media screen and ( max-width: 600px ) {
 	.storyos-setup-panel {
 		align-items: flex-start;

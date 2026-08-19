@@ -181,7 +181,12 @@ class Plugins {
 					if ( class_exists( '\\StoryOSGenerationEngine\\Settings' ) ) {
 						return \StoryOSGenerationEngine\Settings::is_configured();
 				}
-					return defined( 'STORYOS_COMFY_API_KEY' ) || '' !== (string) get_option( 'storyos_comfy_api_key', '' );
+					foreach ( \StoryOS\Utils\Connection_Repository::get_all( [ 'provider_type' => 'comfyui' ] ) as $connection ) {
+						if ( 'local' === $connection['environment'] || '' !== trim( (string) $connection['credential_reference'] ) ) {
+							return true;
+						}
+					}
+					return false;
 
 			case 'edl':
 				return true;

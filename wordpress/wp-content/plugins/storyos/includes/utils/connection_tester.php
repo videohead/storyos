@@ -62,7 +62,7 @@ class Connection_Tester {
 			return self::test_local_comfyui( $connection_id, $record );
 		}
 
-		$has_key = defined( 'STORYOS_COMFY_API_KEY' ) || '' !== (string) get_option( 'storyos_comfy_api_key', '' );
+		$has_key = '' !== trim( (string) $record['credential_reference'] );
 		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
 	}
 

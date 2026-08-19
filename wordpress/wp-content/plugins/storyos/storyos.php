@@ -390,7 +390,6 @@ function activate(): void {
 	// Set default StoryOS options.
 	add_option( 'storyos_version', STORYOS_VERSION );
 	add_option( 'storyos_enabled', true );
-	add_option( 'storyos_comfy_api_key', '' );
 	Utils\Generation_Batch::schedule();
 
 	// Send the admin to the connection setup wizard on first activation.

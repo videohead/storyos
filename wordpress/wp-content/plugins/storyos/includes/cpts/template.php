@@ -20,6 +20,8 @@ class Template {
 		add_action( 'save_post_storyos_template', [ __CLASS__, 'save_meta' ], 10, 2 );
 		add_action( 'wp_ajax_storyos_check_template_requirements', [ __CLASS__, 'ajax_check_requirements' ] );
 		add_action( 'wp_ajax_storyos_install_template_models', [ __CLASS__, 'ajax_install_models' ] );
+		add_action( 'wp_ajax_storyos_discover_comfy_templates', [ __CLASS__, 'ajax_discover_comfy_templates' ] );
+		add_action( 'wp_ajax_storyos_download_comfy_template_requirements', [ __CLASS__, 'ajax_download_comfy_template_requirements' ] );
 	}
 
 	/**
@@ -73,6 +75,12 @@ class Template {
 				'label'       => 'ComfyUI API Workflow (optional)',
 				'required'    => false,
 				'description' => 'Leave blank to use the built-in workflow for the selected modality with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, then replace each input value with its slot placeholder: {{prompt}}, {{negative_prompt}}, {{image}}, {{start_frame}}, {{end_frame}}, {{video}}, {{audio}}.',
+			],
+			'provider_template_id' => [
+				'type'        => 'text',
+				'label'       => 'Provider MCP Template ID',
+				'required'    => false,
+				'description' => 'Template ID discovered from the selected provider Connection. The provider and Template must belong to the same Connection pair.',
 			],
 			'configuration_json'  => [
 				'type'        => 'textarea',
@@ -222,6 +230,12 @@ class Template {
 	 * @param \WP_Post $post Post object.
 	 */
 	public static function render_requirements_meta_box( \WP_Post $post ): void {
+		$connection_id = absint( get_post_meta( $post->ID, 'connection_id', true ) );
+		$connection = \StoryOS\Utils\Connection_Repository::get( $connection_id );
+		if ( ! $connection || 'comfyui' !== $connection['provider_type'] ) {
+			echo '<p>' . esc_html__( 'This Template is paired with a non-ComfyUI provider. Use that provider connection\'s adapter to discover and download its requirements.', 'storyos' ) . '</p>';
+			return;
+		}
 		$manifest = \StoryOS\Utils\Comfy_Manifest::for_template( $post->ID );
 		if ( is_wp_error( $manifest ) ) {
 			echo '<p>' . esc_html__( 'Save this Template to see its ComfyUI requirements.', 'storyos' ) . '</p>';
@@ -260,12 +274,18 @@ class Template {
 			<button type="button" class="button" id="storyos-check-requirements"><?php echo esc_html__( 'Check ComfyUI', 'storyos' ); ?></button>
 			<button type="button" class="button" id="storyos-install-models"><?php echo esc_html__( 'Install missing models', 'storyos' ); ?></button>
 		</p>
+		<p><strong><?php echo esc_html__( 'ComfyUI MCP Template', 'storyos' ); ?></strong></p>
+		<p><input type="search" class="regular-text" id="storyos-comfy-template-search" placeholder="<?php echo esc_attr__( 'Search provider templates', 'storyos' ); ?>" />
+		<button type="button" class="button" id="storyos-discover-comfy-templates"><?php echo esc_html__( 'Discover', 'storyos' ); ?></button></p>
+		<div id="storyos-comfy-template-results"></div>
+		<p><button type="button" class="button" id="storyos-download-comfy-requirements"><?php echo esc_html__( 'Download selected requirements', 'storyos' ); ?></button></p>
 		<div id="storyos-requirements-result" aria-live="polite"></div>
 		<script>
 			(function () {
 				var result = document.getElementById('storyos-requirements-result');
 				var nonce = '<?php echo esc_js( wp_create_nonce( 'storyos_template_requirements' ) ); ?>';
 				var postId = '<?php echo esc_js( (string) $post->ID ); ?>';
+				var providerTemplateId = document.getElementById('provider_template_id') || document.getElementById('comfy_template_id');
 
 				function call(action, button) {
 					button.disabled = true;
@@ -273,7 +293,7 @@ class Template {
 					fetch(ajaxurl, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-						body: new URLSearchParams({ action: action, nonce: nonce, post_id: postId })
+						body: new URLSearchParams({ action: action, nonce: nonce, post_id: postId, provider_template_id: providerTemplateId ? providerTemplateId.value : '' })
 					})
 						.then(function (response) { return response.json(); })
 						.then(function (response) {
@@ -292,6 +312,31 @@ class Template {
 				});
 				document.getElementById('storyos-install-models').addEventListener('click', function () {
 					call('storyos_install_template_models', this);
+				});
+				 document.getElementById('storyos-discover-comfy-templates').addEventListener('click', function () {
+					var button = this;
+					var results = document.getElementById('storyos-comfy-template-results');
+					button.disabled = true;
+					results.textContent = '<?php echo esc_js( __( 'Searching Comfy MCP...', 'storyos' ) ); ?>';
+					fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: new URLSearchParams({ action: 'storyos_discover_comfy_templates', nonce: nonce, post_id: postId, search: document.getElementById('storyos-comfy-template-search').value }) })
+						.then(function (response) { return response.json(); })
+						.then(function (response) {
+							results.replaceChildren();
+							if (!response.success) { results.textContent = response.data && response.data.message ? response.data.message : '<?php echo esc_js( __( 'Template discovery failed.', 'storyos' ) ); ?>'; return; }
+							(response.data.templates || []).forEach(function (template) {
+								var row = document.createElement('p');
+								var select = document.createElement('button');
+								select.type = 'button'; select.className = 'button-link'; select.textContent = template.name || template.id;
+								select.addEventListener('click', function () { providerTemplateId.value = template.id; results.querySelectorAll('.button-link').forEach(function (item) { item.classList.remove('current'); }); select.classList.add('current'); });
+								row.append(select, document.createTextNode(' (' + template.id + ')')); results.append(row);
+							});
+						})
+						.catch(function () { results.textContent = '<?php echo esc_js( __( 'Template discovery failed.', 'storyos' ) ); ?>'; })
+						.finally(function () { button.disabled = false; });
+				});
+				document.getElementById('storyos-download-comfy-requirements').addEventListener('click', function () {
+					if (!providerTemplateId.value) { result.textContent = '<?php echo esc_js( __( 'Select a ComfyUI MCP Template first.', 'storyos' ) ); ?>'; return; }
+					call('storyos_download_comfy_template_requirements', this);
 				});
 			}());
 		</script>
@@ -361,6 +406,35 @@ class Template {
 				),
 			'result'  => $result,
 		] );
+	}
+
+	/** Search the connected Comfy MCP template catalog. */
+	public static function ajax_discover_comfy_templates(): void {
+		$post_id = self::authorize_requirements_request();
+		$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+		$result = \StoryOS\Utils\Comfy_Manifest::discover_provider_templates( sanitize_text_field( wp_unslash( $_POST['search'] ?? '' ) ), $connection_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		wp_send_json_success( [ 'templates' => $result ] );
+	}
+
+	/** Download requirements advertised by the selected Comfy MCP template. */
+	public static function ajax_download_comfy_template_requirements(): void {
+		$post_id = self::authorize_requirements_request();
+		$provider_template_id = sanitize_text_field( (string) ( $_POST['provider_template_id'] ?? get_post_meta( $post_id, 'provider_template_id', true ) ?: get_post_meta( $post_id, 'comfy_template_id', true ) ) );
+		if ( '' === $provider_template_id ) {
+			wp_send_json_error( [ 'message' => __( 'Save a ComfyUI MCP Template ID first.', 'storyos' ) ] );
+		}
+
+		$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+		$result = \StoryOS\Utils\Comfy_Manifest::request_provider_template_downloads( $provider_template_id, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		wp_send_json_success( [ 'message' => sprintf( __( 'Requested %d provider Template requirement downloads.', 'storyos' ), count( $result['requested'] ?? [] ) ), 'result' => $result ] );
 	}
 
 	/**

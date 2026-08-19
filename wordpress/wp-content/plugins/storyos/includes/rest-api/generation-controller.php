@@ -75,16 +75,15 @@ class Generation_Controller extends Base_Controller {
 				'workflow'   => [
 					'description' => 'Workflow template slug.',
 					'type'        => 'string',
+					'required'    => true,
 				],
 				'provider_type' => [
 					'description' => 'Provider type slug.',
 					'type'        => 'string',
-					'required'    => true,
 				],
 				'connection_id' => [
 					'description' => 'Provider connection ID.',
 					'type'        => 'integer',
-					'required'    => true,
 				],
 			],
 		] );
@@ -189,9 +188,7 @@ class Generation_Controller extends Base_Controller {
 		$prompt = $request->get_param( 'prompt' );
 		$asset_id = $request->get_param( 'asset_id' ) ? absint( $request->get_param( 'asset_id' ) ) : null;
 		$params = $request->get_param( 'params' ) ?? [];
-		$workflow = sanitize_text_field( (string) ( $request->get_param( 'workflow' ) ?: 'character-sheet' ) );
-		$provider_type = sanitize_text_field( (string) $request->get_param( 'provider_type' ) );
-		$connection_id = absint( $request->get_param( 'connection_id' ) );
+		$workflow = sanitize_text_field( (string) $request->get_param( 'workflow' ) );
 
 		// Validate generation type.
 		$valid_types = [ 'image', 'video', 'audio', 'text' ];
@@ -199,13 +196,22 @@ class Generation_Controller extends Base_Controller {
 			return new WP_Error( 'invalid_type', 'Invalid generation type.', [ 'status' => 400 ] );
 		}
 
-		if ( '' === $provider_type ) {
-			return new WP_Error( 'invalid_provider_type', 'Provider type is required.', [ 'status' => 400 ] );
+		$template = self::resolve_active_template( $workflow );
+		if ( is_wp_error( $template ) ) {
+			return $template;
 		}
-
-		if ( $connection_id < 1 ) {
-			return new WP_Error( 'invalid_connection_id', 'Connection ID must be a positive integer.', [ 'status' => 400 ] );
+		$connection_id = absint( get_post_meta( $template->ID, 'connection_id', true ) );
+		$connection = \StoryOS\Utils\Connection_Repository::get( $connection_id );
+		$template_provider = sanitize_key( (string) get_post_meta( $template->ID, 'provider_type', true ) );
+		if ( ! $connection || '' === $template_provider || 'disabled' === $connection['status'] || $template_provider !== $connection['provider_type'] ) {
+			return new WP_Error( 'invalid_template_connection', 'The selected Template and Connection must use the same provider.', [ 'status' => 400 ] );
 		}
+		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template->ID, 'provider_template_id', true ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
+		if ( '' === $provider_template_id ) {
+			return new WP_Error( 'missing_provider_template', 'The selected Template must reference a provider MCP Template.', [ 'status' => 400 ] );
+		}
+		$provider_type = $connection['provider_type'];
+		$workflow = $provider_template_id;
 
 		// Create generation request post.
 		$post_id = wp_insert_post( [
@@ -241,6 +247,31 @@ class Generation_Controller extends Base_Controller {
 			'connection_id' => $connection_id,
 			'created_at' => current_time( 'mysql' ),
 		] );
+	}
+
+	/**
+	 * Resolve an active Template by post ID, slug, or title reference.
+	 *
+	 * @param string $reference Template reference.
+	 * @return \WP_Post|WP_Error
+	 */
+	private static function resolve_active_template( string $reference ) {
+		$template = ctype_digit( $reference ) ? get_post( absint( $reference ) ) : null;
+		if ( ! $template ) {
+			$templates = get_posts( [
+				'post_type'      => 'storyos_template',
+				'post_status'    => 'publish',
+				'posts_per_page' => 1,
+				'name'           => sanitize_title( $reference ),
+			] );
+			$template = $templates ? $templates[0] : null;
+		}
+
+		if ( ! $template instanceof \WP_Post || 'storyos_template' !== $template->post_type || 'publish' !== $template->post_status || 'active' !== get_post_meta( $template->ID, 'status', true ) ) {
+			return new WP_Error( 'invalid_template', 'An active Template is required for generation.', [ 'status' => 400 ] );
+		}
+
+		return $template;
 	}
 
 	/**

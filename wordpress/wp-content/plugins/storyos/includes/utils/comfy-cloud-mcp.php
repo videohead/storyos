@@ -1,6 +1,6 @@
 <?php
 /**
- * Minimal Streamable HTTP client for the Comfy Cloud MCP server.
+	 * Streamable HTTP client for Comfy Cloud MCP and local ComfyUI MCP servers.
  *
  * @package StoryOS
  */
@@ -26,8 +26,13 @@ class Comfy_Cloud_MCP {
 	 *
 	 * @return bool
 	 */
-	public static function is_configured(): bool {
-		$api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? STORYOS_COMFY_API_KEY : get_option( 'storyos_comfy_api_key', '' );
+	public static function is_configured( int $connection_id = 0 ): bool {
+		if ( self::is_local_connection( $connection_id ) ) {
+			return '' !== self::endpoint( $connection_id );
+		}
+
+		$connection = $connection_id ? Connection_Repository::get( $connection_id ) : null;
+		$api_key = is_array( $connection ) ? (string) ( $connection['credential_reference'] ?? '' ) : '';
 
 		return '' !== trim( (string) $api_key );
 	}
@@ -69,7 +74,7 @@ class Comfy_Cloud_MCP {
 	 * @return array<int, string>|WP_Error
 	 */
 	public static function available_tools( int $connection_id = 0 ) {
-		$cached = get_transient( self::TOOLS_TRANSIENT );
+		$cached = get_transient( self::TOOLS_TRANSIENT . md5( self::endpoint( $connection_id ) ) );
 		if ( is_array( $cached ) ) {
 			return $cached;
 		}
@@ -91,7 +96,7 @@ class Comfy_Cloud_MCP {
 			}
 		}
 
-		set_transient( self::TOOLS_TRANSIENT, $tools, HOUR_IN_SECONDS );
+		set_transient( self::TOOLS_TRANSIENT . md5( self::endpoint( $connection_id ) ), $tools, HOUR_IN_SECONDS );
 
 		return $tools;
 	}
@@ -228,21 +233,24 @@ class Comfy_Cloud_MCP {
 	}
 
 	private static function request( string $method, array $params, string $session_id = '', int $connection_id = 0 ) {
-		$api_key = defined( 'STORYOS_COMFY_API_KEY' ) ? STORYOS_COMFY_API_KEY : get_option( 'storyos_comfy_api_key', '' );
-		if ( ! self::is_configured() ) {
-			return new WP_Error( 'comfy_mcp_api_key_missing', 'Set STORYOS_COMFY_API_KEY or the StoryOS Comfy API key option before submitting generations.' );
+		$connection = $connection_id ? Connection_Repository::get( $connection_id ) : null;
+		$api_key = is_array( $connection ) ? (string) ( $connection['credential_reference'] ?? '' ) : '';
+		if ( ! self::is_configured( $connection_id ) ) {
+			return new WP_Error( 'comfy_mcp_connection_credential_missing', 'Set the credential on the selected ComfyUI Connection before submitting generations.' );
 		}
 
 		$headers = [
 			'Accept'        => 'application/json, text/event-stream',
 			'Content-Type'  => 'application/json',
-			'X-API-Key'     => sanitize_text_field( (string) $api_key ),
 		];
+		if ( ! self::is_local_connection( $connection_id ) && '' !== trim( (string) $api_key ) ) {
+			$headers['X-API-Key'] = sanitize_text_field( (string) $api_key );
+		}
 		if ( '' !== $session_id ) {
 			$headers['Mcp-Session-Id'] = $session_id;
 		}
 
-		$response = wp_remote_post( self::ENDPOINT, [
+		$response = wp_remote_post( self::endpoint( $connection_id ), [
 			'timeout' => 60,
 			'headers' => $headers,
 			'body'    => wp_json_encode( [
@@ -281,6 +289,35 @@ class Comfy_Cloud_MCP {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Resolve the MCP endpoint from the selected Connection environment.
+	 *
+	 * @param int $connection_id Connection post ID.
+	 * @return string
+	 */
+	private static function endpoint( int $connection_id = 0 ): string {
+		if ( self::is_local_connection( $connection_id ) ) {
+			$connection = Connection_Repository::get( $connection_id );
+			$endpoint = is_array( $connection ) ? (string) ( $connection['mcp_endpoint_url'] ?? '' ) : '';
+
+			return untrailingslashit( esc_url_raw( $endpoint ?: (string) get_option( 'storyos_comfy_local_mcp_url', '' ) ) );
+		}
+
+		return self::ENDPOINT;
+	}
+
+	/**
+	 * Whether a Connection represents the local MCP environment.
+	 *
+	 * @param int $connection_id Connection post ID.
+	 * @return bool
+	 */
+	private static function is_local_connection( int $connection_id ): bool {
+		$connection = $connection_id ? Connection_Repository::get( $connection_id ) : null;
+
+		return is_array( $connection ) && 'local' === ( $connection['environment'] ?? '' );
 	}
 
 	private static function decode_response( string $body ) {

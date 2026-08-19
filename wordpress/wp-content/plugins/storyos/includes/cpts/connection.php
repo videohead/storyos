@@ -48,7 +48,7 @@ class Connection {
 	 * @return array<int, string>
 	 */
 	public static function provider_types(): array {
-		$types = [ 'comfyui', 'veo', 'nova_reel', 'openai_compatible', 'openai', 'anthropic', 'dual' ];
+		$types = [ 'comfyui', 'fal', 'google_gemini', 'veo', 'nova_reel', 'openai_compatible', 'openai', 'anthropic', 'dual' ];
 		return apply_filters( 'storyos_connection_provider_types', $types );
 	}
 
@@ -79,7 +79,7 @@ class Connection {
 				'label'       => 'Provider Type',
 				'required'    => true,
 				'options'     => array_combine( $provider_types, $provider_types ),
-				'description' => 'Provider type (currently: Comfy Cloud MCP).',
+				'description' => 'Provider adapter used by the paired Templates, such as ComfyUI, FAL, Google Gemini, or Veo.',
 			],
 			'environment'          => [
 				'type'        => 'select',
@@ -109,6 +109,12 @@ class Connection {
 				'label'       => 'Endpoint URL',
 				'required'    => true,
 				'description' => 'Base URL of the provider endpoint, e.g. http://comfyui:8188.',
+			],
+			'mcp_endpoint_url'     => [
+				'type'        => 'text',
+				'label'       => 'MCP Endpoint URL',
+				'required'    => false,
+				'description' => 'Optional Streamable HTTP MCP endpoint for local ComfyUI template discovery and downloads.',
 			],
 			'credential_reference' => [
 				'type'        => 'text',
