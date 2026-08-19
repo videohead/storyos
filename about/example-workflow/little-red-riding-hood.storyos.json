@@ -15,7 +15,7 @@
       "id": "char_red",
       "name": "Little Red Riding Hood",
       "archetype": "Hero",
-      "description": "A young traveler delivering a basket to Grandmother."
+      "description": "A young traveler delivering a basket to Grandmother. This character wears the red hood prop and carries the basket prop."
     },
     {
       "id": "char_grandmother",
@@ -33,29 +33,35 @@
   "locations": [
     {
       "id": "loc_village",
-      "name": "Village Cottage"
+      "name": "Village Cottage",
+      "description": "A quaint cottage in the forest."
     },
     {
       "id": "loc_forest",
-      "name": "Forest Path"
+      "name": "Forest Path",
+      "description": "A deserted path through a dark primeval forest."
     },
     {
       "id": "loc_grandmother_house",
-      "name": "Grandmother's House"
+      "name": "Grandmother's House",
+      "description": "A dilapidated cottage deep in the woods."
     }
   ],
   "props": [
     {
       "id": "prop_cloak",
-      "name": "Red Cloak"
+      "name": "Red Cloak",
+      "description": "A cute clothing item that would fit on a little girl's head."
     },
     {
       "id": "prop_basket",
-      "name": "Basket"
+      "name": "Basket",
+      "description": "A charming period picnic basket with a plaid lining."
     },
     {
       "id": "prop_bed",
-      "name": "Bed"
+      "name": "Bed",
+      "description": "A old wooden bed with a tall bedstead."
     }
   ],
   "scenes": [
@@ -68,12 +74,8 @@
       "summary": "Red prepares to visit Grandmother.",
       "dialogue": [
         {
-          "speaker": "Narrative Voice",
-          "text": "Please take this basket through the forest to Grandmother's house"
-        },
-        {
           "speaker": "Little Red Riding Hood",
-          "text": "I will deliver it safely."
+          "text": "I am taking this basket of treats to my Grandmother's house."
         }
       ]
     },
@@ -87,7 +89,7 @@
       "dialogue": [
         {
           "speaker": "Wolf",
-          "text": "Where are you going today?"
+          "text": "Hello little girl, where are you going today?"
         },
         {
           "speaker": "Little Red Riding Hood",
@@ -163,15 +165,15 @@
     {"id": "shot_9", "scene": "scene_3", "type": "closeup", "description": "Final reveal."}
   ],
   "storyboards": [
-    {"id": "sb_1", "shot": "shot_1", "description": "Village cottage at sunrise."},
-    {"id": "sb_2", "shot": "shot_2", "description": "Basket exchange."},
-    {"id": "sb_3", "shot": "shot_3", "description": "Red prepares to leave."},
-    {"id": "sb_4", "shot": "shot_4", "description": "Forest path establishing frame."},
-    {"id": "sb_5", "shot": "shot_5", "description": "Wolf enters frame."},
-    {"id": "sb_6", "shot": "shot_6", "description": "Conversation coverage."},
-    {"id": "sb_7", "shot": "shot_7", "description": "Grandmother's room."},
-    {"id": "sb_8", "shot": "shot_8", "description": "Red investigates."},
-    {"id": "sb_9", "shot": "shot_9", "description": "Reveal and resolution."}
+    {"id": "sb_1", "shot": "Sunrise", "description": "Village cottage at sunrise."},
+    {"id": "sb_2", "shot": "The basket", "description": "Basket exchange."},
+    {"id": "sb_3", "shot": "Preparing to leave", "description": "Red prepares to leave."},
+    {"id": "sb_4", "shot": "Establishing shot of the forest", "description": "Forest path establishing frame."},
+    {"id": "sb_5", "shot": "The wolf", "description": "Wolf enters frame."},
+    {"id": "sb_6", "shot": "Conversation", "description": "Conversation coverage."},
+    {"id": "sb_7", "shot": "In Grandmother's House", "description": "Grandmother's room."},
+    {"id": "sb_8", "shot": "Red Investigates", "description": "Red investigates."},
+    {"id": "sb_9", "shot": "Conclusion", "description": "Reveal and resolution."}
   ],
   "sequence": {
     "id": "sequence_1",

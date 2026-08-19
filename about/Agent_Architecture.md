@@ -1,250 +1,356 @@
-# StoryOS Agent Architecture v1.0
+# StoryOS Agent Architecture v1.1
 
 > Build Your Story Once. Create Everywhere.
 
 ## Purpose
 
-> **Current architecture:** StoryOS uses WordPress Abilities API and plugin-owned filmmaking agents. See [Deployment and Connections](Deployment_and_Connections.md) for the supported runtime.
+StoryOS uses WordPress Abilities API and plugin-owned filmmaking agents. See
+[Deployment and Connections](Deployment_and_Connections.md) for the supported
+runtime.
 
-This document preserves the original agent-role design. Current agents run in WordPress with Story Graph context.
+The agent system provides contextual chat and specialist advice throughout
+story development, asset generation, production planning, and editorial work
+while maintaining awareness of the Story Graph.
 
-The agent system provides intelligent assistance throughout story development, asset generation, production planning, and editorial workflows while maintaining awareness of the Story Graph.
+The current runtime stays inside WordPress. The editor calls nonce-protected
+WordPress REST endpoints, WordPress assembles Story Graph context and the
+selected agent prompt, and the configured LLM backend produces the response.
+There is no separate agent execution service.
 
 ---
 
-# Architectural Vision
+## Architectural Vision
 
-StoryOS does not use AI as a replacement for creators.
-
-StoryOS uses AI as a collaborative team of expert advisors.
-
-The creator remains the Executive Producer.
+StoryOS does not use AI as a replacement for creators. It uses AI as a
+collaborative team of expert advisors. The creator remains the Executive
+Producer.
 
 Agents provide:
 
 - Guidance
 - Analysis
 - Recommendations
-- Automation
-- Workflow execution
 - Context retrieval
+- Production-aware conversation
+
+Generation jobs and other state-changing workflows remain explicit StoryOS
+operations. Agent responses are suggestions and do not modify WordPress
+content or execute ComfyUI actions by themselves.
 
 ---
 
-# Guiding Principles
+## Guiding Principles
 
-## Human Directed
+### Human Directed
 
-Humans make final decisions.
+Humans make final decisions and explicitly initiate state-changing operations.
 
-## Story Graph First
+### Story Graph First
 
-Agents retrieve knowledge from the Story Graph.
+Agents receive relevant knowledge from the Story Graph.
 
-## Specialized Expertise
+### Specialized Expertise
 
-Each agent has a focused responsibility.
+Each agent has a focused production responsibility and role-specific prompt.
 
-## Orchestrated Collaboration
+### WordPress Owned
 
-Agents collaborate through MAF.
+Agent definitions, routing, permissions, Story Graph context, and LLM access
+are owned by the StoryOS WordPress plugin.
 
-## Extensible
+### Model Agnostic
 
-New advisors can be added without redesigning the platform.
+The same agent and context layer can use a local OpenAI-compatible model,
+OpenAI, or Anthropic through the configured LLM client.
+
+### Extensible
+
+New advisors can be added as `.agent.md` profiles without creating another
+runtime or transport.
 
 ---
 
-# High Level Architecture
+## Current Runtime Architecture
 
 ```text
 Creator
    |
    v
-StoryOS Interface
+StoryOS Editor / AI Workflow Metabox
    |
-   +-------------------+
-   |                   |
-   v                   v
-Story Graph      Tool Integrations
-Context          WordPress
-                 ComfyUI
-                 Search
-                 Scripts
-                 Editorial
+   v
+POST /storyos/v1/ai/chat
+   |
+   +----------------------+----------------------+
+   |                      |                      |
+   v                      v                      v
+Agent Registry      Story Graph Context    Permission Checks
+(.agent.md)         (current post)         (current user/post)
+   |                      |                      |
+   +----------------------+----------------------+
+                          |
+                          v
+                 Configured LLM Client
+              OpenAI-compatible / OpenAI /
+                       Anthropic
+                          |
+                          v
+                  Assistant Message
 ```
 
----
-
-# Agent Hierarchy
-
-```text
-Agent Abilities
-        |
-        +-----------------------------+
-        |             |               |
-        v             v               v
-Story      Production Advisor   Technical Advisor
-Advisor
-        |
-        +-------------+
-        |             |
-        v             v
-Prompt        Editorial Advisor
-Advisor
-```
+The classic-editor AI Workflow metabox is a vanilla JavaScript chat client.
+The Gutenberg AI Editor uses the same REST contract. Both surfaces retrieve
+the enabled agent list from `GET /storyos/v1/ai/agents` and send conversation
+turns to `POST /storyos/v1/ai/chat`.
 
 ---
 
-# Story Advisor
+## Agent Registry and Routing
 
-## Purpose
+Agent profiles live in
+`wordpress/wp-content/plugins/storyos/includes/agents/` as `.agent.md` files.
+Each profile contains metadata and a role-specific system prompt.
 
-Assist with narrative development.
+`AI_MAF_Bridge` loads those files as a local WordPress registry. Its name is
+historical and does not imply a separate MAF runtime. The REST API exposes
+enabled profiles to the editor, where users may select one for a conversation.
 
-## Capabilities
+When no agent is selected, `AI_Agent_Router` maps request keywords to a real
+installed profile:
 
-- Story analysis
-- Character review
-- Plot consistency
-- Worldbuilding support
-- Story arc analysis
+| Category | Primary agent | Example concerns |
+| --- | --- | --- |
+| Story | Screenwriter | Character, dialogue, plot, narrative |
+| Prompt / visual | PrevisualizationArtist | Images, shots, lighting, composition |
+| Production | Producer | Schedule, budget, crew, locations, logistics |
+| Technical | DIT | Formats, imports, exports, technical specifications |
+| Editorial | Editor | Continuity, pacing, review, structure |
+| ComfyUI | ComfyTechnician | Workflows, checkpoints, samplers, nodes, models |
 
-## Inputs
-
-- Story Graph
-- Scripts
-- Notes
-
----
-
-# Prompt Advisor
-
-## Purpose
-
-Transform story context into asset-generation prompts.
-
-## Capabilities
-
-- Character prompts
-- Environment prompts
-- Storyboard prompts
-- Style recommendations
-
-## Outputs
-
-- ComfyUI-ready workflows
-- Prompt templates
+The Director is the default when no specialist keywords match. If a routed
+profile is disabled, the controller falls back to an enabled profile.
 
 ---
 
-# Production Advisor
+## Advisor Areas
 
-## Purpose
+### Story and Creative Advisors
 
-Support planning and scheduling.
+Assist with narrative development, including:
 
-## Capabilities
+- Story and scene analysis
+- Character and dialogue review
+- Plot consistency and worldbuilding
+- Story arc and conflict analysis
+- Direction, writing, art, and performance considerations
 
-- Shot list generation
-- Production breakdowns
-- Scheduling support
-- Resource planning
+### Prompt and Previsualization Advisors
 
----
+Translate story context into generation-ready creative recommendations,
+including:
 
-# Editorial Advisor
+- Character and environment prompts
+- Storyboard and shot prompts
+- Composition, lighting, camera, and style recommendations
+- Previsualization planning
 
-## Purpose
+These advisors do not queue generations or change ComfyUI workflows.
 
-Assist post-production workflows.
+### Production Advisors
 
-## Capabilities
+Support planning and execution across department-specific roles, including:
+
+- Shot lists and production breakdowns
+- Scheduling, budgeting, and resource planning
+- Camera, lighting, grip, sound, wardrobe, makeup, stunts, and transport
+- Production coordination and set operations
+
+### Editorial Advisors
+
+Support post-production and story review, including:
 
 - Scene sequencing
-- EDL support
-- Timeline planning
+- EDL and timeline planning
 - Continuity analysis
+- Pacing, rhythm, and structural feedback
 
 ---
 
-# Tooling Layer
+## Comfy Technician
 
-Agents access tools through controlled interfaces.
+`ComfyTechnician` is the ComfyUI-specific specialist for StoryOS operators. Its
+profile is defined in
+`wordpress/wp-content/plugins/storyos/includes/agents/comfy_technician.agent.md`.
 
-## WordPress Tools
+It can advise on:
 
-- Query CPTs
-- Create content
-- Update entities
-- Search Story Graph
+- Workflow, checkpoint, custom-node, and model-file problems
+- StoryOS Connection and Template readiness
+- Container networking and ComfyUI reachability
+- Low-cost diagnostic runs before expensive generations
+- GPU memory, resolution, frame count, model compatibility, and reproducibility
 
-## ComfyUI Tools
+The router selects this profile automatically for explicit ComfyUI, workflow,
+checkpoint, sampler, custom-node, model-file, or generation-server questions.
+It is also available in the metabox agent selector.
 
-- Execute workflows
-- Retrieve assets
-- Store generation metadata
-
-## Script Tools
-
-- Import scripts
-- Export scripts
-- Parse screenplay formats
-
-## Editorial Tools
-
-- Generate EDLs
-- Produce timeline metadata
+The Comfy Technician is currently advisory. It does not inspect a live ComfyUI
+instance, install custom nodes, download models, provision templates, or queue
+generations. It must distinguish supplied facts from likely causes and must not
+invent filenames, node classes, model URLs, or observed system state.
 
 ---
 
-# Memory Architecture
+## REST Chat Contract
 
-## Session Memory
+The primary conversational endpoint is:
 
-Current conversation context.
+```text
+POST /storyos/v1/ai/chat
+```
 
-## Project Memory
+The request accepts:
 
-Stored in StoryOS entities.
+- `prompt`: the current user message
+- `post_id`: optional StoryOS entity used as Story Graph context
+- `agent`: optional enabled agent profile name
+- `action`: `chat`, `analyze`, `generate`, or `continuity`
+- `messages`: optional prior `user` and `assistant` turns
 
-## Story Memory
+The endpoint returns stable fields including `success`, `data`, `agent`,
+`backend`, `action`, `post_id`, and a sanitized `error` when unsuccessful.
 
-Derived from Story Graph relationships.
-
-## Agent Knowledge
-
-Role-specific instructions and workflows.
+Analysis and continuity controls in the classic metabox use this same chat
+endpoint with turn-specific instructions. The older `/ai/analyze`,
+`/ai/generate`, and `/ai/continuity` routes remain available for compatible
+callers.
 
 ---
 
-# Context Retrieval Flow
+## Memory and Context
+
+### Session Memory
+
+The classic metabox and Gutenberg client keep prior `user` and `assistant`
+messages in browser state. They send bounded history with each request:
+
+- At most 20 prior messages
+- At most 10,000 characters per message
+- At most 40,000 characters in aggregate
+
+Clearing the metabox chat removes its local history. `/ai/chat` does not
+persist transcripts.
+
+### Project and Story Memory
+
+Persistent knowledge remains in StoryOS entities and Story Graph relationships.
+`AI_Context_Builder` assembles relevant context for the current post on each
+request.
+
+### Agent Knowledge
+
+Role instructions come from plugin-owned `.agent.md` files. Relevant durable
+skills may be added to the system prompt by `AI_Agent_Skills`.
+
+### Context Flow
 
 ```text
 User Request
       |
       v
-Story Graph Query
+REST Validation and Permission Check
       |
       v
-Relevant Context
+Agent Selection or Keyword Routing
       |
       v
-Advisor Response
+Agent System Prompt + Story Graph Context
+      |
+      v
+Bounded Prior Chat Messages
+      |
+      v
+Configured LLM Backend
+      |
+      v
+Append Assistant Response to Browser Transcript
 ```
+
+The server owns system prompts and Story Graph context. REST clients may send
+only prior `user` and `assistant` messages; client-supplied `system` messages
+are rejected. If a post ID is supplied, the current user must be allowed to
+edit that post before it can be used as context.
+
+The LLM response cache includes the prompt, model, system prompt, Story Graph
+context, and prior messages so replies are not reused across different posts or
+conversation states.
 
 ---
 
-# Asset Generation Workflow
+## Tooling Boundary
+
+StoryOS exposes typed capabilities through the WordPress Abilities API and
+provides REST controllers for Story Graph and generation operations. The chat
+runtime does not currently translate an agent profile's `tools` field into LLM
+function calls. Available application operations must not be confused with
+operations an LLM is authorized to run.
+
+Current application capabilities include:
+
+- Querying and updating StoryOS custom post types
+- Searching and traversing the Story Graph
+- Importing and exporting scripts
+- Creating EDL and timeline metadata
+- Submitting generation jobs and importing resulting assets
+- Connecting to configured ComfyUI services
+
+These capabilities remain behind their existing permission-checked WordPress
+surfaces and explicit user actions. Chat responses do not invoke them
+automatically.
+
+Any future agent tool execution must provide:
+
+- Per-agent ability allow-lists
+- Current-user permission checks at dispatch time
+- Explicit confirmation for destructive or costly operations
+- Bounded tool-call loops and response sizes
+- An audit trail for calls, arguments, results, user, agent, and timestamp
+- Safe handling of untrusted text returned by remote services
+
+---
+
+## Security Model
+
+Agents operate with least-privilege access.
+
+The browser clients authenticate cookie-based requests with a WordPress REST
+nonce. The REST permission callback requires an authenticated user who can
+manage options or edit posts. Post context also requires `edit_post` access to
+the specific entity.
+
+Agent names are checked against the enabled plugin-owned registry. The browser
+cannot inject a replacement system prompt, and conversation history is bounded
+before it reaches a provider. The vanilla JavaScript metabox renders messages
+with DOM `textContent` rather than inserting executable HTML.
+
+API keys and provider authorization remain server-side. They must not be sent
+to the browser, stored in conversation history, or written to logs.
+
+---
+
+## Asset Generation Workflow
 
 ```text
-Scene
+Story Graph Element
   |
   v
-Prompt Advisor
+Prompt / Previsualization Advice
   |
   v
-ComfyUI Workflow
+Human Review and Explicit Generate Action
+  |
+  v
+StoryOS Generation Service / ComfyUI
   |
   v
 Generated Asset
@@ -253,9 +359,12 @@ Generated Asset
 Story Graph Update
 ```
 
+Agent advice and media generation are intentionally separate authorization
+steps.
+
 ---
 
-# Script To Editorial Workflow
+## Script to Editorial Workflow
 
 ```text
 Script
@@ -275,35 +384,25 @@ EDL Export
 
 ---
 
-# Future Advisors
+## Extending the Agent System
 
-Potential future agents include:
+Add a new advisor only when its responsibility, audience, or safety boundary
+is meaningfully distinct. A new profile should:
 
-- Character Advisor
-- Continuity Advisor
-- Research Advisor
-- Location Advisor
-- Education Advisor
-- Publishing Advisor
-- Marketing Advisor
-- Community Advisor
-
----
-
-# Security Model
-
-Agents should operate with least-privilege access.
-
-All tool execution should be auditable.
-
-Project-specific permissions must be respected.
+1. Use a stable `name` that can be selected through the REST API.
+2. Describe a focused production role and its StoryOS knowledge.
+3. State what it can infer, what requires context, and what it must not claim.
+4. Remain advisory unless an audited tool broker explicitly grants abilities.
+5. Be added to router keywords only when automatic routing is useful.
+6. Include focused tests for routing and registry availability.
 
 ---
 
-# Strategic Objective
+## Strategic Objective
 
-The long-term goal is an intelligent advisor ecosystem built around the Story Graph.
+The long-term goal is an intelligent advisor ecosystem built around the Story
+Graph. As models evolve, the Story Graph remains the persistent knowledge layer
+while agents remain interchangeable expert interfaces.
 
-As models evolve, the Story Graph becomes the persistent knowledge layer while agents become interchangeable expert interfaces.
-
-StoryOS therefore preserves story knowledge while remaining model-agnostic and future-proof.
+StoryOS therefore preserves production knowledge while remaining model-agnostic
+and future-proof.

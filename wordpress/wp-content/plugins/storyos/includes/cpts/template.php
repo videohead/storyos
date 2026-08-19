@@ -22,6 +22,7 @@ class Template {
 		add_action( 'wp_ajax_storyos_install_template_models', [ __CLASS__, 'ajax_install_models' ] );
 		add_action( 'wp_ajax_storyos_discover_comfy_templates', [ __CLASS__, 'ajax_discover_comfy_templates' ] );
 		add_action( 'wp_ajax_storyos_download_comfy_template_requirements', [ __CLASS__, 'ajax_download_comfy_template_requirements' ] );
+		add_action( 'wp_ajax_storyos_import_provider_template_definition', [ __CLASS__, 'ajax_import_provider_template_definition' ] );
 	}
 
 	/**
@@ -74,7 +75,7 @@ class Template {
 				'type'        => 'textarea',
 				'label'       => 'ComfyUI API Workflow (optional)',
 				'required'    => false,
-				'description' => 'Leave blank to use the built-in workflow for the selected modality with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, then replace each input value with its slot placeholder: {{prompt}}, {{negative_prompt}}, {{image}}, {{start_frame}}, {{end_frame}}, {{video}}, {{audio}}.',
+				'description' => 'Leave blank to use the built-in text-to-image workflow with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, then replace prompt values with placeholders such as {{prompt}} and {{negative_prompt}}.',
 			],
 			'provider_template_id' => [
 				'type'        => 'text',
@@ -86,13 +87,13 @@ class Template {
 				'type'        => 'textarea',
 				'label'       => 'Configuration JSON',
 				'required'    => true,
-				'description' => 'Provider-neutral JSON for parameters, references, and SCF field mappings. Recognized parameters include width, height, length, frame_rate, steps, cfg, denoise, sampler, and scheduler.',
+				'description' => 'Provider-neutral JSON for optional parameter overrides, references, and SCF field mappings. StoryOS inherits runtime sizing from the source Project profile; recognized override keys include width, height, length, frame_rate, steps, cfg, denoise, sampler, and scheduler.',
 			],
 			'input_bindings'      => [
 				'type'        => 'textarea',
 				'label'       => 'Input Bindings JSON',
 				'required'    => false,
-				'description' => 'Optional JSON mapping this modality\'s input slots (image, start_frame, end_frame, video, audio) to a Story Graph source, e.g. {"image":{"source":"featured_image"}}.',
+				'description' => 'Optional JSON mapping prompt-related fields to Story Graph sources for the text-to-image workflow.',
 			],
 			'model_requirements'  => [
 				'type'        => 'textarea',
@@ -278,6 +279,7 @@ class Template {
 		<p><input type="search" class="regular-text" id="storyos-comfy-template-search" placeholder="<?php echo esc_attr__( 'Search provider templates', 'storyos' ); ?>" />
 		<button type="button" class="button" id="storyos-discover-comfy-templates"><?php echo esc_html__( 'Discover', 'storyos' ); ?></button></p>
 		<div id="storyos-comfy-template-results"></div>
+		<p><button type="button" class="button" id="storyos-import-provider-template"><?php echo esc_html__( 'Import definition into this Template', 'storyos' ); ?></button></p>
 		<p><button type="button" class="button" id="storyos-download-comfy-requirements"><?php echo esc_html__( 'Download selected requirements', 'storyos' ); ?></button></p>
 		<div id="storyos-requirements-result" aria-live="polite"></div>
 		<script>
@@ -337,6 +339,10 @@ class Template {
 				document.getElementById('storyos-download-comfy-requirements').addEventListener('click', function () {
 					if (!providerTemplateId.value) { result.textContent = '<?php echo esc_js( __( 'Select a ComfyUI MCP Template first.', 'storyos' ) ); ?>'; return; }
 					call('storyos_download_comfy_template_requirements', this);
+				});
+				document.getElementById('storyos-import-provider-template').addEventListener('click', function () {
+					if (!providerTemplateId.value) { result.textContent = '<?php echo esc_js( __( 'Select a ComfyUI MCP Template first.', 'storyos' ) ); ?>'; return; }
+					call('storyos_import_provider_template_definition', this);
 				});
 			}());
 		</script>
@@ -437,6 +443,64 @@ class Template {
 		wp_send_json_success( [ 'message' => sprintf( __( 'Requested %d provider Template requirement downloads.', 'storyos' ), count( $result['requested'] ?? [] ) ), 'result' => $result ] );
 	}
 
+	/** Import a provider template definition into this StoryOS Template post. */
+	public static function ajax_import_provider_template_definition(): void {
+		$post_id = self::authorize_requirements_request();
+		$provider_template_id = sanitize_text_field( (string) ( $_POST['provider_template_id'] ?? get_post_meta( $post_id, 'provider_template_id', true ) ?: get_post_meta( $post_id, 'comfy_template_id', true ) ) );
+		if ( '' === $provider_template_id ) {
+			wp_send_json_error( [ 'message' => __( 'Select a provider Template first.', 'storyos' ) ] );
+		}
+
+		$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+		$raw = \StoryOS\Utils\Comfy_Cloud_MCP::get_template( $provider_template_id, [], $connection_id );
+		if ( is_wp_error( $raw ) ) {
+			wp_send_json_error( [ 'message' => $raw->get_error_message() ] );
+		}
+
+		$normalized = \StoryOS\Utils\Comfy_Manifest::normalize_entry( array_merge( [
+			'id'   => $provider_template_id,
+			'name' => (string) get_post_meta( $post_id, 'template_name', true ),
+		], is_array( $raw ) ? $raw : [] ) );
+		if ( ! is_array( $normalized ) ) {
+			wp_send_json_error( [ 'message' => __( 'Provider template payload was unreadable.', 'storyos' ) ] );
+		}
+
+		$workflow = is_array( $raw['workflow'] ?? null ) ? $raw['workflow'] : [];
+		if ( ! empty( $workflow ) ) {
+			update_post_meta( $post_id, 'workflow_json', wp_slash( (string) wp_json_encode( $workflow ) ) );
+		}
+
+		if ( ! empty( $normalized['parameters'] ) && is_array( $normalized['parameters'] ) ) {
+			update_post_meta( $post_id, 'configuration_json', wp_slash( (string) wp_json_encode( [ 'parameters' => $normalized['parameters'] ] ) ) );
+		}
+
+		$requirements = self::requirements_from_provider_entry( $normalized );
+		if ( ! empty( $requirements ) ) {
+			update_post_meta( $post_id, 'model_requirements', wp_slash( (string) wp_json_encode( $requirements ) ) );
+		}
+
+		if ( ! empty( $normalized['modality'] ) ) {
+			$modality = \StoryOS\Utils\Generation_Modality::sanitize( (string) $normalized['modality'] );
+			update_post_meta( $post_id, 'modality', $modality );
+			update_post_meta( $post_id, 'generation_structure', \StoryOS\Utils\Generation_Modality::output_type( $modality ) );
+		}
+
+		update_post_meta( $post_id, 'provider_type', 'comfyui' );
+		update_post_meta( $post_id, 'provider_template_id', $provider_template_id );
+		if ( ! empty( $normalized['model_family'] ) ) {
+			update_post_meta( $post_id, 'model_family', \StoryOS\Utils\Model_Family::sanitize( (string) $normalized['model_family'] ) );
+		}
+
+		foreach ( (array) ( $normalized['models'] ?? [] ) as $model ) {
+			if ( is_array( $model ) && 'checkpoints' === (string) ( $model['folder'] ?? '' ) && ! empty( $model['filename'] ) ) {
+				update_post_meta( $post_id, 'checkpoint', (string) $model['filename'] );
+				break;
+			}
+		}
+
+		wp_send_json_success( [ 'message' => __( 'Provider template definition imported into this Template. Save the post to persist any unsaved field edits.', 'storyos' ) ] );
+	}
+
 	/**
 	 * Shared permission and nonce gate for the requirements panel actions.
 	 *
@@ -450,6 +514,44 @@ class Template {
 		}
 
 		return $post_id;
+	}
+
+	/**
+	 * Convert normalized provider entry metadata to model requirements JSON.
+	 *
+	 * @param array $entry Normalized provider entry.
+	 * @return array<int, array<string, string>>
+	 */
+	private static function requirements_from_provider_entry( array $entry ): array {
+		$requirements = [];
+		$urls = array_values( array_filter( array_map( 'strval', (array) ( $entry['model_urls'] ?? [] ) ) ) );
+		$models = array_values( array_filter( (array) ( $entry['models'] ?? [] ), static function ( $model ): bool {
+			return is_array( $model ) && ! empty( $model['filename'] ) && ! empty( $model['folder'] );
+		} ) );
+
+		foreach ( $models as $index => $model ) {
+			$filename = (string) $model['filename'];
+			$folder   = (string) $model['folder'];
+			$url      = '';
+
+			foreach ( $urls as $candidate ) {
+				if ( false !== stripos( $candidate, $filename ) ) {
+					$url = $candidate;
+					break;
+				}
+			}
+			if ( '' === $url && isset( $urls[ $index ] ) ) {
+				$url = $urls[ $index ];
+			}
+
+			if ( '' === $url ) {
+				continue;
+			}
+
+			$requirements[] = [ 'filename' => $filename, 'folder' => $folder, 'url' => $url ];
+		}
+
+		return $requirements;
 	}
 
 	/**

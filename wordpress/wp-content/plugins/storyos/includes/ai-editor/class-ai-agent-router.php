@@ -17,19 +17,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 class AI_Agent_Router {
 
 	/**
-	/**
 	 * Keyword-to-agent mappings.
 	 *
 	 * @var array
 	 */
 	private $keyword_mappings = [
+		'comfyui' => [
+			'keywords' => [
+				'comfyui', 'comfy ui', 'workflow', 'checkpoint', 'sampler',
+				'custom node', 'model file', 'safetensors', 'generation server',
+			],
+			'agents' => [ 'ComfyTechnician' ],
+		],
 		'story' => [
 			'keywords' => [
 				'character', 'dialogue', 'plot', 'scene', 'story', 'narrative',
 				'arc', 'conflict', 'resolution', 'protagonist', 'antagonist',
 				'write', 'draft', 'rewrite', 'edit', 'continue',
 			],
-			'agents' => [ 'story', 'script' ],
+			'agents' => [ 'Screenwriter', 'Director' ],
 		],
 		'prompt' => [
 			'keywords' => [
@@ -37,7 +43,7 @@ class AI_Agent_Router {
 				'composition', 'lighting', 'camera', 'style', 'look',
 				'concept', 'art', 'illustration', 'render',
 			],
-			'agents' => [ 'prompt', 'art' ],
+			'agents' => [ 'PrevisualizationArtist', 'ArtDirector' ],
 		],
 		'production' => [
 			'keywords' => [
@@ -45,7 +51,7 @@ class AI_Agent_Router {
 				'call sheet', 'production', 'logistics', 'resource',
 				'equipment', 'transport', 'catering', 'insurance',
 			],
-			'agents' => [ 'production', 'camera', 'sound', 'grip' ],
+			'agents' => [ 'Producer', 'CameraOperator', 'SoundMixer', 'KeyGrip' ],
 		],
 		'technical' => [
 			'keywords' => [
@@ -53,7 +59,7 @@ class AI_Agent_Router {
 				'import', 'csv', 'json', 'xml', 'edl', 'cff',
 				'screenplay', 'final draft', 'fade in', 'fade out',
 			],
-			'agents' => [ 'technical', 'editorial' ],
+			'agents' => [ 'DIT', 'Editor' ],
 		],
 		'editorial' => [
 			'keywords' => [
@@ -61,13 +67,10 @@ class AI_Agent_Router {
 				'feedback', 'critique', 'suggestion', 'improve',
 				'pacing', 'rhythm', 'flow', 'structure',
 			],
-			'agents' => [ 'editorial', 'story' ],
+			'agents' => [ 'Editor', 'ScriptSupervisor' ],
 		],
 	];
 
-	/**
-	 * Constructor.
-	 */
 	/**
 	 * Route a user request to the best agent.
 	 *
@@ -104,9 +107,9 @@ class AI_Agent_Router {
 			}
 		}
 
-		// Default to story agent if no match.
+		// Default to the Director if no specialist keywords match.
 		if ( ! $best_agent ) {
-			$best_agent = 'story';
+			$best_agent = 'Director';
 			$best_score = 0;
 		}
 
@@ -118,7 +121,6 @@ class AI_Agent_Router {
 		];
 	}
 
-	/**
 	/**
 	 * Get the category for an agent.
 	 *

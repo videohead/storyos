@@ -20,6 +20,49 @@ If the environment is already running, prefer `lando info` to refresh the URLs
 before testing. WordPress is the application and control plane; do not assume a
 separate Python, queue, or orchestration service exists.
 
+## Lando Runtime Ownership
+
+Use the service that owns the runtime required by the command:
+
+| Runtime | Lando service | Project path |
+| --- | --- | --- |
+| WordPress, PHP, and WP-CLI | `appserver` | `/app/wordpress` |
+| Node.js, npm, Playwright, and JavaScript checks | `cli` | `/app` |
+| MariaDB | `database` | N/A |
+
+WP-CLI belongs in `appserver`, not the Node-based `cli` service. The intended
+project command is:
+
+```bash
+lando wp <command> [arguments]
+```
+
+The `wp` tooling entry in `.lando.yml` selects `appserver` and runs WP-CLI from
+`/app/wordpress`. A pinned WP-CLI Phar is installed and checksum-verified by
+the appserver build. Existing containers created before that build step was
+added will still lack the executable. If `lando wp` fails with an OCI error such as
+`exec: "wp": executable file not found in $PATH`, confirm the container state:
+
+```bash
+lando ssh -s appserver -c '/bin/sh -lc "command -v wp"'
+```
+
+An empty result means WP-CLI is not installed in the PHP runtime. Do not retry
+the command in `cli`: that service intentionally provides Node.js and does not
+own the WordPress PHP runtime. Run `lando rebuild -y` to apply the appserver
+build and install `/usr/local/bin/wp`, then use `lando wp`. WP-CLI should run
+against `/app/wordpress`; pass `--path=/app/wordpress` when invoking the binary
+outside the Lando tooling wrapper.
+
+For PHP-only diagnostics that do not require WP-CLI, use the installed PHP
+runtime directly:
+
+```bash
+lando exec appserver -- php -r '<php code>'
+```
+
+This is a diagnostic fallback, not a general replacement for WP-CLI commands.
+
 ## Project Scope
 
 - WordPress core and the StoryOS plugin live under `wordpress/`.
@@ -171,7 +214,10 @@ The full feature specification is in `about/Phase_8_AI_Editor.md`.
 ### Tool Calling
 
 - Lando is the preferred environment for local validation.
-- Use `lando ssh` or the service-specific Lando command for tests.
+- Run WordPress and PHP commands in `appserver`; run Node.js commands in `cli`.
+- Use `lando wp` only after `command -v wp` succeeds in `appserver`. An OCI
+  `executable file not found` error means the image lacks WP-CLI; it does not
+  mean WP-CLI belongs in the Node `cli` service.
 - Node.js is available in Lando's `cli` service, not the host or `appserver` service. Run JavaScript checks with `lando node --check /app/path/to/file.js`.
 
 ### WordPress: Do Not Restart

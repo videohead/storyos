@@ -72,7 +72,7 @@ class Generation_Batch {
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no adapter for provider %s.', $job_id, $provider_type ), [], (string) $job_id );
 				continue;
 			}
-			$client = Comfy_Cloud_MCP::class;
+			$client = self::client_for_job( $job_id, $connection );
 			$params = (array) get_post_meta( $job_id, '_storyos_generation_params', true );
 			$inputs = get_post_meta( $job_id, '_storyos_generation_inputs', true );
 			if ( is_array( $inputs ) && ! empty( $inputs ) ) {
@@ -86,6 +86,34 @@ class Generation_Batch {
 				$params,
 				$connection_id
 			);
+
+			if ( is_wp_error( $result ) && Comfy_Cloud_MCP::class === $client && 'local' === ( $connection['environment'] ?? '' ) ) {
+				$template_ref = (string) absint( get_post_meta( $job_id, '_storyos_generation_template_id', true ) );
+				if ( '' === $template_ref ) {
+					$template_ref = (string) get_post_meta( $job_id, '_storyos_generation_workflow', true );
+				}
+
+				Generation_Log::add(
+					'warning',
+					'generation_batch',
+					sprintf( 'Job %d MCP submission failed (%s). Retrying via local ComfyUI API.', $job_id, $result->get_error_message() ),
+					[],
+					(string) $job_id
+				);
+
+				$fallback = Local_ComfyUI::run_template(
+					$template_ref,
+					(string) get_post_meta( $job_id, '_storyos_generation_prompt', true ),
+					$params,
+					$connection_id
+				);
+
+				if ( ! is_wp_error( $fallback ) ) {
+					$result = $fallback;
+					$client = Local_ComfyUI::class;
+					update_post_meta( $job_id, '_storyos_generation_adapter', 'local_comfyui' );
+				}
+			}
 
 			if ( is_wp_error( $result ) ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
@@ -119,18 +147,27 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
-			$connection = Connection_Repository::get( absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) ) );
+			$connection_id = absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) );
+			$connection = Connection_Repository::get( $connection_id );
 			if ( ! $connection || 'comfyui' !== $connection['provider_type'] ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
 				update_post_meta( $job_id, '_storyos_generation_error', 'No generation adapter is registered for this Connection provider.' );
 				continue;
 			}
-			$client = Comfy_Cloud_MCP::class;
+			$client = self::client_for_job( $job_id, $connection );
 			$result = $client::get_job_status(
 				(string) get_post_meta( $job_id, '_storyos_generation_job_id', true ),
-				absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) )
+				$connection_id
 			);
 			if ( is_wp_error( $result ) ) {
+				Generation_Log::add(
+					'error',
+					'generation_batch',
+					sprintf( 'Job %d status poll failed: %s', $job_id, $result->get_error_message() ),
+					[],
+					(string) $job_id,
+					$connection_id
+				);
 				continue;
 			}
 
@@ -165,5 +202,29 @@ class Generation_Batch {
 				[ 'key' => '_storyos_generation_status', 'value' => [ 'queued', 'submitted' ], 'compare' => 'IN' ],
 			],
 		] );
+	}
+
+	/**
+	 * Resolve the generation adapter a queued job should run on.
+	 *
+	 * @param int   $job_id      Generation job post ID.
+	 * @param array $connection  Resolved Connection record.
+	 * @return string
+	 */
+	private static function client_for_job( int $job_id, array $connection ): string {
+		$adapter = sanitize_key( (string) get_post_meta( $job_id, '_storyos_generation_adapter', true ) );
+		if ( 'local_comfyui' === $adapter ) {
+			return Local_ComfyUI::class;
+		}
+
+		// Backward compatibility for older jobs that predate adapter metadata.
+		if ( 'local' === ( $connection['environment'] ?? '' ) ) {
+			$template = trim( (string) get_post_meta( $job_id, '_storyos_generation_workflow', true ) );
+			if ( '' !== $template && ctype_digit( $template ) ) {
+				return Local_ComfyUI::class;
+			}
+		}
+
+		return Comfy_Cloud_MCP::class;
 	}
 }

@@ -158,18 +158,34 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_asset_invalid_connection', __( 'That Template and Connection must use the same provider.', 'storyos' ), [ 'status' => 400 ] );
 		}
 		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template_id, 'provider_template_id', true ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) ) );
-		if ( '' === $provider_template_id ) {
-			return new WP_Error( 'storyos_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'storyos' ), [ 'status' => 400 ] );
-		}
+		$use_local_template   = false;
 		$provider = $connection['provider_type'];
 		if ( 'comfyui' !== $provider ) {
 			return new WP_Error( 'storyos_asset_provider_unsupported', __( 'This provider has no StoryOS asset generation adapter yet.', 'storyos' ), [ 'status' => 501 ] );
 		}
-		if ( 'local' === $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
+		if ( '' === $provider_template_id ) {
+			if ( 'local' !== $connection['environment'] ) {
+				return new WP_Error( 'storyos_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'storyos' ), [ 'status' => 400 ] );
+			}
+
+			$use_local_template = true;
+		}
+
+		if ( 'local' === $connection['environment'] && $use_local_template && ! Local_ComfyUI::is_configured() ) {
+			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'That Template has no provider MCP Template selected and local ComfyUI API is not configured.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		if ( 'local' === $connection['environment'] && ! $use_local_template && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
 			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'The Template Connection has no configured local ComfyUI MCP endpoint.', 'storyos' ), [ 'status' => 400 ] );
 		}
 		if ( 'local' !== $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
 			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'The Template Connection has no configured Comfy Cloud API key.', 'storyos' ), [ 'status' => 400 ] );
+		}
+
+		if ( $use_local_template ) {
+			$requirements = self::ensure_local_template_requirements( $template_id, $connection_id );
+			if ( is_wp_error( $requirements ) ) {
+				return $requirements;
+			}
 		}
 
 		$bound_inputs = [];
@@ -203,7 +219,8 @@ class Asset_Generator {
 
 		// A user-selected Template wins; otherwise keep the legacy per-CPT
 		// workflow name so existing jobs without a Template keep working.
-		$template = $provider_template_id;
+		$template = $use_local_template ? (string) $template_id : $provider_template_id;
+		$adapter  = $use_local_template ? 'local_comfyui' : 'comfy_mcp';
 		update_post_meta( $job_id, '_storyos_generation_type', 'image' );
 		update_post_meta( $job_id, '_storyos_generation_prompt', $prompt );
 		update_post_meta( $job_id, '_storyos_generation_params', $profile );
@@ -211,6 +228,8 @@ class Asset_Generator {
 			update_post_meta( $job_id, '_storyos_generation_inputs', $bound_inputs );
 		}
 		update_post_meta( $job_id, '_storyos_generation_workflow', $template );
+		update_post_meta( $job_id, '_storyos_generation_adapter', $adapter );
+		update_post_meta( $job_id, '_storyos_generation_template_id', $template_id );
 		update_post_meta( $job_id, '_storyos_generation_provider_type', $provider );
 		update_post_meta( $job_id, '_storyos_generation_connection_id', $connection_id );
 		update_post_meta( $job_id, '_storyos_generation_source_post_id', $post_id );
@@ -226,6 +245,58 @@ class Asset_Generator {
 			'prompt'        => $prompt,
 			'status'        => 'queued',
 		];
+	}
+
+	/**
+	 * Validate local ComfyUI Template requirements before queueing. When MCP
+	 * download support is available, attempt to fetch missing checkpoint files
+	 * and re-validate once.
+	 *
+	 * @param int $template_id   Template post ID.
+	 * @param int $connection_id Connection post ID.
+	 * @return true|WP_Error
+	 */
+	private static function ensure_local_template_requirements( int $template_id, int $connection_id ) {
+		$report = Comfy_Manifest::validate( $template_id );
+		if ( is_wp_error( $report ) ) {
+			return $report;
+		}
+		if ( ! empty( $report['ok'] ) ) {
+			return true;
+		}
+
+		if ( ! empty( $report['missing_models'] ) && Comfy_Cloud_MCP::supports_tool( 'download_models', $connection_id ) ) {
+			$download = Comfy_Manifest::request_downloads( $template_id );
+			if ( ! is_wp_error( $download ) ) {
+				Comfy_Manifest::flush_catalog();
+				$report = Comfy_Manifest::validate( $template_id );
+				if ( is_wp_error( $report ) ) {
+					return $report;
+				}
+				if ( ! empty( $report['ok'] ) ) {
+					return true;
+				}
+			}
+		}
+
+		$missing = [];
+		foreach ( (array) ( $report['missing_models'] ?? [] ) as $model ) {
+			if ( ! empty( $model['filename'] ) ) {
+				$missing[] = (string) $model['filename'];
+			}
+		}
+
+		return new WP_Error(
+			'storyos_local_comfyui_requirements_missing',
+			empty( $missing )
+				? __( 'ComfyUI is missing one or more Template requirements. Open the Template requirements panel and install missing models before generating.', 'storyos' )
+				: sprintf(
+					/* translators: %s: comma-separated missing model filenames. */
+					__( 'ComfyUI is missing required model files: %s. Use the Template requirements panel to install them, then try again.', 'storyos' ),
+					implode( ', ', $missing )
+				),
+			[ 'status' => 400 ]
+		);
 	}
 
 	/**

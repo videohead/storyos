@@ -135,19 +135,27 @@ class Comfy_Bootstrap {
 
 		$existing = self::template_id();
 		if ( $existing ) {
-			if ( '' === trim( (string) get_post_meta( $existing, 'checkpoint', true ) ) ) {
-				update_post_meta( $existing, 'checkpoint', self::detect_checkpoint() );
-			}
+			update_post_meta( $existing, 'storyos_wizard_slot', self::TEMPLATE_SLOT );
+			update_post_meta( $existing, 'modality', Generation_Modality::TEXT_TO_IMAGE );
+			update_post_meta( $existing, 'generation_structure', Generation_Modality::output_type( Generation_Modality::TEXT_TO_IMAGE ) );
+			update_post_meta( $existing, 'provider_type', 'comfyui' );
+			update_post_meta( $existing, 'status', 'active' );
+			self::remove_legacy_parameter_defaults( $existing );
+			$checkpoint = self::detect_checkpoint();
+			update_post_meta( $existing, 'checkpoint', $checkpoint );
+			update_post_meta( $existing, 'model_requirements', (string) wp_json_encode( [ self::download_entry( $checkpoint ) ] ) );
 			if ( $connection_id ) {
 				update_post_meta( $existing, 'connection_id', (string) $connection_id );
 			}
+
+			self::retire_legacy_templates( $existing, $connection_id );
 
 			return $existing;
 		}
 
 		$checkpoint = self::detect_checkpoint();
 
-		return \StoryOS\CPT\Template::upsert_managed(
+		$template_id = \StoryOS\CPT\Template::upsert_managed(
 			self::TEMPLATE_SLOT,
 			__( 'Local ComfyUI Text to Image', 'storyos' ),
 			[
@@ -157,10 +165,97 @@ class Comfy_Bootstrap {
 				'provider_type'        => 'comfyui',
 				'status'               => 'active',
 				'checkpoint'           => $checkpoint,
-				'configuration_json'   => (string) wp_json_encode( [ 'parameters' => Generation_Modality::default_settings( Generation_Modality::TEXT_TO_IMAGE ) ] ),
 				'model_requirements'   => (string) wp_json_encode( [ self::download_entry( $checkpoint ) ] ),
 			]
 		);
+
+		if ( $template_id ) {
+			self::retire_legacy_templates( $template_id, $connection_id );
+		}
+
+		return $template_id;
+	}
+
+	/**
+	 * Remove bootstrap-era hardcoded template parameter JSON so runtime values
+	 * can inherit from the source project's media profile.
+	 *
+	 * @param int $template_id Template post ID.
+	 * @return void
+	 */
+	private static function remove_legacy_parameter_defaults( int $template_id ): void {
+		$decoded = json_decode( (string) get_post_meta( $template_id, 'configuration_json', true ), true );
+		if ( ! is_array( $decoded ) || ! isset( $decoded['parameters'] ) || ! is_array( $decoded['parameters'] ) ) {
+			return;
+		}
+
+		$legacy_defaults = Generation_Modality::default_settings( Generation_Modality::TEXT_TO_IMAGE );
+		$parameters      = $decoded['parameters'];
+		$keys            = array_keys( $legacy_defaults );
+
+		foreach ( $keys as $key ) {
+			if ( ! array_key_exists( $key, $parameters ) || (string) $parameters[ $key ] !== (string) $legacy_defaults[ $key ] ) {
+				return;
+			}
+		}
+
+		if ( count( array_intersect( array_keys( $parameters ), $keys ) ) === count( $parameters ) ) {
+			delete_post_meta( $template_id, 'configuration_json' );
+		}
+	}
+
+	/**
+	 * Keep one active local ComfyUI text-to-image Template and retire legacy
+	 * managed Templates oriented around text-to-video and frame-guided flows.
+	 *
+	 * @param int $keep_id       Template post ID to keep active.
+	 * @param int $connection_id Optional parent storyos_connection post ID.
+	 * @return void
+	 */
+	private static function retire_legacy_templates( int $keep_id, int $connection_id = 0 ): void {
+		$templates = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				[
+					'key'   => 'provider_type',
+					'value' => 'comfyui',
+				],
+			],
+		] );
+
+		$legacy_modalities = [
+			Generation_Modality::TEXT_TO_VIDEO,
+			Generation_Modality::TEXT_IMAGE_TO_VIDEO,
+			Generation_Modality::VIDEO_TO_VIDEO,
+			Generation_Modality::VIDEO_WITH_AUDIO,
+		];
+
+		foreach ( $templates as $template_id ) {
+			$template_id = (int) $template_id;
+			if ( $template_id === $keep_id ) {
+				continue;
+			}
+
+			$slot          = (string) get_post_meta( $template_id, 'storyos_wizard_slot', true );
+			$modality      = (string) get_post_meta( $template_id, 'modality', true );
+			$template_conn = (int) get_post_meta( $template_id, 'connection_id', true );
+
+			$is_legacy_managed = 'local_comfyui_default' === $slot;
+			$is_video_template = in_array( $modality, $legacy_modalities, true );
+
+			if ( ! $is_legacy_managed && ! $is_video_template ) {
+				continue;
+			}
+
+			if ( $connection_id && ! $is_legacy_managed && $template_conn && $template_conn !== $connection_id ) {
+				continue;
+			}
+
+			wp_trash_post( $template_id );
+		}
 	}
 
 	/**
@@ -181,7 +276,7 @@ class Comfy_Bootstrap {
 			}
 		}
 
-		return (string) $installed[0];
+		return self::DEFAULT_CHECKPOINT;
 	}
 
 	/**

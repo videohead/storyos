@@ -32,9 +32,9 @@
 		} );
 	}
 
-	function fillTemplates( panel, templates ) {
+	function fillTemplates( panel, templates, defaultTemplateId ) {
 		var select = panel.querySelector( '.storyos-generate-asset__template' );
-		if ( ! select || select.options.length > 1 ) {
+		if ( ! select || select.options.length > 0 ) {
 			return;
 		}
 		( templates || [] ).forEach( function ( template ) {
@@ -43,6 +43,10 @@
 			option.textContent = template.name + ( template.modality ? ' (' + template.modality + ')' : '' );
 			select.appendChild( option );
 		} );
+
+		if ( defaultTemplateId ) {
+			select.value = String( defaultTemplateId );
+		}
 	}
 
 	function loadPrompt( panel, force ) {
@@ -56,7 +60,7 @@
 		request( settings.restUrl + '/prompt?post_id=' + encodeURIComponent( panel.dataset.postId ) )
 			.then( function ( body ) {
 				prompt.value = body.prompt || '';
-				fillTemplates( panel, body.templates );
+				fillTemplates( panel, body.templates, body.default_template_id || 0 );
 				setStatus( panel, body.configured ? '' : strings.unconfigured, ! body.configured );
 			} )
 			.catch( function ( error ) {

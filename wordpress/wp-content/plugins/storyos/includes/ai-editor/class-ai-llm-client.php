@@ -34,7 +34,7 @@ class AI_LLM_Client {
 	 * Send a chat request to the configured LLM backend.
 	 *
 	 * @param string $prompt The user prompt.
-	 * @param array  $options Optional parameters (model, max_tokens, temperature, system_prompt, context).
+	 * @param array  $options Optional parameters (model, max_tokens, temperature, system_prompt, context, messages).
 	 * @return array {
 	 *     @type string $content The LLM response content.
 	 *     @type string $backend Which backend was used.
@@ -48,6 +48,7 @@ class AI_LLM_Client {
 		$temperature = $options['temperature'] ?? get_option( 'storyos_ai_temperature', 0.7 );
 		$system_prompt = $options['system_prompt'] ?? '';
 		$context   = $options['context'] ?? [];
+		$history   = $this->normalize_messages( $options['messages'] ?? [] );
 
 		// Check rate limit.
 		if ( ! $this->check_rate_limit() ) {
@@ -60,7 +61,7 @@ class AI_LLM_Client {
 		}
 
 		// Check cache (both in-memory and transient).
-		$cache_key = md5( $prompt . $model . $system_prompt );
+		$cache_key = md5( $prompt . $model . $system_prompt . wp_json_encode( $context ) . wp_json_encode( $history ) );
 		$cache_ttl = get_option( 'storyos_ai_cache_ttl', 3600 );
 
 		// First check in-memory cache.
@@ -98,7 +99,7 @@ class AI_LLM_Client {
 		}
 
 		// Try primary backend.
-		$result = $this->call_backend( $backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context );
+		$result = $this->call_backend( $backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $history );
 
 		if ( $result && empty( $result['error'] ) ) {
 			// Cache the result in both in-memory and transient storage.
@@ -122,7 +123,7 @@ class AI_LLM_Client {
 		$fallback_enabled = get_option( 'storyos_ai_fallback_enabled', true );
 		if ( $fallback_enabled && 'dual' !== $backend ) {
 			$fallback_backend = get_option( 'storyos_ai_fallback_backend', 'openai' );
-			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $this->fallback_api_key() );
+			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $history, $this->fallback_api_key() );
 			if ( $result && empty( $result['error'] ) ) {
 				return $result;
 			}
@@ -131,7 +132,7 @@ class AI_LLM_Client {
 		// Dual mode: try both.
 		if ( 'dual' === $backend ) {
 			$fallback_backend = get_option( 'storyos_ai_fallback_backend', 'openai' );
-			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $this->fallback_api_key() );
+			$result = $this->call_backend( $fallback_backend, $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $history, $this->fallback_api_key() );
 			if ( $result && empty( $result['error'] ) ) {
 				return $result;
 			}
@@ -156,17 +157,18 @@ class AI_LLM_Client {
 	 * @param float  $temperature Temperature.
 	 * @param string $system_prompt System prompt.
 	 * @param array  $context Additional context.
+	 * @param array  $history Prior user and assistant messages.
 	 * @return array|false Response array or false on failure.
 	 */
-	private function call_backend( string $backend, string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '' ) {
+	private function call_backend( string $backend, string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, array $history, string $api_key = '' ) {
 		switch ( $backend ) {
 			case 'local':
 			case 'openai_compatible':
-				return $this->call_openai_compatible( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $api_key, $backend );
+				return $this->call_openai_compatible( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $history, $api_key, $backend );
 			case 'openai':
-				return $this->call_openai( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $api_key );
+				return $this->call_openai( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $history, $api_key );
 			case 'anthropic':
-				return $this->call_anthropic( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $api_key );
+				return $this->call_anthropic( $prompt, $model, $max_tokens, $temperature, $system_prompt, $context, $history, $api_key );
 			default:
 				return [
 					'content' => "Unknown backend: {$backend}",
@@ -184,9 +186,10 @@ class AI_LLM_Client {
 	 * @param float  $temperature Temperature.
 	 * @param string $system_prompt System prompt.
 	 * @param array  $context Additional context.
+	 * @param array  $history Prior user and assistant messages.
 	 * @return array Response array.
 	 */
-	private function call_openai_compatible( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '', string $backend = 'openai_compatible' ): array {
+	private function call_openai_compatible( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, array $history, string $api_key = '', string $backend = 'openai_compatible' ): array {
 		$url = rtrim( get_option( 'storyos_ai_url', 'http://localhost:11434/v1' ), '/' );
 		$url .= ( str_ends_with( $url, '/v1' ) ? '' : '/v1' ) . '/chat/completions';
 		$api_key = '' !== $api_key ? $api_key : $this->primary_api_key();
@@ -204,6 +207,7 @@ class AI_LLM_Client {
 			}
 		}
 
+		$messages = array_merge( $messages, $history );
 		$messages[] = [ 'role' => 'user', 'content' => $prompt ];
 
 		$args = [
@@ -261,9 +265,10 @@ class AI_LLM_Client {
 	 * @param float  $temperature Temperature.
 	 * @param string $system_prompt System prompt.
 	 * @param array  $context Additional context.
+	 * @param array  $history Prior user and assistant messages.
 	 * @return array Response array.
 	 */
-	private function call_openai( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '' ): array {
+	private function call_openai( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, array $history, string $api_key = '' ): array {
 		$api_key = '' !== $api_key ? $api_key : $this->primary_api_key();
 		if ( empty( $api_key ) ) {
 			return [
@@ -287,6 +292,7 @@ class AI_LLM_Client {
 			}
 		}
 
+		$messages = array_merge( $messages, $history );
 		$messages[] = [ 'role' => 'user', 'content' => $prompt ];
 
 		$args = [
@@ -343,9 +349,10 @@ class AI_LLM_Client {
 	 * @param float  $temperature Temperature.
 	 * @param string $system_prompt System prompt.
 	 * @param array  $context Additional context.
+	 * @param array  $history Prior user and assistant messages.
 	 * @return array Response array.
 	 */
-	private function call_anthropic( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, string $api_key = '' ): array {
+	private function call_anthropic( string $prompt, string $model, int $max_tokens, float $temperature, string $system_prompt, array $context, array $history, string $api_key = '' ): array {
 		$api_key = '' !== $api_key ? $api_key : $this->primary_api_key();
 		if ( empty( $api_key ) ) {
 			return [
@@ -357,7 +364,15 @@ class AI_LLM_Client {
 
 		$url = 'https://api.anthropic.com/v1/messages';
 
-		$messages = [ [ 'role' => 'user', 'content' => $prompt ] ];
+		if ( ! empty( $context ) ) {
+			$context_text = $this->format_context_for_llm( $context );
+			if ( ! empty( $context_text ) ) {
+				$system_prompt .= "\n\n" . $context_text;
+			}
+		}
+
+		$messages = $history;
+		$messages[] = [ 'role' => 'user', 'content' => $prompt ];
 
 		$args = [
 			'method'  => 'POST',
@@ -404,6 +419,40 @@ class AI_LLM_Client {
 			'backend' => 'anthropic',
 			'tokens'  => $data['usage']['input_tokens'] + $data['usage']['output_tokens'] ?? 0,
 		];
+	}
+
+	/**
+	 * Normalize prior messages before building a provider request.
+	 *
+	 * REST callers are validated by the controller, while internal callers may
+	 * provide messages directly. Keep this boundary defensive and server-owned.
+	 *
+	 * @param mixed $messages Candidate prior messages.
+	 * @return array<int, array{role:string,content:string}>
+	 */
+	private function normalize_messages( $messages ): array {
+		if ( ! is_array( $messages ) ) {
+			return [];
+		}
+
+		$normalized = [];
+		foreach ( array_slice( $messages, -20 ) as $message ) {
+			if ( ! is_array( $message ) || ! isset( $message['role'], $message['content'] ) || ! in_array( $message['role'], [ 'user', 'assistant' ], true ) ) {
+				continue;
+			}
+
+			$content = trim( (string) $message['content'] );
+			if ( '' === $content ) {
+				continue;
+			}
+
+			$normalized[] = [
+				'role'    => $message['role'],
+				'content' => substr( $content, 0, 10000 ),
+			];
+		}
+
+		return $normalized;
 	}
 
 	/**

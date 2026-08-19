@@ -119,8 +119,7 @@ class Asset_Generator_MetaBox {
 	 */
 	public static function render( \WP_Post $post ): void {
 		?>
-		<p><?php esc_html_e( 'Use the WordPress Featured Image and Gallery blocks in the editor for the post’s primary asset and supporting media. StoryOS generation tools live here.', 'storyos' ); ?></p>
-		<?php
+	    <?php
 		if ( ! current_user_can( 'upload_files' ) ) {
 			return;
 		}
@@ -153,17 +152,14 @@ class Asset_Generator_MetaBox {
 	 */
 	private static function render_generator( \WP_Post $post ): void {
 		?>
-		<hr />
 		<div class="storyos-generate-asset" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
 			<h4><?php esc_html_e( 'Generate asset', 'storyos' ); ?></h4>
-			<p class="description"><?php esc_html_e( 'Easily create an initial image for this story element with text-to-image. The result is uploaded to the media library and linked to this post.', 'storyos' ); ?></p>
+			<p class="description"><?php esc_html_e( 'The result here is uploaded to the media library and linked to this post. You can ask the agents for specific assistance.', 'storyos' ); ?></p>
 			<label for="storyos-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Prompt', 'storyos' ); ?></label>
 			<textarea class="widefat storyos-generate-asset__prompt" id="storyos-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="4" placeholder="<?php esc_attr_e( 'Describe the image to generate.', 'storyos' ); ?>"></textarea>
 			<p class="storyos-generate-asset__options">
 				<label for="storyos-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Template', 'storyos' ); ?></label>
-				<select class="storyos-generate-asset__template" id="storyos-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>">
-					<option value=""><?php esc_html_e( 'Default Template', 'storyos' ); ?></option>
-				</select>
+				<select class="storyos-generate-asset__template" id="storyos-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"></select>
 				<label><input type="checkbox" class="storyos-generate-asset__featured" checked /> <?php esc_html_e( 'Set as featured asset', 'storyos' ); ?></label>
 				<label><input type="checkbox" class="storyos-generate-asset__create" checked /> <?php esc_html_e( 'Create linked Asset record', 'storyos' ); ?></label>
 			</p>

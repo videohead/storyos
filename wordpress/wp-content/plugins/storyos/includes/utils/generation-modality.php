@@ -2,11 +2,8 @@
 /**
  * Generation modality registry.
  *
- * Describes every generation shape a StoryOS Template can declare (text to
- * image, image to image, text to video, and so on), the inputs each one
- * consumes, the ComfyUI node classes and model slots it needs, and a working
- * built-in ComfyUI API-format graph for Templates that do not paste a custom
- * workflow.
+ * Describes the single generation shape StoryOS currently provisions for
+ * ComfyUI: text to image.
  *
  * @package StoryOS
  */
@@ -60,7 +57,6 @@ class Generation_Modality {
 		];
 
 		$image_nodes = [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'SaveImage' ];
-		$video_nodes = [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'LTXVConditioning', 'CreateVideo', 'SaveVideo' ];
 
 		$prompt_input   = [ 'type' => 'text', 'required' => true, 'label' => 'Prompt' ];
 		$negative_input = [ 'type' => 'text', 'required' => false, 'label' => 'Negative prompt' ];
@@ -68,7 +64,7 @@ class Generation_Modality {
 		return [
 			self::TEXT_TO_IMAGE       => [
 				'label'       => 'Text to image',
-				'description' => 'A single still image sampled from a text prompt.',
+				'description' => 'A single end-to-end still image generated from a text prompt.',
 				'output_type' => 'image',
 				'task_type'   => 'txt2img',
 				'inputs'      => [
@@ -76,84 +72,6 @@ class Generation_Modality {
 					'negative_prompt' => $negative_input,
 				],
 				'nodes'       => array_merge( $image_nodes, [ 'EmptyLatentImage' ] ),
-				'models'      => $image_models,
-			],
-			self::IMAGE_TO_IMAGE      => [
-				'label'       => 'Image to image',
-				'description' => 'A still image resampled from a source image, without requiring a prompt.',
-				'output_type' => 'image',
-				'task_type'   => 'img2img',
-				'inputs'      => [
-					'image'           => [ 'type' => 'image', 'required' => true, 'label' => 'Source image' ],
-					'prompt'          => [ 'type' => 'text', 'required' => false, 'label' => 'Prompt' ],
-					'negative_prompt' => $negative_input,
-				],
-				'nodes'       => array_merge( $image_nodes, [ 'LoadImage', 'VAEEncode' ] ),
-				'models'      => $image_models,
-			],
-			self::IMAGE_TEXT_TO_IMAGE => [
-				'label'       => 'Image + text to image',
-				'description' => 'A still image resampled from a source image and steered by a text prompt.',
-				'output_type' => 'image',
-				'task_type'   => 'img2img',
-				'inputs'      => [
-					'image'           => [ 'type' => 'image', 'required' => true, 'label' => 'Source image' ],
-					'prompt'          => $prompt_input,
-					'negative_prompt' => $negative_input,
-				],
-				'nodes'       => array_merge( $image_nodes, [ 'LoadImage', 'VAEEncode' ] ),
-				'models'      => $image_models,
-			],
-			self::TEXT_TO_VIDEO       => [
-				'label'       => 'Text to video',
-				'description' => 'A silent video clip sampled from a text prompt.',
-				'output_type' => 'video',
-				'task_type'   => 'txt2video',
-				'inputs'      => [
-					'prompt'          => $prompt_input,
-					'negative_prompt' => $negative_input,
-				],
-				'nodes'       => array_merge( $video_nodes, [ 'EmptyLTXVLatentVideo' ] ),
-				'models'      => $image_models,
-			],
-			self::TEXT_IMAGE_TO_VIDEO => [
-				'label'       => 'Text + image to video',
-				'description' => 'A video clip that starts from a source image and follows a text prompt.',
-				'output_type' => 'video',
-				'task_type'   => 'img2video',
-				'inputs'      => [
-					'image'           => [ 'type' => 'image', 'required' => true, 'label' => 'Source image' ],
-					'prompt'          => $prompt_input,
-					'negative_prompt' => $negative_input,
-				],
-				'nodes'       => array_merge( $video_nodes, [ 'LoadImage', 'LTXVImgToVideo' ] ),
-				'models'      => $image_models,
-			],
-			self::VIDEO_TO_VIDEO      => [
-				'label'       => 'Video to video (start / end frame)',
-				'description' => 'A video clip guided by a starting frame and, optionally, an ending frame.',
-				'output_type' => 'video',
-				'task_type'   => 'video2video',
-				'inputs'      => [
-					'start_frame'     => [ 'type' => 'image', 'required' => true, 'label' => 'Starting frame' ],
-					'end_frame'       => [ 'type' => 'image', 'required' => false, 'label' => 'Ending frame' ],
-					'prompt'          => [ 'type' => 'text', 'required' => false, 'label' => 'Prompt' ],
-					'negative_prompt' => $negative_input,
-				],
-				'nodes'       => array_merge( $video_nodes, [ 'LoadImage', 'EmptyLTXVLatentVideo', 'LTXVAddGuide', 'LTXVCropGuides' ] ),
-				'models'      => $image_models,
-			],
-			self::VIDEO_WITH_AUDIO    => [
-				'label'       => 'Video with audio',
-				'description' => 'A video clip muxed with an audio track on the way out of ComfyUI.',
-				'output_type' => 'video',
-				'task_type'   => 'txt2video',
-				'inputs'      => [
-					'prompt'          => $prompt_input,
-					'audio'           => [ 'type' => 'audio', 'required' => true, 'label' => 'Audio track' ],
-					'negative_prompt' => $negative_input,
-				],
-				'nodes'       => array_merge( $video_nodes, [ 'EmptyLTXVLatentVideo', 'LoadAudio' ] ),
 				'models'      => $image_models,
 			],
 		];

@@ -17,7 +17,7 @@
 		const [ error, setError ] = useState( null );
 		const [ actionMessage, setActionMessage ] = useState( null );
 		const [ agents, setAgents ] = useState( [] );
-		const [ selectedAgent, setSelectedAgent ] = useState( 'story' );
+		const [ selectedAgent, setSelectedAgent ] = useState( '' );
 		const [ currentPostId, setCurrentPostId ] = useState( window.storyosAI?.postId || 0 );
 
 		// Load settings and agents on mount.
@@ -38,12 +38,28 @@
 				.then( function( data ) {
 					if ( data.success ) {
 						setAgents( data.data );
-						if ( data.data.length > 0 && ! selectedAgent ) {
-							setSelectedAgent( data.data[0].name );
+						if ( data.data.length > 0 ) {
+							const director = data.data.find( function( agent ) { return 'Director' === agent.name; } );
+							setSelectedAgent( director ? director.name : data.data[0].name );
 						}
 					}
 				} );
 		}, [] );
+
+		function getBoundedHistory() {
+			let totalLength = 0;
+			return messages.filter( function( message ) {
+				return 'user' === message.role || 'assistant' === message.role;
+			} ).slice( -20 ).reverse().reduce( function( history, message ) {
+				const content = message.content.slice( 0, 10000 );
+				if ( totalLength + content.length > 40000 ) {
+					return history;
+				}
+				totalLength += content.length;
+				history.unshift( { role: message.role, content: content } );
+				return history;
+			}, [] );
+		}
 
 		function sendMessage() {
 			if ( ! input.trim() || isLoading ) return;
@@ -58,6 +74,7 @@
 				prompt: input,
 				agent: selectedAgent,
 				action: 'chat',
+				messages: getBoundedHistory(),
 			};
 
 			if ( currentPostId ) {

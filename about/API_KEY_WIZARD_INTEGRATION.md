@@ -2,7 +2,7 @@
 
 ## ✅ Task Completed
 
-All API keys for the StoryOS plugin can now be configured through the initial setup wizard. Users no longer need to manually set environment variables or WordPress options.
+All API keys for the StoryOS plugin can be configured through the initial setup wizard. The wizard stores the configuration directly in WordPress options.
 
 ## What Was Implemented
 
@@ -43,7 +43,6 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
    - Updated `render()` method with comprehensive form sections
    - Added support for dual LLM configuration
    - Proper input validation and sanitization
-   - Environment variable override support
 
 ### New Documentation Files
 1. **`SETUP_WIZARD_GUIDE.md`**
@@ -57,22 +56,17 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
    - Wizard-centric setup instructions
    - Quick start section redesigned around wizard
    - Removed manual configuration examples
-   - Added programmatic override options
+        - Added programmatic configuration options
 
 3. **Updated `ARCHITECTURE.md`**
    - New configuration section referencing wizard
    - WordPress options documentation
-   - Environment variable setup instructions
+        - Wizard-based configuration instructions
 
 ## Key Features
 
 ### 1. **Unified Configuration**
-All API keys configured in one place during plugin activation
-
-When constants defined:
-- Wizard fields display as read-only
-- Shows: "Configured through the deployment environment"
-- Ideal for production security
+All API keys are configured in one place during plugin activation and stored as WordPress options. The wizard is the supported configuration path for both the optional Comfy Cloud connection and LLM connections.
 
 ### 2. **Smart Defaults**
 - Primary backend: `openai_compatible`
@@ -138,9 +132,9 @@ storyos_setup_complete
 
 ### Database Security
 - Options stored in `wp_options` table
-- Sensitive values should use environment variables in production
+- Restrict WordPress administrator access and use HTTPS when entering or viewing keys
 - Never expose API keys in code repositories
-- Use `.env` files or deployment secrets management
+- Treat database backups as sensitive because they may contain saved API keys
 
 ## Developer Integration
 
@@ -150,9 +144,6 @@ storyos_setup_complete
 $comfy_key = get_option( 'storyos_comfy_api_key' );
 $llm_key = get_option( 'storyos_ai_api_key' );
 $fallback_key = get_option( 'storyos_ai_fallback_api_key' );
-
-// Check environment overrides
-$using_env = defined( 'STORYOS_COMFY_API_KEY' );
 
 // Get LLM configuration
 $backend = get_option( 'storyos_ai_backend' );
@@ -180,7 +171,6 @@ update_option( 'storyos_setup_complete', true );
 - ✅ Form submission saves all options
 - ✅ Success redirect after save
 - ✅ Saved values persist on wizard reload
-- ✅ Environment variables override form display
 - ✅ Validation rejects invalid inputs
 - ✅ Setup can be reset via option
 - ✅ No errors in PHP logs
@@ -190,29 +180,9 @@ update_option( 'storyos_setup_complete', true );
 ### Development/Staging
 - Use wizard to configure API keys in database
 - API keys visible in WordPress admin
-- Good for local/test environments
+- Suitable for non-production testing
 
-### Production
-- Define constants via environment variables
-- Never commit API keys to repository
-- Use secrets management (HashiCorp Vault, AWS Secrets, etc.)
-- Wizard displays fields as disabled when using constants
-- Only developers with environment access can modify
 
-### Recommended Setup
-```bash
-# .env file (not committed)
-STORYOS_COMFY_API_KEY=sk_live_xxx...
-STORYOS_AI_API_KEY=sk-xxx...
-STORYOS_AI_FALLBACK_API_KEY=sk-xxx...
-```
-
-```php
-// wp-config.php
-define( 'STORYOS_COMFY_API_KEY', getenv( 'STORYOS_COMFY_API_KEY' ) );
-define( 'STORYOS_AI_API_KEY', getenv( 'STORYOS_AI_API_KEY' ) );
-define( 'STORYOS_AI_FALLBACK_API_KEY', getenv( 'STORYOS_AI_FALLBACK_API_KEY' ) );
-```
 
 ## Documentation
 
@@ -220,7 +190,6 @@ Complete guide: [SETUP_WIZARD_GUIDE.md](./SETUP_WIZARD_GUIDE.md)
 
 Key sections:
 - Wizard sections and fields
-- Using environment variables
 - Configuration storage
 - Troubleshooting
 - Security best practices
@@ -231,14 +200,7 @@ Key sections:
 If already configured manually:
 1. Existing WordPress options are preserved
 2. Wizard loads saved values on next access
-3. Can switch to environment variables anytime
-4. Constants take precedence over options
-
-### From Environment Variables Only
-1. Define constants in `wp-config.php`
-2. Wizard displays as read-only
-3. No database storage needed
-4. Ideal for production deployments
+3. Review or update the values through the wizard
 
 ## Next Steps
 
@@ -257,7 +219,6 @@ For questions or issues:
 - See SETUP_WIZARD_GUIDE.md for detailed documentation
 - Check troubleshooting section for common issues
 - Review WordPress options to verify configuration saved
-- Verify environment variables if using constants
 
 ---
 

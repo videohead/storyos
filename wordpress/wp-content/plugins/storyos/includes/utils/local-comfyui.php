@@ -19,7 +19,7 @@ class Local_ComfyUI {
 	 * Connection can back many checkpoints/Templates; only one is auto-managed
 	 * as the default for now.
 	 */
-	const TEMPLATE_SLOT = 'local_comfyui_default';
+	const TEMPLATE_SLOT = 'local_comfyui_text_to_image';
 
 	/**
 	 * Whether WordPress has a local ComfyUI URL. A workflow is always
@@ -61,7 +61,7 @@ class Local_ComfyUI {
 			return $resolved;
 		}
 
-		$workflow = self::workflow( $template_id, $modality, [ 'has_end_frame' => '' !== ( $resolved['end_frame'] ?? '' ) ] );
+		$workflow = self::workflow( $template_id, $modality, $parameters );
 		if ( ! is_array( $workflow ) || empty( $workflow ) ) {
 			return new WP_Error( 'local_comfyui_unconfigured', __( 'This Template has no runnable ComfyUI workflow.', 'storyos' ) );
 		}
@@ -238,10 +238,10 @@ class Local_ComfyUI {
 	 *
 	 * @param int    $template_id Template post ID, or 0 for none.
 	 * @param string $modality    Modality slug.
-	 * @param array  $context     Runtime hints for the built-in graph.
+	 * @param array  $runtime     Runtime parameter overrides for this job.
 	 * @return array
 	 */
-	private static function workflow( int $template_id, string $modality, array $context = [] ): array {
+	private static function workflow( int $template_id, string $modality, array $runtime = [] ): array {
 		$raw = $template_id
 			? (string) get_post_meta( $template_id, 'workflow_json', true )
 			: (string) get_option( 'storyos_comfy_local_workflow', '' );
@@ -251,13 +251,27 @@ class Local_ComfyUI {
 		}
 
 		$settings = $template_id
-			? Comfy_Manifest::template_settings( $template_id, $modality )
+			? Comfy_Manifest::template_settings( $template_id, $modality, $runtime )
 			: [ 'checkpoint' => trim( (string) get_option( 'storyos_comfy_local_checkpoint', '' ) ) ];
+		if ( ! $template_id ) {
+			$runtime_keys = array_keys( Generation_Modality::default_settings( $modality ) );
+			foreach ( $runtime_keys as $key ) {
+				if ( isset( $runtime[ $key ] ) && is_scalar( $runtime[ $key ] ) ) {
+					$settings[ $key ] = $runtime[ $key ];
+				}
+			}
+
+			$size = isset( $runtime['size'] ) && is_scalar( $runtime['size'] ) ? trim( (string) $runtime['size'] ) : '';
+			if ( preg_match( '/^(\d+)x(\d+)$/i', $size, $matches ) ) {
+				$settings['width']  = (int) $matches[1];
+				$settings['height'] = (int) $matches[2];
+			}
+		}
 		if ( '' === trim( (string) ( $settings['checkpoint'] ?? '' ) ) ) {
-			$settings['checkpoint'] = 'ltx-2.3.safetensors';
+			$settings['checkpoint'] = Comfy_Bootstrap::DEFAULT_CHECKPOINT;
 		}
 
-		return Generation_Modality::default_workflow( $modality, array_merge( $settings, $context ) );
+		return Generation_Modality::default_workflow( $modality, $settings );
 	}
 
 	/**

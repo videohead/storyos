@@ -239,6 +239,7 @@ function init(): void {
 	Admin\Navigation::init();
 	Admin\Setup_Wizard::init();
 	Admin\MetaBoxes::init();
+	Admin\Asset_Generator_MetaBox::init();
 	Admin\Comfy_Readiness::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();

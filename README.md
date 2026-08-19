@@ -2,7 +2,7 @@
 
 > Build Your Story Once. Create Everywhere.
 >
-> An open-source storytelling operating system: stories and helpful agents in WordPress, generative workflows through ComfyUI and MCP.
+> An open-source storytelling operating system: stories, story analysis, and helpful filmmaking agents in WordPress, generative workflows through your favorite tools, including ComfyUI.
 
 ## Table of Contents
 

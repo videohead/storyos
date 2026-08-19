@@ -185,6 +185,12 @@ GET  /storyos/v1/ai/settings
 GET  /storyos/v1/ai/health
 ```
 
+`POST /storyos/v1/ai/chat` accepts `prompt`, optional `post_id`, `agent`, and
+`action`, plus an optional `messages` array containing up to 20 prior `user`
+and `assistant` turns. The server owns the system prompt and Story Graph
+context, so client-supplied `system` messages are rejected. Chat history is
+kept in the browser and is not persisted by this endpoint.
+
 Each route must validate its arguments and use the appropriate WordPress
 permission callback. The `agent` argument identifies a filmmaking ability or
 profile when one is selected; it is not a request to create a separate runtime

@@ -35,12 +35,6 @@ class Test_Generation_Modality extends TestCase {
 		$this->assertSame(
 			[
 				'text_to_image',
-				'image_to_image',
-				'image_text_to_image',
-				'text_to_video',
-				'text_image_to_video',
-				'video_to_video',
-				'video_with_audio',
 			],
 			Generation_Modality::slugs()
 		);
@@ -51,7 +45,7 @@ class Test_Generation_Modality extends TestCase {
 	 */
 	public function test_sanitize_falls_back_to_text_to_image(): void {
 		$this->assertSame( Generation_Modality::TEXT_TO_IMAGE, Generation_Modality::sanitize( 'not-a-modality' ) );
-		$this->assertSame( Generation_Modality::TEXT_TO_VIDEO, Generation_Modality::sanitize( 'text_to_video' ) );
+		$this->assertSame( Generation_Modality::TEXT_TO_IMAGE, Generation_Modality::sanitize( 'text_to_video' ) );
 	}
 
 	/**
@@ -74,12 +68,7 @@ class Test_Generation_Modality extends TestCase {
 	public static function required_input_provider(): array {
 		return [
 			'text to image'        => [ Generation_Modality::TEXT_TO_IMAGE, [ 'prompt' ] ],
-			'image to image'       => [ Generation_Modality::IMAGE_TO_IMAGE, [ 'image' ] ],
-			'image and text'       => [ Generation_Modality::IMAGE_TEXT_TO_IMAGE, [ 'image', 'prompt' ] ],
-			'text to video'        => [ Generation_Modality::TEXT_TO_VIDEO, [ 'prompt' ] ],
-			'text and image video' => [ Generation_Modality::TEXT_IMAGE_TO_VIDEO, [ 'image', 'prompt' ] ],
-			'video to video'       => [ Generation_Modality::VIDEO_TO_VIDEO, [ 'start_frame' ] ],
-			'video with audio'     => [ Generation_Modality::VIDEO_WITH_AUDIO, [ 'prompt', 'audio' ] ],
+			'legacy mode falls back' => [ Generation_Modality::TEXT_TO_VIDEO, [ 'prompt' ] ],
 		];
 	}
 
@@ -142,37 +131,21 @@ class Test_Generation_Modality extends TestCase {
 	}
 
 	/**
-	 * Video modalities mux through CreateVideo/SaveVideo; image ones save an image.
+	 * The built-in registry only exposes SaveImage output.
 	 */
 	public function test_output_nodes_match_output_type(): void {
 		foreach ( Generation_Modality::slugs() as $slug ) {
 			$classes = array_column( Generation_Modality::default_workflow( $slug, [ 'checkpoint' => 'test.safetensors' ] ), 'class_type' );
-
-			if ( 'video' === Generation_Modality::output_type( $slug ) ) {
-				$this->assertContains( 'SaveVideo', $classes, "{$slug} does not save a video." );
-			} else {
-				$this->assertContains( 'SaveImage', $classes, "{$slug} does not save an image." );
-			}
+			$this->assertContains( 'SaveImage', $classes, "{$slug} does not save an image." );
 		}
-	}
-
-	/**
-	 * The optional ending frame only adds a second guide when supplied.
-	 */
-	public function test_end_frame_guide_is_conditional(): void {
-		$without = Generation_Modality::default_workflow( Generation_Modality::VIDEO_TO_VIDEO, [ 'checkpoint' => 'test.safetensors' ] );
-		$with    = Generation_Modality::default_workflow( Generation_Modality::VIDEO_TO_VIDEO, [ 'checkpoint' => 'test.safetensors', 'has_end_frame' => true ] );
-
-		$this->assertSame( 1, count( array_keys( array_column( $without, 'class_type' ), 'LTXVAddGuide' ) ) );
-		$this->assertSame( 2, count( array_keys( array_column( $with, 'class_type' ), 'LTXVAddGuide' ) ) );
 	}
 
 	/**
 	 * The checkpoint a Template configures reaches the loader node.
 	 */
 	public function test_checkpoint_is_applied_to_the_loader(): void {
-		$graph = Generation_Modality::default_workflow( Generation_Modality::TEXT_TO_VIDEO, [ 'checkpoint' => 'ltx-2.3.safetensors' ] );
+		$graph = Generation_Modality::default_workflow( Generation_Modality::TEXT_TO_IMAGE, [ 'checkpoint' => 'v1-5-pruned-emaonly-fp16.safetensors' ] );
 
-		$this->assertSame( 'ltx-2.3.safetensors', $graph['4']['inputs']['ckpt_name'] );
+		$this->assertSame( 'v1-5-pruned-emaonly-fp16.safetensors', $graph['4']['inputs']['ckpt_name'] );
 	}
 }

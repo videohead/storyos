@@ -69,7 +69,7 @@ class Generation_Controller extends Base_Controller {
 					'type'        => 'object',
 				],
 				'inputs'     => [
-					'description' => 'Modality input slots (prompt, negative_prompt, image, start_frame, end_frame, video, audio). Media slots accept an attachment ID or URL.',
+					'description' => 'Template input slots (prompt, negative_prompt).',
 					'type'        => 'object',
 				],
 				'workflow'   => [

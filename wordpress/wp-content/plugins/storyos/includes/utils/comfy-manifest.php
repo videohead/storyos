@@ -182,9 +182,10 @@ class Comfy_Manifest {
 	 *
 	 * @param int    $template_id Template post ID.
 	 * @param string $modality    Modality slug.
+	 * @param array  $runtime     Runtime parameter overrides for this job.
 	 * @return array<string, mixed>
 	 */
-	public static function template_settings( int $template_id, string $modality ): array {
+	public static function template_settings( int $template_id, string $modality, array $runtime = [] ): array {
 		$settings = [ 'checkpoint' => trim( (string) get_post_meta( $template_id, 'checkpoint', true ) ) ];
 
 		foreach ( [ 'configuration_json', 'default_values' ] as $meta_key ) {
@@ -199,6 +200,18 @@ class Comfy_Manifest {
 					$settings[ $key ] = $parameters[ $key ];
 				}
 			}
+		}
+
+		foreach ( array_keys( Generation_Modality::default_settings( $modality ) ) as $key ) {
+			if ( isset( $runtime[ $key ] ) && is_scalar( $runtime[ $key ] ) ) {
+				$settings[ $key ] = $runtime[ $key ];
+			}
+		}
+
+		$size = isset( $runtime['size'] ) && is_scalar( $runtime['size'] ) ? trim( (string) $runtime['size'] ) : '';
+		if ( preg_match( '/^(\d+)x(\d+)$/i', $size, $matches ) ) {
+			$settings['width']  = (int) $matches[1];
+			$settings['height'] = (int) $matches[2];
 		}
 
 		return $settings;

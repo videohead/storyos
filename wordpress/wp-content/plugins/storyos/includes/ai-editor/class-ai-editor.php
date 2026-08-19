@@ -550,7 +550,7 @@ class AI_Editor {
 	}
 
 	/**
-	 * Render the agent workflow UI for a StoryOS story element.
+	 * Render the filmmaking agent chat for a StoryOS story element.
 	 *
 	 * @param \WP_Post $post Current Shot post.
 	 * @return void
@@ -558,22 +558,25 @@ class AI_Editor {
 	public static function render_story_element_workflow_metabox( \WP_Post $post ): void {
 		?>
 		<div class="storyos-ai-workflow" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
-			<p class="description"><?php esc_html_e( 'Run an agent with this Story Graph element as context. Generated output is a suggestion until you apply it.', 'storyos' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Chat with a filmmaking agent using this Story Graph element as context. Conversation history stays in this browser tab, and agent output remains a suggestion.', 'storyos' ); ?></p>
 			<div class="storyos-ai-workflow__controls">
 				<label for="storyos-ai-workflow-agent-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Agent', 'storyos' ); ?></label>
 				<select class="storyos-ai-workflow__agent" id="storyos-ai-workflow-agent-<?php echo esc_attr( $post->ID ); ?>" disabled>
 					<option><?php esc_html_e( 'Loading agents...', 'storyos' ); ?></option>
 				</select>
 			</div>
-			<label for="storyos-ai-workflow-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Instruction', 'storyos' ); ?></label>
-			<textarea class="widefat storyos-ai-workflow__prompt" id="storyos-ai-workflow-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="4" placeholder="<?php esc_attr_e( 'Describe the work you want the agent to do with this story element.', 'storyos' ); ?>"></textarea>
+			<div class="storyos-ai-workflow__messages" role="log" aria-live="polite" aria-label="<?php esc_attr_e( 'Film production chat transcript', 'storyos' ); ?>">
+				<p class="storyos-ai-workflow__empty"><?php esc_html_e( 'Start a conversation about this story element.', 'storyos' ); ?></p>
+			</div>
+			<label for="storyos-ai-workflow-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Message', 'storyos' ); ?></label>
+			<textarea class="widefat storyos-ai-workflow__prompt" id="storyos-ai-workflow-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="3" placeholder="<?php esc_attr_e( 'Ask a creative, technical, or production question. Enter sends; Shift+Enter adds a line.', 'storyos' ); ?>"></textarea>
 			<div class="storyos-ai-workflow__actions">
-				<button type="button" class="button button-primary storyos-ai-workflow__run" data-action="generate"><?php esc_html_e( 'Run agent', 'storyos' ); ?></button>
+				<button type="button" class="button button-primary storyos-ai-workflow__run" data-action="chat"><?php esc_html_e( 'Send', 'storyos' ); ?></button>
 				<button type="button" class="button storyos-ai-workflow__run" data-action="analyze"><?php esc_html_e( 'Analyze element', 'storyos' ); ?></button>
 				<button type="button" class="button storyos-ai-workflow__run" data-action="continuity"><?php esc_html_e( 'Check continuity', 'storyos' ); ?></button>
+				<button type="button" class="button-link storyos-ai-workflow__clear"><?php esc_html_e( 'Clear chat', 'storyos' ); ?></button>
 			</div>
 			<div class="storyos-ai-workflow__status" role="status" aria-live="polite"></div>
-			<div class="storyos-ai-workflow__result" hidden></div>
 		</div>
 		<?php
 	}

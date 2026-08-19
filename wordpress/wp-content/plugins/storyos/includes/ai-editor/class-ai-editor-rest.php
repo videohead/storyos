@@ -44,6 +44,18 @@ class AI_Editor_REST {
 					'type'     => 'string',
 					'default'  => 'chat',
 				],
+				'messages'      => [
+					'required' => false,
+					'type'     => 'array',
+					'default'  => [],
+					'items'    => [
+						'type'       => 'object',
+						'properties' => [
+							'role'    => [ 'type' => 'string' ],
+							'content' => [ 'type' => 'string' ],
+						],
+					],
+				],
 			],
 		] );
 
@@ -134,10 +146,18 @@ class AI_Editor_REST {
 	 */
 	public function chat( \WP_REST_Request $request ): \WP_REST_Response {
 		// Sanitize all input parameters.
-		$prompt    = sanitize_text_field( $request->get_param( 'prompt' ) );
+		$prompt    = sanitize_textarea_field( $request->get_param( 'prompt' ) );
 		$post_id   = absint( $request->get_param( 'post_id' ) );
 		$agent     = sanitize_text_field( $request->get_param( 'agent' ) );
 		$action    = sanitize_text_field( $request->get_param( 'action' ) ) ?: 'chat';
+		$messages  = $this->sanitize_chat_messages( $request->get_param( 'messages' ) );
+
+		if ( empty( $prompt ) || strlen( $prompt ) > 10000 || is_wp_error( $messages ) ) {
+			return new \WP_REST_Response( [
+				'success' => false,
+				'error'   => is_wp_error( $messages ) ? $messages->get_error_message() : __( 'Invalid prompt length.', 'storyos' ),
+			], 400 );
+		}
 
 		// Validate action against allowed values.
 		$allowed_actions = [ 'chat', 'analyze', 'generate', 'continuity' ];
@@ -145,12 +165,13 @@ class AI_Editor_REST {
 			$action = 'chat';
 		}
 
-		// Validate agent if provided.
-		if ( ! empty( $agent ) ) {
-			$allowed_agents = [ 'story', 'prompt', 'production', 'technical', 'editorial' ];
-			if ( ! in_array( $agent, $allowed_agents, true ) ) {
-				$agent = ''; // Reset to empty to trigger auto-routing.
-			}
+		$maf_bridge     = new AI_MAF_Bridge( new AI_LLM_Client() );
+		$enabled_agents = $maf_bridge->get_enabled_agents();
+		if ( ! empty( $agent ) && ! isset( $enabled_agents[ $agent ] ) ) {
+			return new \WP_REST_Response( [
+				'success' => false,
+				'error'   => __( 'The selected agent is not available.', 'storyos' ),
+			], 400 );
 		}
 
 		// Build context if post_id provided.
@@ -160,8 +181,14 @@ class AI_Editor_REST {
 			if ( ! get_post( $post_id ) ) {
 				return new \WP_REST_Response( [
 					'success' => false,
-					'error'   => 'Invalid post ID.',
+					'error'   => __( 'Invalid post ID.', 'storyos' ),
 				], 400 );
+			}
+			if ( ! current_user_can( 'edit_post', $post_id ) ) {
+				return new \WP_REST_Response( [
+					'success' => false,
+					'error'   => __( 'You cannot use this post as chat context.', 'storyos' ),
+				], 403 );
 			}
 			$post_type = get_post_type( $post_id );
 			if ( ! $post_type ) {
@@ -180,6 +207,16 @@ class AI_Editor_REST {
 			$router = new AI_Agent_Router();
 			$route_result = $router->route( $prompt );
 			$agent = $route_result['agent'];
+			if ( ! isset( $enabled_agents[ $agent ] ) ) {
+				$agent = (string) array_key_first( $enabled_agents );
+			}
+		}
+
+		if ( empty( $agent ) ) {
+			return new \WP_REST_Response( [
+				'success' => false,
+				'error'   => __( 'No filmmaking agents are enabled.', 'storyos' ),
+			], 503 );
 		}
 
 		// Get agent skills for this context.
@@ -200,10 +237,17 @@ class AI_Editor_REST {
 		}
 
 		// Get the agent's system prompt.
-		$maf_bridge = new AI_MAF_Bridge( new AI_LLM_Client() );
 		$agent_data = $maf_bridge->get_agent( $agent );
 		$system_prompt = $agent_data['system_prompt'] ?? '';
-		
+		$action_prompts = [
+			'analyze'    => __( 'Analyze the current Story Graph element in response to the user. Be specific, constructive, and production-aware.', 'storyos' ),
+			'generate'   => __( 'Develop a concrete creative or production suggestion in response to the user. Do not modify WordPress content.', 'storyos' ),
+			'continuity' => __( 'Focus on continuity risks involving character, timeline, location, props, wardrobe, and production feasibility.', 'storyos' ),
+		];
+		if ( isset( $action_prompts[ $action ] ) ) {
+			$system_prompt .= "\n\nTurn instruction: " . $action_prompts[ $action ];
+		}
+
 		// Add skill content to system prompt.
 		if ( ! empty( $skill_content ) ) {
 			$system_prompt .= "\n\n" . $skill_content;
@@ -214,6 +258,7 @@ class AI_Editor_REST {
 		$result = $llm_client->chat( $prompt, [
 			'system_prompt' => $system_prompt,
 			'context'       => $context,
+			'messages'      => $messages,
 		] );
 
 		return new \WP_REST_Response( [
@@ -221,8 +266,50 @@ class AI_Editor_REST {
 			'data'    => $result['content'] ?? '',
 			'agent'   => esc_html( $agent ),
 			'backend' => esc_html( $result['backend'] ?? 'unknown' ),
+			'action'  => esc_html( $action ),
+			'post_id' => $post_id,
 			'error'   => ! empty( $result['error'] ) ? esc_html( $result['error'] ) : null,
 		], empty( $result['error'] ) ? 200 : 500 );
+	}
+
+	/**
+	 * Sanitize bounded prior chat turns supplied by the browser.
+	 *
+	 * System messages are intentionally rejected: the server owns the system
+	 * prompt and Story Graph context.
+	 *
+	 * @param mixed $messages Raw REST parameter.
+	 * @return array<int, array{role:string,content:string}>|\WP_Error
+	 */
+	private function sanitize_chat_messages( $messages ) {
+		if ( null === $messages || [] === $messages ) {
+			return [];
+		}
+
+		if ( ! is_array( $messages ) || count( $messages ) > 20 ) {
+			return new \WP_Error( 'invalid_chat_history', __( 'Chat history must contain at most 20 messages.', 'storyos' ) );
+		}
+
+		$sanitized = [];
+		$total_length = 0;
+		foreach ( $messages as $message ) {
+			if ( ! is_array( $message ) || ! isset( $message['role'], $message['content'] ) || ! in_array( $message['role'], [ 'user', 'assistant' ], true ) ) {
+				return new \WP_Error( 'invalid_chat_message', __( 'Each chat message must have a user or assistant role and content.', 'storyos' ) );
+			}
+
+			$content = sanitize_textarea_field( (string) $message['content'] );
+			$total_length += strlen( $content );
+			if ( '' === $content || strlen( $content ) > 10000 || $total_length > 40000 ) {
+				return new \WP_Error( 'invalid_chat_history', __( 'Chat history is empty or exceeds the allowed size.', 'storyos' ) );
+			}
+
+			$sanitized[] = [
+				'role'    => $message['role'],
+				'content' => $content,
+			];
+		}
+
+		return $sanitized;
 	}
 
 	/**
@@ -389,6 +476,7 @@ class AI_Editor_REST {
 		foreach ( $agents as $name => $agent ) {
 			$formatted[] = [
 				'name'        => esc_html( $name ),
+				'label'       => esc_html( trim( preg_replace( '/(?<!^)([A-Z])/', ' $1', $name ) ) ),
 				'description' => esc_html( $agent['description'] ?? '' ),
 				'department'  => esc_html( $agent['department'] ?? '' ),
 			];

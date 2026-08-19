@@ -1,13 +1,13 @@
 # StoryOS Deployment and Connections
 
-StoryOS keeps stories, Story Graph data, and helpful filmmaking agents in WordPress. Generative media workflows run through ComfyUI and MCP. Neither a local GPU nor ComfyUI is required to use StoryOS for writing, planning, continuity, collaboration, or asset tracking.
+StoryOS keeps stories, Story Graph data, and helpful filmmaking agents in WordPress. Generative media workflows run through your favorite generative tools including ComfyUI. Neither a local GPU nor ComfyUI is required to use StoryOS for writing, planning, continuity, collaboration, or asset tracking, but the majority of the tools are organizaed around having both chat-based AI assistance AND generative AI.
 
 ## Before You Start
 
 Every StoryOS user needs:
 
-1. A WordPress.org-capable host, or a local Docker/Lando deployment.
-2. A local ComfyUI installation operated through an MCP client, Comfy Cloud account with an API key, or no ComfyUI connection while using StoryOS for story-only work (no visual assets can be generated in this mode).
+1. A WordPress.org-capable host, WP Local, or a local Docker/Lando deployment.
+2. A local ComfyUI installation operated through an MCP client, Comfy Cloud account with an API key, additional API keys for your favorite generative tools, or no connection while using StoryOS for story-only work (no agentic assistance or visual assets can be generated in this mode).
 3. An API-connected LLM: a local OpenAI-compatible server such as llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as OpenAI or Anthropic.
 
 Browser-only subscriptions, including ChatGPT, Claude, and Claude Code subscriptions without an API credential, are not supported by the StoryOS server integration at this time. Hosted LLM providers require an API key; a local LLM must expose an OpenAI-compatible API endpoint and any credential it requires.
@@ -15,15 +15,14 @@ Browser-only subscriptions, including ChatGPT, Claude, and Claude Code subscript
 ## Core Runtime
 
 The standard deployment contains WordPress, MariaDB, and the StoryOS plugin. WordPress stores generation jobs and uses WP-Cron to process bounded batches.
-The SCF plugin is also required in order to extend StoryOS capabilities
+A node-driven CLI container is also included for testing and development.
+The SCF plugin is also required in order to extend StoryOS capabilities.
 
 For reliable production scheduling, invoke `wp-cron.php` from the host scheduler. Local Lando users can run due events with `lando wp-cron`.
 
-## Comfy Cloud MCP
+## ComfyUI MCP
 
-Comfy Cloud is the supported WordPress generation connection. Create a Comfy Cloud API key, set `STORYOS_COMFY_API_KEY` in the deployment environment, and restart the appserver. StoryOS calls `https://cloud.comfy.org/mcp` with the key and submits or polls work from WP-Cron.
-
-The key can also be entered in the StoryOS settings, but an environment variable is preferred for deployed sites. Do not commit credentials to `.env` or source control.
+Local ComfyUI or Comfy Cloud both have ahelpful MCP for dicovering and using Templates.
 
 ## Local ComfyUI HTTP API
 
@@ -34,20 +33,6 @@ development environment where ComfyUI runs on the host, use
 `http://host.docker.internal:8188`; `localhost` refers to the WordPress
 container and will not reach the host service.
 
-The current local implementation accepts one manually supplied ComfyUI
-**Save (API Format)** workflow. Replace the positive-prompt text in that JSON
-with `{{prompt}}`. StoryOS submits it to `/prompt`, polls `/history/{prompt_id}`
-through WP-Cron, and imports the first image output from `/view`.
-
-This is an advanced, minimal integration. It does not yet manage a workflow
-catalog, per-connection workflow selection, custom nodes, model discovery,
-dependency downloads, installation, workflow compatibility, or lifecycle
-recovery. Those capabilities are a major planned project centered on the
-`storyos_connection` CPT; see the **Local ComfyUI Workflow Catalog and
-Connections** section in [the roadmap](ROADMAP_StoryOS.md).
-
-`comfy-mcp` remains useful for desktop or coding-agent workflows, but it is a
-separate stdio transport and is not required for the WordPress HTTP path.
 
 ## LLM Connections
 

@@ -11,6 +11,7 @@
 namespace StoryOS\REST;
 
 use StoryOS\Utils\Asset_Generator;
+use StoryOS\Utils\Comfy_Bootstrap;
 use StoryOS\Utils\Connection_Repository;
 use StoryOS\Utils\Generation_Modality;
 use StoryOS\Utils\Template_Bindings;
@@ -157,15 +158,36 @@ class Asset_Generation_Controller extends Base_Controller {
 		}
 
 		$configured = \StoryOS\Utils\Comfy_Cloud_MCP::is_configured();
+		$templates  = self::runnable_templates( $post_id );
 
 		return rest_ensure_response( [
-			'post_id'    => $post_id,
-			'prompt'     => Asset_Generator::build_prompt( $post_id ),
-			'configured' => $configured,
-			'model'      => 'Comfy Cloud MCP',
-			'profile'    => Asset_Generator::project_media_profile( $post_id ),
-			'templates'  => self::runnable_templates( $post_id ),
+			'post_id'             => $post_id,
+			'prompt'              => Asset_Generator::build_prompt( $post_id ),
+			'configured'          => $configured,
+			'model'               => 'Comfy Cloud MCP',
+			'profile'             => Asset_Generator::project_media_profile( $post_id ),
+			'templates'           => $templates,
+			'default_template_id' => self::default_template_id( $templates ),
 		] );
+	}
+
+	/**
+	 * Prefer the managed local text-to-image Template as the panel default.
+	 *
+	 * @param array<int, array<string, mixed>> $templates Runnable templates.
+	 * @return int
+	 */
+	private static function default_template_id( array $templates ): int {
+		$managed = Comfy_Bootstrap::template_id();
+		if ( $managed ) {
+			foreach ( $templates as $template ) {
+				if ( $managed === (int) ( $template['id'] ?? 0 ) ) {
+					return $managed;
+				}
+			}
+		}
+
+		return isset( $templates[0]['id'] ) ? (int) $templates[0]['id'] : 0;
 	}
 
 	/**

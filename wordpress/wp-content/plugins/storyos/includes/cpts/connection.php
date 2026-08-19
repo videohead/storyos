@@ -59,6 +59,11 @@ class Connection {
 		self::register_cpt();
 		self::register_meta_boxes();
 		add_action( 'save_post_' . self::CPT, [ __CLASS__, 'save_meta' ], 10, 2 );
+		add_action( 'wp_ajax_storyos_sync_connection_catalog', [ __CLASS__, 'ajax_sync_catalog' ] );
+		add_action( 'wp_ajax_storyos_enable_connection_catalog_entry', [ __CLASS__, 'ajax_enable_catalog_entry' ] );
+		add_action( 'wp_ajax_storyos_disable_connection_catalog_entry', [ __CLASS__, 'ajax_disable_catalog_entry' ] );
+		add_action( 'wp_ajax_storyos_materialize_connection_catalog_entry', [ __CLASS__, 'ajax_materialize_catalog_entry' ] );
+		add_action( 'wp_ajax_storyos_download_connection_catalog_entry', [ __CLASS__, 'ajax_download_catalog_entry' ] );
 	}
 
 	/**
@@ -196,6 +201,14 @@ class Connection {
 				'normal',
 				'default'
 			);
+			add_meta_box(
+				'storyos_connection_configurator',
+				'Connection Configurator',
+				[ self::class, 'render_configurator_meta_box' ],
+				self::CPT,
+				'normal',
+				'default'
+			);
 		} );
 	}
 
@@ -247,6 +260,363 @@ class Connection {
 			<?php endforeach; ?>
 		</table>
 		<?php
+	}
+
+	/**
+	 * Render provider catalog controls that sync MCP capabilities and materialize
+	 * discoverable provider templates into StoryOS Template posts.
+	 *
+	 * @param \WP_Post $post Connection post.
+	 */
+	public static function render_configurator_meta_box( \WP_Post $post ): void {
+		$provider_type = sanitize_key( (string) get_post_meta( $post->ID, 'provider_type', true ) );
+		if ( '' === $provider_type ) {
+			echo '<p>' . esc_html__( 'Save this Connection with a provider type to configure discoverable templates.', 'storyos' ) . '</p>';
+			return;
+		}
+
+		if ( 'comfyui' !== $provider_type ) {
+			echo '<p>' . esc_html__( 'This provider type does not expose a configurator yet. ComfyUI is the reference implementation for catalog sync, template materialization, and MCP-triggered model downloads.', 'storyos' ) . '</p>';
+			return;
+		}
+
+		$snapshot = \StoryOS\Utils\Comfy_Catalog::get( (int) $post->ID );
+		?>
+		<p class="description"><?php echo esc_html__( 'Sync this Connection against its MCP-advertised capabilities, then enable and materialize provider templates into StoryOS Templates. Download actions trigger provider-side model fetches where available.', 'storyos' ); ?></p>
+		<p>
+			<button type="button" class="button" id="storyos-connection-sync-catalog"><?php echo esc_html__( 'Sync Catalog', 'storyos' ); ?></button>
+			<span class="description" style="margin-left:8px;"><?php
+			printf(
+				/* translators: %s: catalog timestamp. */
+				esc_html__( 'Last synced: %s', 'storyos' ),
+				esc_html( (string) ( $snapshot['synced_at'] ?: '—' ) )
+			);
+			?></span>
+		</p>
+		<div id="storyos-connection-configurator-status" aria-live="polite" class="description"></div>
+		<div id="storyos-connection-configurator-results"></div>
+		<script>
+			(function () {
+				var nonce = '<?php echo esc_js( wp_create_nonce( 'storyos_connection_configurator' ) ); ?>';
+				var connectionId = '<?php echo esc_js( (string) $post->ID ); ?>';
+				var status = document.getElementById('storyos-connection-configurator-status');
+				var results = document.getElementById('storyos-connection-configurator-results');
+
+				function post(action, extra) {
+					var payload = { action: action, nonce: nonce, connection_id: connectionId };
+					Object.assign(payload, extra || {});
+					return fetch(ajaxurl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+						body: new URLSearchParams(payload)
+					}).then(function (response) { return response.json(); });
+				}
+
+				function render(entries) {
+					results.replaceChildren();
+					if (!entries || !entries.length) {
+						results.textContent = '<?php echo esc_js( __( 'No provider templates discovered yet. Sync the catalog first.', 'storyos' ) ); ?>';
+						return;
+					}
+
+					entries.forEach(function (entry) {
+						var row = document.createElement('p');
+						var title = document.createElement('strong');
+						title.textContent = (entry.name || entry.id) + ' '; 
+						row.appendChild(title);
+						row.appendChild(document.createTextNode('(' + (entry.modality || 'unmappable') + ', ' + (entry.status || 'unknown') + ') '));
+
+						var enable = document.createElement('button');
+						enable.type = 'button';
+						enable.className = 'button button-small';
+						enable.textContent = entry.enabled ? '<?php echo esc_js( __( 'Disable', 'storyos' ) ); ?>' : '<?php echo esc_js( __( 'Enable', 'storyos' ) ); ?>';
+						enable.addEventListener('click', function () {
+							var action = entry.enabled ? 'storyos_disable_connection_catalog_entry' : 'storyos_enable_connection_catalog_entry';
+							status.textContent = '<?php echo esc_js( __( 'Updating catalog entry…', 'storyos' ) ); ?>';
+							post(action, { entry_id: entry.id }).then(function (response) {
+								status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Catalog entry updated.', 'storyos' ) ); ?>';
+								if (response.success && response.data && response.data.snapshot) {
+									render(response.data.snapshot.entries || []);
+								}
+							});
+						});
+						row.appendChild(enable);
+
+						var materialize = document.createElement('button');
+						materialize.type = 'button';
+						materialize.className = 'button button-small';
+						materialize.style.marginLeft = '6px';
+						materialize.textContent = '<?php echo esc_js( __( 'Materialize Template', 'storyos' ) ); ?>';
+						materialize.addEventListener('click', function () {
+							status.textContent = '<?php echo esc_js( __( 'Materializing Template…', 'storyos' ) ); ?>';
+							post('storyos_materialize_connection_catalog_entry', { entry_id: entry.id }).then(function (response) {
+								status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Template materialized.', 'storyos' ) ); ?>';
+								if (response.success && response.data && response.data.snapshot) {
+									render(response.data.snapshot.entries || []);
+								}
+							});
+						});
+						row.appendChild(materialize);
+
+						var download = document.createElement('button');
+						download.type = 'button';
+						download.className = 'button button-small';
+						download.style.marginLeft = '6px';
+						download.textContent = '<?php echo esc_js( __( 'Download Requirements', 'storyos' ) ); ?>';
+						download.addEventListener('click', function () {
+							status.textContent = '<?php echo esc_js( __( 'Requesting provider downloads…', 'storyos' ) ); ?>';
+							post('storyos_download_connection_catalog_entry', { entry_id: entry.id }).then(function (response) {
+								status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Download request sent.', 'storyos' ) ); ?>';
+							});
+						});
+						row.appendChild(download);
+
+						results.appendChild(row);
+					});
+				}
+
+				document.getElementById('storyos-connection-sync-catalog').addEventListener('click', function () {
+					status.textContent = '<?php echo esc_js( __( 'Syncing provider catalog…', 'storyos' ) ); ?>';
+					post('storyos_sync_connection_catalog').then(function (response) {
+						if (!response.success) {
+							status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Catalog sync failed.', 'storyos' ) ); ?>';
+							return;
+						}
+						status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Catalog synced.', 'storyos' ) ); ?>';
+						render((response.data.snapshot && response.data.snapshot.entries) || []);
+					});
+				});
+
+				render(<?php echo wp_json_encode( (array) ( $snapshot['entries'] ?? [] ) ); ?>);
+			}());
+		</script>
+		<?php
+	}
+
+	/** Sync the selected Connection's provider catalog. */
+	public static function ajax_sync_catalog(): void {
+		$connection_id = self::authorize_configurator_request();
+		$result = \StoryOS\Utils\Comfy_Catalog::sync( $connection_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		wp_send_json_success( [
+			'message'  => sprintf( __( 'Catalog synced: %d provider templates discovered.', 'storyos' ), count( (array) ( $result['entries'] ?? [] ) ) ),
+			'snapshot' => \StoryOS\Utils\Comfy_Catalog::get( $connection_id ),
+		] );
+	}
+
+	/** Enable one provider catalog entry. */
+	public static function ajax_enable_catalog_entry(): void {
+		$connection_id = self::authorize_configurator_request();
+		$entry_id = sanitize_text_field( (string) ( $_POST['entry_id'] ?? '' ) );
+		if ( '' === $entry_id ) {
+			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'storyos' ) ] );
+		}
+
+		$result = \StoryOS\Utils\Comfy_Catalog::enable( $connection_id, $entry_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		wp_send_json_success( [
+			'message'  => sprintf( __( 'Enabled provider template %s.', 'storyos' ), $entry_id ),
+			'snapshot' => \StoryOS\Utils\Comfy_Catalog::get( $connection_id ),
+		] );
+	}
+
+	/** Disable one provider catalog entry. */
+	public static function ajax_disable_catalog_entry(): void {
+		$connection_id = self::authorize_configurator_request();
+		$entry_id = sanitize_text_field( (string) ( $_POST['entry_id'] ?? '' ) );
+		if ( '' === $entry_id ) {
+			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'storyos' ) ] );
+		}
+
+		\StoryOS\Utils\Comfy_Catalog::disable( $connection_id, $entry_id );
+		wp_send_json_success( [
+			'message'  => sprintf( __( 'Disabled provider template %s.', 'storyos' ), $entry_id ),
+			'snapshot' => \StoryOS\Utils\Comfy_Catalog::get( $connection_id ),
+		] );
+	}
+
+	/** Materialize one provider catalog entry into a StoryOS Template post. */
+	public static function ajax_materialize_catalog_entry(): void {
+		$connection_id = self::authorize_configurator_request();
+		$entry_id = sanitize_text_field( (string) ( $_POST['entry_id'] ?? '' ) );
+		if ( '' === $entry_id ) {
+			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'storyos' ) ] );
+		}
+
+		$template_id = self::materialize_catalog_entry( $connection_id, $entry_id );
+		if ( is_wp_error( $template_id ) ) {
+			wp_send_json_error( [ 'message' => $template_id->get_error_message() ] );
+		}
+
+		wp_send_json_success( [
+			'message'     => sprintf( __( 'Materialized provider template %1$s as StoryOS Template #%2$d.', 'storyos' ), $entry_id, $template_id ),
+			'template_id' => (int) $template_id,
+			'edit_url'    => get_edit_post_link( (int) $template_id, '' ),
+			'snapshot'    => \StoryOS\Utils\Comfy_Catalog::get( $connection_id ),
+		] );
+	}
+
+	/** Request provider-side downloads for one catalog entry. */
+	public static function ajax_download_catalog_entry(): void {
+		$connection_id = self::authorize_configurator_request();
+		$entry_id = sanitize_text_field( (string) ( $_POST['entry_id'] ?? '' ) );
+		if ( '' === $entry_id ) {
+			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'storyos' ) ] );
+		}
+
+		$result = \StoryOS\Utils\Comfy_Manifest::request_provider_template_downloads( $entry_id, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		wp_send_json_success( [
+			'message' => sprintf( __( 'Requested %d provider requirement download(s).', 'storyos' ), count( (array) ( $result['requested'] ?? [] ) ) ),
+			'result'  => $result,
+		] );
+	}
+
+	/**
+	 * Permission and nonce gate for configurator actions.
+	 *
+	 * @return int Connection post ID.
+	 */
+	private static function authorize_configurator_request(): int {
+		check_ajax_referer( 'storyos_connection_configurator', 'nonce' );
+		$connection_id = absint( $_POST['connection_id'] ?? 0 );
+		if ( ! $connection_id || ! current_user_can( 'edit_post', $connection_id ) ) {
+			wp_send_json_error( [ 'message' => __( 'You do not have permission to configure this Connection.', 'storyos' ) ], 403 );
+		}
+
+		$post = get_post( $connection_id );
+		if ( ! $post instanceof \WP_Post || self::CPT !== $post->post_type ) {
+			wp_send_json_error( [ 'message' => __( 'That Connection record no longer exists.', 'storyos' ) ], 404 );
+		}
+
+		return $connection_id;
+	}
+
+	/**
+	 * Materialize one provider entry into a StoryOS Template post.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id      Catalog entry ID.
+	 * @return int|\WP_Error Template post ID.
+	 */
+	private static function materialize_catalog_entry( int $connection_id, string $entry_id ) {
+		$entry = \StoryOS\Utils\Comfy_Catalog::find( $connection_id, $entry_id );
+		if ( ! is_array( $entry ) ) {
+			return new \WP_Error( 'storyos_catalog_entry_missing', __( 'Sync the catalog before materializing this entry.', 'storyos' ) );
+		}
+		if ( empty( $entry['modality'] ) ) {
+			return new \WP_Error( 'storyos_catalog_entry_unmappable', __( 'This provider template cannot be mapped to a StoryOS modality.', 'storyos' ) );
+		}
+
+		$existing = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				[ 'key' => 'connection_id', 'value' => (string) $connection_id ],
+				[ 'key' => 'provider_template_id', 'value' => $entry_id ],
+			],
+		] );
+
+		$template_id = $existing ? (int) $existing[0] : 0;
+		$template_id = wp_insert_post( [
+			'ID'          => $template_id,
+			'post_type'   => 'storyos_template',
+			'post_title'  => (string) ( $entry['name'] ?? $entry_id ),
+			'post_status' => 'publish',
+		], true );
+		if ( is_wp_error( $template_id ) || ! $template_id ) {
+			return new \WP_Error( 'storyos_template_materialize_failed', __( 'Unable to materialize a Template post for that provider entry.', 'storyos' ) );
+		}
+
+		$raw = \StoryOS\Utils\Comfy_Cloud_MCP::get_template( $entry_id, [], $connection_id );
+		$raw = is_array( $raw ) ? $raw : [];
+		$workflow = is_array( $raw['workflow'] ?? null ) ? $raw['workflow'] : [];
+
+		update_post_meta( $template_id, 'template_name', (string) ( $entry['name'] ?? $entry_id ) );
+		update_post_meta( $template_id, 'provider_type', 'comfyui' );
+		update_post_meta( $template_id, 'status', 'active' );
+		update_post_meta( $template_id, 'modality', (string) $entry['modality'] );
+		update_post_meta( $template_id, 'generation_structure', \StoryOS\Utils\Generation_Modality::output_type( (string) $entry['modality'] ) );
+		update_post_meta( $template_id, 'connection_id', (string) $connection_id );
+		update_post_meta( $template_id, 'provider_template_id', $entry_id );
+		update_post_meta( $template_id, 'model_family', \StoryOS\Utils\Model_Family::sanitize( (string) ( $entry['model_family'] ?? '' ) ) );
+
+		if ( ! empty( $workflow ) ) {
+			update_post_meta( $template_id, 'workflow_json', wp_slash( (string) wp_json_encode( $workflow ) ) );
+		}
+		if ( ! empty( $entry['parameters'] ) && is_array( $entry['parameters'] ) ) {
+			update_post_meta( $template_id, 'configuration_json', wp_slash( (string) wp_json_encode( [ 'parameters' => $entry['parameters'] ] ) ) );
+		}
+
+		$requirements = self::requirements_from_entry( $entry );
+		if ( ! empty( $requirements ) ) {
+			update_post_meta( $template_id, 'model_requirements', wp_slash( (string) wp_json_encode( $requirements ) ) );
+		}
+
+		$checkpoint = '';
+		foreach ( (array) ( $entry['models'] ?? [] ) as $model ) {
+			if ( is_array( $model ) && 'checkpoints' === (string) ( $model['folder'] ?? '' ) && ! empty( $model['filename'] ) ) {
+				$checkpoint = (string) $model['filename'];
+				break;
+			}
+		}
+		if ( '' !== $checkpoint ) {
+			update_post_meta( $template_id, 'checkpoint', $checkpoint );
+		}
+
+		\StoryOS\Utils\Comfy_Catalog::enable( $connection_id, $entry_id );
+		\StoryOS\Utils\Comfy_Catalog::link_template( $connection_id, $entry_id, (int) $template_id );
+
+		return (int) $template_id;
+	}
+
+	/**
+	 * Convert provider entry model metadata into model_requirements JSON.
+	 *
+	 * @param array $entry Catalog entry.
+	 * @return array<int, array<string, string>>
+	 */
+	private static function requirements_from_entry( array $entry ): array {
+		$requirements = [];
+		$urls = array_values( array_filter( array_map( 'strval', (array) ( $entry['model_urls'] ?? [] ) ) ) );
+		$models = array_values( array_filter( (array) ( $entry['models'] ?? [] ), static function ( $model ): bool {
+			return is_array( $model ) && ! empty( $model['filename'] ) && ! empty( $model['folder'] );
+		} ) );
+
+		foreach ( $models as $index => $model ) {
+			$filename = (string) $model['filename'];
+			$folder   = (string) $model['folder'];
+			$url      = '';
+
+			foreach ( $urls as $candidate ) {
+				if ( false !== stripos( $candidate, $filename ) ) {
+					$url = $candidate;
+					break;
+				}
+			}
+			if ( '' === $url && isset( $urls[ $index ] ) ) {
+				$url = $urls[ $index ];
+			}
+
+			if ( '' === $url ) {
+				continue;
+			}
+
+			$requirements[] = [ 'filename' => $filename, 'folder' => $folder, 'url' => $url ];
+		}
+
+		return $requirements;
 	}
 
 	/**
