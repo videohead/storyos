@@ -1,0 +1,4 @@
+{
+  "codecomfy.comfyuiUrl": "http://localhost:8188",
+  "codecomfy.ffmpegPath": "path/to/ffmpeg.exe" // optional for video
+}

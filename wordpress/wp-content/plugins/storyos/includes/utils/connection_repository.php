@@ -44,6 +44,7 @@ class Connection_Repository {
 		'temperature',
 		'model_access',
 		'enabled_structures',
+		'enabled_templates',
 		'rate_limits',
 		'cost_controls',
 	];
@@ -129,6 +130,7 @@ class Connection_Repository {
 			'temperature'        => $record['temperature'],
 			'model_access'       => self::decode_json_field( $record['model_access'] ),
 			'enabled_structures' => self::decode_json_field( $record['enabled_structures'] ),
+			'enabled_templates'  => self::decode_json_field( $record['enabled_templates'] ),
 			'rate_limits'        => self::decode_json_field( $record['rate_limits'] ),
 			'cost_controls'      => self::decode_json_field( $record['cost_controls'] ),
 		];

@@ -102,15 +102,77 @@ class Comfy_Cloud_MCP {
 	}
 
 	/**
-	 * Whether the MCP server exposes a tool.
+	 * Whether the MCP server behind a Connection exposes a tool.
 	 *
 	 * @param string $name Tool name.
+	 * @param int    $connection_id Connection post ID.
 	 * @return bool
 	 */
-	public static function supports_tool( string $name ): bool {
-		$tools = self::available_tools();
+	public static function supports_tool( string $name, int $connection_id = 0 ): bool {
+		$tools = self::available_tools( $connection_id );
 
 		return is_array( $tools ) && in_array( $name, $tools, true );
+	}
+
+	/**
+	 * Tools required for StoryOS to discover and provision templates without
+	 * operator intervention.
+	 *
+	 * @var array<int, string>
+	 */
+	const TEMPLATE_TOOLS = [ 'list_templates', 'get_template', 'download_models' ];
+
+	/**
+	 * Classify what a Connection's MCP server can actually do, so callers can
+	 * offer the right affordances instead of failing deep inside a job.
+	 *
+	 * `a` exposes the whole template system, `b` exposes part of it, `c` has no
+	 * MCP endpoint at all, and `unreachable` could not be probed.
+	 *
+	 * @param int $connection_id Connection post ID.
+	 * @return array{tier: string, tools: array<int, string>, endpoint: string, message: string}
+	 */
+	public static function capability_tier( int $connection_id = 0 ): array {
+		$endpoint = self::endpoint( $connection_id );
+		if ( '' === $endpoint ) {
+			return [
+				'tier'     => 'c',
+				'tools'    => [],
+				'endpoint' => '',
+				'message'  => __( 'No MCP endpoint is configured, so template discovery falls back to the built-in modalities.', 'storyos' ),
+			];
+		}
+
+		$tools = self::available_tools( $connection_id );
+		if ( is_wp_error( $tools ) ) {
+			return [
+				'tier'     => 'unreachable',
+				'tools'    => [],
+				'endpoint' => $endpoint,
+				'message'  => $tools->get_error_message(),
+			];
+		}
+
+		$missing = array_values( array_diff( self::TEMPLATE_TOOLS, $tools ) );
+		if ( empty( $missing ) ) {
+			return [
+				'tier'     => 'a',
+				'tools'    => $tools,
+				'endpoint' => $endpoint,
+				'message'  => __( 'This connection exposes the full Comfy MCP template system.', 'storyos' ),
+			];
+		}
+
+		return [
+			'tier'     => 'b',
+			'tools'    => $tools,
+			'endpoint' => $endpoint,
+			'message'  => sprintf(
+				/* translators: %s: comma-separated list of MCP tool names. */
+				__( 'This MCP server does not expose: %s. Some discovery or download steps will need manual work.', 'storyos' ),
+				implode( ', ', $missing )
+			),
+		];
 	}
 
 	/**

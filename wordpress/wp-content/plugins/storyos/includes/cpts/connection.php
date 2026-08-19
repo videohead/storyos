@@ -152,6 +152,12 @@ class Connection {
 				'required'    => false,
 				'description' => 'JSON array of generation structures enabled for this connection, e.g. ["character-sheet","scene-image"].',
 			],
+			'enabled_templates'    => [
+				'type'        => 'textarea',
+				'label'       => 'Enabled Templates',
+				'required'    => false,
+				'description' => 'JSON array of provider templates enabled on this connection. Managed by the Template Catalog panel; edit only to recover from a bad sync.',
+			],
 			'rate_limits'          => [
 				'type'        => 'textarea',
 				'label'       => 'Rate Limits',
@@ -318,6 +324,7 @@ class Connection {
 
 				case 'model_access':
 				case 'enabled_structures':
+				case 'enabled_templates':
 				case 'rate_limits':
 				case 'cost_controls':
 					$value = self::sanitize_json_field( $raw );

@@ -142,6 +142,9 @@ developed.
 
 ### Major Planned Work: Connections-Backed Local Workflows
 
+The discovery, curation, and provisioning process for items 1-4 below is
+specified in `about/plugins/COMFY_TEMPLATE_CATALOG.md`.
+
 Local ComfyUI must not remain dependent on a global endpoint and free-form
 workflow option. The `storyos_connection` CPT is the intended control-plane
 record for the local endpoint, environment, secret reference, allowed models,

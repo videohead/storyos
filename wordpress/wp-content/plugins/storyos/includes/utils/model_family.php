@@ -211,6 +211,18 @@ class Model_Family {
 			}
 		}
 
+		return self::for_nodes( $class_types );
+	}
+
+	/**
+	 * Detect the family from a flat list of node class names, as advertised by
+	 * a Comfy MCP template descriptor that carries `required_nodes` without a
+	 * full workflow graph.
+	 *
+	 * @param array<int, string> $class_types Node class names.
+	 * @return string Model family slug, or '' when no registered prefix matches.
+	 */
+	public static function for_nodes( array $class_types ): string {
 		$candidates = [];
 		foreach ( self::all() as $slug => $family ) {
 			foreach ( (array) $family['node_prefixes'] as $prefix ) {
@@ -225,7 +237,7 @@ class Model_Family {
 
 		foreach ( $candidates as $candidate ) {
 			foreach ( $class_types as $class_type ) {
-				if ( 0 === stripos( $class_type, $candidate['prefix'] ) ) {
+				if ( is_string( $class_type ) && 0 === stripos( $class_type, $candidate['prefix'] ) ) {
 					return $candidate['slug'];
 				}
 			}

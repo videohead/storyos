@@ -213,11 +213,11 @@ class Comfy_Manifest {
 	 * @param string $modality Modality slug.
 	 * @return array|WP_Error
 	 */
-	public static function discover( string $modality ) {
+	public static function discover( string $modality, int $connection_id = 0 ) {
 		$modality = Generation_Modality::sanitize( $modality );
 		$result   = Comfy_Cloud_MCP::list_templates( [
 			'task_type' => (string) Generation_Modality::get( $modality )['task_type'],
-		] );
+		], $connection_id );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
@@ -272,15 +272,75 @@ class Comfy_Manifest {
 		}
 
 		return array_values( array_filter( array_map( static function ( $template ) {
-			if ( ! is_array( $template ) ) {
-				return null;
-			}
-
-			return [
-				'id'   => (string) ( $template['id'] ?? $template['template_id'] ?? $template['name'] ?? '' ),
-				'name' => (string) ( $template['name'] ?? $template['template_name'] ?? '' ),
-			];
+			return is_array( $template ) ? self::normalize_entry( $template ) : null;
 		}, $templates ) ) );
+	}
+
+	/**
+	 * Reduce a Comfy MCP template descriptor to the catalog entry shape
+	 * StoryOS stores and renders. Providers disagree about key names, so every
+	 * discovery path funnels through here rather than reading the payload
+	 * directly.
+	 *
+	 * The workflow graph is deliberately not retained: catalogs are stored per
+	 * Connection and must stay small, so the graph is re-fetched with
+	 * `get_template()` when a template is actually materialized.
+	 *
+	 * @param array $template Raw MCP template descriptor.
+	 * @return array|null Catalog entry, or null when the descriptor has no usable ID.
+	 */
+	public static function normalize_entry( array $template ): ?array {
+		$id = (string) ( $template['id'] ?? $template['template_id'] ?? $template['name'] ?? '' );
+		if ( '' === trim( $id ) ) {
+			return null;
+		}
+
+		$workflow  = is_array( $template['workflow'] ?? null ) ? $template['workflow'] : [];
+		$task_type = (string) ( $template['task_type'] ?? '' );
+		$modality  = self::modality_for_task_type( $task_type );
+
+		$nodes = array_values( array_unique( array_merge(
+			array_map( 'strval', (array) ( $template['required_nodes'] ?? [] ) ),
+			$workflow ? self::extract_nodes( $workflow, $modality ?? Generation_Modality::TEXT_TO_IMAGE, true ) : []
+		) ) );
+		sort( $nodes );
+
+		return [
+			'id'             => $id,
+			'name'           => (string) ( $template['name'] ?? $template['template_name'] ?? $id ),
+			'source'         => 'mcp',
+			'model_type'     => (string) ( $template['model_type'] ?? '' ),
+			'task_type'      => $task_type,
+			'modality'       => $modality,
+			'model_family'   => Model_Family::for_nodes( $nodes ),
+			'required_nodes' => $nodes,
+			'models'         => $workflow ? self::extract_models( $workflow ) : [],
+			'model_urls'     => self::extract_model_urls( $template ),
+			'parameters'     => is_array( $template['parameters'] ?? null ) ? $template['parameters'] : [],
+			'workflow_hash'  => $workflow ? 'sha1:' . sha1( (string) wp_json_encode( $workflow ) ) : '',
+		];
+	}
+
+	/**
+	 * Map a Comfy MCP task type onto a StoryOS modality, or null when the
+	 * provider offers something StoryOS has no modality for.
+	 *
+	 * @param string $task_type Provider task type.
+	 * @return string|null
+	 */
+	public static function modality_for_task_type( string $task_type ): ?string {
+		$task_type = strtolower( trim( $task_type ) );
+		if ( '' === $task_type ) {
+			return null;
+		}
+
+		foreach ( Generation_Modality::all() as $slug => $modality ) {
+			if ( strtolower( (string) $modality['task_type'] ) === $task_type ) {
+				return $slug;
+			}
+		}
+
+		return null;
 	}
 
 	/**
@@ -316,7 +376,8 @@ class Comfy_Manifest {
 	 * @return array|WP_Error Result payload, or an error describing the manual install plan.
 	 */
 	public static function request_downloads( int $template_id ) {
-		$report = self::validate( $template_id );
+		$connection_id = self::template_connection_id( $template_id );
+		$report        = self::validate( $template_id );
 		if ( is_wp_error( $report ) ) {
 			return $report;
 		}
@@ -345,12 +406,23 @@ class Comfy_Manifest {
 			);
 		}
 
-		$result = Comfy_Cloud_MCP::download_models( $urls );
+		$result = Comfy_Cloud_MCP::download_models( $urls, $connection_id );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
 
 		return [ 'requested' => $urls, 'manual' => $manual, 'result' => $result ];
+	}
+
+	/**
+	 * The Connection a Template runs on. Download and discovery calls must be
+	 * scoped to it, or a local Template's requests are sent to Comfy Cloud.
+	 *
+	 * @param int $template_id Template post ID.
+	 * @return int
+	 */
+	private static function template_connection_id( int $template_id ): int {
+		return (int) get_post_meta( $template_id, 'connection_id', true );
 	}
 
 	/**
@@ -495,6 +567,16 @@ class Comfy_Manifest {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Fetch and cache ComfyUI's node/model catalog.
+	 *
+	 * @param string $endpoint ComfyUI base URL.
+	 * @return array|WP_Error
+	 */
+	public static function object_info( string $endpoint ) {
+		return self::catalog( untrailingslashit( esc_url_raw( $endpoint ) ) );
 	}
 
 	/**

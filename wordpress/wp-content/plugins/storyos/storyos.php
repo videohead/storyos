@@ -164,6 +164,7 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/local-comfyui.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-manifest.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-catalog.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-bootstrap.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
