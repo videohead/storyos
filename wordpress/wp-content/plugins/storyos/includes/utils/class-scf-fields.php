@@ -25,9 +25,6 @@ final class SCF_Fields {
 	/** Cursor for bounded legacy-value migration batches. */
 	private const VALUE_MIGRATION_STATE_OPTION = 'storyos_scf_value_migration_state';
 
-	/** Background hook used to continue a partially completed migration. */
-	private const VALUE_MIGRATION_HOOK = 'storyos_scf_migrate_value_batch';
-
 	/** Maximum number of StoryOS posts migrated in one request. */
 	private const VALUE_MIGRATION_BATCH_SIZE = 100;
 
@@ -77,6 +74,7 @@ final class SCF_Fields {
 		}
 
 		self::$booted = true;
+		add_filter( 'acf/update_field', [ __CLASS__, 'enforce_canonical_field_contract' ], 1 );
 		add_filter( 'acf/pre_update_value', [ __CLASS__, 'protect_read_only_value' ], 20, 4 );
 		add_filter( 'acf/pre_update_value', [ __CLASS__, 'protect_json_value' ], 30, 4 );
 		add_filter( 'acf/update_value', [ __CLASS__, 'filter_update_value' ], 20, 4 );
@@ -87,11 +85,6 @@ final class SCF_Fields {
 		add_action( 'updated_post_meta', [ __CLASS__, 'sync_reference_meta' ], 10, 4 );
 		add_action( 'deleted_post_meta', [ __CLASS__, 'delete_reference_meta' ], 10, 4 );
 		add_action( 'admin_init', [ __CLASS__, 'maybe_migrate_legacy_values' ], 20 );
-		add_action( self::VALUE_MIGRATION_HOOK, [ __CLASS__, 'maybe_migrate_legacy_values' ] );
-
-		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			self::maybe_migrate_legacy_values();
-		}
 	}
 
 	/**
@@ -149,29 +142,20 @@ final class SCF_Fields {
 				continue;
 			}
 
-			$group = acf_get_field_group( self::group_key( $cpt ) );
+			$group = self::read_archive_group( $cpt );
 			if ( ! $group ) {
 				// Defensive fallback for a missing archive file. The alignment tests
 				// still fail until the generated group is committed to acf-json/.
 				$group = self::build_group( $cpt, $fields );
 			}
 
-			// SCF extracts Local JSON fields into its local-field store before it
-			// stores the group object. Rehydrate them before passing the group to
-			// the importer; otherwise an import of the bare group deletes every
-			// editable database field that is not present in `fields`.
-			if ( empty( $group['fields'] ) ) {
-				$group['fields'] = acf_get_fields( $group );
-			}
-
-			$archive_names = array_filter( array_column( (array) $group['fields'], 'name' ) );
-			$missing_names = array_diff( array_keys( $fields ), $archive_names );
-			if ( ! empty( $missing_names ) ) {
+			$validation_error = self::validate_group_schema( $cpt, $fields, $group );
+			if ( '' !== $validation_error ) {
 				storyos_log(
 					sprintf(
-						'SCF archive group %s was not imported because it is missing canonical fields: %s',
+						'SCF archive group %s was not imported: %s',
 						self::group_key( $cpt ),
-						implode( ', ', $missing_names )
+						$validation_error
 					)
 				);
 				continue;
@@ -182,7 +166,7 @@ final class SCF_Fields {
 			$db_group = function_exists( 'acf_get_raw_field_group' )
 				? acf_get_raw_field_group( self::group_key( $cpt ) )
 				: false;
-			if ( ! $db_group || self::archive_is_newer( $group, $db_group ) || self::database_group_is_incomplete( $db_group, $fields ) ) {
+			if ( ! $db_group || self::archive_is_newer( $group, $db_group ) || self::database_group_is_incomplete( $cpt, $db_group, $fields ) ) {
 				$import = $group;
 				unset( $import['local'], $import['local_file'] );
 				$import['ID'] = $db_group ? (int) $db_group['ID'] : 0;
@@ -209,21 +193,254 @@ final class SCF_Fields {
 	}
 
 	/**
+	 * Decode an immutable Local JSON payload without applying runtime
+	 * `acf/load_field` filters to the schema that will be imported.
+	 *
+	 * @return array<string, mixed>|false
+	 */
+	private static function read_archive_group( string $cpt ) {
+		$plugin_dir = defined( 'STORYOS_PLUGIN_DIR' ) ? STORYOS_PLUGIN_DIR : dirname( __DIR__, 2 ) . '/';
+		$file       = $plugin_dir . 'acf-json/' . self::group_key( $cpt ) . '.json';
+		if ( ! is_readable( $file ) ) {
+			return false;
+		}
+
+		$group = json_decode( (string) file_get_contents( $file ), true );
+		if ( ! is_array( $group ) || JSON_ERROR_NONE !== json_last_error() ) {
+			storyos_log( 'Invalid SCF Local JSON archive: ' . $file );
+			return false;
+		}
+
+		$group['local']      = 'json';
+		$group['local_file'] = $file;
+		return $group;
+	}
+
+	/**
+	 * Validate the canonical, storage-sensitive portion of a StoryOS group.
+	 * Administrators may add fields and presentation settings, but canonical
+	 * names, keys, types, locations, and persistence contracts remain stable.
+	 *
+	 * @param string                                  $cpt         StoryOS CPT.
+	 * @param array<string, array<string, mixed>>      $definitions Canonical fields.
+	 * @param array<string, mixed>                     $group       SCF group.
+	 * @return string Empty when valid, otherwise a diagnostic.
+	 */
+	private static function validate_group_schema( string $cpt, array $definitions, array $group ): string {
+		if ( self::group_key( $cpt ) !== (string) ( $group['key'] ?? '' ) ) {
+			return 'the stable group key does not match its CPT';
+		}
+
+		$has_location = false;
+		foreach ( (array) ( $group['location'] ?? [] ) as $rules ) {
+			foreach ( (array) $rules as $rule ) {
+				if ( 'post_type' === (string) ( $rule['param'] ?? '' ) && '==' === (string) ( $rule['operator'] ?? '' ) && $cpt === (string) ( $rule['value'] ?? '' ) ) {
+					$has_location = true;
+				}
+			}
+		}
+		if ( ! $has_location ) {
+			return 'the field group is not located on ' . $cpt;
+		}
+
+		$fields = (array) ( $group['fields'] ?? [] );
+		if ( empty( $fields ) ) {
+			return 'the field list is empty';
+		}
+
+		$names = array_map( 'strval', array_column( $fields, 'name' ) );
+		if ( in_array( '', $names, true ) || count( $names ) !== count( array_unique( $names ) ) ) {
+			return 'top-level field names must be nonempty and unique';
+		}
+
+		$seen_keys = [];
+		$key_error = self::validate_unique_field_keys( $fields, $seen_keys );
+		if ( '' !== $key_error ) {
+			return $key_error;
+		}
+
+		$by_name = array_column( $fields, null, 'name' );
+		foreach ( $definitions as $field_name => $definition ) {
+			if ( empty( $by_name[ $field_name ] ) || ! is_array( $by_name[ $field_name ] ) ) {
+				return 'missing canonical field ' . $field_name;
+			}
+
+			$field    = $by_name[ $field_name ];
+			$expected = self::to_scf_field( $cpt, $field_name, $definition );
+			if ( (string) $expected['key'] !== (string) ( $field['key'] ?? '' ) ) {
+				return 'field ' . $field_name . ' does not use its stable key';
+			}
+			if ( (string) $expected['type'] !== (string) ( $field['type'] ?? '' ) ) {
+				return 'field ' . $field_name . ' has an incompatible SCF type';
+			}
+			if ( ! empty( $expected['required'] ) !== ! empty( $field['required'] ) ) {
+				return 'field ' . $field_name . ' has incompatible required-state behavior';
+			}
+
+			if ( 'taxonomy' === (string) $expected['type'] && (
+				(string) ( $expected['taxonomy'] ?? '' ) !== (string) ( $field['taxonomy'] ?? '' )
+				|| empty( $field['load_terms'] )
+				|| empty( $field['save_terms'] )
+			) ) {
+				return 'taxonomy field ' . $field_name . ' is not synchronized with WordPress terms';
+			}
+
+			if ( in_array( (string) $expected['type'], [ 'post_object', 'relationship' ], true ) ) {
+				$expected_types = array_values( array_filter( (array) ( $expected['post_type'] ?? [] ) ) );
+				$actual_types   = array_values( array_filter( (array) ( $field['post_type'] ?? [] ) ) );
+				if ( ! empty( array_diff( $expected_types, $actual_types ) ) ) {
+					return 'relationship field ' . $field_name . ' targets an incompatible CPT';
+				}
+			}
+
+			if ( 'select' === (string) $expected['type'] ) {
+				$expected_choices = array_keys( (array) ( $expected['choices'] ?? [] ) );
+				$actual_choices   = array_keys( (array) ( $field['choices'] ?? [] ) );
+				if ( ! empty( array_diff( $expected_choices, $actual_choices ) ) ) {
+					return 'select field ' . $field_name . ' is missing canonical choices';
+				}
+			}
+
+			if ( 'repeater' === (string) $expected['type'] ) {
+				$expected_subfields = array_column( (array) ( $expected['sub_fields'] ?? [] ), null, 'name' );
+				$actual_subfields   = array_column( (array) ( $field['sub_fields'] ?? [] ), null, 'name' );
+				foreach ( $expected_subfields as $sub_name => $expected_subfield ) {
+					$actual_subfield = $actual_subfields[ $sub_name ] ?? [];
+					if ( (string) ( $expected_subfield['key'] ?? '' ) !== (string) ( $actual_subfield['key'] ?? '' ) || (string) ( $expected_subfield['type'] ?? '' ) !== (string) ( $actual_subfield['type'] ?? '' ) ) {
+						return 'repeater field ' . $field_name . ' has an incompatible ' . $sub_name . ' subfield';
+					}
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/** Validate recursive field-key uniqueness. */
+	private static function validate_unique_field_keys( array $fields, array &$seen_keys ): string {
+		foreach ( $fields as $field ) {
+			$key = (string) ( $field['key'] ?? '' );
+			if ( '' === $key ) {
+				return 'every field and subfield must have a nonempty key';
+			}
+			if ( isset( $seen_keys[ $key ] ) ) {
+				return 'duplicate field key ' . $key;
+			}
+			$seen_keys[ $key ] = true;
+
+			$error = self::validate_unique_field_keys( (array) ( $field['sub_fields'] ?? [] ), $seen_keys );
+			if ( '' !== $error ) {
+				return $error;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Keep graph/storage identifiers immutable while allowing administrators to
+	 * manage labels, instructions, layouts, choices, and extension fields in SCF.
+	 *
+	 * @param array<string, mixed> $field Field being saved by SCF.
+	 * @return array<string, mixed>
+	 */
+	public static function enforce_canonical_field_contract( array $field ): array {
+		$key = (string) ( $field['key'] ?? '' );
+		$cpt = self::cpt_from_field_key( $key );
+		if ( '' === $cpt ) {
+			return $field;
+		}
+
+		$expected = self::canonical_field_by_key( $cpt, $key );
+		if ( ! $expected ) {
+			return $field;
+		}
+
+		foreach ( [ 'key', 'name', 'type', 'required' ] as $property ) {
+			$field[ $property ] = $expected[ $property ];
+		}
+
+		$storage_properties = [
+			'taxonomy',
+			'field_type',
+			'multiple',
+			'load_terms',
+			'save_terms',
+			'return_format',
+			'post_type',
+			'display_format',
+		];
+		foreach ( $storage_properties as $property ) {
+			if ( array_key_exists( $property, $expected ) ) {
+				$field[ $property ] = $expected[ $property ];
+			}
+		}
+
+		return $field;
+	}
+
+	/** Resolve a canonical top-level field or repeater subfield by stable key. */
+	private static function canonical_field_by_key( string $cpt, string $key ) {
+		foreach ( storyos_get_field_defaults( $cpt ) as $field_name => $definition ) {
+			$expected = self::to_scf_field( $cpt, $field_name, $definition );
+			$match    = self::find_field_by_key( [ $expected ], $key );
+			if ( $match ) {
+				return $match;
+			}
+		}
+
+		return false;
+	}
+
+	/** Recursively find a field in a generated canonical field tree. */
+	private static function find_field_by_key( array $fields, string $key ) {
+		foreach ( $fields as $field ) {
+			if ( $key === (string) ( $field['key'] ?? '' ) ) {
+				return $field;
+			}
+
+			$match = self::find_field_by_key( (array) ( $field['sub_fields'] ?? [] ), $key );
+			if ( $match ) {
+				return $match;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Whether an editable database group is missing canonical StoryOS fields.
 	 *
 	 * This also repairs database copies created by older StoryOS synchronizers
 	 * that imported the field-less Local JSON group object.
 	 *
-	 * @param array<string, mixed>                    $db_group   Raw database group.
+	 * @param string                                  $cpt         StoryOS CPT.
+	 * @param array<string, mixed>                    $db_group    Raw database group.
 	 * @param array<string, array<string, mixed>>     $definitions Canonical fields.
 	 */
-	private static function database_group_is_incomplete( array $db_group, array $definitions ): bool {
+	private static function database_group_is_incomplete( string $cpt, array $db_group, array $definitions ): bool {
 		if ( empty( $db_group['ID'] ) || ! function_exists( 'acf_get_raw_fields' ) ) {
 			return false;
 		}
 
-		$db_names = array_filter( array_column( (array) acf_get_raw_fields( (int) $db_group['ID'] ), 'name' ) );
-		return ! empty( array_diff( array_keys( $definitions ), $db_names ) );
+		$db_group['fields'] = self::read_raw_database_fields( (int) $db_group['ID'] );
+		return '' !== self::validate_group_schema( $cpt, $definitions, $db_group );
+	}
+
+	/** Recursively load raw database fields without Local JSON precedence. */
+	private static function read_raw_database_fields( int $parent_id ): array {
+		$fields = (array) acf_get_raw_fields( $parent_id );
+		foreach ( $fields as &$field ) {
+			if ( ! empty( $field['ID'] ) ) {
+				$sub_fields = self::read_raw_database_fields( (int) $field['ID'] );
+				if ( ! empty( $sub_fields ) ) {
+					$field['sub_fields'] = $sub_fields;
+				}
+			}
+		}
+		unset( $field );
+
+		return $fields;
 	}
 
 	/**
@@ -643,7 +860,8 @@ final class SCF_Fields {
 					[],
 					(string) $config['related_cpt'],
 					(string) ( $config['relationship_type'] ?? 'belongs_to' ),
-					$field_name
+					$field_name,
+					! empty( $config['multiple'] )
 				);
 				if ( is_wp_error( $result ) ) {
 					return false;
@@ -797,7 +1015,8 @@ final class SCF_Fields {
 				array_values( array_filter( $target_ids ) ),
 				(string) $config['related_cpt'],
 				(string) ( $config['relationship_type'] ?? 'belongs_to' ),
-				(string) $field['name']
+				(string) $field['name'],
+				! empty( $config['multiple'] )
 			);
 			if ( is_wp_error( $result ) ) {
 				return get_post_meta( $post_id, (string) $field['name'], true );
@@ -888,17 +1107,15 @@ final class SCF_Fields {
 	}
 
 	/**
-	 * Run the legacy migration only from a privileged administration request,
-	 * WP-CLI, or its continuation cron, serialized by an atomic option lock.
+	 * Run one legacy migration batch from a privileged administration request,
+	 * serialized by an atomic option lock.
 	 */
 	public static function maybe_migrate_legacy_values(): void {
 		if ( (int) get_option( self::VALUE_MIGRATION_OPTION, 0 ) >= self::VALUE_MIGRATION_VERSION ) {
 			return;
 		}
 
-		$is_cli  = defined( 'WP_CLI' ) && WP_CLI;
-		$is_cron = function_exists( 'wp_doing_cron' ) && wp_doing_cron();
-		if ( ! $is_cli && ! $is_cron && ( ! is_admin() || ! current_user_can( 'manage_options' ) || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) ) {
+		if ( ! is_admin() || ! current_user_can( 'manage_options' ) || wp_doing_ajax() || wp_doing_cron() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return;
 		}
 
@@ -930,14 +1147,16 @@ final class SCF_Fields {
 	 * Convert legacy values into SCF's storage contracts once per site.
 	 *
 	 * This migrates serialized dialogue arrays to repeater rows, normalizes date
-	 * storage, backfills SCF name-to-key references, and adopts unambiguous
-	 * legacy graph edges into named relationship-field slots.
+	 * storage, and backfills SCF name-to-key references. Legacy Story Graph
+	 * edges remain available through the compatibility loader and are adopted
+	 * only when their SCF control is explicitly saved.
 	 */
 	private static function migrate_legacy_values(): void {
 		global $wpdb;
 
 		$state        = get_option( self::VALUE_MIGRATION_STATE_OPTION, [] );
-		$last_id      = is_array( $state ) ? absint( $state['last_id'] ?? 0 ) : 0;
+		$state        = is_array( $state ) && self::VALUE_MIGRATION_VERSION === (int) ( $state['version'] ?? 0 ) ? $state : [];
+		$last_id      = absint( $state['last_id'] ?? 0 );
 		$cpts         = array_keys( storyos_get_all_cpts() );
 		$placeholders = implode( ', ', array_fill( 0, count( $cpts ), '%s' ) );
 		$query_args   = array_merge( [ $last_id ], $cpts, [ self::VALUE_MIGRATION_BATCH_SIZE ] );
@@ -972,25 +1191,6 @@ final class SCF_Fields {
 
 		$success = self::migrate_legacy_dialogue( $posts_by_cpt['storyos_scene'] ?? [] );
 
-		// Build a small inverse index for legacy parent -> child containment
-		// edges. Child-side SCF relationship fields can then adopt their parent.
-		$incoming_contains = [];
-		foreach ( $posts_by_cpt as $from_type => $post_ids ) {
-			foreach ( $post_ids as $from_id ) {
-				foreach ( (array) get_post_meta( $from_id, STORYOS_CPT_PREFIX . 'relationships', true ) as $relationship ) {
-					if ( 'contains' !== (string) ( $relationship['type'] ?? '' ) ) {
-						continue;
-					}
-
-					$to_type = (string) ( $relationship['to_type'] ?? '' );
-					$to_id   = absint( $relationship['to_id'] ?? 0 );
-					if ( $to_id ) {
-						$incoming_contains[ $to_type ][ $to_id ][ $from_type ][] = $from_id;
-					}
-				}
-			}
-		}
-
 		foreach ( $posts_by_cpt as $cpt => $post_ids ) {
 			$defaults = storyos_get_field_defaults( $cpt );
 			foreach ( $post_ids as $post_id ) {
@@ -1017,27 +1217,6 @@ final class SCF_Fields {
 						}
 					}
 
-					if ( 'relationship' !== (string) ( $config['type'] ?? '' ) ) {
-						continue;
-					}
-
-					$marker_key = relationship_field_marker_key( $field_name );
-					if ( metadata_exists( 'post', $post_id, $marker_key ) ) {
-						continue;
-					}
-
-					$to_type    = (string) ( $config['related_cpt'] ?? '' );
-					$target_ids = self::legacy_relationship_targets( $post_id, $cpt, $field_name, $to_type, $config, $incoming_contains );
-					if ( empty( $target_ids ) ) {
-						continue;
-					}
-
-					$value = ! empty( $config['multiple'] ) ? $target_ids : $target_ids[0];
-					storyos_update_field_value( $post_id, $field_name, $value );
-					if ( ! metadata_exists( 'post', $post_id, $marker_key ) ) {
-						$success = false;
-						storyos_log( "SCF relationship migration failed for {$cpt} {$post_id}, field {$field_name}." );
-					}
 				}
 			}
 		}
@@ -1052,10 +1231,14 @@ final class SCF_Fields {
 			return;
 		}
 
-		update_option( self::VALUE_MIGRATION_STATE_OPTION, [ 'last_id' => (int) end( $batch_ids ) ], false );
-		if ( ! wp_next_scheduled( self::VALUE_MIGRATION_HOOK ) ) {
-			wp_schedule_single_event( time() + 5, self::VALUE_MIGRATION_HOOK );
-		}
+		update_option(
+			self::VALUE_MIGRATION_STATE_OPTION,
+			[
+				'version' => self::VALUE_MIGRATION_VERSION,
+				'last_id' => (int) end( $batch_ids ),
+			],
+			false
+		);
 	}
 
 	/**
@@ -1093,91 +1276,6 @@ final class SCF_Fields {
 		}
 
 		return $success;
-	}
-
-	/**
-	 * Find targets for one unmigrated relationship field.
-	 *
-	 * @param int                            $post_id           Source post ID.
-	 * @param string                         $cpt               Source CPT.
-	 * @param string                         $field_name        Field name.
-	 * @param string                         $to_type           Target CPT.
-	 * @param array<string, mixed>           $config            Field config.
-	 * @param array<string, mixed>           $incoming_contains Inverse containment index.
-	 * @return array<int, int>
-	 */
-	private static function legacy_relationship_targets( int $post_id, string $cpt, string $field_name, string $to_type, array $config, array $incoming_contains ): array {
-		$target_ids = [];
-		$raw        = get_post_meta( $post_id, $field_name, true );
-		foreach ( (array) $raw as $target_id ) {
-			$target_id = is_object( $target_id ) && isset( $target_id->ID ) ? (int) $target_id->ID : absint( $target_id );
-			if ( $target_id && $to_type === get_post_type( $target_id ) ) {
-				$target_ids[] = $target_id;
-			}
-		}
-
-		$expected_type = (string) ( $config['relationship_type'] ?? 'belongs_to' );
-		if ( empty( $target_ids ) ) {
-			foreach ( get_relationships( $post_id, $cpt, 'outgoing' ) as $relationship ) {
-				$relationship_field = (string) ( $relationship['metadata']['field'] ?? '' );
-				if (
-					$to_type === (string) ( $relationship['to_type'] ?? '' )
-					&& $expected_type === (string) ( $relationship['type'] ?? '' )
-					&& ( '' === $relationship_field || $field_name === $relationship_field )
-				) {
-					$target_ids[] = absint( $relationship['to_id'] ?? 0 );
-				}
-			}
-		}
-
-		if ( empty( $target_ids ) ) {
-			$target_ids = (array) ( $incoming_contains[ $cpt ][ $post_id ][ $to_type ] ?? [] );
-		}
-		if ( empty( $target_ids ) ) {
-			$target_ids = self::legacy_incoming_contains_targets( $post_id, $cpt, $to_type );
-		}
-
-		$target_ids = array_values( array_unique( array_filter( array_map( 'absint', $target_ids ) ) ) );
-		return ! empty( $config['multiple'] ) ? $target_ids : array_slice( $target_ids, 0, 1 );
-	}
-
-	/**
-	 * Find legacy parent-to-child containment edges for one child without a
-	 * site-wide in-memory graph scan.
-	 *
-	 * @return array<int, int> Parent IDs matching the requested CPT.
-	 */
-	private static function legacy_incoming_contains_targets( int $post_id, string $cpt, string $parent_type ): array {
-		global $wpdb;
-
-		$serialized_id = 's:5:"to_id";i:' . $post_id . ';';
-		$parent_ids    = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s",
-				STORYOS_CPT_PREFIX . 'relationships',
-				'%' . $wpdb->esc_like( $serialized_id ) . '%'
-			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- one-time, indexed migration lookup.
-
-		$matches = [];
-		foreach ( array_map( 'absint', (array) $parent_ids ) as $parent_id ) {
-			if ( $parent_type !== get_post_type( $parent_id ) ) {
-				continue;
-			}
-
-			foreach ( (array) get_post_meta( $parent_id, STORYOS_CPT_PREFIX . 'relationships', true ) as $relationship ) {
-				if (
-					'contains' === (string) ( $relationship['type'] ?? '' )
-					&& $post_id === absint( $relationship['to_id'] ?? 0 )
-					&& $cpt === (string) ( $relationship['to_type'] ?? '' )
-				) {
-					$matches[] = $parent_id;
-					break;
-				}
-			}
-		}
-
-		return array_values( array_unique( $matches ) );
 	}
 
 	/**

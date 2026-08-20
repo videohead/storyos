@@ -137,6 +137,22 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 	$existing   = is_array( $existing ) ? $existing : [];
 	$field_name = sanitize_key( (string) ( $metadata['field'] ?? '' ) );
 	$has_marker = '' !== $field_name && metadata_exists( 'post', $from_id, relationship_field_marker_key( $field_name ) );
+	if ( '' !== $field_name && ! $has_marker ) {
+		$legacy_targets = [];
+		foreach ( $existing as $relationship ) {
+			if (
+				'' === sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) )
+				&& $to_type === (string) ( $relationship['to_type'] ?? '' )
+				&& $type === (string) ( $relationship['type'] ?? '' )
+			) {
+				$legacy_targets[] = absint( $relationship['to_id'] ?? 0 );
+			}
+		}
+
+		if ( count( array_unique( array_filter( $legacy_targets ) ) ) > 1 ) {
+			return new \WP_Error( 'ambiguous_legacy_relationship', 'Multiple legacy Story Graph edges match this scalar field. Resolve them before updating the field.' );
+		}
+	}
 
 	$existing = array_values(
 		array_filter(
@@ -192,9 +208,10 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
  * @param string            $to_type    Target CPT.
  * @param string            $type       Relationship verb.
  * @param string            $field_name SCF field name.
+ * @param bool              $multiple   Whether the SCF control accepts multiple targets.
  * @return int|\WP_Error Relationship count, or a validation error.
  */
-function set_relationships_for_field( int $from_id, string $from_type, array $target_ids, string $to_type, string $type, string $field_name ) {
+function set_relationships_for_field( int $from_id, string $from_type, array $target_ids, string $to_type, string $type, string $field_name, bool $multiple = false ) {
 	$valid_types = array_keys( storyos_get_all_cpts() );
 	if ( ! in_array( $from_type, $valid_types, true ) || ! in_array( $to_type, $valid_types, true ) ) {
 		return new \WP_Error( 'invalid_entity_type', 'Invalid entity type.' );
@@ -221,6 +238,22 @@ function set_relationships_for_field( int $from_id, string $from_type, array $ta
 	$existing   = get_post_meta( $from_id, $meta_key, true );
 	$existing   = is_array( $existing ) ? $existing : [];
 	$has_marker = metadata_exists( 'post', $from_id, relationship_field_marker_key( $field_name ) );
+	if ( ! $has_marker && ! $multiple ) {
+		$legacy_targets = [];
+		foreach ( $existing as $relationship ) {
+			if (
+				'' === sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) )
+				&& $to_type === (string) ( $relationship['to_type'] ?? '' )
+				&& $type === (string) ( $relationship['type'] ?? '' )
+			) {
+				$legacy_targets[] = absint( $relationship['to_id'] ?? 0 );
+			}
+		}
+
+		if ( count( array_unique( array_filter( $legacy_targets ) ) ) > 1 ) {
+			return new \WP_Error( 'ambiguous_legacy_relationship', 'Multiple legacy Story Graph edges match this scalar field. Resolve them before updating the field.' );
+		}
+	}
 	$existing   = array_values(
 		array_filter(
 			$existing,

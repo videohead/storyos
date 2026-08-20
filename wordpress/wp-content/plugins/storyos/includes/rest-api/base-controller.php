@@ -401,7 +401,8 @@ abstract class Base_Controller extends WP_REST_Controller {
 					$target_ids,
 					$field['related_cpt'],
 					(string) ( $field['relationship_type'] ?? 'belongs_to' ),
-					$key
+					$key,
+					! empty( $field['multiple'] )
 				);
 				if ( is_wp_error( $result ) ) {
 					return $result;

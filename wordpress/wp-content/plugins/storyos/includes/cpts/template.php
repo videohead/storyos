@@ -125,8 +125,8 @@ class Template {
 			return '';
 		}
 
-		$decoded = json_decode( $value, true );
-		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+		$decoded = json_decode( $value );
+		if ( JSON_ERROR_NONE !== json_last_error() || ( ! is_array( $decoded ) && ! is_object( $decoded ) ) ) {
 			return null;
 		}
 

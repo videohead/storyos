@@ -45,6 +45,33 @@ function storyos_scf_json_load_paths( array $paths ): array {
 	return $paths;
 }
 
+/** Stable SCF groups owned by the StoryOS Local JSON archive. */
+function storyos_scf_group_keys(): array {
+	return [
+		'group_storyos_project',
+		'group_storyos_story_world',
+		'group_storyos_character',
+		'group_storyos_location',
+		'group_storyos_prop',
+		'group_storyos_organization',
+		'group_storyos_episode',
+		'group_storyos_scene',
+		'group_storyos_shot',
+		'group_storyos_sound',
+		'group_storyos_storyboard',
+		'group_storyos_asset',
+		'group_storyos_editorial',
+		'group_storyos_template',
+		'group_storyos_connection',
+	];
+}
+
+/** Whether the current administrator can persist StoryOS Local JSON edits. */
+function storyos_scf_archive_is_writable(): bool {
+	$path = STORYOS_PLUGIN_DIR . 'acf-json';
+	return is_dir( $path ) && is_writable( $path ) && ( ! is_multisite() || is_super_admin() );
+}
+
 /**
  * Save StoryOS-owned group changes back to the plugin's JSON archive.
  *
@@ -55,15 +82,49 @@ function storyos_scf_json_load_paths( array $paths ): array {
  * @return array<int, string>
  */
 function storyos_scf_json_save_paths( array $paths, array $post ): array {
-	if ( 0 === strpos( (string) ( $post['key'] ?? '' ), 'group_storyos_' ) ) {
+	if ( in_array( (string) ( $post['key'] ?? '' ), storyos_scf_group_keys(), true ) ) {
 		return [ STORYOS_PLUGIN_DIR . 'acf-json' ];
 	}
 
 	return $paths;
 }
 
+/**
+ * Prevent a database-only SCF edit when the JSON authority cannot be updated.
+ *
+ * @param int                  $post_id Field-group post ID.
+ * @param array<string, mixed> $data    Pending WordPress post data.
+ */
+function storyos_guard_unwritable_scf_archive( int $post_id, array $data ): void {
+	if ( empty( $_POST['acf_field_group']['key'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- this only blocks an unsafe write; SCF verifies the save.
+		return;
+	}
+
+	$key = sanitize_key( wp_unslash( $_POST['acf_field_group']['key'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- see above.
+	if ( in_array( $key, storyos_scf_group_keys(), true ) && ! storyos_scf_archive_is_writable() ) {
+		wp_die(
+			esc_html__( 'StoryOS field groups are JSON-authoritative. Make the StoryOS acf-json directory writable (and use a multisite super administrator) before editing this group.', 'storyos' ),
+			esc_html__( 'StoryOS SCF archive is read-only', 'storyos' ),
+			[ 'response' => 409, 'back_link' => true ]
+		);
+	}
+}
+
+/** Warn administrators when StoryOS SCF groups are intentionally read-only. */
+function storyos_scf_archive_notice(): void {
+	if ( storyos_scf_archive_is_writable() || ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	echo '<div class="notice notice-warning"><p>'
+		. esc_html__( 'StoryOS SCF fields are loaded from the plugin Local JSON archive. The acf-json directory is not writable for this account, so StoryOS field-group edits are read-only until that is corrected.', 'storyos' )
+		. '</p></div>';
+}
+
 add_filter( 'acf/json/load_paths', __NAMESPACE__ . '\\storyos_scf_json_load_paths' );
 add_filter( 'acf/json/save_paths', __NAMESPACE__ . '\\storyos_scf_json_save_paths', 10, 2 );
+add_action( 'pre_post_update', __NAMESPACE__ . '\\storyos_guard_unwritable_scf_archive', 1, 2 );
+add_action( 'admin_notices', __NAMESPACE__ . '\\storyos_scf_archive_notice' );
 
 /**
  * Autoloader for StoryOS classes.
@@ -158,7 +219,12 @@ spl_autoload_register( __NAMESPACE__ . '\\autoloader' );
  * @return bool
  */
 function scf_is_active(): bool {
-	return in_array( 'secure-custom-fields/secure-custom-fields.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true );
+	if ( ! function_exists( 'is_plugin_active' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+	}
+
+	$plugin = 'secure-custom-fields/secure-custom-fields.php';
+	return is_plugin_active( $plugin ) || ( is_multisite() && is_plugin_active_for_network( $plugin ) );
 }
 
 /**
@@ -306,10 +372,6 @@ function init(): void {
 		}
 	}
 
-	// Activation/deactivation hooks.
-	register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
-	register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
-
 	// Load Celtx Sync integration.
 	if ( file_exists( STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php' ) ) {
 		require_once STORYOS_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php';
@@ -386,6 +448,8 @@ function storyos_maybe_name_shot( int $post_id, \WP_Post $post, bool $update ): 
 	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\storyos_maybe_name_shot', 5, 3 );
 }
 add_action( 'init', __NAMESPACE__ . '\\init' );
+register_activation_hook( __FILE__, __NAMESPACE__ . '\\activate' );
+register_deactivation_hook( __FILE__, __NAMESPACE__ . '\\deactivate' );
 
 /**
  * Enqueue continuity panel admin assets.

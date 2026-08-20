@@ -976,8 +976,8 @@ class Connection {
 			return '';
 		}
 
-		$decoded = json_decode( $trimmed, true );
-		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+		$decoded = json_decode( $trimmed );
+		if ( JSON_ERROR_NONE !== json_last_error() || ( ! is_array( $decoded ) && ! is_object( $decoded ) ) ) {
 			return null;
 		}
 
