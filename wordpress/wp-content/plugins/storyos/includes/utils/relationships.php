@@ -45,6 +45,11 @@ function add_relationship( int $from_id, string $from_type, int $to_id, string $
 		return new \WP_Error( 'invalid_entity_type', 'Invalid entity type.' );
 	}
 
+	$entities_valid = validate_relationship_entities( $from_id, $from_type, $to_id, $to_type );
+	if ( is_wp_error( $entities_valid ) ) {
+		return $entities_valid;
+	}
+
 	// Validate relationship type.
 	$valid_relations = array_keys( relationship_types() );
 	if ( ! in_array( $type, $valid_relations, true ) ) {
@@ -107,6 +112,11 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 		return new \WP_Error( 'invalid_entity_type', 'Invalid entity type.' );
 	}
 
+	$entities_valid = validate_relationship_entities( $from_id, $from_type, $to_id, $to_type, true );
+	if ( is_wp_error( $entities_valid ) ) {
+		return $entities_valid;
+	}
+
 	if ( ! isset( relationship_types()[ $type ] ) ) {
 		return new \WP_Error( 'invalid_relationship_type', 'Invalid relationship type.' );
 	}
@@ -142,6 +152,32 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 
 	$metadata['field'] = $field_name;
 	return add_relationship( $from_id, $from_type, $to_id, $to_type, $type, $metadata );
+}
+
+/**
+ * Validate that relationship IDs resolve to the declared StoryOS CPTs.
+ *
+ * @param int    $from_id    Source post ID.
+ * @param string $from_type  Declared source CPT.
+ * @param int    $to_id      Target post ID.
+ * @param string $to_type    Declared target CPT.
+ * @param bool   $allow_zero Whether a zero target is a scalar-slot clear.
+ * @return true|\WP_Error
+ */
+function validate_relationship_entities( int $from_id, string $from_type, int $to_id, string $to_type, bool $allow_zero = false ) {
+	if ( $from_id <= 0 || $from_type !== get_post_type( $from_id ) ) {
+		return new \WP_Error( 'invalid_source_entity', 'The relationship source does not match its declared entity type.' );
+	}
+
+	if ( 0 === $to_id && $allow_zero ) {
+		return true;
+	}
+
+	if ( $to_id <= 0 || $to_type !== get_post_type( $to_id ) ) {
+		return new \WP_Error( 'invalid_target_entity', 'The relationship target does not match its declared entity type.' );
+	}
+
+	return true;
 }
 
 /**
@@ -232,6 +268,64 @@ function remove_relationship( int $from_id, int $to_id, string $from_type = '', 
 }
 
 /**
+ * Remove every incoming Story Graph edge before a StoryOS post is deleted.
+ *
+ * @param int $post_id Post being deleted.
+ */
+function cleanup_relationships_for_deleted_post( int $post_id ): void {
+	$post_type = get_post_type( $post_id );
+	if ( ! $post_type || ! isset( storyos_get_all_cpts()[ $post_type ] ) ) {
+		return;
+	}
+
+	$meta_key = STORYOS_CPT_PREFIX . 'relationships';
+	foreach ( array_keys( storyos_get_all_cpts() ) as $cpt ) {
+		$posts = get_posts(
+			[
+				'post_type'      => $cpt,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'meta_query'     => [
+					[
+						'key'     => $meta_key,
+						'compare' => 'EXISTS',
+					],
+				],
+			]
+		);
+
+		foreach ( $posts as $source_id ) {
+			if ( $post_id === (int) $source_id ) {
+				continue;
+			}
+
+			$relationships = get_post_meta( $source_id, $meta_key, true );
+			if ( ! is_array( $relationships ) ) {
+				continue;
+			}
+
+			$remaining = array_values(
+				array_filter(
+					$relationships,
+					static function( array $relationship ) use ( $post_id, $post_type ): bool {
+						return $post_id !== (int) ( $relationship['to_id'] ?? 0 ) || $post_type !== (string) ( $relationship['to_type'] ?? '' );
+					}
+				)
+			);
+
+			if ( count( $remaining ) !== count( $relationships ) ) {
+				if ( empty( $remaining ) ) {
+					delete_post_meta( $source_id, $meta_key );
+				} else {
+					update_post_meta( $source_id, $meta_key, $remaining );
+				}
+			}
+		}
+	}
+}
+
+/**
  * Get related entities for a given entity, traversing the graph.
  *
  * @param int    $entity_id The entity ID.
@@ -270,6 +364,10 @@ function get_graph_entities( int $entity_id, string $entity_type = '', int $dept
 			'title' => $post->post_title,
 			'status'=> $post->post_status,
 		];
+
+		if ( $current['depth'] >= $depth ) {
+			continue;
+		}
 
 		// Get outgoing relationships.
 		$rels = get_relationships( $current['id'], $current['type'], 'outgoing' );

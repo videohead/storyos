@@ -43,6 +43,14 @@ class Scene {
 			'label'       => 'Script Content',
 			'required'    => false,
 		],
+		'dialogue'        => [
+			'type'        => 'structured',
+			'label'       => 'Dialogue',
+			'required'    => false,
+			'admin_ui'    => false,
+			'read_only'   => true,
+			'description' => 'Importer-managed dialogue entries with speaker, line, description, and sequence fields.',
+		],
 		'location'        => [
 			'type'        => 'relationship',
 			'label'       => 'Location',

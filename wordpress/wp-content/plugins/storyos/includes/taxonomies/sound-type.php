@@ -16,6 +16,8 @@ class SoundType {
 	 * Register the taxonomy and its stable seed terms.
 	 */
 	public static function init(): void {
+		add_filter( 'pre_insert_term', [ __CLASS__, 'reject_reserved_term' ], 10, 3 );
+
 		register_taxonomy(
 			'storyos_sound_type',
 			[ 'storyos_sound' ],
@@ -31,6 +33,7 @@ class SoundType {
 				'public'            => true,
 				'show_in_rest'      => true,
 				'show_admin_column' => true,
+				'meta_box_cb'       => false,
 				'rewrite'           => [ 'slug' => 'sound-type' ],
 				'hierarchical'      => false,
 			]
@@ -41,5 +44,30 @@ class SoundType {
 				wp_insert_term( $label, 'storyos_sound_type', [ 'slug' => $slug ] );
 			}
 		}
+	}
+
+	/**
+	 * Prevent creation of a Sound Type that duplicates Scene dialogue.
+	 *
+	 * @param string|\WP_Error $term     Proposed term name.
+	 * @param string           $taxonomy Taxonomy slug.
+	 * @param array            $args     Term creation arguments.
+	 * @return string|\WP_Error
+	 */
+	public static function reject_reserved_term( $term, string $taxonomy, array $args = [] ) {
+		if ( is_wp_error( $term ) ) {
+			return $term;
+		}
+
+		if ( 'storyos_sound_type' !== $taxonomy ) {
+			return $term;
+		}
+
+		$slug = $args['slug'] ?? $term;
+		if ( \StoryOS\Utils\storyos_is_reserved_sound_type( $slug ) ) {
+			return new \WP_Error( 'storyos_sound_type_reserved', 'Dialogue is structured Scene metadata and cannot be a Sound Type.' );
+		}
+
+		return $term;
 	}
 }

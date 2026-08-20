@@ -59,9 +59,22 @@ class Navigation {
 
 		add_action( 'admin_menu', [ __CLASS__, 'hide_legacy_groups' ], 99 );
 
-		self::add_placeholder_page( 'storyos-summaries', 'Summaries', 'storyos-analysis' );
-		self::add_placeholder_page( 'storyos-dramaturgy', 'Dramaturgy', 'storyos-analysis' );
-		self::add_placeholder_page( 'storyos-character-tools', 'Character Tools', 'storyos-analysis' );
+		add_submenu_page(
+			'storyos-analysis',
+			'Summaries',
+			'Summaries',
+			'edit_posts',
+			'storyos-summaries',
+			[ Summary_Tool::class, 'render_page' ]
+		);
+		add_submenu_page(
+			'storyos-analysis',
+			'Dramaturgy',
+			'Dramaturgy',
+			'edit_posts',
+			'storyos-dramaturgy',
+			[ Dramaturgy_Tool::class, 'render_page' ]
+		);
 	}
 
 	/**
@@ -148,7 +161,6 @@ class Navigation {
 				[ 'title' => 'Summaries', 'description' => 'Generate and review story summaries.', 'icon' => 'dashicons-media-document', 'url' => admin_url( 'admin.php?page=storyos-summaries' ) ],
 				[ 'title' => 'Continuity', 'description' => 'Check your story for continuity issues.', 'icon' => 'dashicons-yes-alt', 'url' => admin_url( 'admin.php?page=storyos-continuity' ) ],
 				[ 'title' => 'Dramaturgy', 'description' => 'Examine structure, tension, and narrative movement.', 'icon' => 'dashicons-lightbulb', 'url' => admin_url( 'admin.php?page=storyos-dramaturgy' ) ],
-				[ 'title' => 'Character Tools', 'description' => 'Work with character arcs and relationships.', 'icon' => 'dashicons-id-alt', 'url' => admin_url( 'admin.php?page=storyos-character-tools' ) ],
 			],
 			'storyos-administration' => [
 				[ 'title' => 'Setup Wizard', 'description' => 'Configure StoryOS connections and workspace settings.', 'icon' => 'dashicons-admin-tools', 'url' => admin_url( 'admin.php?page=storyos-setup' ) ],

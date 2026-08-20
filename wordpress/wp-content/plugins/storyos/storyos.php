@@ -175,6 +175,8 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/comfy-readiness.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/summary-tool.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/admin/dramaturgy-tool.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/import.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/admin/editorial-cut.php';
@@ -243,6 +245,8 @@ function init(): void {
 	Admin\Comfy_Readiness::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();
+	Admin\Summary_Tool::init();
+	Admin\Dramaturgy_Tool::init();
 	Admin\Analytics_Panel::init();
 	Admin\Connections::init();
 	Admin\Import::init();
@@ -292,6 +296,9 @@ function init(): void {
 
 	// Auto-generate useful shot names for shots with placeholder titles.
 	add_action( 'save_post_storyos_shot', __NAMESPACE__ . '\\storyos_maybe_name_shot', 5, 3 );
+
+	// Keep serialized Story Graph edges free of targets that have been deleted.
+	add_action( 'before_delete_post', __NAMESPACE__ . '\\Utils\\cleanup_relationships_for_deleted_post' );
 
 }
 

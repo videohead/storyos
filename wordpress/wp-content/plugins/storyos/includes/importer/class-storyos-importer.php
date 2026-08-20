@@ -199,6 +199,10 @@ class StoryOS_Importer {
 		$errors  = [];
 
 		foreach ( [ 'project', 'world' ] as $section ) {
+			if ( ! is_scalar( $data[ $section ]['id'] ) ) {
+				$errors[] = sprintf( '%s id must be a scalar value.', $section );
+				continue;
+			}
 			$external_id = sanitize_text_field( (string) $data[ $section ]['id'] );
 			if ( $external_id !== (string) $data[ $section ]['id'] ) {
 				$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $section, $data[ $section ]['id'] );
@@ -214,6 +218,10 @@ class StoryOS_Importer {
 			foreach ( $data[ $section ] as $index => $entity ) {
 				if ( ! is_array( $entity ) || empty( $entity['id'] ) ) {
 					$errors[] = sprintf( '%s[%d] must have an id.', $section, $index );
+					continue;
+				}
+				if ( ! is_scalar( $entity['id'] ) ) {
+					$errors[] = sprintf( '%s[%d] id must be a scalar value.', $section, $index );
 					continue;
 				}
 
@@ -268,12 +276,36 @@ class StoryOS_Importer {
 
 		foreach ( $data['sounds'] as $sound ) {
 			$context = 'Sound ' . ( $sound['id'] ?? '(unknown)' );
+			$invalid_shape = false;
+			foreach ( [ 'title', 'type', 'production_status', 'description', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ] as $field ) {
+				if ( array_key_exists( $field, $sound ) && null !== $sound[ $field ] && ! is_scalar( $sound[ $field ] ) ) {
+					$errors[]     = sprintf( '%s %s must be a scalar value.', $context, $field );
+					$invalid_shape = true;
+				}
+			}
+			if ( $invalid_shape ) {
+				continue;
+			}
+
 			if ( empty( $sound['title'] ) || empty( $sound['type'] ) ) {
 				$errors[] = $context . ' must have a title and type.';
 			}
 
-			if ( 'dialogue' === sanitize_title( (string) ( $sound['type'] ?? '' ) ) ) {
+			$sound_type = sanitize_title( (string) ( $sound['type'] ?? '' ) );
+			if ( \StoryOS\Utils\storyos_is_reserved_sound_type( $sound_type ) ) {
 				$errors[] = $context . ' cannot use the reserved dialogue type; ordinary dialogue belongs in scenes[].dialogue.';
+			}
+
+			if ( ! empty( $sound['lyrics'] ) && 'music' !== $sound_type ) {
+				$errors[] = $context . ' may only include lyrics when type is music.';
+			}
+
+			if ( isset( $sound['diegetic'] ) && ! in_array( (string) $sound['diegetic'], [ 'unspecified', 'diegetic', 'non_diegetic', 'internal', 'mixed' ], true ) ) {
+				$errors[] = $context . ' has an invalid diegetic value.';
+			}
+
+			if ( ! empty( $sound['production_status'] ) && ! get_term_by( 'slug', sanitize_title( (string) $sound['production_status'] ), 'storyos_status' ) ) {
+				$errors[] = $context . ' production_status must match an existing Status term.';
 			}
 
 			$this->validate_reference( $sound['scene'] ?? '', 'scenes', $context . ' scene', $id_sets, $errors );
@@ -291,8 +323,11 @@ class StoryOS_Importer {
 
 			if ( ! empty( $sound['asset'] ) ) {
 				$asset_external_id = sanitize_text_field( (string) $sound['asset'] );
-				if ( $asset_external_id !== (string) $sound['asset'] || ! $this->find_existing( 'storyos_asset', $asset_external_id ) ) {
+				$asset_id          = $this->find_existing( 'storyos_asset', $asset_external_id );
+				if ( $asset_external_id !== (string) $sound['asset'] || ! $asset_id ) {
 					$errors[] = sprintf( '%s references unknown existing asset id "%s".', $context, $asset_external_id );
+				} elseif ( ! \StoryOS\Utils\storyos_is_audio_asset( $asset_id ) ) {
+					$errors[] = sprintf( '%s asset "%s" is not classified as Audio.', $context, $asset_external_id );
 				}
 			}
 		}
@@ -322,6 +357,11 @@ class StoryOS_Importer {
 	 * @param array  $errors    Validation errors, passed by reference.
 	 */
 	private function validate_reference( $reference, string $section, string $context, array $id_sets, array &$errors ): void {
+		if ( ! is_scalar( $reference ) ) {
+			$errors[] = sprintf( '%s must be a scalar external id.', $context );
+			return;
+		}
+
 		$external_id = sanitize_text_field( (string) $reference );
 		if ( $external_id !== (string) $reference ) {
 			$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $context, $reference );
@@ -740,13 +780,12 @@ class StoryOS_Importer {
 				'menu_order'   => $sound_index,
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id         = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Sound {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Sound {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
@@ -754,26 +793,22 @@ class StoryOS_Importer {
 				$sound_index++;
 				continue;
 			}
+			$this->report[ $operation ][] = "Sound {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 			update_post_meta( $post_id, 'external_id', $external_id );
 
-			foreach ( [ 'spoken_text', 'lyrics', 'production_notes' ] as $rich_text_field ) {
-				if ( isset( $sound[ $rich_text_field ] ) ) {
-					update_post_meta( $post_id, $rich_text_field, wp_kses_post( (string) $sound[ $rich_text_field ] ) );
-				}
-			}
-
-			foreach ( [ 'start_timecode', 'duration' ] as $text_field ) {
-				if ( isset( $sound[ $text_field ] ) ) {
-					update_post_meta( $post_id, $text_field, sanitize_text_field( (string) $sound[ $text_field ] ) );
-				}
-			}
-
-			if ( isset( $sound['diegetic'] ) ) {
-				$diegetic = sanitize_key( (string) $sound['diegetic'] );
-				if ( in_array( $diegetic, [ 'unspecified', 'diegetic', 'non_diegetic', 'internal', 'mixed' ], true ) ) {
-					update_post_meta( $post_id, 'diegetic', $diegetic );
+			$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_sound' );
+			foreach ( [ 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes' ] as $meta_field ) {
+				if ( array_key_exists( $meta_field, $sound ) ) {
+					$value = \StoryOS\Utils\storyos_sanitize_field_value( $sound[ $meta_field ], $fields[ $meta_field ] ?? [] );
+					if ( '' === $value ) {
+						delete_post_meta( $post_id, $meta_field );
+					} else {
+						update_post_meta( $post_id, $meta_field, $value );
+					}
+				} elseif ( $this->overwrite ) {
+					delete_post_meta( $post_id, $meta_field );
 				}
 			}
 
@@ -793,6 +828,14 @@ class StoryOS_Importer {
 			} else {
 				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term->term_id;
 				wp_set_object_terms( $post_id, [ $term_id ], 'storyos_sound_type', false );
+			}
+
+			if ( array_key_exists( 'production_status', $sound ) ) {
+				$status_slug = sanitize_title( (string) $sound['production_status'] );
+				$status_term = '' !== $status_slug ? get_term_by( 'slug', $status_slug, 'storyos_status' ) : null;
+				wp_set_object_terms( $post_id, $status_term ? [ (int) $status_term->term_id ] : [], 'storyos_status', false );
+			} elseif ( $this->overwrite ) {
+				wp_set_object_terms( $post_id, [], 'storyos_status', false );
 			}
 
 			$sound_index++;
@@ -1013,10 +1056,6 @@ class StoryOS_Importer {
 			$sound_id = $this->id_map[ $sound['id'] ] ?? 0;
 			if ( ! $sound_id ) {
 				continue;
-			}
-
-			if ( $project_id ) {
-				\StoryOS\Utils\add_relationship( $project_id, 'storyos_project', $sound_id, 'storyos_sound', 'contains' );
 			}
 
 			$scene_id = $this->id_map[ $sound['scene'] ?? '' ] ?? 0;

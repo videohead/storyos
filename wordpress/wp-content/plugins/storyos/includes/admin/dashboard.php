@@ -96,7 +96,7 @@ class Dashboard {
 			],
 			[
 				'title'       => 'Story Analysis',
-				'description' => 'Explore analysis, summaries, continuity, dramaturgy, and character tools.',
+				'description' => 'Explore analysis, summaries, continuity, dramaturgy.',
 				'icon'        => 'dashicons-chart-area',
 				'url'         => admin_url( 'admin.php?page=storyos-analysis' ),
 			],

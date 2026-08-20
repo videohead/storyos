@@ -89,7 +89,7 @@ class MetaBoxes {
 		<table class="form-table">
 			<?php foreach ( $cpt_fields as $field_name => $field ) : ?>
 				<?php
-				if ( \StoryOS\Utils\storyos_should_exclude_from_details( $field_name, $field ) ) {
+				if ( false === ( $field['admin_ui'] ?? true ) || \StoryOS\Utils\storyos_should_exclude_from_details( $field_name, $field ) ) {
 					continue;
 				}
 
@@ -200,15 +200,17 @@ class MetaBoxes {
 									}
 								}
 
-								$related_posts = get_posts(
+								$relationship_query = array_replace_recursive(
 									[
 										'post_type'      => (string) ( $field['related_cpt'] ?? '' ),
 										'post_status'    => [ 'publish', 'draft', 'pending', 'private' ],
 										'posts_per_page' => -1,
 										'orderby'        => 'title',
 										'order'          => 'ASC',
-									]
+									],
+									(array) ( $field['query_args'] ?? [] )
 								);
+								$related_posts = get_posts( $relationship_query );
 								?>
 								<select name="<?php echo esc_attr( $field['name'] ); ?>" id="<?php echo esc_attr( $field['name'] ); ?>" <?php echo ! empty( $field['required'] ) ? 'required' : ''; ?>>
 									<option value=""><?php esc_html_e( 'None', 'storyos' ); ?></option>

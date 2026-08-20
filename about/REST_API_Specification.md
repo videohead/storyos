@@ -231,25 +231,29 @@ DELETE /sounds/{id}
 GET    /sounds/{id}/graph
 ```
 
-Sounds are planned soundtrack cues, not audio file encodings. Rendered audio
-continues to use an audio-typed Asset or WordPress attachment.
+Sounds are planned soundtrack cues, not audio file encodings. A Sound links to
+an audio-typed Asset, which can represent the rendered WordPress attachment.
 
 List filters:
 
 - `scene` (post ID)
 - `shot` (post ID)
 - `sound_type` (slug or comma-separated slugs)
-- `status` (taxonomy slug or comma-separated slugs)
+- `production_status` (`storyos_status` taxonomy slug or comma-separated slugs)
+- `status` (WordPress lifecycle: `draft`, `pending`, `publish`, or `private`)
 
-Creation requires `meta.sound_type` and `meta.scene`. If `meta.shot` is
-provided, the API validates that it belongs to the selected Scene.
+Creation requires a non-empty `title`, exactly one `meta.sound_type`, and
+`meta.scene`. If `meta.shot` is provided, the API validates that it belongs to
+the selected Scene. Nonzero `meta.asset` values must reference an audio-typed
+Asset.
 
 ```json
 {
   "title": "Forest Path Song",
   "content": "A cautious traveling theme.",
-  "meta": {
-    "sound_type": "music",
+	"meta": {
+		"sound_type": "music",
+		"production_status": "in-development",
     "lyrics": "Stay to the path through shadow and pine.",
     "start_timecode": "00:00:00:00",
     "duration": "PT18S",
@@ -264,6 +268,8 @@ provided, the API validates that it belongs to the selected Scene.
 
 Seed terms are `narration`, `voiceover`, `music`, `sound-effect`, `ambience`,
 `foley`, `silence`, and `adr`; `storyos_sound_type` remains extensible.
+Custom terms must be created through the taxonomy API or admin before REST use.
+The `dialogue` slug is reserved and cannot be created or assigned.
 `spoken_text` is reserved for narration, voice-over, or ADR. Existing Scene
 dialogue remains canonical and is not duplicated into Sound resources.
 

@@ -47,12 +47,13 @@ class Sounds_Controller extends Base_Controller {
 					'callback'            => [ $this, 'get_items' ],
 					'permission_callback' => [ $this, 'check_read_permission' ],
 					'args'                => [
-						'page'       => [ 'default' => 1, 'type' => 'integer', 'minimum' => 1 ],
-						'per_page'   => [ 'default' => 10, 'type' => 'integer', 'minimum' => 1, 'maximum' => 100 ],
-						'scene'      => [ 'type' => 'integer' ],
-						'shot'       => [ 'type' => 'integer' ],
-						'sound_type' => [ 'type' => 'string' ],
-						'status'     => [ 'type' => 'string' ],
+						'page'              => [ 'default' => 1, 'type' => 'integer', 'minimum' => 1 ],
+						'per_page'          => [ 'default' => 10, 'type' => 'integer', 'minimum' => 1, 'maximum' => 100 ],
+						'scene'             => [ 'type' => 'integer' ],
+						'shot'              => [ 'type' => 'integer' ],
+						'sound_type'        => [ 'type' => 'string' ],
+						'production_status' => [ 'type' => 'string' ],
+						'status'            => [ 'type' => 'string', 'enum' => [ 'draft', 'pending', 'publish', 'private' ] ],
 					],
 				],
 				[
@@ -60,6 +61,7 @@ class Sounds_Controller extends Base_Controller {
 					'callback'            => [ $this, 'create_item' ],
 					'permission_callback' => [ $this, 'check_create_permission' ],
 					'args'                => [
+						'title'  => [ 'type' => 'string', 'required' => true, 'minLength' => 1 ],
 						'meta'   => [ 'type' => 'object', 'required' => true ],
 						'status' => [ 'type' => 'string', 'enum' => [ 'draft', 'pending', 'publish', 'private' ] ],
 					],
@@ -224,7 +226,7 @@ class Sounds_Controller extends Base_Controller {
 
 		$args = [
 			'post_type'      => $this->cpt,
-			'post_status'    => 'any',
+			'post_status'    => $request->get_param( 'status' ) ?: 'any',
 			'posts_per_page' => -1,
 			'orderby'        => [
 				'menu_order' => 'ASC',
@@ -233,7 +235,7 @@ class Sounds_Controller extends Base_Controller {
 		];
 
 		$tax_query = [];
-		foreach ( [ 'sound_type' => 'storyos_sound_type', 'status' => 'storyos_status' ] as $parameter => $taxonomy ) {
+		foreach ( [ 'sound_type' => 'storyos_sound_type', 'production_status' => 'storyos_status' ] as $parameter => $taxonomy ) {
 			$value = $request->get_param( $parameter );
 			if ( empty( $value ) ) {
 				continue;
@@ -325,11 +327,15 @@ class Sounds_Controller extends Base_Controller {
 	 * @return array
 	 */
 	protected function get_item_data( \WP_Post $post, array $params = [] ): array {
-		$data  = parent::get_item_data( $post, $params );
-		$types = get_the_terms( $post->ID, 'storyos_sound_type' );
+		$data     = parent::get_item_data( $post, $params );
+		$types    = get_the_terms( $post->ID, 'storyos_sound_type' );
+		$statuses = get_the_terms( $post->ID, 'storyos_status' );
 
 		if ( $types && ! is_wp_error( $types ) ) {
 			$data['meta']['sound_type'] = (string) $types[0]->slug;
+		}
+		if ( $statuses && ! is_wp_error( $statuses ) ) {
+			$data['meta']['production_status'] = (string) $statuses[0]->slug;
 		}
 
 		return $data;
@@ -371,10 +377,26 @@ class Sounds_Controller extends Base_Controller {
 		$meta = $request->get_param( 'meta' );
 		$meta = is_array( $meta ) ? $meta : [];
 
+		$title = $request->get_param( 'title' );
+		if ( $creating && ( ! is_scalar( $title ) || '' === trim( (string) $title ) ) ) {
+			return new \WP_Error( 'storyos_sound_title_required', 'A Sound title is required.', [ 'status' => 400 ] );
+		}
+
+		foreach ( [ 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ] as $field ) {
+			if ( array_key_exists( $field, $meta ) && null !== $meta[ $field ] && ! is_scalar( $meta[ $field ] ) ) {
+				return new \WP_Error( 'storyos_sound_field_invalid', sprintf( 'The %s field must be a scalar value.', $field ), [ 'status' => 400 ] );
+			}
+		}
+
+		if ( array_key_exists( 'diegetic', $meta ) && ! in_array( (string) $meta['diegetic'], [ '', 'unspecified', 'diegetic', 'non_diegetic', 'internal', 'mixed' ], true ) ) {
+			return new \WP_Error( 'storyos_sound_diegetic_invalid', 'The diegetic value is invalid.', [ 'status' => 400 ] );
+		}
+
 		if ( ( $creating || array_key_exists( 'sound_type', $meta ) ) && empty( $meta['sound_type'] ) ) {
 			return new \WP_Error( 'storyos_sound_type_required', 'A sound_type is required.', [ 'status' => 400 ] );
 		}
 
+		$sound_type_term = null;
 		if ( array_key_exists( 'sound_type', $meta ) ) {
 			if ( ! is_scalar( $meta['sound_type'] ) ) {
 				return new \WP_Error( 'storyos_sound_type_invalid', 'A Sound has exactly one sound_type.', [ 'status' => 400 ] );
@@ -387,8 +409,26 @@ class Sounds_Controller extends Base_Controller {
 				return new \WP_Error( 'storyos_sound_type_invalid', 'The sound_type must be an existing Sound Type term.', [ 'status' => 400 ] );
 			}
 
-			if ( 'dialogue' === $term->slug ) {
+			if ( \StoryOS\Utils\storyos_is_reserved_sound_type( $term ) ) {
 				return new \WP_Error( 'storyos_sound_type_reserved', 'Ordinary dialogue belongs in Scene dialogue metadata.', [ 'status' => 400 ] );
+			}
+			$sound_type_term = $term;
+		} elseif ( ! $creating ) {
+			$current_types = get_the_terms( absint( $request->get_param( 'id' ) ), 'storyos_sound_type' );
+			$sound_type_term = ( $current_types && ! is_wp_error( $current_types ) ) ? $current_types[0] : null;
+		}
+
+		if ( array_key_exists( 'production_status', $meta ) ) {
+			if ( ! is_scalar( $meta['production_status'] ) ) {
+				return new \WP_Error( 'storyos_sound_status_invalid', 'A Sound has at most one production_status.', [ 'status' => 400 ] );
+			}
+			if ( '' !== (string) $meta['production_status'] ) {
+				$status_term = is_numeric( $meta['production_status'] )
+					? get_term( absint( $meta['production_status'] ), 'storyos_status' )
+					: get_term_by( 'slug', sanitize_title( (string) $meta['production_status'] ), 'storyos_status' );
+				if ( ! $status_term || is_wp_error( $status_term ) ) {
+					return new \WP_Error( 'storyos_sound_status_invalid', 'The production_status must be an existing Status term.', [ 'status' => 400 ] );
+				}
 			}
 		}
 
@@ -417,6 +457,14 @@ class Sounds_Controller extends Base_Controller {
 			if ( ! $target || $post_type !== $target->post_type ) {
 				return new \WP_Error( 'storyos_sound_invalid_relationship', sprintf( 'The %s relationship is invalid.', $field ), [ 'status' => 400 ] );
 			}
+
+			if ( 'asset' === $field && ! \StoryOS\Utils\storyos_is_audio_asset( $target->ID ) ) {
+				return new \WP_Error( 'storyos_sound_asset_not_audio', 'The rendered Asset must have the Audio asset type.', [ 'status' => 400 ] );
+			}
+		}
+
+		if ( ! empty( $meta['lyrics'] ) && ( ! $sound_type_term || 'music' !== $sound_type_term->slug ) ) {
+			return new \WP_Error( 'storyos_sound_lyrics_music_only', 'Lyrics may only be stored on a Music Sound.', [ 'status' => 400 ] );
 		}
 
 		$shot_id = array_key_exists( 'shot', $meta )

@@ -48,7 +48,12 @@ StoryOS should treat existing Schema.org classes and properties as the default s
 Planned Sound cues and rendered media are intentionally distinct:
 
 - `storyos_sound` -> `CreativeWork` / `MusicComposition`
-- linked audio `storyos_asset` or attachment -> `AudioObject`
+- linked audio `storyos_asset` (representing its attachment) -> `AudioObject`
+
+For the MVP, a music cue is also the local composition record: its `lyrics`
+hint is emitted as a nested `CreativeWork`. This is deliberate denormalization;
+a reusable composition/recording layer can be introduced when multiple cue
+occurrences need to share one musical work.
 
 ## Relationship Mapping (Story Graph -> Schema.org semantics)
 

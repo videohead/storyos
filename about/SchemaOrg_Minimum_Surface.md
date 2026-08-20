@@ -15,7 +15,6 @@ Align existing StoryOS fields to closest Schema.org properties without renaming,
 
 ## CPT Type Alignment
 
-- `storyos_project` -> `CreativeWork` (runtime upgrade to `Movie` can stay conditional)
 - `storyos_project` -> `CreativeWork` (runtime upgrade to `Movie` for `film`/`short_film`)
 - `storyos_episode` -> `Episode`
 - `storyos_scene` -> `Clip`
@@ -32,8 +31,8 @@ Runtime asset subtype inference:
 - `AudioObject` for audio assets
 - `ImageObject` for character/environment/prop/storyboard/lookbook/concept-art assets
 
-Planned Sound cues remain creative works; only their linked audio Assets or
-attachments are `AudioObject` encodings.
+Planned Sound cues remain creative works; only linked audio Assets representing
+their attachments are `AudioObject` encodings.
 
 ## Closest Similarity Snapshot
 
@@ -46,9 +45,9 @@ Counts reflect current mapping in code (`exact`, `close`, `weak`):
 - `storyos_prop`: 2, 2, 1
 - `storyos_organization`: 2, 2, 2
 - `storyos_episode`: 3, 2, 0
-- `storyos_scene`: 3, 3, 3
+- `storyos_scene`: 3, 3, 4
 - `storyos_shot`: 3, 2, 3
-- `storyos_sound`: 4, 4, 3
+- `storyos_sound`: 3, 6, 3
 - `storyos_storyboard_frame`: 1, 5, 1
 - `storyos_asset`: 2, 8, 4
 - `storyos_editorial_artifact`: 1, 6, 0
@@ -59,7 +58,7 @@ Counts reflect current mapping in code (`exact`, `close`, `weak`):
 - `description`/`synopsis`/`summary`/`shot_description` -> `description`
 - `episode_number` -> `episodeNumber`
 - `duration` (shot) -> `duration`
-- `spoken_text` -> `text`; music `lyrics` -> `lyrics`; sound `duration` -> `duration`
+- `spoken_text` -> `text`; music `lyrics` -> a `lyrics` CreativeWork; flexible sound `duration` -> `duration` (close)
 - `version` (asset) -> `version`
 - `storage_uri` -> `contentUrl` (close)
 - `project`, `episode`, `scene` relationship fields -> `isPartOf` (exact/close)

@@ -69,7 +69,6 @@ Project
 │       └── Sounds
 │
 ├── Storyboards
-├── Sounds
 ├── Assets
 └── Editorial Artifacts
 
@@ -84,7 +83,6 @@ Parent-child ownership.
 Examples:
 
 - Project contains Episodes
-- Project contains Sounds
 - Episode contains Scenes
 - Scene contains Shots
 
@@ -171,8 +169,8 @@ Sound
 ├── Timing and Diegesis
 └── Rendered Audio Asset (Optional)
 
-A Sound is a planned cue, while an audio-typed Asset or WordPress attachment is
-the rendered encoding. Ordinary screenplay dialogue remains structured Scene
+A Sound is a planned cue, while an audio-typed Asset represents the rendered
+encoding or WordPress attachment. Ordinary screenplay dialogue remains structured Scene
 metadata. This separation supports narration, music, effects, ambience, Foley,
 and intentional silence without duplicating dialogue or media files.
 

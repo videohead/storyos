@@ -57,7 +57,6 @@ Top-level container for all story assets.
 
 - has_many Story Worlds
 - has_many Episodes
-- has_many Sounds
 - has_many Assets
 
 ---
@@ -187,6 +186,7 @@ Top-level container for all story assets.
 - title
 - summary
 - script_content
+- dialogue (structured importer-managed entries: speaker, line, description, sequence)
 - location
 - time_of_day
 - emotional_tone
@@ -231,7 +231,7 @@ When synced with Celtx, the following post meta fields are added:
 ## Relationships
 
 - belongs_to Scene
-- references Sounds
+- linked_from Sounds
 - references Storyboard Frames
 - references Assets
 
@@ -257,8 +257,8 @@ When synced with Celtx, the following post meta fields are added:
 # CPT: Sound
 
 Represents a planned soundtrack cue. Sound is authorial and production intent;
-the recorded or generated file remains a WordPress attachment or
-`storyos_asset` linked through the `asset` relationship.
+the recorded or generated file remains a WordPress attachment represented by
+an audio-typed `storyos_asset` linked through the `asset` relationship.
 
 Ordinary screenplay dialogue remains structured Scene dialogue metadata and is
 not duplicated as Sound records.
@@ -266,6 +266,7 @@ not duplicated as Sound records.
 ## Fields
 
 - sound_type (taxonomy)
+- production_status (storyos_status taxonomy)
 - spoken_text (textarea; narration, voice-over, or ADR only)
 - lyrics (textarea; music cues)
 - start_timecode (text)
@@ -287,7 +288,8 @@ represents one cue occurrence; repeated cues may link to the same Asset.
 
 Schema.org alignment uses `CreativeWork` for a planned Sound and
 `MusicComposition` for a music cue. Audio-typed Assets remain `AudioObject`
-encodings.
+encodings. The MVP intentionally keeps composition text such as lyrics on the
+cue; a reusable composition entity can normalize repeated music works later.
 
 ---
 
@@ -311,7 +313,7 @@ encodings.
 - linked_to Location
 - linked_to Scene
 - linked_to Storyboard
-- linked_to Sound
+- linked_from Sounds
 
 ---
 
@@ -448,7 +450,6 @@ Project -> Story World
 Project -> Episode
 Episode -> Scene
 Scene -> Shot
-Project -> Sound
 Sound -> Scene
 Sound -> Shot
 Sound -> Character

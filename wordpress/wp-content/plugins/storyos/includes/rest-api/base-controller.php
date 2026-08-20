@@ -335,7 +335,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$meta   = is_array( $meta ) ? $meta : [];
 
 		foreach ( $fields as $key => $field ) {
-			if ( 'relationship' === $field['type'] ) {
+			if ( 'relationship' === $field['type'] || ! empty( $field['read_only'] ) ) {
 				continue;
 			}
 

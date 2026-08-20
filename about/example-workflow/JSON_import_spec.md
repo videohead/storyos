@@ -54,7 +54,7 @@ storyos_project
 |------------|------------|
 | id | external_id |
 | title | post_title |
-| description | project_description |
+| description | description |
 
 ### Acceptance Criteria
 
@@ -74,7 +74,7 @@ world
 ### CPT
 
 ```text
-storyos_world
+storyos_story_world
 ```
 
 ### Fields
@@ -83,7 +83,7 @@ storyos_world
 |------------|------------|
 | id | external_id |
 | name | post_title |
-| description | world_description |
+| description | synopsis |
 
 ### Relationships
 
@@ -150,7 +150,7 @@ storyos_location
 |------------|------------|
 | id | external_id |
 | name | post_title |
-| description | location_description |
+| description | description |
 
 ### Relationships
 
@@ -212,8 +212,9 @@ storyos_scene
 |------------|------------|
 | id | external_id |
 | title | post_title |
-| summary | scene_summary |
-| location | scene_location |
+| summary | summary |
+| dialogue | dialogue (structured, read-only through the generic REST field writer) |
+| location | Location relationship |
 
 ### Relationships
 
@@ -229,11 +230,12 @@ Each dialogue record should be imported into structured scene dialogue metadata.
 Ordinary dialogue remains canonical here and must not be duplicated as Sound
 records.
 
-Suggested schema:
+Stored schema (the JSON `text` property is normalized to `line`):
 
 ```text
 speaker
 line
+description
 sequence
 ```
 
@@ -289,9 +291,9 @@ sounds[]
 storyos_sound
 ```
 
-Each record is a planned soundtrack cue. A rendered or generated audio file
-remains a `storyos_asset` (or WordPress attachment) and may be linked to the
-cue; the Sound record itself is not the media encoding.
+Each record is a planned soundtrack cue. The cue links to an audio-typed
+`storyos_asset`, which can represent a rendered file or WordPress attachment;
+the Sound record itself is not the media encoding.
 
 ### Required Fields
 
@@ -308,6 +310,7 @@ cue; the Sound record itself is not the media encoding.
 | title | post_title |
 | description | post_content |
 | type | storyos_sound_type taxonomy |
+| production_status | storyos_status taxonomy (optional, existing term) |
 | spoken_text | spoken_text |
 | lyrics | lyrics |
 | start_timecode | start_timecode |
@@ -323,15 +326,17 @@ Seeded `type` slugs are `narration`, `voiceover`, `music`, `sound-effect`,
 ### Relationships
 
 ```text
-Project → Sound (contains)
 Sound → Scene (belongs_to, required)
 Sound → Shot (belongs_to, optional)
 Sound → Character (linked_to, optional narrator/voice source)
 Sound → Asset (linked_to, optional rendered audio)
 ```
 
+Project membership is derived through the required Scene relationship; Sound
+does not store a second direct Project edge.
+
 When `shot` is present, it must belong to the referenced `scene`. An `asset`
-external ID must already resolve to a `storyos_asset`; the sample does not
+external ID must already resolve to an audio-typed `storyos_asset`; the sample does not
 include one because the current JSON format has no top-level asset import.
 
 ### Expected Count

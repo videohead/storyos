@@ -1,0 +1,78 @@
+.storyos-summary-page {
+	max-width: 1180px;
+}
+
+.storyos-summary-intro {
+	font-size: 15px;
+	margin: 8px 0 24px;
+}
+
+.storyos-summary-layout {
+	display: grid;
+	gap: 20px;
+	grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+	max-width: 1100px;
+}
+
+.storyos-summary-panel {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	box-sizing: border-box;
+	padding: 24px;
+}
+
+.storyos-summary-panel h2 {
+	font-size: 18px;
+	margin: 0 0 20px;
+}
+
+.storyos-summary-controls label {
+	display: block;
+	font-weight: 600;
+	margin: 0 0 6px;
+}
+
+.storyos-summary-controls select,
+.storyos-summary-controls textarea {
+	margin: 0 0 18px;
+}
+
+.storyos-summary-controls .button {
+	align-items: center;
+	display: inline-flex;
+	gap: 6px;
+}
+
+.storyos-summary-result-header {
+	align-items: center;
+	display: flex;
+	gap: 12px;
+	justify-content: space-between;
+	margin-bottom: 20px;
+}
+
+.storyos-summary-result-header h2 {
+	margin: 0;
+}
+
+#storyos-summary-output {
+	font-size: 15px;
+	line-height: 1.6;
+	min-height: 280px;
+}
+
+.storyos-summary-status {
+	color: #646970;
+	min-height: 20px;
+}
+
+@media screen and (max-width: 782px) {
+	.storyos-summary-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.storyos-summary-result-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+}

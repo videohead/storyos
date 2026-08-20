@@ -202,6 +202,7 @@ Represents a fictional universe.
 - Title
 - Description
 - Script Content
+- Dialogue (structured speaker, line, description, and sequence entries)
 - Location
 - Time Of Day
 - Characters
@@ -232,7 +233,7 @@ Represents a fictional universe.
 ## Relationships
 
 - Belongs To Scene
-- References Sounds
+- Linked From Sounds
 - References Storyboard Frames
 - References Assets
 
@@ -264,6 +265,7 @@ the same audio Asset can be reused by multiple cues.
 ## Fields
 
 - Sound Type
+- Production Status
 - Spoken Text (Narration / Voice-over / ADR)
 - Lyrics (Music)
 - Start Timecode
@@ -286,6 +288,9 @@ is not mirrored into Sound records.
 - Planned Sound cue: `CreativeWork`
 - Music Sound cue: `MusicComposition`
 - Linked audio Asset or attachment: `AudioObject`
+
+For the MVP, a music cue carries its composition text directly. A later reusable
+composition entity can normalize lyrics shared by multiple cue occurrences.
 
 ---
 

@@ -181,9 +181,9 @@ function storyos_expected_fields_for_cpt( string $cpt ): array {
 		'storyos_prop'               => [ 'prop_name', 'description', 'purpose', 'owner_character', 'notes' ],
 		'storyos_organization'       => [ 'organization_name', 'organization_type', 'description', 'leadership', 'goals', 'story_world' ],
 		'storyos_episode'            => [ 'episode_number', 'title', 'synopsis', 'status', 'project' ],
-		'storyos_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
+		'storyos_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'dialogue', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
 		'storyos_shot'               => [ 'shot_name', 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene', 'sequence' ],
-		'storyos_sound'              => [ 'sound_type', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
+		'storyos_sound'              => [ 'sound_type', 'production_status', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
 		'storyos_storyboard_frame'   => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
 		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
 		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
@@ -411,6 +411,7 @@ function storyos_schema_field_map(): array {
 			'title'             => [ 'property' => 'name', 'match' => 'exact' ],
 			'summary'           => [ 'property' => 'description', 'match' => 'close' ],
 			'script_content'    => [ 'property' => 'text', 'match' => 'close' ],
+			'dialogue'          => [ 'property' => 'text', 'match' => 'weak' ],
 			'location'          => [ 'property' => 'contentLocation', 'match' => 'exact' ],
 			'time_of_day'       => [ 'property' => 'temporal', 'match' => 'close' ],
 			'emotional_tone'    => [ 'property' => 'about', 'match' => 'weak' ],
@@ -431,10 +432,11 @@ function storyos_schema_field_map(): array {
 		],
 		'storyos_sound' => [
 			'sound_type'       => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'production_status'=> [ 'property' => 'creativeWorkStatus', 'match' => 'close' ],
 			'spoken_text'      => [ 'property' => 'text', 'match' => 'exact' ],
 			'lyrics'           => [ 'property' => 'lyrics', 'match' => 'exact' ],
 			'start_timecode'   => [ 'property' => 'temporal', 'match' => 'weak' ],
-			'duration'         => [ 'property' => 'duration', 'match' => 'exact' ],
+			'duration'         => [ 'property' => 'duration', 'match' => 'close' ],
 			'diegetic'         => [ 'property' => 'additionalType', 'match' => 'weak' ],
 			'production_notes' => [ 'property' => 'text', 'match' => 'weak' ],
 			'scene'            => [ 'property' => 'isPartOf', 'match' => 'exact' ],
@@ -628,8 +630,16 @@ function storyos_schema_hints_from_meta( string $cpt, array $meta ): array {
 			continue;
 		}
 
+		$value = $meta[ $field_name ];
+		if ( 'storyos_sound' === $cpt && 'lyrics' === $field_name ) {
+			$value = [
+				'@type' => 'CreativeWork',
+				'text'  => (string) $value,
+			];
+		}
+
 		if ( ! isset( $hints[ $property ] ) ) {
-			$hints[ $property ] = $meta[ $field_name ];
+			$hints[ $property ] = $value;
 			continue;
 		}
 
@@ -637,7 +647,7 @@ function storyos_schema_hints_from_meta( string $cpt, array $meta ): array {
 			$hints[ $property ] = [ $hints[ $property ] ];
 		}
 
-		$hints[ $property ][] = $meta[ $field_name ];
+		$hints[ $property ][] = $value;
 	}
 
 	return $hints;
@@ -754,6 +764,33 @@ function storyos_sound_types(): array {
 		'silence'      => 'Intentional Silence',
 		'adr'          => 'ADR',
 	];
+}
+
+/**
+ * Determine whether a Sound Type is reserved for Scene-owned content.
+ *
+ * @param mixed $value Term object, slug, name, or ID.
+ * @return bool
+ */
+function storyos_is_reserved_sound_type( $value ): bool {
+	if ( is_object( $value ) && isset( $value->slug ) ) {
+		$value = $value->slug;
+	} elseif ( is_numeric( $value ) && taxonomy_exists( 'storyos_sound_type' ) ) {
+		$term  = get_term( absint( $value ), 'storyos_sound_type' );
+		$value = ( $term && ! is_wp_error( $term ) ) ? $term->slug : '';
+	}
+
+	return 'dialogue' === sanitize_title( (string) $value );
+}
+
+/**
+ * Determine whether a StoryOS Asset is classified as audio.
+ *
+ * @param int $asset_id Asset post ID.
+ * @return bool
+ */
+function storyos_is_audio_asset( int $asset_id ): bool {
+	return $asset_id > 0 && 'storyos_asset' === get_post_type( $asset_id ) && has_term( 'audio', 'storyos_asset_type', $asset_id );
 }
 
 /**
