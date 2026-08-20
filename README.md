@@ -2,7 +2,7 @@
 
 > Build Your Story Once. Create Everywhere.
 >
-> An open-source storytelling operating system: stories, story analysis, and helpful filmmaking agents in WordPress, generative workflows through your favorite tools, including ComfyUI.
+> An open-source storytelling operating system: stories, story analysis, and helpful filmmaking agents in WordPress, generative workflows through your favorite subscription and free tools, including ComfyUI.
 
 ## Table of Contents
 
@@ -56,7 +56,7 @@ Create an open platform where creators can manage story worlds, develop scripts,
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌───────────────┐
-│  WordPress  │───▶ │ WP-Cron batches  │───▶ │ Comfy Cloud   │
+│  WordPress  │───▶│ WP-Cron batches  │───▶ │ Comfy Cloud   │
 │(Story Graph)│     │ + MCP client     │     │ MCP / ComfyUI │
 └──────┬──────┘     └──────────────────┘     └───────────────┘
   │
@@ -141,11 +141,11 @@ in [about/example-workflow/](about/example-workflow/).
   - WordPress plugin with REST API endpoints
   - API key, Basic Auth, and Cookie Auth support
 - **File-Based Import** (Planned)
-  - Fountain, FDX, Fade In, Highland, Markdown
+  - FDX, Fade In, Highland, Markdown
   - Scene/character/location extraction
   - Auto-create Story Graph entities from scripts
 - **Script Export** (Planned)
-  - Fountain, Screenplay, Shooting Script formats
+  - Screenplay, Storyboard, Shooting Script formats
   - Script-to-Story Graph conversion
 
 ### 📋 Phase F: Editorial Ecosystem (COMPLETE)

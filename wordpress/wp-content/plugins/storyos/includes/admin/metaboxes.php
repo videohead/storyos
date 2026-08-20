@@ -158,6 +158,72 @@ class MetaBoxes {
 								}
 								break;
 
+							case 'taxonomy':
+								$taxonomy      = (string) ( $field['taxonomy'] ?? '' );
+								$assigned_terms = get_the_terms( $post->ID, $taxonomy );
+								$selected_term = ( $assigned_terms && ! is_wp_error( $assigned_terms ) ) ? (int) $assigned_terms[0]->term_id : 0;
+								$terms         = get_terms(
+									[
+										'taxonomy'   => $taxonomy,
+										'hide_empty' => false,
+									]
+								);
+								?>
+								<select name="<?php echo esc_attr( $field['name'] ); ?>" id="<?php echo esc_attr( $field['name'] ); ?>" <?php echo ! empty( $field['required'] ) ? 'required' : ''; ?>>
+									<option value=""><?php esc_html_e( 'Select...', 'storyos' ); ?></option>
+									<?php if ( ! is_wp_error( $terms ) ) : ?>
+										<?php foreach ( $terms as $term ) : ?>
+											<option value="<?php echo esc_attr( $term->term_id ); ?>" <?php selected( $selected_term, $term->term_id ); ?>>
+												<?php echo esc_html( $term->name ); ?>
+											</option>
+										<?php endforeach; ?>
+									<?php endif; ?>
+								</select>
+								<?php
+								if ( ! empty( $field['description'] ) ) {
+									echo '<p class="description">' . esc_html( $field['description'] ) . '</p>';
+								}
+								break;
+
+							case 'relationship':
+								$selected_id  = 0;
+								$relationships = \StoryOS\Utils\get_relationships( $post->ID, $post->post_type, 'outgoing' );
+								foreach ( $relationships as $relationship ) {
+									if ( (string) ( $relationship['to_type'] ?? '' ) !== (string) ( $field['related_cpt'] ?? '' ) ) {
+										continue;
+									}
+
+									$relationship_field = (string) ( $relationship['metadata']['field'] ?? '' );
+									if ( '' === $relationship_field || $field_name === $relationship_field ) {
+										$selected_id = (int) $relationship['to_id'];
+										break;
+									}
+								}
+
+								$related_posts = get_posts(
+									[
+										'post_type'      => (string) ( $field['related_cpt'] ?? '' ),
+										'post_status'    => [ 'publish', 'draft', 'pending', 'private' ],
+										'posts_per_page' => -1,
+										'orderby'        => 'title',
+										'order'          => 'ASC',
+									]
+								);
+								?>
+								<select name="<?php echo esc_attr( $field['name'] ); ?>" id="<?php echo esc_attr( $field['name'] ); ?>" <?php echo ! empty( $field['required'] ) ? 'required' : ''; ?>>
+									<option value=""><?php esc_html_e( 'None', 'storyos' ); ?></option>
+									<?php foreach ( $related_posts as $related_post ) : ?>
+										<option value="<?php echo esc_attr( $related_post->ID ); ?>" <?php selected( $selected_id, $related_post->ID ); ?>>
+											<?php echo esc_html( $related_post->post_title ?: sprintf( __( 'Untitled #%d', 'storyos' ), $related_post->ID ) ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<?php
+								if ( ! empty( $field['description'] ) ) {
+									echo '<p class="description">' . esc_html( $field['description'] ) . '</p>';
+								}
+								break;
+
 							default:
 								?>
 								<input type="text" name="<?php echo esc_attr( $field['name'] ); ?>" id="<?php echo esc_attr( $field['name'] ); ?>" value="<?php echo esc_attr( $value ); ?>" class="regular-text" />

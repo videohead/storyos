@@ -11,9 +11,16 @@ All API keys for the StoryOS plugin can be configured through the initial setup 
 The wizard (`includes/admin/setup-wizard.php`) has been updated to include comprehensive API key configuration:
 
 #### **Section 2: Generation Connection (Optional)**
-- **Field:** Comfy Cloud API Key
-- **Purpose:** Enable image/video generation via Comfy Cloud MCP
-- **Stored as:** `storyos_comfy_api_key` option
+- **Preferred Connection dropdown:** Comfy Cloud MCP, local ComfyUI, fal MCP,
+  ElevenLabs Generative Audio,
+  or no generation Connection
+- **Source:** Options come from the conditional Connection adapter manifest
+- **Field:** Generation Provider API Key
+- **Purpose:** Enable image, video, or speech generation through the selected provider
+- **Stored as:** The managed Generation Connection's `credential_reference`
+- **ElevenLabs provisioning:** Creates endpoint-specific Templates for speech,
+  dialogue, sound effects, music, and voice design; API-discovered voices and
+  models supply their defaults.
 
 #### **Section 3: LLM Connection (Required for AI Agents)**
 
@@ -118,7 +125,7 @@ Setup complete - Wizard no longer blocks access
 All settings persisted to WordPress options table:
 ```
 storyos_comfy_connection_mode
-storyos_comfy_api_key
+storyos_generation_connection_mode
 storyos_ai_backend
 storyos_ai_url
 storyos_ai_model
@@ -136,12 +143,16 @@ storyos_setup_complete
 - Never expose API keys in code repositories
 - Treat database backups as sensitive because they may contain saved API keys
 
+`storyos_generation_connection_mode` is the current preferred-Connection
+option. `storyos_comfy_connection_mode` is mirrored as a compatibility option
+for existing installations and extensions.
+
 ## Developer Integration
 
 ### Accessing Configured Values
 ```php
-// Get saved API keys
-$comfy_key = get_option( 'storyos_comfy_api_key' );
+// Get the managed Generation Connection credential
+$generation_key = get_post_meta( $generation_connection_id, 'credential_reference', true );
 $llm_key = get_option( 'storyos_ai_api_key' );
 $fallback_key = get_option( 'storyos_ai_fallback_api_key' );
 
@@ -153,8 +164,23 @@ $model = get_option( 'storyos_ai_model' );
 
 ### Programmatic Configuration
 ```php
-// Configure all API keys programmatically
-update_option( 'storyos_comfy_api_key', 'sk_live_xxx...' );
+// Configure a fal Generation Connection programmatically
+\StoryOS\CPT\Connection::upsert_managed( 'generation', 'fal', [
+	'provider_type'        => 'fal',
+	'environment'          => 'production',
+	'endpoint_url'         => \StoryOS\Utils\Fal_MCP::ENDPOINT,
+	'mcp_endpoint_url'     => \StoryOS\Utils\Fal_MCP::ENDPOINT,
+	'credential_reference' => 'env://FAL_KEY',
+] );
+
+// Configure an ElevenLabs generative-audio Connection programmatically.
+\StoryOS\CPT\Connection::upsert_managed( 'generation', 'ElevenLabs', [
+	'provider_type'        => 'elevenlabs',
+	'environment'          => 'production',
+	'endpoint_url'         => 'https://api.elevenlabs.io/v1',
+	'credential_reference' => 'env://ELEVENLABS_API_KEY',
+	'model'                => 'eleven_multilingual_v2',
+] );
 update_option( 'storyos_ai_backend', 'openai' );
 update_option( 'storyos_ai_model', 'gpt-4' );
 update_option( 'storyos_ai_api_key', 'sk-xxx...' );

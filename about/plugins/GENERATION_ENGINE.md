@@ -55,7 +55,8 @@ Local ComfyUI has a minimal WordPress HTTP client in
 `includes/utils/local-comfyui.php`.
 
 - Endpoint: a WordPress-container-reachable ComfyUI base URL, such as
-  `http://host.docker.internal:8188` for a Lando host installation.
+  `http://host.lando.internal:8188` for a Lando host installation (Lando ≥ 3.22;
+  see `about/Deployment_and_Connections.md`).
 - Transport: `POST /prompt`, `GET /history/{prompt_id}`, `POST /upload/image`,
   `GET /object_info`, and `GET /view`.
 - Authentication: none by default; an exposed local endpoint must be protected
@@ -115,7 +116,9 @@ it:
 
 The Template editor shows this as a ComfyUI Requirements panel with a
 **Check ComfyUI** action and an **Install missing models** action; the latter
-forwards declared URLs to the MCP `download_models` tool. Generation submission
+forwards declared URLs to the MCP `download_models` tool. That tool must be
+implemented by whatever process answers **Local ComfyUI MCP URL** — a bare
+ComfyUI instance does not expose one. Generation submission
 runs the same check and fails the job in StoryOS with a specific message rather
 than letting ComfyUI raise an opaque execution error. An unreachable catalog is
 treated as a connectivity problem and does not block submission.

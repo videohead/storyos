@@ -220,7 +220,8 @@ define( 'STORYOS_AI_FALLBACK_API_KEY', 'your-fallback-key' );
 ```php
 // Comfy Cloud MCP
 get_option( 'storyos_comfy_api_key' )
-get_option( 'storyos_comfy_connection_mode' ) // 'cloud', 'local_mcp', or 'none'
+get_option( 'storyos_generation_connection_mode' ) // Current preferred Connection choice.
+get_option( 'storyos_comfy_connection_mode' ) // Legacy compatibility mirror.
 
 // Primary LLM
 get_option( 'storyos_ai_backend' )

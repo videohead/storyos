@@ -242,7 +242,6 @@ Celtx synchronization is operational through the `storyos-celtx` plugin:
 
 ### Deferred
 
-- Fountain import and export.
 - Final Draft FDX import.
 - Fade In and Highland import.
 - Story Architect and Markdown import.

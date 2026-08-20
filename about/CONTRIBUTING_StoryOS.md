@@ -70,7 +70,6 @@ Examples:
 
 ```text
 feature/story-graph-search
-feature/fountain-import
 bugfix/comfy-workflow-timeout
 docs/architecture-update
 ```

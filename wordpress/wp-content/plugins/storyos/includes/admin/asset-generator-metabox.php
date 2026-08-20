@@ -9,6 +9,8 @@
 namespace StoryOS\Admin;
 
 use StoryOS\Utils\Comfy_Bootstrap;
+use StoryOS\Utils\Connection_Adapters;
+use StoryOS\Utils\Connection_Repository;
 use StoryOS\Utils\Local_ComfyUI;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -99,7 +101,7 @@ class Asset_Generator_MetaBox {
 			'nonce'   => wp_create_nonce( 'wp_rest' ),
 			'i18n'    => [
 				'generating'   => __( 'Generating image…', 'storyos' ),
-				'queued'       => __( 'Image generation queued. WP-Cron will import the completed Comfy MCP image into this post.', 'storyos' ),
+				'queued'       => __( 'Image generation queued. WP-Cron will import the completed provider image into this post.', 'storyos' ),
 				'job'          => __( 'Job', 'storyos' ),
 				'loading'      => __( 'Building a prompt from this story element…', 'storyos' ),
 				'done'         => __( 'Image generated and attached.', 'storyos' ),
@@ -133,6 +135,9 @@ class Asset_Generator_MetaBox {
 	 * point at the screen that resolves it.
 	 */
 	private static function render_readiness(): void {
+		if ( empty( Connection_Repository::get_all( [ 'provider_type' => 'comfyui' ] ) ) || ! Connection_Adapters::load( 'comfyui' ) ) {
+			return;
+		}
 		if ( ! Local_ComfyUI::is_configured() ) {
 			return;
 		}

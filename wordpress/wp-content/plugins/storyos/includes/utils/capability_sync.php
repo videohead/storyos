@@ -32,8 +32,18 @@ class Capability_Sync {
 		$providers = [ [
 			'provider_type' => 'comfy_cloud_mcp',
 			'label'         => 'Comfy Cloud MCP',
-			'endpoint'      => Comfy_Cloud_MCP::ENDPOINT,
+			'endpoint'      => Connection_Adapters::endpoint( 'comfyui' ),
 			'capabilities'  => [ 'image', 'video', 'audio', '3d', 'template_execution' ],
+		], [
+			'provider_type' => 'fal',
+			'label'         => 'fal MCP',
+			'endpoint'      => Connection_Adapters::endpoint( 'fal' ),
+			'capabilities'  => [ 'image', 'video', 'audio', '3d', 'model_discovery', 'queued_execution' ],
+		], [
+			'provider_type' => 'elevenlabs',
+			'label'         => 'ElevenLabs',
+			'endpoint'      => Connection_Adapters::endpoint( 'elevenlabs' ),
+			'capabilities'  => [ 'audio', 'text_to_speech', 'text_to_dialogue', 'sound_effects', 'music', 'voice_design', 'voice_discovery', 'model_discovery' ],
 		] ];
 
 		$snapshot = [
@@ -45,7 +55,7 @@ class Capability_Sync {
 
 		return [
 			'success'   => true,
-			'message'   => 'Comfy Cloud MCP capabilities refreshed.',
+			'message'   => 'Generation MCP capabilities refreshed.',
 			'providers' => $providers,
 		];
 	}
@@ -84,9 +94,7 @@ class Capability_Sync {
 			}
 		}
 
-		if ( empty( $types ) ) {
-			$types = [ 'comfy_cloud_mcp' ];
-		}
+		$types = array_merge( $types, Connection_Adapters::provider_types() );
 
 		return array_values( array_unique( $types ) );
 	}

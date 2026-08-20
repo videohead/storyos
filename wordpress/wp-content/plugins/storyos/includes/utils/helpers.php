@@ -7,6 +7,39 @@
 
 namespace StoryOS\Utils;
 
+if ( ! function_exists( __NAMESPACE__ . '\\wp_strip_all_tags' ) ) {
+	/**
+	 * Lightweight fallback for environments without WordPress loaded.
+	 *
+	 * @param string $text Raw HTML.
+	 * @return string
+	 */
+	function wp_strip_all_tags( string $text ): string {
+		return trim( preg_replace( '/<[^>]+>/', ' ', $text ) ?? $text );
+	}
+}
+
+if ( ! function_exists( __NAMESPACE__ . '\\wp_trim_words' ) ) {
+	/**
+	 * Lightweight fallback for environments without WordPress loaded.
+	 *
+	 * @param string $text       Raw text.
+	 * @param int    $num_words  Number of words to keep.
+	 * @param string $more       Optional suffix.
+	 * @return string
+	 */
+	function wp_trim_words( string $text, int $num_words = 55, string $more = '…' ): string {
+		$words = preg_split( '/\s+/', trim( $text ) );
+		if ( ! is_array( $words ) ) {
+			return trim( $text );
+		}
+		if ( count( $words ) <= $num_words ) {
+			return trim( $text );
+		}
+		return trim( implode( ' ', array_slice( $words, 0, $num_words ) ) ) . $more;
+	}
+}
+
 /**
  * Get the prefix for StoryOS CPTs and meta keys.
  *
@@ -150,6 +183,7 @@ function storyos_expected_fields_for_cpt( string $cpt ): array {
 		'storyos_episode'            => [ 'episode_number', 'title', 'synopsis', 'status', 'project' ],
 		'storyos_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
 		'storyos_shot'               => [ 'shot_name', 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene', 'sequence' ],
+		'storyos_sound'              => [ 'sound_type', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
 		'storyos_storyboard_frame'   => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
 		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
 		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
@@ -200,6 +234,7 @@ function storyos_get_all_cpts(): array {
 		'storyos_episode'         => 'Episode',
 		'storyos_scene'           => 'Scene',
 		'storyos_shot'            => 'Shot',
+		'storyos_sound'           => 'Sound',
 		'storyos_storyboard_frame' => 'Storyboard Frame',
 		'storyos_asset'           => 'Asset',
 		'storyos_editorial_artifact' => 'Editorial Artifact',
@@ -226,6 +261,7 @@ function storyos_schema_type_map(): array {
 		'storyos_episode'           => 'Episode',
 		'storyos_scene'             => 'Clip',
 		'storyos_shot'              => 'Clip',
+		'storyos_sound'             => 'CreativeWork',
 		'storyos_storyboard_frame'  => 'ImageObject',
 		'storyos_asset'             => 'MediaObject',
 		'storyos_editorial_artifact'=> 'CreativeWork',
@@ -272,6 +308,20 @@ function storyos_schema_type_for_entity( string $cpt, array $meta = [], array $t
 		}
 		if ( array_intersect( $asset_slugs, [ 'character', 'environment', 'prop', 'storyboard', 'lookbook', 'concept-art' ] ) ) {
 			return 'ImageObject';
+		}
+	}
+
+	if ( 'storyos_sound' === $cpt ) {
+		$sound_terms = $taxonomies['storyos_sound_type'] ?? [];
+		$sound_slugs = array_map(
+			static function( $term ) {
+				return strtolower( (string) ( $term['slug'] ?? '' ) );
+			},
+			$sound_terms
+		);
+
+		if ( in_array( 'music', $sound_slugs, true ) ) {
+			return 'MusicComposition';
 		}
 	}
 
@@ -378,6 +428,19 @@ function storyos_schema_field_map(): array {
 			'editorial_notes'   => [ 'property' => 'text', 'match' => 'weak' ],
 			'scene'             => [ 'property' => 'isPartOf', 'match' => 'exact' ],
 			'sequence'          => [ 'property' => 'isPartOf', 'match' => 'close' ],
+		],
+		'storyos_sound' => [
+			'sound_type'       => [ 'property' => 'additionalType', 'match' => 'close' ],
+			'spoken_text'      => [ 'property' => 'text', 'match' => 'exact' ],
+			'lyrics'           => [ 'property' => 'lyrics', 'match' => 'exact' ],
+			'start_timecode'   => [ 'property' => 'temporal', 'match' => 'weak' ],
+			'duration'         => [ 'property' => 'duration', 'match' => 'exact' ],
+			'diegetic'         => [ 'property' => 'additionalType', 'match' => 'weak' ],
+			'production_notes' => [ 'property' => 'text', 'match' => 'weak' ],
+			'scene'            => [ 'property' => 'isPartOf', 'match' => 'exact' ],
+			'shot'             => [ 'property' => 'isPartOf', 'match' => 'close' ],
+			'character'        => [ 'property' => 'character', 'match' => 'close' ],
+			'asset'            => [ 'property' => 'encoding', 'match' => 'close' ],
 		],
 		'storyos_storyboard_frame' => [
 			'frame_number'      => [ 'property' => 'position', 'match' => 'close' ],
@@ -518,10 +581,14 @@ function storyos_schema_property_for_relationship( string $relationship_type, st
 
 		case 'linked_to':
 			if ( 'storyos_character' === $to_cpt ) {
-				if ( in_array( $from_cpt, [ 'storyos_project', 'storyos_episode', 'storyos_scene', 'storyos_shot' ], true ) ) {
+				if ( in_array( $from_cpt, [ 'storyos_project', 'storyos_episode', 'storyos_scene', 'storyos_shot', 'storyos_sound' ], true ) ) {
 					return 'character';
 				}
 				return 'about';
+			}
+
+			if ( 'storyos_sound' === $from_cpt && 'storyos_asset' === $to_cpt ) {
+				return 'encoding';
 			}
 
 			if ( 'storyos_location' === $to_cpt ) {
@@ -668,6 +735,59 @@ function storyos_log( string $message, string $level = 'info' ): void {
 }
 
 /**
+ * Canonical seed vocabulary for planned sound cues.
+ *
+ * Ordinary screenplay dialogue remains structured Scene metadata. These terms
+ * describe additional soundtrack cues that need their own timing, production,
+ * and media relationships.
+ *
+ * @return array<string, string> Term slug to display label map.
+ */
+function storyos_sound_types(): array {
+	return [
+		'narration'    => 'Narration',
+		'voiceover'    => 'Voice-over',
+		'music'        => 'Music',
+		'sound-effect' => 'Sound Effect',
+		'ambience'     => 'Ambience',
+		'foley'        => 'Foley',
+		'silence'      => 'Intentional Silence',
+		'adr'          => 'ADR',
+	];
+}
+
+/**
+ * Sanitize a value using its StoryOS field definition.
+ *
+ * @param mixed $value Raw field value.
+ * @param array $field StoryOS field definition.
+ * @return mixed Sanitized value.
+ */
+function storyos_sanitize_field_value( $value, array $field ) {
+	$type = (string) ( $field['type'] ?? 'text' );
+
+	if ( 'number' === $type ) {
+		return is_numeric( $value ) ? 0 + $value : '';
+	}
+
+	if ( 'wysiwyg' === $type ) {
+		return wp_kses_post( wp_unslash( (string) $value ) );
+	}
+
+	if ( 'textarea' === $type ) {
+		return sanitize_textarea_field( wp_unslash( (string) $value ) );
+	}
+
+	if ( 'select' === $type ) {
+		$value   = sanitize_key( (string) $value );
+		$options = (array) ( $field['options'] ?? [] );
+		return isset( $options[ $value ] ) ? $value : '';
+	}
+
+	return sanitize_text_field( wp_unslash( (string) $value ) );
+}
+
+/**
  * Canonical shot type map (slug => display label).
  *
  * Kept in one place so the CPT, name generator, exporter and UI agree.
@@ -752,6 +872,14 @@ function storyos_normalize_shot_type( string $slug ): string {
  * @return string
  */
 function storyos_generate_shot_name( array $shot ): string {
+	$explicit_title = isset( $shot['title'] ) ? trim( (string) $shot['title'] ) : '';
+	if ( '' === $explicit_title && isset( $shot['label'] ) ) {
+		$explicit_title = trim( (string) $shot['label'] );
+	}
+	if ( '' !== $explicit_title ) {
+		return $explicit_title;
+	}
+
 	$number = isset( $shot['shot_number'] ) && '' !== $shot['shot_number'] ? $shot['shot_number'] : '';
 
 	$type_label = isset( $shot['shot_type'] ) && '' !== $shot['shot_type']
@@ -791,7 +919,14 @@ function storyos_generate_shot_name( array $shot ): string {
 		return 'Untitled Shot';
 	}
 
-	return implode( ': ', array_slice( $parts, 0, 2 ) ) . implode( ' ', array_slice( $parts, 2 ) );
+	$primary = array_slice( $parts, 0, 2 );
+	$tail    = array_slice( $parts, 2 );
+
+	if ( empty( $tail ) ) {
+		return implode( ': ', $primary );
+	}
+
+	return implode( ': ', $primary ) . ' — ' . implode( ' ', $tail );
 }
 
 /**

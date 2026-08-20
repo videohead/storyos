@@ -51,16 +51,19 @@
     {
       "id": "prop_cloak",
       "name": "Red Cloak",
+      "owner_character": "char_red",
       "description": "A cute clothing item that would fit on a little girl's head."
     },
     {
       "id": "prop_basket",
       "name": "Basket",
+      "owner_character": "char_red",
       "description": "A charming period picnic basket with a plaid lining."
     },
     {
       "id": "prop_bed",
       "name": "Bed",
+      "owner_character": "char_grandmother",
       "description": "A old wooden bed with a tall bedstead."
     }
   ],
@@ -68,6 +71,7 @@
     {
       "id": "scene_1",
       "title": "The Assignment",
+      "label": "The Assignment",
       "location": "loc_village",
       "characters": ["char_red", "char_grandmother"],
       "props": ["prop_basket", "prop_cloak"],
@@ -82,6 +86,7 @@
     {
       "id": "scene_2",
       "title": "The Encounter",
+      "label": "The Encounter",
       "location": "loc_forest",
       "characters": ["char_red", "char_wolf"],
       "props": ["prop_basket"],
@@ -105,6 +110,7 @@
     {
       "id": "scene_3",
       "title": "The Reveal",
+      "label": "The Reveal",
       "location": "loc_grandmother_house",
       "characters": ["char_red", "char_grandmother", "char_wolf"],
       "props": ["prop_bed"],
@@ -154,26 +160,26 @@
     }
   ],
   "shots": [
-    {"id": "shot_1", "scene": "scene_1", "type": "wide", "description": "Village cottage exterior."},
-    {"id": "shot_2", "scene": "scene_1", "type": "medium", "description": "Basket handoff."},
-    {"id": "shot_3", "scene": "scene_1", "type": "closeup", "description": "Red accepts responsibility."},
-    {"id": "shot_4", "scene": "scene_2", "type": "wide", "description": "Forest path establishing shot."},
-    {"id": "shot_5", "scene": "scene_2", "type": "medium", "description": "Wolf approaches."},
-    {"id": "shot_6", "scene": "scene_2", "type": "closeup", "description": "Conversation between Red and Wolf."},
-    {"id": "shot_7", "scene": "scene_3", "type": "wide", "description": "Grandmother's cottage interior."},
-    {"id": "shot_8", "scene": "scene_3", "type": "medium", "description": "Red notices something strange."},
-    {"id": "shot_9", "scene": "scene_3", "type": "closeup", "description": "Final reveal."}
+    {"id": "shot_1", "scene": "scene_1", "title": "Village Cottage Exterior", "label": "Village Cottage Exterior", "type": "wide", "description": "Village cottage exterior."},
+    {"id": "shot_2", "scene": "scene_1", "title": "Basket Handoff", "label": "Basket Handoff", "type": "medium", "description": "Basket handoff."},
+    {"id": "shot_3", "scene": "scene_1", "title": "Red Accepts Responsibility", "label": "Red Accepts Responsibility", "type": "closeup", "description": "Red accepts responsibility."},
+    {"id": "shot_4", "scene": "scene_2", "title": "Forest Path Establishing Shot", "label": "Forest Path Establishing Shot", "type": "wide", "description": "Forest path establishing shot."},
+    {"id": "shot_5", "scene": "scene_2", "title": "Wolf Approaches", "label": "Wolf Approaches", "type": "medium", "description": "Wolf approaches."},
+    {"id": "shot_6", "scene": "scene_2", "title": "Red and Wolf Converse", "label": "Red and Wolf Converse", "type": "closeup", "description": "Conversation between Red and Wolf."},
+    {"id": "shot_7", "scene": "scene_3", "title": "Grandmother's Cottage Interior", "label": "Grandmother's Cottage Interior", "type": "wide", "description": "Grandmother's cottage interior."},
+    {"id": "shot_8", "scene": "scene_3", "title": "Something Seems Different", "label": "Something Seems Different", "type": "medium", "description": "Red notices something strange."},
+    {"id": "shot_9", "scene": "scene_3", "title": "Final Reveal", "label": "Final Reveal", "type": "closeup", "description": "Final reveal."}
   ],
   "storyboards": [
-    {"id": "sb_1", "shot": "Sunrise", "description": "Village cottage at sunrise."},
-    {"id": "sb_2", "shot": "The basket", "description": "Basket exchange."},
-    {"id": "sb_3", "shot": "Preparing to leave", "description": "Red prepares to leave."},
-    {"id": "sb_4", "shot": "Establishing shot of the forest", "description": "Forest path establishing frame."},
-    {"id": "sb_5", "shot": "The wolf", "description": "Wolf enters frame."},
-    {"id": "sb_6", "shot": "Conversation", "description": "Conversation coverage."},
-    {"id": "sb_7", "shot": "In Grandmother's House", "description": "Grandmother's room."},
-    {"id": "sb_8", "shot": "Red Investigates", "description": "Red investigates."},
-    {"id": "sb_9", "shot": "Conclusion", "description": "Reveal and resolution."}
+    {"id": "sb_1", "shot": "shot_1", "description": "Village cottage at sunrise."},
+    {"id": "sb_2", "shot": "shot_2", "description": "Basket exchange."},
+    {"id": "sb_3", "shot": "shot_3", "description": "Red prepares to leave."},
+    {"id": "sb_4", "shot": "shot_4", "description": "Forest path establishing frame."},
+    {"id": "sb_5", "shot": "shot_5", "description": "Wolf enters frame."},
+    {"id": "sb_6", "shot": "shot_6", "description": "Conversation coverage."},
+    {"id": "sb_7", "shot": "shot_7", "description": "Grandmother's room."},
+    {"id": "sb_8", "shot": "shot_8", "description": "Red investigates."},
+    {"id": "sb_9", "shot": "shot_9", "description": "Reveal and resolution."}
   ],
   "sequence": {
     "id": "sequence_1",

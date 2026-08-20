@@ -176,11 +176,14 @@ storyos_prop
 |------------|------------|
 | id | external_id |
 | name | post_title |
+| description | description |
+| owner_character | owner_character |
 
 ### Relationships
 
 ```text
 World → Prop
+Prop → Owner Character
 ```
 
 ---
@@ -361,6 +364,14 @@ Basket → Scene 2
 Red Cloak → Scene 1
 
 Bed → Scene 3
+```
+
+## Prop Ownership
+
+```text
+Red Cloak → Little Red
+Basket → Little Red
+Bed → Grandmother
 ```
 
 ## Location Usage

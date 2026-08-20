@@ -81,7 +81,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$meta = [];
 
 		foreach ( $fields as $key => $field ) {
-			if ( 'relationship' === $field['type'] ) {
+			if ( in_array( $field['type'], [ 'relationship', 'taxonomy' ], true ) ) {
 				continue;
 			}
 			$value = get_post_meta( $post->ID, $key, true );
@@ -335,8 +335,34 @@ abstract class Base_Controller extends WP_REST_Controller {
 				continue;
 			}
 
-			if ( isset( $meta[ $key ] ) && '' !== $meta[ $key ] ) {
-				update_post_meta( $post_id, $key, sanitize_textarea_field( $meta[ $key ] ) );
+			if ( ! array_key_exists( $key, $meta ) ) {
+				continue;
+			}
+
+			if ( 'taxonomy' === $field['type'] ) {
+				$taxonomy = (string) ( $field['taxonomy'] ?? '' );
+				if ( '' !== $taxonomy ) {
+					$raw_terms = is_array( $meta[ $key ] ) ? $meta[ $key ] : [ $meta[ $key ] ];
+					$terms     = [];
+					foreach ( $raw_terms as $raw_term ) {
+						if ( is_numeric( $raw_term ) ) {
+							$terms[] = absint( $raw_term );
+							continue;
+						}
+
+						$slug = sanitize_title( (string) $raw_term );
+						$term = get_term_by( 'slug', $slug, $taxonomy );
+						$terms[] = $term ? (int) $term->term_id : sanitize_text_field( (string) $raw_term );
+					}
+					wp_set_object_terms( $post_id, array_values( array_filter( $terms ) ), $taxonomy, false );
+				}
+				continue;
+			}
+
+			if ( '' === $meta[ $key ] || null === $meta[ $key ] ) {
+				delete_post_meta( $post_id, $key );
+			} else {
+				update_post_meta( $post_id, $key, \StoryOS\Utils\storyos_sanitize_field_value( $meta[ $key ], $field ) );
 			}
 		}
 	}
@@ -352,13 +378,14 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$meta = $request->get_param( 'meta' ) ?? [];
 
 		foreach ( $fields as $key => $field ) {
-			if ( 'relationship' === $field['type'] && isset( $meta[ $key ] ) ) {
-				\StoryOS\Utils\add_relationship(
+			if ( 'relationship' === $field['type'] && array_key_exists( $key, $meta ) ) {
+				\StoryOS\Utils\set_relationship(
 					$post_id,
 					$this->cpt,
 					absint( $meta[ $key ] ),
 					$field['related_cpt'],
-					'belongs_to'
+					(string) ( $field['relationship_type'] ?? 'belongs_to' ),
+					[ 'field' => $key ]
 				);
 			}
 		}

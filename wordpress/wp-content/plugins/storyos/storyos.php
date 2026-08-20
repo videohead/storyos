@@ -161,11 +161,7 @@ function init(): void {
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-log.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-modality.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/utils/local-comfyui.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-manifest.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-catalog.php';
-	require_once STORYOS_PLUGIN_DIR . 'includes/utils/comfy-bootstrap.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/connection-adapters.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/relationships.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/story-search.php';
@@ -200,6 +196,7 @@ function init(): void {
 	CPT\EditorialArtifact::init();
 	CPT\Template::init();
 	CPT\Connection::init();
+	Utils\Connection_Adapters::load_configured();
 
 	// Register taxonomies.
 	Taxonomies\Genre::init();

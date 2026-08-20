@@ -329,7 +329,6 @@ POST /wp-json/storyos-celtx/v1/settings
 
 #### Import
 
-- [ ] Fountain — scene headings, action, dialogue, character extraction
 - [ ] FDX (Final Draft) — XML parsing → Story Graph entities
 - [ ] Fade In — import screenplay format
 - [ ] Highland — import screenplay format
@@ -337,10 +336,11 @@ POST /wp-json/storyos-celtx/v1/settings
 
 #### Export
 
-- [ ] Fountain — export Scene CPTs to Fountain syntax
+- [ ] Markdown — structured markdown export
+- [ ] Storyboard - export a storyboard as a PDF
 - [ ] Screenplay — formatted screenplay export
 - [ ] Shooting Script — scene numbers, shot descriptions, asset references
-- [ ] Markdown — structured markdown export
+
 
 ### Import/Export Endpoints (Planned)
 
@@ -349,7 +349,6 @@ POST /scripts/import
 POST /scripts/export
 GET  /scripts/import/{id}/preview
 POST /scripts/import/{id}/commit
-GET  /scripts/export/{project_id}?format=fountain
 GET  /scripts/export/{project_id}?format=shooting
 ```
 

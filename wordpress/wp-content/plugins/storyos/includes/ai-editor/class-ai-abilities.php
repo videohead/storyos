@@ -512,6 +512,7 @@ class Prompt_Templates extends AbstractAbilityGroup {
                 ],
             ],
             'execute_callback' => function() {
+				\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
                 $templates = get_posts( [
                     'post_type'      => 'storyos_template',
                     'post_status'    => 'publish',
@@ -588,6 +589,7 @@ class Prompt_Templates extends AbstractAbilityGroup {
                 ],
             ],
             'execute_callback' => function( $input ) {
+				\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
                 $template_id = (int) ( $input['template_id'] ?? 0 );
                 $manifest = \StoryOS\Utils\Comfy_Manifest::for_template( $template_id );
                 if ( is_wp_error( $manifest ) ) {

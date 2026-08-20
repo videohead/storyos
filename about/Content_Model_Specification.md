@@ -391,7 +391,6 @@ Persistent mapping stored in WordPress post meta:
 Story Graph → Script Formats:
 
 - [ ] Final Draft (.fdx)
-- [ ] Fountain
 - [ ] Fade In
 - [ ] Highland
 - [ ] Markdown
@@ -408,6 +407,7 @@ Supported Targets:
 - Timeline Metadata
 - XML (Future)
 - AAF (Future)
+- Storyboard
 
 ---
 

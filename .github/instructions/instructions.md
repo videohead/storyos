@@ -113,7 +113,7 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
 
 - CPT synchronization for projects, characters, locations, scenes, and shots.
 - Import from JSON and export scripts to Markdown
-- Planned file-based import and export for Fountain, FDX, Fade In, Highland,
+- Planned file-based import and export for FDX, Fade In, Highland,
   Markdown, screenplay, and shooting-script formats.
 - Persistent StoryOS to Celtx ID mapping in post meta.
 - Celtx GEM API bi-directional sync through the `storyos-celtx` plugin.

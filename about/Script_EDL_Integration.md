@@ -93,7 +93,6 @@ Celtx GEM API (games-api.celtx.com/api)
 
 ## Phase 1 — File-Based Import (Planned)
 
-- [ ] Fountain — scene headings, action, dialogue, character extraction
 - [ ] Markdown — basic scene detection
 
 ## Phase 2 — Professional Formats (Planned)
@@ -139,7 +138,7 @@ Changes in either platform propagate to the other via persistent ID mapping.
 ## File-Based Import (Planned)
 
 ```text
-Script File (Fountain, FDX, etc.)
+Script File (FDX, etc.)
      ↓
 Parser
      ↓
@@ -158,6 +157,10 @@ Generated entities should be linked automatically.
 
 # Script Export Targets
 
+## Storyboard
+
+Pictoral representation of the script with scene and camera descriptions
+
 ## Development Script
 
 Used by writers.
@@ -173,10 +176,6 @@ Includes production metadata.
 ## Production Script
 
 Includes scene references and scheduling support.
-
-## Fountain
-
-Portable text format.
 
 ## Markdown
 

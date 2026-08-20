@@ -160,6 +160,7 @@ class Generation_Controller extends Base_Controller {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public static function get_template_requirements( WP_REST_Request $request ) {
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 		$manifest = \StoryOS\Utils\Comfy_Manifest::for_template( absint( $request->get_param( 'id' ) ) );
 		if ( is_wp_error( $manifest ) ) {
 			return $manifest;
@@ -206,9 +207,20 @@ class Generation_Controller extends Base_Controller {
 		if ( ! $connection || '' === $template_provider || 'disabled' === $connection['status'] || $template_provider !== $connection['provider_type'] ) {
 			return new WP_Error( 'invalid_template_connection', 'The selected Template and Connection must use the same provider.', [ 'status' => 400 ] );
 		}
+		$template_modality = sanitize_key( (string) get_post_meta( $template->ID, 'modality', true ) );
+		if ( $template_modality && $type !== \StoryOS\Utils\Generation_Modality::output_type( $template_modality ) ) {
+			return new WP_Error( 'generation_type_mismatch', 'The requested type must match the selected Template output type.', [ 'status' => 400 ] );
+		}
+		\StoryOS\Utils\Connection_Adapters::load( (string) $connection['provider_type'] );
 		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template->ID, 'provider_template_id', true ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
+		if ( 'fal' === $connection['provider_type'] && '' === $provider_template_id ) {
+			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
+		}
 		if ( '' === $provider_template_id ) {
 			return new WP_Error( 'missing_provider_template', 'The selected Template must reference a provider MCP Template.', [ 'status' => 400 ] );
+		}
+		if ( 'fal' === $connection['provider_type'] && ! \StoryOS\Utils\Fal_MCP::endpoint_is_allowed( $connection, $provider_template_id ) ) {
+			return new WP_Error( 'fal_endpoint_not_allowed', 'That fal model endpoint is not allowed by the selected Connection.', [ 'status' => 400 ] );
 		}
 		$provider_type = $connection['provider_type'];
 		$workflow = $provider_template_id;
@@ -231,6 +243,7 @@ class Generation_Controller extends Base_Controller {
 		update_post_meta( $post_id, '_storyos_generation_params', $params );
 		update_post_meta( $post_id, '_storyos_generation_inputs', self::sanitize_inputs( $request->get_param( 'inputs' ) ) );
 		update_post_meta( $post_id, '_storyos_generation_workflow', $workflow );
+		update_post_meta( $post_id, '_storyos_generation_template_id', $template->ID );
 		update_post_meta( $post_id, '_storyos_generation_provider_type', $provider_type );
 		update_post_meta( $post_id, '_storyos_generation_connection_id', $connection_id );
 		update_post_meta( $post_id, '_storyos_generation_status', 'queued' );

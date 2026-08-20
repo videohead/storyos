@@ -94,8 +94,8 @@ class Navigation {
 	 * Render a group landing page.
 	 */
 	public static function render_group(): void {
-		$screen = get_current_screen();
-		$title  = $screen ? $screen->title : 'StoryOS';
+		$title = get_admin_page_title();
+		$title = $title ?: __( 'StoryOS', 'storyos' );
 		$page   = isset( $_GET['page'] ) ? sanitize_key( $_GET['page'] ) : '';
 		$cards  = self::get_group_cards( $page );
 		?>
@@ -164,8 +164,8 @@ class Navigation {
 	 * Render a not-yet-available tool page.
 	 */
 	public static function render_placeholder(): void {
-		$screen = get_current_screen();
-		$title  = $screen ? $screen->title : 'StoryOS Tool';
+		$title = get_admin_page_title();
+		$title = $title ?: __( 'StoryOS Tool', 'storyos' );
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( $title ); ?></h1>

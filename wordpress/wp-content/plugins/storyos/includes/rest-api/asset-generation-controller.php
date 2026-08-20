@@ -11,7 +11,6 @@
 namespace StoryOS\REST;
 
 use StoryOS\Utils\Asset_Generator;
-use StoryOS\Utils\Comfy_Bootstrap;
 use StoryOS\Utils\Connection_Repository;
 use StoryOS\Utils\Generation_Modality;
 use StoryOS\Utils\Template_Bindings;
@@ -157,8 +156,8 @@ class Asset_Generation_Controller extends Base_Controller {
 			return new WP_Error( 'storyos_asset_invalid_post', __( 'That post cannot have a StoryOS asset generated for it.', 'storyos' ), [ 'status' => 404 ] );
 		}
 
-		$configured = \StoryOS\Utils\Comfy_Cloud_MCP::is_configured();
 		$templates  = self::runnable_templates( $post_id );
+		$configured = ! empty( $templates );
 
 		return rest_ensure_response( [
 			'post_id'             => $post_id,
@@ -178,7 +177,15 @@ class Asset_Generation_Controller extends Base_Controller {
 	 * @return int
 	 */
 	private static function default_template_id( array $templates ): int {
-		$managed = Comfy_Bootstrap::template_id();
+		$managed_posts = get_posts( [
+			'post_type'      => 'storyos_template',
+			'post_status'    => 'publish',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_key'       => 'storyos_wizard_slot', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+			'meta_value'     => 'local_comfyui_default', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+		] );
+		$managed = $managed_posts ? (int) $managed_posts[0] : 0;
 		if ( $managed ) {
 			foreach ( $templates as $template ) {
 				if ( $managed === (int) ( $template['id'] ?? 0 ) ) {
@@ -217,6 +224,9 @@ class Asset_Generation_Controller extends Base_Controller {
 		$options = [];
 		foreach ( $templates as $template ) {
 			$modality = Generation_Modality::sanitize( (string) get_post_meta( $template->ID, 'modality', true ) );
+			if ( 'image' !== Generation_Modality::output_type( $modality ) ) {
+				continue;
+			}
 			if ( ! empty( Template_Bindings::missing_required( $template->ID, $post_id ) ) ) {
 				continue;
 			}

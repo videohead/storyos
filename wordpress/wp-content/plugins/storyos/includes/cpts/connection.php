@@ -48,7 +48,7 @@ class Connection {
 	 * @return array<int, string>
 	 */
 	public static function provider_types(): array {
-		$types = [ 'comfyui', 'fal', 'google_gemini', 'veo', 'nova_reel', 'openai_compatible', 'openai', 'anthropic', 'dual' ];
+		$types = \StoryOS\Utils\Connection_Adapters::provider_types();
 		return apply_filters( 'storyos_connection_provider_types', $types );
 	}
 
@@ -113,25 +113,25 @@ class Connection {
 				'type'        => 'text',
 				'label'       => 'Endpoint URL',
 				'required'    => true,
-				'description' => 'Base URL of the provider endpoint, e.g. http://comfyui:8188.',
+				'description' => 'Provider endpoint. For fal use https://mcp.fal.ai/mcp; for ElevenLabs use https://api.elevenlabs.io/v1; for local ComfyUI use its HTTP API base URL.',
 			],
 			'mcp_endpoint_url'     => [
 				'type'        => 'text',
 				'label'       => 'MCP Endpoint URL',
 				'required'    => false,
-				'description' => 'Optional Streamable HTTP MCP endpoint for local ComfyUI template discovery and downloads.',
+				'description' => 'Streamable HTTP MCP endpoint. Required for fal (https://mcp.fal.ai/mcp); optional for local ComfyUI discovery and downloads.',
 			],
 			'credential_reference' => [
 				'type'        => 'text',
 				'label'       => 'API Key / OAuth (Reference)',
 				'required'    => false,
-				'description' => 'Reference only, e.g. env://COMFYUI_API_KEY or secret://comfyui/local. Raw credentials must never be stored in WordPress.',
+				'description' => 'Credential or environment reference, e.g. env://FAL_KEY, env://ELEVENLABS_API_KEY, or env://COMFYUI_API_KEY.',
 			],
 			'model'                => [
 				'type'        => 'text',
 				'label'       => 'Model',
 				'required'    => false,
-				'description' => 'Concrete model name used by this connection, e.g. gpt-4, claude-3-sonnet, or a local model name.',
+				'description' => 'Optional default model. For fal use an endpoint ID; for ElevenLabs use a speech model ID such as eleven_multilingual_v2.',
 			],
 			'max_tokens'           => [
 				'type'        => 'text',
@@ -149,7 +149,7 @@ class Connection {
 				'type'        => 'textarea',
 				'label'       => 'Model Access',
 				'required'    => false,
-				'description' => 'JSON array of model IDs this connection may use, e.g. ["sd_xl_base_1.0"]. Empty means workflow-defined.',
+				'description' => 'Optional JSON allowlist. fal uses model endpoint IDs; ElevenLabs uses voice IDs. Empty lets the adapter select a default.',
 			],
 			'enabled_structures'   => [
 				'type'        => 'textarea',
@@ -181,8 +181,10 @@ class Connection {
 			self::CPT,
 			'Connections',
 			[
-				'menu_icon' => 'dashicons-admin-network',
-				'show_in_menu' => 'storyos-administration',
+				'menu_icon'    => 'dashicons-admin-network',
+				// The native post list is intentionally not registered in the admin menu;
+				// StoryOS\Admin\Connections::render_page() is the single Connections view.
+				'show_in_menu' => false,
 			],
 			$fields
 		);
@@ -259,6 +261,19 @@ class Connection {
 				</tr>
 			<?php endforeach; ?>
 		</table>
+		<script>
+			(function () {
+				var provider = document.getElementById('provider_type');
+				var endpoint = document.getElementById('endpoint_url');
+				var mcpEndpoint = document.getElementById('mcp_endpoint_url');
+				var endpoints = <?php echo wp_json_encode( array_map( [ '\StoryOS\Utils\Connection_Adapters', 'endpoint' ], array_combine( self::provider_types(), self::provider_types() ) ) ); ?>;
+				if (!provider || !endpoint || !mcpEndpoint) { return; }
+				provider.addEventListener('change', function () {
+					if (!endpoint.value.trim() && endpoints[provider.value]) { endpoint.value = endpoints[provider.value]; }
+					if ('fal' === provider.value && !mcpEndpoint.value.trim()) { mcpEndpoint.value = endpoints.fal; }
+				});
+			}());
+		</script>
 		<?php
 	}
 
@@ -275,10 +290,45 @@ class Connection {
 			return;
 		}
 
+		if ( 'fal' === $provider_type ) {
+			\StoryOS\Utils\Connection_Adapters::load( 'fal' );
+			$synced_at = (string) get_post_meta( $post->ID, 'fal_catalog_synced_at', true );
+			$error     = (string) get_post_meta( $post->ID, 'fal_catalog_error', true );
+			?>
+			<p><?php echo esc_html__( 'StoryOS asks fal MCP to select or inspect models and automatically maintains the paired Templates. Saving or testing this Connection schedules a schema sync; users do not need to copy provider schemas by hand.', 'storyos' ); ?></p>
+			<ul>
+				<li><?php echo esc_html__( 'Model Access, when set, is the authoritative endpoint allowlist and provisions one Template per endpoint.', 'storyos' ); ?></li>
+				<li><?php echo esc_html__( 'Model is the preferred default endpoint. With neither field set, fal MCP supplies a current text-to-image model.', 'storyos' ); ?></li>
+				<li><?php echo esc_html__( 'MCP model schemas and their defaults are stored on the generated Templates; StoryOS supplies prompts and bound media at runtime.', 'storyos' ); ?></li>
+			</ul>
+			<p><strong><?php echo esc_html__( 'Last template sync:', 'storyos' ); ?></strong> <?php echo esc_html( $synced_at ?: '—' ); ?></p>
+			<?php if ( '' !== $error ) : ?><p class="notice notice-error inline"><?php echo esc_html( $error ); ?></p><?php endif; ?>
+			<?php
+			return;
+		}
+
+		if ( 'elevenlabs' === $provider_type ) {
+			\StoryOS\Utils\Connection_Adapters::load( 'elevenlabs' );
+			$synced_at = (string) get_post_meta( $post->ID, 'elevenlabs_catalog_synced_at', true );
+			$error = (string) get_post_meta( $post->ID, 'elevenlabs_catalog_error', true );
+			?>
+			<p><?php echo esc_html__( 'StoryOS discovers ElevenLabs voices and models and maintains endpoint-specific Templates for speech, dialogue, sound effects, music, and voice design. Saving or testing this Connection triggers a catalog sync.', 'storyos' ); ?></p>
+			<ul>
+				<li><?php echo esc_html__( 'Model selects the ElevenLabs speech model. When empty, StoryOS prefers eleven_multilingual_v2.', 'storyos' ); ?></li>
+				<li><?php echo esc_html__( 'Model Access may contain a JSON array of voice IDs. When empty, StoryOS provisions one available voice to minimize setup.', 'storyos' ); ?></li>
+				<li><?php echo esc_html__( 'Each generated audio response is imported into WordPress before its generation job completes.', 'storyos' ); ?></li>
+			</ul>
+			<p><strong><?php echo esc_html__( 'Last template sync:', 'storyos' ); ?></strong> <?php echo esc_html( $synced_at ?: '—' ); ?></p>
+			<?php if ( '' !== $error ) : ?><p class="notice notice-error inline"><?php echo esc_html( $error ); ?></p><?php endif; ?>
+			<?php
+			return;
+		}
+
 		if ( 'comfyui' !== $provider_type ) {
 			echo '<p>' . esc_html__( 'This provider type does not expose a configurator yet. ComfyUI is the reference implementation for catalog sync, template materialization, and MCP-triggered model downloads.', 'storyos' ) . '</p>';
 			return;
 		}
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 
 		$snapshot = \StoryOS\Utils\Comfy_Catalog::get( (int) $post->ID );
 		?>
@@ -497,6 +547,7 @@ class Connection {
 		if ( ! $post instanceof \WP_Post || self::CPT !== $post->post_type ) {
 			wp_send_json_error( [ 'message' => __( 'That Connection record no longer exists.', 'storyos' ) ], 404 );
 		}
+		\StoryOS\Utils\Connection_Adapters::load( (string) get_post_meta( $connection_id, 'provider_type', true ) );
 
 		return $connection_id;
 	}
@@ -709,6 +760,18 @@ class Connection {
 			}
 
 			update_post_meta( $post_id, $field_name, $value );
+		}
+
+		// Loading after provider_type is persisted lets a newly selected adapter
+		// register any higher-priority save hooks during this request.
+		$provider_type = (string) get_post_meta( $post_id, 'provider_type', true );
+		\StoryOS\Utils\Connection_Adapters::load( $provider_type );
+		if ( 'disabled' !== get_post_meta( $post_id, 'status', true ) ) {
+			if ( 'fal' === $provider_type && ! wp_next_scheduled( \StoryOS\Utils\Fal_Catalog::HOOK, [ $post_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \StoryOS\Utils\Fal_Catalog::HOOK, [ $post_id ] );
+			} elseif ( 'elevenlabs' === $provider_type && ! wp_next_scheduled( \StoryOS\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \StoryOS\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
+			}
 		}
 	}
 

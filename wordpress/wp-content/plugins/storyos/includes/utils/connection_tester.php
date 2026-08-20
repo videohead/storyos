@@ -53,6 +53,8 @@ class Connection_Tester {
 			];
 		}
 
+		Connection_Adapters::load( (string) $record['provider_type'] );
+
 		$llm_backends = [ 'openai_compatible', 'openai', 'anthropic', 'dual' ];
 		if ( in_array( $record['provider_type'], $llm_backends, true ) ) {
 			return self::test_llm( $connection_id, $record );
@@ -62,8 +64,68 @@ class Connection_Tester {
 			return self::test_local_comfyui( $connection_id, $record );
 		}
 
+		if ( 'fal' === $record['provider_type'] ) {
+			return self::test_fal( $connection_id );
+		}
+		if ( 'elevenlabs' === $record['provider_type'] ) {
+			return self::test_elevenlabs( $connection_id );
+		}
+
 		$has_key = '' !== trim( (string) $record['credential_reference'] );
 		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
+	}
+
+	/** Test a fal Streamable HTTP MCP connection and required generation tools. */
+	private static function test_fal( int $connection_id ): array {
+		$tools = Fal_MCP::available_tools( $connection_id );
+		if ( is_wp_error( $tools ) ) {
+			return self::record_result( $connection_id, false, $tools->get_error_message(), [] );
+		}
+
+		$missing = array_values( array_diff( Fal_MCP::GENERATION_TOOLS, $tools ) );
+		$success = empty( $missing );
+		$message = $success
+			? sprintf( 'Connected to fal MCP; %d tools available.', count( $tools ) )
+			: sprintf( 'fal MCP is reachable but does not expose required tools: %s.', implode( ', ', $missing ) );
+		$health = [ 'tools' => $tools ];
+		if ( $success ) {
+			$provisioned = Fal_Catalog::provision( $connection_id );
+			if ( is_wp_error( $provisioned ) ) {
+				$message .= ' Template provisioning needs attention: ' . $provisioned->get_error_message();
+				$health['template_provisioning_error'] = $provisioned->get_error_message();
+			} else {
+				$count = count( (array) ( $provisioned['template_ids'] ?? [] ) );
+				$message .= sprintf( ' %d StoryOS Template(s) synchronized from fal MCP.', $count );
+				$health['template_ids'] = $provisioned['template_ids'] ?? [];
+			}
+		}
+
+		return self::record_result( $connection_id, $success, $message, $health );
+	}
+
+	/** Test ElevenLabs authentication, catalog access, and Template provisioning. */
+	private static function test_elevenlabs( int $connection_id ): array {
+		$catalog = ElevenLabs_API::catalog( $connection_id );
+		if ( is_wp_error( $catalog ) ) {
+			return self::record_result( $connection_id, false, $catalog->get_error_message(), [] );
+		}
+		$model_count = count( (array) ( $catalog['text_to_speech_models'] ?? [] ) );
+		$voice_count = count( (array) ( $catalog['voices'] ?? [] ) );
+		if ( 0 === $model_count || 0 === $voice_count ) {
+			return self::record_result( $connection_id, false, 'ElevenLabs returned no usable text-to-speech models or voices.', [ 'model_count' => $model_count, 'voice_count' => $voice_count ] );
+		}
+
+		$provisioned = ElevenLabs_Catalog::provision( $connection_id );
+		if ( is_wp_error( $provisioned ) ) {
+			return self::record_result( $connection_id, false, $provisioned->get_error_message(), [ 'model_count' => $model_count, 'voice_count' => $voice_count ] );
+		}
+		$template_count = count( (array) ( $provisioned['template_ids'] ?? [] ) );
+		return self::record_result(
+			$connection_id,
+			true,
+			sprintf( 'Connected to ElevenLabs; %d voice(s), %d text-to-speech model(s), and %d endpoint Template(s) available.', $voice_count, $model_count, $template_count ),
+			[ 'model_count' => $model_count, 'voice_count' => $voice_count, 'template_ids' => $provisioned['template_ids'] ?? [] ]
+		);
 	}
 
 	/**

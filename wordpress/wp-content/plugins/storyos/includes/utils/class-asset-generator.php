@@ -45,6 +45,19 @@ class Asset_Generator {
 		'avi'  => 'video/x-msvideo',
 	];
 
+	/** Accepted generated-audio mime types, keyed by file extension. */
+	const AUDIO_MIME_TYPES = [
+		'mp3'  => 'audio/mpeg',
+		'wav'  => 'audio/wav',
+		'm4a'  => 'audio/mp4',
+		'aac'  => 'audio/aac',
+		'ogg'  => 'audio/ogg',
+		'flac' => 'audio/flac',
+	];
+
+	/** Maximum accepted generated-audio size (50MB). */
+	const MAX_AUDIO_BYTES = 52428800;
+
 	/**
 	 * Meta key on an attachment/asset pointing at the source story element.
 	 */
@@ -157,28 +170,39 @@ class Asset_Generator {
 		if ( ! $connection || '' === $template_provider || 'disabled' === $connection['status'] || $template_provider !== $connection['provider_type'] ) {
 			return new WP_Error( 'storyos_asset_invalid_connection', __( 'That Template and Connection must use the same provider.', 'storyos' ), [ 'status' => 400 ] );
 		}
-		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template_id, 'provider_template_id', true ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) ) );
-		$use_local_template   = false;
 		$provider = $connection['provider_type'];
-		if ( 'comfyui' !== $provider ) {
+		Connection_Adapters::load( (string) $provider );
+		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template_id, 'provider_template_id', true ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) ) );
+		if ( 'fal' === $provider && '' === $provider_template_id ) {
+			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
+		}
+		$use_local_template = false;
+		if ( ! in_array( $provider, [ 'comfyui', 'fal' ], true ) ) {
 			return new WP_Error( 'storyos_asset_provider_unsupported', __( 'This provider has no StoryOS asset generation adapter yet.', 'storyos' ), [ 'status' => 501 ] );
 		}
 		if ( '' === $provider_template_id ) {
-			if ( 'local' !== $connection['environment'] ) {
+			if ( 'fal' === $provider || 'local' !== $connection['environment'] ) {
 				return new WP_Error( 'storyos_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'storyos' ), [ 'status' => 400 ] );
 			}
 
 			$use_local_template = true;
 		}
 
-		if ( 'local' === $connection['environment'] && $use_local_template && ! Local_ComfyUI::is_configured() ) {
+		if ( 'comfyui' === $provider && 'local' === $connection['environment'] && $use_local_template && ! Local_ComfyUI::is_configured() ) {
 			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'That Template has no provider MCP Template selected and local ComfyUI API is not configured.', 'storyos' ), [ 'status' => 400 ] );
 		}
-		if ( 'local' === $connection['environment'] && ! $use_local_template && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
+		if ( 'comfyui' === $provider && 'local' === $connection['environment'] && ! $use_local_template && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
 			return new WP_Error( 'storyos_local_comfyui_unconfigured', __( 'The Template Connection has no configured local ComfyUI MCP endpoint.', 'storyos' ), [ 'status' => 400 ] );
 		}
-		if ( 'local' !== $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
+		if ( 'comfyui' === $provider && 'local' !== $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
 			return new WP_Error( 'storyos_comfy_mcp_unconfigured', __( 'The Template Connection has no configured Comfy Cloud API key.', 'storyos' ), [ 'status' => 400 ] );
+		}
+
+		if ( 'fal' === $provider && '' === trim( (string) $connection['credential_reference'] ) ) {
+			return new WP_Error( 'storyos_fal_unconfigured', __( 'The Template Connection has no fal API key or credential reference.', 'storyos' ), [ 'status' => 400 ] );
+		}
+		if ( 'fal' === $provider && ! Fal_MCP::endpoint_is_allowed( $connection, $provider_template_id ) ) {
+			return new WP_Error( 'storyos_fal_endpoint_not_allowed', __( 'That fal model endpoint is not allowed by the Template Connection.', 'storyos' ), [ 'status' => 400 ] );
 		}
 
 		if ( $use_local_template ) {
@@ -220,10 +244,11 @@ class Asset_Generator {
 		// A user-selected Template wins; otherwise keep the legacy per-CPT
 		// workflow name so existing jobs without a Template keep working.
 		$template = $use_local_template ? (string) $template_id : $provider_template_id;
-		$adapter  = $use_local_template ? 'local_comfyui' : 'comfy_mcp';
+		$adapter  = 'fal' === $provider ? 'fal_mcp' : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' );
+		$params   = 'fal' === $provider ? self::fal_template_input( $template_id ) : $profile;
 		update_post_meta( $job_id, '_storyos_generation_type', 'image' );
 		update_post_meta( $job_id, '_storyos_generation_prompt', $prompt );
-		update_post_meta( $job_id, '_storyos_generation_params', $profile );
+		update_post_meta( $job_id, '_storyos_generation_params', $params );
 		if ( ! empty( $bound_inputs ) ) {
 			update_post_meta( $job_id, '_storyos_generation_inputs', $bound_inputs );
 		}
@@ -245,6 +270,28 @@ class Asset_Generator {
 			'prompt'        => $prompt,
 			'status'        => 'queued',
 		];
+	}
+
+	/**
+	 * Read fal model inputs from a Template's provider-neutral configuration.
+	 *
+	 * Supported shapes are {"input": {...}} (preferred),
+	 * {"parameters": {...}}, or a flat object for simple configurations.
+	 */
+	private static function fal_template_input( int $template_id ): array {
+		$decoded = json_decode( (string) get_post_meta( $template_id, 'configuration_json', true ), true );
+		if ( ! is_array( $decoded ) ) {
+			return [];
+		}
+
+		if ( isset( $decoded['input'] ) && is_array( $decoded['input'] ) ) {
+			return $decoded['input'];
+		}
+		if ( isset( $decoded['parameters'] ) && is_array( $decoded['parameters'] ) ) {
+			return $decoded['parameters'];
+		}
+
+		return $decoded;
 	}
 
 	/**
@@ -450,12 +497,17 @@ class Asset_Generator {
 	public static function import_completed_job( int $job_id, array $result ) {
 		$post_id = (int) get_post_field( 'post_parent', $job_id );
 		$post    = get_post( $post_id );
-		if ( ! $post instanceof \WP_Post || ! self::supports( $post_id ) ) {
-			return new WP_Error( 'storyos_generation_source_missing', __( 'The source story element for this generation no longer exists.', 'storyos' ) );
+		$has_story_source = $post instanceof \WP_Post && self::supports( $post_id );
+		if ( ! $has_story_source ) {
+			$post = get_post( $job_id );
+			if ( ! $post instanceof \WP_Post ) {
+				return new WP_Error( 'storyos_generation_source_missing', __( 'The generation record no longer exists.', 'storyos' ) );
+			}
 		}
 
 		$provider  = (string) get_post_meta( $job_id, '_storyos_generation_provider_type', true );
 		$video_url = self::find_result_video_url( $result );
+		$audio_url = self::find_result_audio_url( $result );
 		$image_url = self::find_result_url( $result );
 
 		// A video-only workflow reports its file through the same result keys
@@ -463,13 +515,17 @@ class Asset_Generator {
 		if ( $image_url === $video_url ) {
 			$image_url = '';
 		}
+		if ( $image_url === $audio_url ) {
+			$image_url = '';
+		}
 
-		if ( '' === $image_url && '' === $video_url ) {
-			return new WP_Error( 'storyos_generation_output_missing', __( 'The generation provider completed the job but did not return a downloadable image or video URL.', 'storyos' ) );
+		if ( '' === $image_url && '' === $video_url && '' === $audio_url && empty( $result['audio_data'] ) && empty( $result['audio_items'] ) ) {
+			return new WP_Error( 'storyos_generation_output_missing', __( 'The generation provider completed the job but did not return downloadable media.', 'storyos' ) );
 		}
 
 		$attachment_id = 0;
 		$media         = [];
+		$generated_attachment_ids = [];
 		if ( '' !== $image_url ) {
 			$download = self::download_bytes( $image_url, $provider );
 			if ( is_wp_error( $download ) ) {
@@ -485,6 +541,7 @@ class Asset_Generator {
 			if ( is_wp_error( $attachment_id ) ) {
 				return $attachment_id;
 			}
+			$generated_attachment_ids[] = $attachment_id;
 
 			if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_set_featured', true ) ) && post_type_supports( $post->post_type, 'thumbnail' ) ) {
 				set_post_thumbnail( $post->ID, $attachment_id );
@@ -496,19 +553,90 @@ class Asset_Generator {
 		// a text-to-video Template that produces no separate frame.
 		if ( '' !== $video_url ) {
 			$video_download = self::download_bytes( $video_url, $provider );
-			if ( ! is_wp_error( $video_download ) ) {
-				$video = self::validate_video_bytes( $video_download, $video_url );
-				if ( ! is_wp_error( $video ) ) {
-					$video_attachment_id = self::sideload( $video, $post );
-					if ( ! is_wp_error( $video_attachment_id ) ) {
-						self::add_to_gallery( $post->ID, $video_attachment_id );
-						if ( ! $attachment_id ) {
-							$attachment_id = $video_attachment_id;
-							$media         = $video;
-						}
-					}
-				}
+			if ( is_wp_error( $video_download ) ) {
+				return $video_download;
 			}
+			$video = self::validate_video_bytes( $video_download, $video_url );
+			if ( is_wp_error( $video ) ) {
+				return $video;
+			}
+			$video_attachment_id = self::sideload( $video, $post );
+			if ( is_wp_error( $video_attachment_id ) ) {
+				return $video_attachment_id;
+			}
+			$generated_attachment_ids[] = $video_attachment_id;
+			self::add_to_gallery( $post->ID, $video_attachment_id );
+			if ( ! $attachment_id ) {
+				$attachment_id = $video_attachment_id;
+				$media         = $video;
+			}
+		}
+
+		// Synchronous providers may return audio bytes directly; URL-based audio
+		// is downloaded through the same WordPress-owned media boundary.
+		if ( ! empty( $result['audio_data'] ) || '' !== $audio_url ) {
+			$audio_bytes = ! empty( $result['audio_data'] ) ? (string) $result['audio_data'] : self::download_bytes( $audio_url, $provider );
+			if ( is_wp_error( $audio_bytes ) ) {
+				return $audio_bytes;
+			}
+			$audio = self::validate_audio_bytes( $audio_bytes, (string) ( $result['audio_mime'] ?? '' ), $audio_url );
+			if ( is_wp_error( $audio ) ) {
+				return $audio;
+			}
+			$audio_attachment_id = self::sideload( $audio, $post );
+			if ( is_wp_error( $audio_attachment_id ) ) {
+				return $audio_attachment_id;
+			}
+			$generated_attachment_ids[] = $audio_attachment_id;
+			self::add_to_gallery( $post->ID, $audio_attachment_id );
+			if ( ! $attachment_id ) {
+				$attachment_id = $audio_attachment_id;
+				$media = $audio;
+			}
+		}
+		foreach ( (array) ( $result['audio_items'] ?? [] ) as $audio_item ) {
+			if ( ! is_array( $audio_item ) || empty( $audio_item['data'] ) ) {
+				return new WP_Error( 'storyos_generation_invalid_payload', __( 'ElevenLabs returned an unreadable voice preview.', 'storyos' ) );
+			}
+			$audio = self::validate_audio_bytes( (string) $audio_item['data'], (string) ( $audio_item['mime'] ?? '' ), '' );
+			if ( is_wp_error( $audio ) ) {
+				return $audio;
+			}
+			$audio_attachment_id = self::sideload( $audio, $post );
+			if ( is_wp_error( $audio_attachment_id ) ) {
+				return $audio_attachment_id;
+			}
+			if ( ! empty( $audio_item['generated_voice_id'] ) ) {
+				update_post_meta( $audio_attachment_id, '_storyos_elevenlabs_generated_voice_id', sanitize_text_field( (string) $audio_item['generated_voice_id'] ) );
+			}
+			$generated_attachment_ids[] = $audio_attachment_id;
+			self::add_to_gallery( $post->ID, $audio_attachment_id );
+			if ( ! $attachment_id ) {
+				$attachment_id = $audio_attachment_id;
+				$media = $audio;
+			}
+		}
+
+		// Providers such as fal can return multiple images. Every advertised
+		// media URL must become a WordPress attachment before the job completes.
+		$additional_urls = array_values( array_diff( self::find_result_urls( $result ), [ $image_url, $video_url, $audio_url, '' ] ) );
+		foreach ( $additional_urls as $additional_url ) {
+			$additional_download = self::download_bytes( $additional_url, $provider );
+			if ( is_wp_error( $additional_download ) ) {
+				return $additional_download;
+			}
+			$additional_media = self::is_video_url( $additional_url )
+				? self::validate_video_bytes( $additional_download, $additional_url )
+				: ( self::is_audio_url( $additional_url ) ? self::validate_audio_bytes( $additional_download, '', $additional_url ) : self::validate_image_bytes( $additional_download ) );
+			if ( is_wp_error( $additional_media ) ) {
+				return $additional_media;
+			}
+			$additional_attachment_id = self::sideload( $additional_media, $post );
+			if ( is_wp_error( $additional_attachment_id ) ) {
+				return $additional_attachment_id;
+			}
+			$generated_attachment_ids[] = $additional_attachment_id;
+			self::add_to_gallery( $post->ID, $additional_attachment_id );
 		}
 
 		if ( ! $attachment_id ) {
@@ -517,11 +645,15 @@ class Asset_Generator {
 
 		$prompt   = (string) get_post_meta( $job_id, '_storyos_generation_prompt', true );
 		$asset_id = 0;
-		if ( rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_create_asset', true ) ) && 'storyos_asset' !== $post->post_type ) {
-			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $media, [ 'model' => 'comfy-mcp', 'size' => (string) ( get_post_meta( $job_id, '_storyos_generation_params', true )['size'] ?? '' ), 'revised_prompt' => '', 'workflow' => (string) get_post_meta( $job_id, '_storyos_generation_workflow', true ) ] ) );
+		if ( ( ! $has_story_source || rest_sanitize_boolean( get_post_meta( $job_id, '_storyos_generation_create_asset', true ) ) ) && 'storyos_asset' !== $post->post_type ) {
+			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $media, [ 'model' => $provider ?: 'generation-mcp', 'size' => (string) ( get_post_meta( $job_id, '_storyos_generation_params', true )['size'] ?? '' ), 'revised_prompt' => '', 'workflow' => (string) get_post_meta( $job_id, '_storyos_generation_workflow', true ) ] ) );
 		}
 
-		return [ 'attachment_id' => $attachment_id, 'asset_id' => $asset_id, 'url' => (string) wp_get_attachment_url( $attachment_id ) ];
+		if ( ! in_array( $attachment_id, $generated_attachment_ids, true ) ) {
+			$generated_attachment_ids[] = $attachment_id;
+		}
+
+		return [ 'attachment_id' => $attachment_id, 'attachment_ids' => $generated_attachment_ids, 'asset_id' => $asset_id, 'url' => (string) wp_get_attachment_url( $attachment_id ) ];
 	}
 
 	/**
@@ -546,9 +678,15 @@ class Asset_Generator {
 			return new WP_Error( 'storyos_asset_upload_failed', (string) $upload['error'], [ 'status' => 500 ] );
 		}
 
+		$title_format = __( 'Generated image for %s', 'storyos' );
+		if ( 0 === strpos( $image['mime'], 'video/' ) ) {
+			$title_format = __( 'Generated video for %s', 'storyos' );
+		} elseif ( 0 === strpos( $image['mime'], 'audio/' ) ) {
+			$title_format = __( 'Generated audio for %s', 'storyos' );
+		}
 		$title = sprintf(
 			/* translators: %s: story element title. */
-			0 === strpos( $image['mime'], 'video/' ) ? __( 'Generated video for %s', 'storyos' ) : __( 'Generated image for %s', 'storyos' ),
+			$title_format,
 			$post->post_title
 		);
 
@@ -603,6 +741,58 @@ class Asset_Generator {
 		return '';
 	}
 
+	/** Find all media URLs advertised in a nested provider result. */
+	private static function find_result_urls( array $result ): array {
+		$urls = [];
+		foreach ( [ 'image_url', 'output_url', 'url' ] as $key ) {
+			if ( isset( $result[ $key ] ) && is_string( $result[ $key ] ) && filter_var( $result[ $key ], FILTER_VALIDATE_URL ) ) {
+				$urls[] = $result[ $key ];
+			}
+		}
+		foreach ( $result as $value ) {
+			if ( is_array( $value ) ) {
+				$urls = array_merge( $urls, self::find_result_urls( $value ) );
+			}
+		}
+
+		return array_values( array_unique( $urls ) );
+	}
+
+	/** Whether a result URL has a supported video extension. */
+	private static function is_video_url( string $url ): bool {
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		$ext  = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+		if ( '' === $ext ) {
+			parse_str( (string) wp_parse_url( $url, PHP_URL_QUERY ), $query );
+			$ext = strtolower( pathinfo( (string) ( $query['filename'] ?? '' ), PATHINFO_EXTENSION ) );
+		}
+
+		return in_array( $ext, array_keys( self::VIDEO_MIME_TYPES ), true );
+	}
+
+	/** Whether a result URL has a supported audio extension. */
+	private static function is_audio_url( string $url ): bool {
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		$ext  = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
+		return in_array( $ext, array_keys( self::AUDIO_MIME_TYPES ), true );
+	}
+
+	/** Find the first supported audio URL in a nested provider response. */
+	private static function find_result_audio_url( array $result ): string {
+		foreach ( $result as $value ) {
+			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) && self::is_audio_url( $value ) ) {
+				return $value;
+			}
+			if ( is_array( $value ) ) {
+				$url = self::find_result_audio_url( $value );
+				if ( '' !== $url ) {
+					return $url;
+				}
+			}
+		}
+		return '';
+	}
+
 	/**
 	 * Find the first video URL in a Comfy MCP job result, so a workflow that
 	 * returns both a still frame and its source video can import both.
@@ -647,7 +837,7 @@ class Asset_Generator {
 	private static function download_bytes( string $url, string $provider ) {
 		$download = 'local_comfyui' === $provider ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
 		if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
-			return new WP_Error( 'storyos_generation_download_failed', __( 'The completed output could not be downloaded from Comfy MCP.', 'storyos' ) );
+			return new WP_Error( 'storyos_generation_download_failed', __( 'The completed output could not be downloaded from the generation provider.', 'storyos' ) );
 		}
 
 		return (string) wp_remote_retrieve_body( $download );
@@ -666,7 +856,7 @@ class Asset_Generator {
 
 		$info = @getimagesizefromstring( $bytes ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		if ( ! is_array( $info ) || empty( $info['mime'] ) || ! in_array( $info['mime'], AI_Image_Client::ALLOWED_MIME_TYPES, true ) ) {
-			return new WP_Error( 'storyos_generation_unsupported_type', __( 'Comfy MCP returned a file that is not a supported image.', 'storyos' ) );
+			return new WP_Error( 'storyos_generation_unsupported_type', __( 'The generation provider returned a file that is not a supported image.', 'storyos' ) );
 		}
 
 		$extensions = [ 'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif' ];
@@ -712,6 +902,24 @@ class Asset_Generator {
 		];
 	}
 
+	/** Validate generated audio bytes and normalize their WordPress file type. */
+	private static function validate_audio_bytes( string $bytes, string $mime, string $url ) {
+		if ( '' === $bytes || strlen( $bytes ) > self::MAX_AUDIO_BYTES ) {
+			return new WP_Error( 'storyos_generation_invalid_payload', __( 'The completed audio is empty or too large to store.', 'storyos' ) );
+		}
+		$mime = strtolower( trim( explode( ';', $mime )[0] ) );
+		$mime = 'audio/mp3' === $mime ? 'audio/mpeg' : $mime;
+		$mime = 'audio/x-wav' === $mime ? 'audio/wav' : $mime;
+		$ext = strtolower( pathinfo( (string) wp_parse_url( $url, PHP_URL_PATH ), PATHINFO_EXTENSION ) );
+		if ( '' === $ext && '' !== $mime ) {
+			$ext = (string) array_search( $mime, self::AUDIO_MIME_TYPES, true );
+		}
+		if ( ! isset( self::AUDIO_MIME_TYPES[ $ext ] ) ) {
+			return new WP_Error( 'storyos_generation_unsupported_type', __( 'The generation provider returned an unsupported audio type.', 'storyos' ) );
+		}
+		return [ 'data' => $bytes, 'mime' => self::AUDIO_MIME_TYPES[ $ext ], 'extension' => $ext ];
+	}
+
 	/**
 	 * Add an attachment to a story element's supporting media gallery.
 	 *
@@ -738,10 +946,13 @@ class Asset_Generator {
 	 * @return int Asset post ID, or 0 on failure.
 	 */
 	private static function create_asset_record( \WP_Post $post, int $attachment_id, string $prompt, array $image ): int {
+		$mime = (string) ( $image['mime'] ?? '' );
+		$kind = 0 === strpos( $mime, 'video/' ) ? __( 'Video', 'storyos' ) : ( 0 === strpos( $mime, 'audio/' ) ? __( 'Audio', 'storyos' ) : __( 'Image', 'storyos' ) );
 		$title = sprintf(
-			/* translators: %s: story element title. */
-			__( '%s — Generated Image', 'storyos' ),
-			$post->post_title
+			/* translators: 1: story element title, 2: generated media kind. */
+			__( '%1$s — Generated %2$s', 'storyos' ),
+			$post->post_title,
+			$kind
 		);
 
 		$asset_id = wp_insert_post(
@@ -758,7 +969,9 @@ class Asset_Generator {
 		}
 
 		$asset_id = (int) $asset_id;
-		set_post_thumbnail( $asset_id, $attachment_id );
+		if ( 0 !== strpos( $mime, 'audio/' ) ) {
+			set_post_thumbnail( $asset_id, $attachment_id );
+		}
 		update_post_meta( $asset_id, 'asset_title', $title );
 		update_post_meta( $asset_id, self::SOURCE_META, $post->ID );
 
@@ -782,15 +995,15 @@ class Asset_Generator {
 	private static function store_asset_fields( int $asset_id, int $attachment_id, string $prompt, array $image ): void {
 		update_post_meta( $asset_id, 'workflow_name', (string) ( $image['workflow'] ?? '' ) ?: 'text-to-image' );
 		update_post_meta( $asset_id, 'prompt', $prompt );
-		update_post_meta( $asset_id, 'model_name', $image['model'] );
+		update_post_meta( $asset_id, 'model_name', (string) ( $image['model'] ?? '' ) );
 		update_post_meta( $asset_id, 'status', 'done' );
 		update_post_meta( $asset_id, 'storage_uri', (string) wp_get_attachment_url( $attachment_id ) );
 		update_post_meta( $asset_id, 'generation_parameters', (string) wp_json_encode( [
-			'size'           => $image['size'],
-			'mime'           => $image['mime'],
-			'width'          => $image['width'],
-			'height'         => $image['height'],
-			'revised_prompt' => $image['revised_prompt'],
+			'size'           => (string) ( $image['size'] ?? '' ),
+			'mime'           => (string) ( $image['mime'] ?? '' ),
+			'width'          => (int) ( $image['width'] ?? 0 ),
+			'height'         => (int) ( $image['height'] ?? 0 ),
+			'revised_prompt' => (string) ( $image['revised_prompt'] ?? '' ),
 		] ) );
 	}
 

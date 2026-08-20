@@ -85,6 +85,7 @@ All settings are stored as WordPress options:
 
 | Option | Value Type | Default |
 |--------|-----------|---------|
+| `storyos_generation_connection_mode` | string | `none` |
 | `storyos_comfy_connection_mode` | string | `none` |
 | `storyos_comfy_api_key` | string | empty |
 | `storyos_ai_backend` | string | `openai_compatible` |
@@ -118,8 +119,8 @@ All settings are stored as WordPress options:
 1. WordPress Runtime
    ↓ (Status: Connected)
 2. Generation Connection (Optional)
-   ├─ Connection mode selection
-   └─ Comfy Cloud API key
+	├─ Preferred Connection dropdown
+	└─ Hosted provider API key (fal, Comfy Cloud, or ElevenLabs)
 3. LLM Connection (Required for AI Agents)
    ├─ Primary Configuration
    │  ├─ Provider selection

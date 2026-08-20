@@ -2,8 +2,9 @@
 /**
  * Generation modality registry.
  *
- * Describes the single generation shape StoryOS currently provisions for
- * ComfyUI: text to image.
+ * Describes provider-neutral generation shapes. ComfyUI supplies local graph
+ * workflows while API-native adapters such as ElevenLabs execute their own
+ * endpoint-specific Templates.
  *
  * @package StoryOS
  */
@@ -26,6 +27,11 @@ class Generation_Modality {
 	const TEXT_IMAGE_TO_VIDEO = 'text_image_to_video';
 	const VIDEO_TO_VIDEO      = 'video_to_video';
 	const VIDEO_WITH_AUDIO    = 'video_with_audio';
+	const TEXT_TO_SPEECH      = 'text_to_speech';
+	const TEXT_TO_DIALOGUE    = 'text_to_dialogue';
+	const TEXT_TO_SOUND_EFFECT = 'text_to_sound_effect';
+	const TEXT_TO_MUSIC       = 'text_to_music';
+	const TEXT_TO_VOICE       = 'text_to_voice';
 
 	/**
 	 * Modality assumed for Templates saved before modalities existed.
@@ -73,6 +79,51 @@ class Generation_Modality {
 				],
 				'nodes'       => array_merge( $image_nodes, [ 'EmptyLatentImage' ] ),
 				'models'      => $image_models,
+			],
+			self::TEXT_TO_SPEECH      => [
+				'label'       => 'Text to speech',
+				'description' => 'Spoken audio generated from a text prompt using a provider voice.',
+				'output_type' => 'audio',
+				'task_type'   => 'text-to-speech',
+				'inputs'      => [ 'prompt' => $prompt_input ],
+				'nodes'       => [],
+				'models'      => [],
+			],
+			self::TEXT_TO_DIALOGUE    => [
+				'label'       => 'Text to dialogue',
+				'description' => 'Multi-speaker dialogue generated from text and voice assignments.',
+				'output_type' => 'audio',
+				'task_type'   => 'text-to-dialogue',
+				'inputs'      => [ 'prompt' => $prompt_input ],
+				'nodes'       => [],
+				'models'      => [],
+			],
+			self::TEXT_TO_SOUND_EFFECT => [
+				'label'       => 'Text to sound effect',
+				'description' => 'A sound effect generated from a text description.',
+				'output_type' => 'audio',
+				'task_type'   => 'text-to-sound-effects',
+				'inputs'      => [ 'prompt' => $prompt_input ],
+				'nodes'       => [],
+				'models'      => [],
+			],
+			self::TEXT_TO_MUSIC       => [
+				'label'       => 'Text to music',
+				'description' => 'Music generated from a prompt or composition plan.',
+				'output_type' => 'audio',
+				'task_type'   => 'text-to-music',
+				'inputs'      => [ 'prompt' => $prompt_input ],
+				'nodes'       => [],
+				'models'      => [],
+			],
+			self::TEXT_TO_VOICE       => [
+				'label'       => 'Text to voice design',
+				'description' => 'Voice previews generated from a natural-language voice description.',
+				'output_type' => 'audio',
+				'task_type'   => 'text-to-voice',
+				'inputs'      => [ 'prompt' => $prompt_input ],
+				'nodes'       => [],
+				'models'      => [],
 			],
 		];
 	}
@@ -198,6 +249,9 @@ class Generation_Modality {
 	 * @return array<string, mixed>
 	 */
 	public static function default_settings( string $slug ): array {
+		if ( 'audio' === self::output_type( $slug ) ) {
+			return [];
+		}
 		if ( 'video' === self::output_type( $slug ) ) {
 			return [
 				'width'      => 768,
@@ -236,6 +290,9 @@ class Generation_Modality {
 	 */
 	public static function default_workflow( string $slug, array $settings = [] ): array {
 		$slug     = self::sanitize( $slug );
+		if ( 'audio' === self::output_type( $slug ) ) {
+			return [];
+		}
 		$settings = array_merge( self::default_settings( $slug ), array_filter( $settings, static function ( $value ) {
 			return null !== $value && '' !== $value;
 		} ) );

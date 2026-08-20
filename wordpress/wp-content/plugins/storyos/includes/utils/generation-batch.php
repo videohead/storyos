@@ -66,7 +66,8 @@ class Generation_Batch {
 				continue;
 			}
 			$provider_type = $connection['provider_type'];
-			if ( 'comfyui' !== $provider_type ) {
+			Connection_Adapters::load( (string) $provider_type );
+			if ( ! in_array( $provider_type, [ 'comfyui', 'fal', 'elevenlabs' ], true ) ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
 				update_post_meta( $job_id, '_storyos_generation_error', sprintf( 'No generation adapter is registered for provider: %s.', $provider_type ) );
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no adapter for provider %s.', $job_id, $provider_type ), [], (string) $job_id );
@@ -74,8 +75,14 @@ class Generation_Batch {
 			}
 			$client = self::client_for_job( $job_id, $connection );
 			$params = (array) get_post_meta( $job_id, '_storyos_generation_params', true );
+			$template_id = absint( get_post_meta( $job_id, '_storyos_generation_template_id', true ) );
+			if ( in_array( $provider_type, [ 'fal', 'elevenlabs' ], true ) && $template_id ) {
+				$params = array_merge( self::template_input( $template_id ), $params );
+			}
 			$inputs = get_post_meta( $job_id, '_storyos_generation_inputs', true );
-			if ( is_array( $inputs ) && ! empty( $inputs ) ) {
+			if ( 'fal' === $provider_type && is_array( $inputs ) && ! empty( $inputs ) ) {
+				$params = array_merge( $params, $inputs );
+			} elseif ( is_array( $inputs ) && ! empty( $inputs ) ) {
 				$params['inputs'] = $inputs;
 			}
 
@@ -121,6 +128,10 @@ class Generation_Batch {
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d failed to submit: %s', $job_id, $result->get_error_message() ), [], (string) $job_id );
 				continue;
 			}
+			if ( 'completed' === sanitize_key( (string) ( $result['status'] ?? '' ) ) ) {
+				self::complete_job( $job_id, $result );
+				continue;
+			}
 
 			$remote_job_id = sanitize_text_field( (string) ( $result['job_id'] ?? $result['id'] ?? $result['prompt_id'] ?? '' ) );
 			if ( '' === $remote_job_id ) {
@@ -149,16 +160,25 @@ class Generation_Batch {
 		foreach ( $jobs as $job_id ) {
 			$connection_id = absint( get_post_meta( $job_id, '_storyos_generation_connection_id', true ) );
 			$connection = Connection_Repository::get( $connection_id );
-			if ( ! $connection || 'comfyui' !== $connection['provider_type'] ) {
+			if ( ! $connection || ! in_array( $connection['provider_type'], [ 'comfyui', 'fal' ], true ) ) {
 				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
 				update_post_meta( $job_id, '_storyos_generation_error', 'No generation adapter is registered for this Connection provider.' );
 				continue;
 			}
+			Connection_Adapters::load( (string) $connection['provider_type'] );
 			$client = self::client_for_job( $job_id, $connection );
-			$result = $client::get_job_status(
-				(string) get_post_meta( $job_id, '_storyos_generation_job_id', true ),
-				$connection_id
-			);
+			if ( Fal_MCP::class === $client ) {
+				$result = $client::get_job_status(
+					(string) get_post_meta( $job_id, '_storyos_generation_job_id', true ),
+					$connection_id,
+					(string) get_post_meta( $job_id, '_storyos_generation_workflow', true )
+				);
+			} else {
+				$result = $client::get_job_status(
+					(string) get_post_meta( $job_id, '_storyos_generation_job_id', true ),
+					$connection_id
+				);
+			}
 			if ( is_wp_error( $result ) ) {
 				Generation_Log::add(
 					'error',
@@ -173,21 +193,7 @@ class Generation_Batch {
 
 			$status = sanitize_key( (string) ( $result['status'] ?? 'submitted' ) );
 			if ( in_array( $status, [ 'completed', 'failed', 'cancelled' ], true ) ) {
-				update_post_meta( $job_id, '_storyos_generation_status', $status );
-				update_post_meta( $job_id, '_storyos_generation_result', $result );
-				Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d reached status: %s.', $job_id, $status ), [], (string) $job_id );
-
-				if ( 'completed' === $status && in_array( get_post_meta( $job_id, '_storyos_generation_type', true ), [ 'image', 'video' ], true ) ) {
-					$asset = Asset_Generator::import_completed_job( $job_id, $result );
-					if ( is_wp_error( $asset ) ) {
-						update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
-						update_post_meta( $job_id, '_storyos_generation_error', $asset->get_error_message() );
-						Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d asset import failed: %s', $job_id, $asset->get_error_message() ), [], (string) $job_id );
-					} else {
-						update_post_meta( $job_id, '_storyos_generation_attachment_id', $asset['attachment_id'] );
-						update_post_meta( $job_id, '_storyos_generation_asset_id', $asset['asset_id'] );
-					}
-				}
+				self::complete_job( $job_id, $result );
 			}
 		}
 	}
@@ -212,6 +218,13 @@ class Generation_Batch {
 	 * @return string
 	 */
 	private static function client_for_job( int $job_id, array $connection ): string {
+		if ( 'elevenlabs' === ( $connection['provider_type'] ?? '' ) ) {
+			return ElevenLabs_API::class;
+		}
+		if ( 'fal' === ( $connection['provider_type'] ?? '' ) ) {
+			return Fal_MCP::class;
+		}
+
 		$adapter = sanitize_key( (string) get_post_meta( $job_id, '_storyos_generation_adapter', true ) );
 		if ( 'local_comfyui' === $adapter ) {
 			return Local_ComfyUI::class;
@@ -226,5 +239,35 @@ class Generation_Batch {
 		}
 
 		return Comfy_Cloud_MCP::class;
+	}
+
+	/** Complete a terminal provider result, importing all media before success. */
+	private static function complete_job( int $job_id, array $result ): void {
+		$status = sanitize_key( (string) ( $result['status'] ?? 'completed' ) );
+		if ( 'completed' === $status && in_array( get_post_meta( $job_id, '_storyos_generation_type', true ), [ 'image', 'video', 'audio' ], true ) ) {
+			$asset = Asset_Generator::import_completed_job( $job_id, $result );
+			if ( is_wp_error( $asset ) ) {
+				update_post_meta( $job_id, '_storyos_generation_status', 'failed' );
+				update_post_meta( $job_id, '_storyos_generation_error', $asset->get_error_message() );
+				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d asset import failed: %s', $job_id, $asset->get_error_message() ), [], (string) $job_id );
+				return;
+			}
+			update_post_meta( $job_id, '_storyos_generation_attachment_id', $asset['attachment_id'] );
+			update_post_meta( $job_id, '_storyos_generation_attachment_ids', $asset['attachment_ids'] ?? [ $asset['attachment_id'] ] );
+			update_post_meta( $job_id, '_storyos_generation_asset_id', $asset['asset_id'] );
+		}
+
+		// Never persist raw synchronous provider bytes in post meta.
+		unset( $result['audio_data'] );
+		unset( $result['audio_items'] );
+		update_post_meta( $job_id, '_storyos_generation_status', $status );
+		update_post_meta( $job_id, '_storyos_generation_result', $result );
+		Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d reached status: %s.', $job_id, $status ), [], (string) $job_id );
+	}
+
+	/** Read provider defaults provisioned onto a Template. */
+	private static function template_input( int $template_id ): array {
+		$configuration = json_decode( (string) get_post_meta( $template_id, 'configuration_json', true ), true );
+		return is_array( $configuration ) && is_array( $configuration['input'] ?? null ) ? $configuration['input'] : [];
 	}
 }

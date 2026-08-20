@@ -319,7 +319,10 @@ class Comfy_Cloud_MCP {
 				'jsonrpc' => '2.0',
 				'id'      => wp_generate_uuid4(),
 				'method'  => $method,
-				'params'  => $params,
+				// Cast to object so an empty $params encodes as JSON `{}` rather
+				// than `[]` — MCP servers reject an array where a params object
+				// (however empty) is required.
+				'params'  => (object) $params,
 			] ),
 		] );
 

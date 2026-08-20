@@ -38,6 +38,7 @@ class Comfy_Readiness {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 		?>
 		<div class="storyos-comfy-readiness">
 			<div id="storyos-comfy-readiness-steps">
@@ -176,6 +177,7 @@ class Comfy_Readiness {
 	 * Permission and nonce gate for the checklist actions.
 	 */
 	private static function authorize(): void {
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( [ 'message' => __( 'You do not have permission to configure ComfyUI.', 'storyos' ) ], 403 );
 		}

@@ -35,6 +35,11 @@ class Test_Generation_Modality extends TestCase {
 		$this->assertSame(
 			[
 				'text_to_image',
+				'text_to_speech',
+				'text_to_dialogue',
+				'text_to_sound_effect',
+				'text_to_music',
+				'text_to_voice',
 			],
 			Generation_Modality::slugs()
 		);
@@ -68,6 +73,11 @@ class Test_Generation_Modality extends TestCase {
 	public static function required_input_provider(): array {
 		return [
 			'text to image'        => [ Generation_Modality::TEXT_TO_IMAGE, [ 'prompt' ] ],
+			'text to speech'       => [ Generation_Modality::TEXT_TO_SPEECH, [ 'prompt' ] ],
+			'text to dialogue'     => [ Generation_Modality::TEXT_TO_DIALOGUE, [ 'prompt' ] ],
+			'text to sound effect' => [ Generation_Modality::TEXT_TO_SOUND_EFFECT, [ 'prompt' ] ],
+			'text to music'        => [ Generation_Modality::TEXT_TO_MUSIC, [ 'prompt' ] ],
+			'text to voice'        => [ Generation_Modality::TEXT_TO_VOICE, [ 'prompt' ] ],
 			'legacy mode falls back' => [ Generation_Modality::TEXT_TO_VIDEO, [ 'prompt' ] ],
 		];
 	}
@@ -131,12 +141,16 @@ class Test_Generation_Modality extends TestCase {
 	}
 
 	/**
-	 * The built-in registry only exposes SaveImage output.
+	 * Locally rendered image modalities expose SaveImage; API-native audio has no Comfy graph.
 	 */
 	public function test_output_nodes_match_output_type(): void {
 		foreach ( Generation_Modality::slugs() as $slug ) {
 			$classes = array_column( Generation_Modality::default_workflow( $slug, [ 'checkpoint' => 'test.safetensors' ] ), 'class_type' );
-			$this->assertContains( 'SaveImage', $classes, "{$slug} does not save an image." );
+			if ( 'image' === Generation_Modality::output_type( $slug ) ) {
+				$this->assertContains( 'SaveImage', $classes, "{$slug} does not save an image." );
+			} else {
+				$this->assertSame( [], $classes, "{$slug} should be rendered by its provider adapter." );
+			}
 		}
 	}
 

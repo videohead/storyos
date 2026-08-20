@@ -79,15 +79,15 @@ class Template {
 			],
 			'provider_template_id' => [
 				'type'        => 'text',
-				'label'       => 'Provider MCP Template ID',
+				'label'       => 'Provider Template / Model Endpoint ID',
 				'required'    => false,
-				'description' => 'Template ID discovered from the selected provider Connection. The provider and Template must belong to the same Connection pair.',
+				'description' => 'Provider identifier paired with the Connection. For fal use a model endpoint ID, for ElevenLabs use a voice ID, and for ComfyUI use the discovered MCP Template ID.',
 			],
 			'configuration_json'  => [
 				'type'        => 'textarea',
 				'label'       => 'Configuration JSON',
 				'required'    => true,
-				'description' => 'Provider-neutral JSON for optional parameter overrides, references, and SCF field mappings. StoryOS inherits runtime sizing from the source Project profile; recognized override keys include width, height, length, frame_rate, steps, cfg, denoise, sampler, and scheduler.',
+				'description' => 'Provider-neutral JSON for optional parameter overrides, references, and SCF field mappings. Provider inputs live under {"input": {...}}; StoryOS adds the prompt and resolved bindings at runtime.',
 			],
 			'input_bindings'      => [
 				'type'        => 'textarea',
@@ -237,6 +237,7 @@ class Template {
 			echo '<p>' . esc_html__( 'This Template is paired with a non-ComfyUI provider. Use that provider connection\'s adapter to discover and download its requirements.', 'storyos' ) . '</p>';
 			return;
 		}
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 		$manifest = \StoryOS\Utils\Comfy_Manifest::for_template( $post->ID );
 		if ( is_wp_error( $manifest ) ) {
 			echo '<p>' . esc_html__( 'Save this Template to see its ComfyUI requirements.', 'storyos' ) . '</p>';
@@ -512,6 +513,7 @@ class Template {
 		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
 			wp_send_json_error( [ 'message' => __( 'You do not have permission to inspect this Template.', 'storyos' ) ], 403 );
 		}
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 
 		return $post_id;
 	}

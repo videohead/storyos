@@ -22,7 +22,7 @@
    - Navigate to **StoryOS > Setup** after plugin activation
    - Enter all API keys and configuration options
    - The wizard guides you through:
-     - **Generation Connection**: Comfy Cloud MCP (optional)
+     - **Generation Connection**: Comfy Cloud MCP, local ComfyUI, fal MCP, or ElevenLabs (optional)
      - **Primary LLM**: Local or cloud-based LLM configuration
      - **Advanced Settings**: Token limits, creativity settings
      - **Fallback LLM**: Backup provider for failover
@@ -32,10 +32,12 @@
 
 The setup wizard now includes comprehensive API key configuration:
 
-#### 1. Comfy Cloud MCP (Optional)
-- **Field**: Comfy Cloud API Key
-- **Purpose**: Enable image/video generation via Comfy Cloud MCP
-- **Environment Override**: Set `STORYOS_COMFY_API_KEY` constant to skip form input
+#### 1. Generation Provider (Optional)
+- **Provider**: Comfy Cloud MCP, local ComfyUI, fal MCP, or ElevenLabs Generative Audio
+- **Field**: Generation Provider API Key
+- **Purpose**: Enable image, video, or speech generation through the selected provider
+- **fal endpoint**: `https://mcp.fal.ai/mcp`, authenticated with a fal API key
+- **ElevenLabs endpoint**: `https://api.elevenlabs.io/v1`, authenticated with an ElevenLabs API key
 
 #### 2. Primary LLM (Required for AI Agents)
 - **Provider**: Choose from:
@@ -79,10 +81,21 @@ The StoryOS Setup Wizard provides a comprehensive configuration interface for al
 - Local development setup notes for Lando users
 
 #### 2. Generation Connection (Optional)
-Configure media generation via Comfy Cloud MCP:
-- **Connection Mode**: Cloud MCP, Local MCP, or None
-- **API Key**: Comfy Cloud authentication
-- Supports environment variable override: `STORYOS_COMFY_API_KEY`
+Configure media generation through a provider Connection:
+- **Preferred Connection dropdown**: Comfy Cloud MCP, local ComfyUI, fal MCP,
+  ElevenLabs Generative Audio,
+  or None. Its guided choices come from installed Connection adapters.
+- **API Key**: Credential for the selected hosted provider
+- **fal Templates**: StoryOS discovers the model and its schema through MCP and
+  provisions the paired active Template automatically. Connection Model and
+  Model Access fields optionally constrain which endpoints are provisioned.
+- **ElevenLabs Templates**: StoryOS discovers available models and voices and
+  provisions active Templates for text to speech, dialogue, sound effects,
+  music, and voice design. Model Access optionally restricts speech provisioning
+  to listed voice IDs.
+- **Adapter lifecycle**: Provider code loads only for a non-disabled Connection
+  or while that provider is being configured or tested. Adapter entries on the
+  Plugins screen are status views; Connections control activation.
 
 #### 3. LLM Connection (Required for AI Agents)
 Configure AI language models with four subsections:
@@ -140,7 +153,6 @@ STORYOS_AI_FALLBACK_API_KEY=sk-xxx...
 
 Then in `wp-config.php`:
 ```php
-define( 'STORYOS_COMFY_API_KEY', getenv( 'STORYOS_COMFY_API_KEY' ) );
 define( 'STORYOS_AI_API_KEY', getenv( 'STORYOS_AI_API_KEY' ) );
 define( 'STORYOS_AI_FALLBACK_API_KEY', getenv( 'STORYOS_AI_FALLBACK_API_KEY' ) );
 ```
@@ -149,13 +161,16 @@ define( 'STORYOS_AI_FALLBACK_API_KEY', getenv( 'STORYOS_AI_FALLBACK_API_KEY' ) )
 
 If you need to configure settings programmatically or skip the wizard:
 
-### Comfy Cloud MCP
+### Generation Connection
 ```php
-// Set API key
-update_option( 'storyos_comfy_api_key', 'sk_live_...' );
-
-// Set connection mode (cloud, local_mcp, or none)
-update_option( 'storyos_comfy_connection_mode', 'cloud' );
+// A deployment-managed fal key can be referenced without storing it in WordPress.
+\StoryOS\CPT\Connection::upsert_managed( 'generation', 'fal', [
+	'provider_type'        => 'fal',
+	'environment'          => 'production',
+	'endpoint_url'         => \StoryOS\Utils\Fal_MCP::ENDPOINT,
+	'mcp_endpoint_url'     => \StoryOS\Utils\Fal_MCP::ENDPOINT,
+	'credential_reference' => 'env://FAL_KEY',
+] );
 ```
 
 ### Primary LLM
@@ -323,12 +338,10 @@ wp eval 'StoryOS\Utils\Generation_Batch::process();'
 
 **Solution:**
 
-The setup wizard handles all API key configuration. However, you can also set them programmatically:
+The setup wizard handles Generation Connection credentials. You can also edit
+the credential or its `env://` reference under **StoryOS > Connections**.
 
 ```bash
-# Comfy Cloud MCP API Key
-wp option update storyos_comfy_api_key 'sk_live_xxx...'
-
 # LLM API Key
 wp option update storyos_ai_api_key 'sk-xxx...'
 
@@ -336,14 +349,12 @@ wp option update storyos_ai_api_key 'sk-xxx...'
 wp option update storyos_ai_fallback_api_key 'sk-xxx...'
 
 # Or define constants in wp-config.php (takes precedence)
-define( 'STORYOS_COMFY_API_KEY', 'sk_live_xxx...' );
 define( 'STORYOS_AI_API_KEY', 'sk-xxx...' );
 define( 'STORYOS_AI_FALLBACK_API_KEY', 'sk-xxx...' );
 ```
 
 Verify configuration:
 ```bash
-wp eval 'echo "Comfy: " . (defined("STORYOS_COMFY_API_KEY") || get_option("storyos_comfy_api_key") ? "OK" : "NOT SET") . PHP_EOL;'
 wp eval 'echo "LLM: " . (defined("STORYOS_AI_API_KEY") || get_option("storyos_ai_api_key") ? "OK" : "NOT SET") . PHP_EOL;'
 wp eval 'echo "Fallback: " . (defined("STORYOS_AI_FALLBACK_API_KEY") || get_option("storyos_ai_fallback_api_key") ? "OK" : "NOT SET") . PHP_EOL;'
 ```

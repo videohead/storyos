@@ -123,16 +123,23 @@ class Setup_Wizard {
 		}
 		check_admin_referer( 'storyos_save_setup' );
 
-		// Comfy Cloud MCP Configuration
-		$comfy_mode = sanitize_key( $_POST['storyos_comfy_connection_mode'] ?? 'none' );
-		if ( ! in_array( $comfy_mode, [ 'cloud', 'local_mcp', 'none' ], true ) ) {
+		// Preferred generation Connection. Accept the legacy field while older
+		// setup forms may still be cached in a browser.
+		$comfy_mode = sanitize_key( $_POST['storyos_generation_connection_mode'] ?? $_POST['storyos_comfy_connection_mode'] ?? 'none' );
+		$generation_choice = \StoryOS\Utils\Connection_Adapters::setup_choice( $comfy_mode );
+		if ( 'none' !== $comfy_mode && null === $generation_choice ) {
 			$comfy_mode = 'none';
 		}
+		update_option( 'storyos_generation_connection_mode', $comfy_mode );
+		// Retained for compatibility with existing installations and extensions.
 		update_option( 'storyos_comfy_connection_mode', $comfy_mode );
 
 		if ( isset( $_POST['storyos_comfy_local_url'] ) ) {
 			update_option( 'storyos_comfy_local_url', esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ) ) );
-			\StoryOS\Utils\Comfy_Bootstrap::flush();
+			if ( 'local_mcp' === $comfy_mode ) {
+				\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
+				\StoryOS\Utils\Comfy_Bootstrap::flush();
+			}
 		}
 		if ( isset( $_POST['storyos_comfy_local_mcp_url'] ) ) {
 			update_option( 'storyos_comfy_local_mcp_url', esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_mcp_url'] ) ) );
@@ -143,23 +150,33 @@ class Setup_Wizard {
 		$comfy_local_url = esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_url'] ?? '' ) );
 		$comfy_local_mcp_url = esc_url_raw( wp_unslash( $_POST['storyos_comfy_local_mcp_url'] ?? '' ) );
 		if ( 'none' !== $comfy_mode ) {
+			$provider_type = sanitize_key( (string) ( $generation_choice['provider_type'] ?? '' ) );
+			$is_fal = 'fal' === $provider_type;
+			$is_local_comfy = 'comfyui' === $provider_type && 'local' === ( $generation_choice['environment'] ?? '' );
+			$provider_endpoint = \StoryOS\Utils\Connection_Adapters::endpoint( $provider_type );
+			\StoryOS\Utils\Connection_Adapters::load( $provider_type );
 			$connection_id = \StoryOS\CPT\Connection::upsert_managed(
 				'generation',
-				'ComfyUI (Setup Wizard)',
+				sprintf( '%s (Setup Wizard)', (string) ( $generation_choice['label'] ?? $provider_type ) ),
 				[
-					'provider_type'        => 'comfyui',
-					'environment'          => 'local_mcp' === $comfy_mode ? 'local' : 'production',
-					'endpoint_url'         => 'local_mcp' === $comfy_mode ? $comfy_local_url : \StoryOS\Utils\Comfy_Cloud_MCP::ENDPOINT,
-					'mcp_endpoint_url'     => 'local_mcp' === $comfy_mode ? $comfy_local_mcp_url : '',
+					'provider_type'        => $provider_type,
+					'environment'          => sanitize_key( (string) ( $generation_choice['environment'] ?? 'production' ) ),
+					'endpoint_url'         => $is_local_comfy ? $comfy_local_url : $provider_endpoint,
+					'mcp_endpoint_url'     => $is_local_comfy ? $comfy_local_mcp_url : ( ! empty( $generation_choice['mcp_endpoint'] ) ? $provider_endpoint : '' ),
 					'credential_reference' => $comfy_api_key,
+					'status'               => 'unverified',
 				]
 			);
 
 			// A local ComfyUI has to be able to run text-to-image before any
 			// story element can generate an asset, so provision that Template
 			// here and let the readiness checklist report what is still missing.
-			if ( 'local_mcp' === $comfy_mode ) {
+			if ( $is_local_comfy ) {
 				\StoryOS\Utils\Comfy_Bootstrap::ensure_template( $connection_id );
+			} elseif ( $is_fal && $connection_id && ! wp_next_scheduled( \StoryOS\Utils\Fal_Catalog::HOOK, [ $connection_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \StoryOS\Utils\Fal_Catalog::HOOK, [ $connection_id ] );
+			} elseif ( 'elevenlabs' === $provider_type && $connection_id && ! wp_next_scheduled( \StoryOS\Utils\ElevenLabs_Catalog::HOOK, [ $connection_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \StoryOS\Utils\ElevenLabs_Catalog::HOOK, [ $connection_id ] );
 			}
 		}
 
@@ -249,7 +266,38 @@ class Setup_Wizard {
 		}
 
 		check_ajax_referer( 'storyos_test_comfy_connection', 'nonce' );
+		$mode = sanitize_key( wp_unslash( $_POST['mode'] ?? 'local_mcp' ) );
+		if ( 'elevenlabs' === $mode ) {
+			\StoryOS\Utils\Connection_Adapters::load( 'elevenlabs' );
+			$key = sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) );
+			$catalog = \StoryOS\Utils\ElevenLabs_API::test_configuration( \StoryOS\Utils\Connection_Adapters::endpoint( 'elevenlabs' ), $key );
+			if ( is_wp_error( $catalog ) ) {
+				wp_send_json_error( [ 'message' => $catalog->get_error_message() ] );
+			}
+			wp_send_json_success( [
+				'message' => sprintf(
+					'Connected to ElevenLabs; %d voice(s) and %d text-to-speech model(s) available. Saving provisions endpoint-specific Templates.',
+					count( (array) ( $catalog['voices'] ?? [] ) ),
+					count( (array) ( $catalog['text_to_speech_models'] ?? [] ) )
+				),
+			] );
+		}
+		if ( 'fal' === $mode ) {
+			\StoryOS\Utils\Connection_Adapters::load( 'fal' );
+			$key = sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) );
+			$tools = \StoryOS\Utils\Fal_MCP::test_configuration( \StoryOS\Utils\Connection_Adapters::endpoint( 'fal' ), $key );
+			if ( is_wp_error( $tools ) ) {
+				wp_send_json_error( [ 'message' => $tools->get_error_message() ] );
+			}
+			$missing = array_values( array_diff( \StoryOS\Utils\Fal_MCP::GENERATION_TOOLS, $tools ) );
+			if ( ! empty( $missing ) ) {
+				wp_send_json_error( [ 'message' => sprintf( 'fal MCP is missing required tools: %s.', implode( ', ', $missing ) ) ] );
+			}
+			wp_send_json_success( [ 'message' => sprintf( 'Connected to fal MCP; %d tools available.', count( $tools ) ) ] );
+		}
+
 		$url = untrailingslashit( esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ) );
+		\StoryOS\Utils\Connection_Adapters::load( 'comfyui' );
 		if ( '' === $url ) {
 			wp_send_json_error( [ 'message' => 'Enter a local ComfyUI API URL first.' ], 400 );
 		}
@@ -266,7 +314,8 @@ class Setup_Wizard {
 	}
 
 	public static function render(): void {
-		$comfy_mode = get_option( 'storyos_comfy_connection_mode', 'none' );
+		$comfy_mode = get_option( 'storyos_generation_connection_mode', get_option( 'storyos_comfy_connection_mode', 'none' ) );
+		$generation_options = \StoryOS\Utils\Connection_Adapters::setup_options();
 		$backend = get_option( 'storyos_ai_backend', 'openai_compatible' );
 		$generation_connections = get_posts( [
 			'post_type'      => 'storyos_connection',
@@ -295,29 +344,48 @@ class Setup_Wizard {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="storyos_save_setup" />
 				<?php wp_nonce_field( 'storyos_save_setup' ); ?>
-				<h2>1. WordPress Runtime</h2>
+				<h2>WordPress Runtime</h2>
 				<p>WordPress is connected. For production, configure a host scheduler to run WP-Cron. Local Lando users can run <code>lando wp-cron</code>.</p>
-				<h2>2. Generation Connection (Optional)</h2>
+				<h2>Generation Connection (Optional)</h2>
 				<p class="description">This section only establishes <em>how</em> StoryOS reaches a generation provider (ComfyUI, Comfy Cloud, etc.). <em>What</em> gets generated for a given asset type and provider &mdash; workflow JSON, model, parameters &mdash; is configured per combination as a <strong>Template</strong> post, not here. Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-connections' ) ); ?>">StoryOS &gt; Connections</a>.</p>
-				<p><label><input type="radio" name="storyos_comfy_connection_mode" value="cloud" <?php checked( $comfy_mode, 'cloud' ); ?> /> Comfy Cloud MCP</label><br />
-				<label><input type="radio" name="storyos_comfy_connection_mode" value="local_mcp" <?php checked( $comfy_mode, 'local_mcp' ); ?> /> Local ComfyUI HTTP API + MCP</label><br />
-				<label><input type="radio" name="storyos_comfy_connection_mode" value="none" <?php checked( $comfy_mode, 'none' ); ?> /> No ComfyUI connection yet</label></p>
-				<p><label for="storyos_generation_credential_reference">Comfy Cloud API Key</label><br />
-				<input type="password" class="regular-text" name="storyos_generation_credential_reference" id="storyos_generation_credential_reference" value="<?php echo esc_attr( $comfy_api_key ); ?>" autocomplete="new-password" /> <span class="description">Stored as the Generation Connection credential.</span></p>
-				<p><label for="storyos_comfy_local_url">Local ComfyUI API URL</label><br />
-				<input type="url" class="regular-text" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.docker.internal:8188' ) ); ?>" placeholder="http://host.docker.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.docker.internal:8188</code>; do not use <code>localhost</code>.</span></p>
-				<p><label for="storyos_comfy_local_mcp_url">Local ComfyUI MCP URL <em>(optional)</em></label><br />
-				<input type="url" class="regular-text" name="storyos_comfy_local_mcp_url" id="storyos_comfy_local_mcp_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_mcp_url', '' ) ); ?>" placeholder="http://host.docker.internal:9000/mcp" /> <span class="description">Only if you run a separate Comfy MCP server process. This is <strong>not</strong> the ComfyUI API port with <code>/mcp</code> appended &mdash; ComfyUI's own HTTP API does not speak MCP. Leave empty to discover templates from the built-in modalities instead. Setting it enables automatic Template discovery and model downloads.</span></p>
-				<p><button type="button" class="button" id="storyos-test-comfy-connection">Test ComfyUI</button> <span id="storyos-comfy-test-result" aria-live="polite"></span></p>
+				<p><label for="storyos_generation_connection_mode">Preferred Connection</label><br />
+				<select name="storyos_generation_connection_mode" id="storyos_generation_connection_mode">
+					<?php foreach ( $generation_options as $value => $label ) : ?>
+						<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $comfy_mode, $value ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select> <span class="description">This list is supplied by installed Connection adapters. Additional providers can be added from StoryOS &gt; Connections.</span></p>
+				<p id="storyos-generation-credential-fields"><label for="storyos_generation_credential_reference">Generation Provider API Key</label><br />
+				<input type="password" class="regular-text" name="storyos_generation_credential_reference" id="storyos_generation_credential_reference" value="<?php echo esc_attr( $comfy_api_key ); ?>" autocomplete="new-password" /> <span class="description">Use the selected hosted provider's API key. The managed Connection stores this value as its credential.</span></p>
+				<p id="storyos-comfy-local-api-fields"><label for="storyos_comfy_local_url">Local ComfyUI API URL</label><br />
+				<input type="url" class="regular-text" name="storyos_comfy_local_url" id="storyos_comfy_local_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_url', 'http://host.lando.internal:8188' ) ); ?>" placeholder="http://host.lando.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.lando.internal:8188</code> (Lando's built-in host hostname, Lando &ge; 3.22); do not use <code>localhost</code> or <code>host.docker.internal</code>.</span></p>
+				<p id="storyos-comfy-local-mcp-fields"><label for="storyos_comfy_local_mcp_url">Local ComfyUI MCP URL <em>(optional)</em></label><br />
+				<input type="url" class="regular-text" name="storyos_comfy_local_mcp_url" id="storyos_comfy_local_mcp_url" value="<?php echo esc_attr( get_option( 'storyos_comfy_local_mcp_url', '' ) ); ?>" placeholder="http://host.lando.internal:9000/mcp" /> <span class="description">Only if you run a separate Comfy MCP server process. This is <strong>not</strong> the ComfyUI API port with <code>/mcp</code> appended &mdash; ComfyUI's own HTTP API does not speak MCP. Leave empty to discover templates from the built-in modalities instead. Setting it enables automatic Template discovery and model downloads.</span></p>
+				<p><button type="button" class="button" id="storyos-test-comfy-connection">Test Generation Connection</button> <span id="storyos-comfy-test-result" aria-live="polite"></span></p>
 				<p class="description">Generation behavior belongs to a <strong>Template</strong>. Configure the modality, model, and workflow on the Template, then select its Connection when generating.</p>
-				<p class="description">Choose <strong>No ComfyUI connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
-				<h3>ComfyUI Readiness</h3>
-				<p class="description">ComfyUI loads its default text-to-image workflow on first launch only when the matching nodes and a checkpoint are installed. StoryOS checks that here, provisions the text-to-image <strong>Template</strong> it generates against, and lists whatever is still missing.</p>
-				<?php \StoryOS\Admin\Comfy_Readiness::render_panel(); ?>
-				<h2>3. LLM Connection (Required for AI Agents)</h2>
+				<p class="description">Choose <strong>No generation connection yet</strong> when using a browser-based generator or when you only need StoryOS for writing, planning, and asset management.</p>
+				<?php if ( 'local_mcp' === $comfy_mode ) : ?>
+					<?php \StoryOS\Utils\Connection_Adapters::load( 'comfyui' ); ?>
+					<h3>ComfyUI Readiness</h3>
+					<p class="description">ComfyUI loads its default text-to-image workflow on first launch only when the matching nodes and a checkpoint are installed. StoryOS checks that here, provisions the text-to-image <strong>Template</strong> it generates against, and lists whatever is still missing.</p>
+					<?php \StoryOS\Admin\Comfy_Readiness::render_panel(); ?>
+				<?php elseif ( 'fal' === $comfy_mode ) : ?>
+					<h3>fal Template Configuration</h3>
+					<p class="description">After saving, StoryOS asks fal MCP to discover a current text-to-image model, inspect its schema, and create the paired active Template automatically. Advanced users can restrict provisioning with the Connection's Model or Model Access fields.</p>
+				<?php elseif ( 'elevenlabs' === $comfy_mode ) : ?>
+					<h3>ElevenLabs Template Configuration</h3>
+					<p class="description">After saving, StoryOS discovers your available voices and models, then creates active Templates for text to speech, dialogue, sound effects, music, and voice design. Advanced users can select the speech model or place voice IDs in Model Access on the Connection.</p>
+				<?php endif; ?>
+				<h2>External Generator Workflow</h2>
+				<ol>
+					<li>Generate the image, video, audio, or other media in the provider's web application.</li>
+					<li>Download the final file and retain the provider, model, prompt, source URL, and usage-rights information.</li>
+					<li>On the relevant StoryOS post, use <strong>StoryOS Assets</strong> to set the primary file as the featured asset and add supporting files to the gallery.</li>
+					<li>Save the post. The featured asset and gallery are available in the StoryOS API.</li>
+				</ol>
+				<p class="description">Direct connectors for services such as Sora, Runway, Veo, Kling, Seedance, Firefly, Midjourney, and Amazon video endpoints require additional API discovery and provider-specific implementation.</p>
+				<h2>LLM Connection (Required for AI Agents)</h2>
 				<p>An API-connected LLM is required for StoryOS agents. Browser-only ChatGPT, Claude, or Claude Code subscriptions are not supported by this server integration. Without one, leave these fields empty and use StoryOS for story data, WordPress media, and external-generation asset tracking.</p>
 				<p class="description">Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=storyos-connections' ) ); ?>">StoryOS &gt; Connections</a>. Configure additional connections (e.g. a fallback or secondary LLM) directly on the Connections screen.</p>
-				
 				<h3>Primary LLM Configuration</h3>
 				<p><label for="storyos_ai_backend">Provider</label><br /><select name="storyos_ai_backend" id="storyos_ai_backend">
 					<option value="openai_compatible" <?php selected( $backend, 'openai_compatible' ); ?>>OpenAI-compatible local or hosted LLM</option>
@@ -325,7 +393,7 @@ class Setup_Wizard {
 					<option value="anthropic" <?php selected( $backend, 'anthropic' ); ?>>Anthropic API</option>
 					<option value="dual" <?php selected( $backend, 'dual' ); ?>>Dual (Local + Fallback Cloud)</option>
 				</select></p>
-				<p><label for="storyos_ai_url">Base URL or Endpoint</label><br /><input type="url" class="regular-text" name="storyos_ai_url" id="storyos_ai_url" value="<?php echo esc_attr( get_option( 'storyos_ai_url', 'http://host.docker.internal:11434/v1' ) ); ?>" /> <span class="description">For llama.cpp, Ollama, vLLM, LM Studio, or another `/v1` endpoint. In Docker or Lando, use <code>host.docker.internal</code> for an LLM running on the development host; <code>localhost</code> refers to the WordPress container. Leave blank if using OpenAI or Anthropic.</span></p>
+				<p><label for="storyos_ai_url">Base URL or Endpoint</label><br /><input type="url" class="regular-text" name="storyos_ai_url" id="storyos_ai_url" value="<?php echo esc_attr( get_option( 'storyos_ai_url', 'http://host.lando.internal:11434/v1' ) ); ?>" /> <span class="description">For llama.cpp, Ollama, vLLM, LM Studio, or another `/v1` endpoint. In Lando, use <code>host.lando.internal</code> for an LLM running on the development host; <code>localhost</code> refers to the WordPress container. Leave blank if using OpenAI or Anthropic.</span></p>
 				<p><label for="storyos_ai_model">Model Name</label><br /><input type="text" class="regular-text" name="storyos_ai_model" id="storyos_ai_model" list="storyos-ai-models" value="<?php echo esc_attr( get_option( 'storyos_ai_model', '' ) ); ?>" /> <datalist id="storyos-ai-models"></datalist> <span class="description">Examples: gpt-4, claude-3-sonnet, or local model name. Testing a local endpoint loads its available models.</span></p>
 				<p><label for="storyos_ai_api_key">API Key / Token</label><br /><input type="password" class="regular-text" name="storyos_ai_api_key" id="storyos_ai_api_key" value="<?php echo esc_attr( get_option( 'storyos_ai_api_key' ) ); ?>" <?php disabled( defined( 'STORYOS_AI_API_KEY' ) ); ?> />
 				<?php if ( defined( 'STORYOS_AI_API_KEY' ) ) : ?> <span class="description">Configured through the deployment environment.</span><?php else : ?> <span class="description">Required for hosted providers and some local servers.</span><?php endif; ?></p>
@@ -334,19 +402,26 @@ class Setup_Wizard {
 				<h3>Advanced LLM Settings (Optional)</h3>
 				<p><label for="storyos_ai_max_tokens">Max Tokens</label><br /><input type="number" class="small-text" name="storyos_ai_max_tokens" id="storyos_ai_max_tokens" value="<?php echo esc_attr( get_option( 'storyos_ai_max_tokens', '2048' ) ); ?>" min="256" max="32768" /> <span class="description">Maximum tokens for LLM responses.</span></p>
 				<p><label for="storyos_ai_temperature">Temperature</label><br /><input type="number" class="small-text" name="storyos_ai_temperature" id="storyos_ai_temperature" value="<?php echo esc_attr( get_option( 'storyos_ai_temperature', '0.7' ) ); ?>" step="0.1" min="0" max="1" /> <span class="description">Creativity level (0.0 = deterministic, 1.0 = creative).</span></p>
-				
-				<h2>4. External Generator Workflow</h2>
-				<ol>
-					<li>Generate the image, video, audio, or other media in the provider's web application.</li>
-					<li>Download the final file and retain the provider, model, prompt, source URL, and usage-rights information.</li>
-					<li>On the relevant StoryOS post, use <strong>StoryOS Assets</strong> to set the primary file as the featured asset and add supporting files to the gallery.</li>
-					<li>Save the post. The featured asset and gallery are available in the StoryOS API.</li>
-				</ol>
-				<p class="description">Direct connectors for services such as Sora, Runway, Veo, Kling, Seedance, Firefly, Midjourney, and Amazon video endpoints require additional API discovery and provider-specific implementation.</p>
-				<?php submit_button( 'Save All Configurations' ); ?>
+			<?php submit_button( 'Save All Configurations' ); ?>
 			</form>
 			<script>
 				(function () {
+					var generationMode = document.getElementById('storyos_generation_connection_mode');
+					var generationCredentialFields = document.getElementById('storyos-generation-credential-fields');
+					var localApiFields = document.getElementById('storyos-comfy-local-api-fields');
+					var localMcpFields = document.getElementById('storyos-comfy-local-mcp-fields');
+					var generationTestButton = document.getElementById('storyos-test-comfy-connection');
+					function updateGenerationFields() {
+						var mode = generationMode ? generationMode.value : 'none';
+						generationCredentialFields.hidden = mode === 'none' || mode === 'local_mcp';
+						localApiFields.hidden = mode !== 'local_mcp';
+						localMcpFields.hidden = mode !== 'local_mcp';
+						generationTestButton.hidden = mode === 'none' || mode === 'cloud';
+					}
+					if (generationMode) {
+						generationMode.addEventListener('change', updateGenerationFields);
+						updateGenerationFields();
+					}
 					var button = document.getElementById('storyos-test-llm-connection');
 					var result = document.getElementById('storyos-llm-test-result');
 					if (!button || !result) {
@@ -397,7 +472,9 @@ class Setup_Wizard {
 							var data = new URLSearchParams({
 								action: 'storyos_test_comfy_connection',
 								nonce: '<?php echo esc_js( wp_create_nonce( 'storyos_test_comfy_connection' ) ); ?>',
-								url: document.getElementById('storyos_comfy_local_url').value
+								mode: document.getElementById('storyos_generation_connection_mode').value || 'none',
+								url: document.getElementById('storyos_comfy_local_url').value,
+								api_key: document.getElementById('storyos_generation_credential_reference').value
 							});
 							fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: data })
 								.then(function (response) { return response.json(); })

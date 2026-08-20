@@ -8,6 +8,8 @@ This page describes what a web-based generative AI platform can do with StoryOS 
 | --- | --- | --- |
 | Comfy Cloud MCP | Supported | Configure `STORYOS_COMFY_API_KEY`, submit image/video/audio/3D workflows, and let WordPress queue and poll jobs with WP-Cron. |
 | Local ComfyUI through an MCP-capable client | Supported workflow | Connect the client to both StoryOS and the local `comfy-mcp` server. Run local workflows and register or upload the resulting assets in StoryOS. |
+| fal MCP | Supported | Configure a fal API key, discover model schemas, provision StoryOS Templates, submit image/video jobs, poll them through WP-Cron, and import the returned media into WordPress. |
+| ElevenLabs Generative Audio API | Supported | Configure an ElevenLabs API key, provision Templates for speech, dialogue, sound effects, music, or voice design, and import the generated audio into WordPress. |
 | OpenAI, Anthropic, or OpenAI-compatible LLM API | Supported for AI Editor | Configure an API credential and compatible base URL in **StoryOS > AI Settings**. A browser subscription alone is not sufficient. |
 | Other web image/video platforms | External asset source | Generate in the provider's own web app, then upload or register the result in StoryOS with its prompt, model, source URL, and usage-rights information. |
 
@@ -38,9 +40,19 @@ The presence of `veo` or `nova_reel` in the connection form is an extension poin
 4. Enable the Generation Engine and submit a workflow from StoryOS.
 5. WordPress stores the generation record and polls Comfy Cloud through WP-Cron.
 
-This is the only web-hosted media-generation route with a first-party StoryOS execution path at present.
+### Path B: Hosted generation through a supported provider
 
-### Path B: Local or third-party web generation
+1. Create a fal or ElevenLabs account and API key.
+2. In the Setup Wizard or **StoryOS > Connections**, choose the matching provider.
+3. Use `env://FAL_KEY` or `env://ELEVENLABS_API_KEY` in production when the key is supplied by the runtime.
+4. Test the Connection so StoryOS can discover provider capabilities and create or update Templates.
+5. Select a provider Template and submit the generation from StoryOS.
+
+fal jobs are queued and polled through WP-Cron. ElevenLabs audio responses are imported synchronously, including every preview returned by Voice Design.
+
+These are first-party StoryOS execution paths. Provider model availability, quotas, pricing, regions, and terms remain controlled by fal and ElevenLabs.
+
+### Path C: Local or third-party web generation
 
 1. Create the image or video in the provider's web application or local ComfyUI setup.
 2. Download the final artifact and retain the provider job URL or project reference.

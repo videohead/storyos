@@ -156,7 +156,119 @@ class StoryOS_Importer {
 			return new \WP_Error( 'storyos_invalid_sequence', 'Sequence must have id and order.' );
 		}
 
+		$references_valid = $this->validate_references( $data );
+		if ( is_wp_error( $references_valid ) ) {
+			return $references_valid;
+		}
+
 		return $data;
+	}
+
+	/**
+	 * Validate all external-ID references before creating any posts.
+	 *
+	 * @param array $data Parsed StoryOS document.
+	 * @return true|\WP_Error True when every reference resolves, otherwise an error.
+	 */
+	private function validate_references( array $data ) {
+		$id_sets = [];
+		$all_ids = [];
+		$errors  = [];
+
+		foreach ( [ 'project', 'world' ] as $section ) {
+			$external_id = sanitize_text_field( (string) $data[ $section ]['id'] );
+			if ( $external_id !== (string) $data[ $section ]['id'] ) {
+				$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $section, $data[ $section ]['id'] );
+			}
+			if ( isset( $all_ids[ $external_id ] ) ) {
+				$errors[] = sprintf( 'External id "%s" is reused by %s and %s.', $external_id, $all_ids[ $external_id ], $section );
+			}
+			$all_ids[ $external_id ] = $section;
+		}
+
+		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'storyboards' ] as $section ) {
+			$id_sets[ $section ] = [];
+			foreach ( $data[ $section ] as $index => $entity ) {
+				if ( ! is_array( $entity ) || empty( $entity['id'] ) ) {
+					$errors[] = sprintf( '%s[%d] must have an id.', $section, $index );
+					continue;
+				}
+
+				$external_id = sanitize_text_field( (string) $entity['id'] );
+				if ( $external_id !== (string) $entity['id'] ) {
+					$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $section, $entity['id'] );
+				}
+				if ( isset( $id_sets[ $section ][ $external_id ] ) ) {
+					$errors[] = sprintf( '%s contains duplicate id "%s".', $section, $external_id );
+				}
+				if ( isset( $all_ids[ $external_id ] ) ) {
+					$errors[] = sprintf( 'External id "%s" is reused by %s and %s.', $external_id, $all_ids[ $external_id ], $section );
+				}
+				$id_sets[ $section ][ $external_id ] = true;
+				$all_ids[ $external_id ]             = $section;
+			}
+		}
+
+		if ( ! empty( $errors ) ) {
+			return new \WP_Error( 'storyos_invalid_reference', implode( ' ', $errors ) );
+		}
+
+		foreach ( $data['props'] as $prop ) {
+			if ( ! empty( $prop['owner_character'] ) ) {
+				$this->validate_reference( $prop['owner_character'], 'characters', 'Prop ' . ( $prop['id'] ?? '(unknown)' ) . ' owner_character', $id_sets, $errors );
+			}
+		}
+
+		foreach ( $data['scenes'] as $scene ) {
+			$context = 'Scene ' . ( $scene['id'] ?? '(unknown)' );
+			if ( ! empty( $scene['location'] ) ) {
+				$this->validate_reference( $scene['location'], 'locations', $context . ' location', $id_sets, $errors );
+			}
+			foreach ( (array) ( $scene['characters'] ?? [] ) as $character_id ) {
+				$this->validate_reference( $character_id, 'characters', $context . ' character', $id_sets, $errors );
+			}
+			foreach ( (array) ( $scene['props'] ?? [] ) as $prop_id ) {
+				$this->validate_reference( $prop_id, 'props', $context . ' prop', $id_sets, $errors );
+			}
+		}
+
+		foreach ( $data['shots'] as $shot ) {
+			$this->validate_reference( $shot['scene'] ?? '', 'scenes', 'Shot ' . ( $shot['id'] ?? '(unknown)' ) . ' scene', $id_sets, $errors );
+		}
+
+		foreach ( $data['storyboards'] as $frame ) {
+			$this->validate_reference( $frame['shot'] ?? '', 'shots', 'Storyboard ' . ( $frame['id'] ?? '(unknown)' ) . ' shot', $id_sets, $errors );
+		}
+
+		foreach ( (array) $data['sequence']['order'] as $scene_id ) {
+			$this->validate_reference( $scene_id, 'scenes', 'Sequence scene', $id_sets, $errors );
+		}
+
+		if ( ! empty( $errors ) ) {
+			return new \WP_Error( 'storyos_invalid_reference', implode( ' ', $errors ) );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Append an error when an external-ID reference cannot be resolved.
+	 *
+	 * @param mixed  $reference Referenced external ID.
+	 * @param string $section   Target document section.
+	 * @param string $context   Human-readable reference context.
+	 * @param array  $id_sets   External IDs keyed by document section.
+	 * @param array  $errors    Validation errors, passed by reference.
+	 */
+	private function validate_reference( $reference, string $section, string $context, array $id_sets, array &$errors ): void {
+		$external_id = sanitize_text_field( (string) $reference );
+		if ( $external_id !== (string) $reference ) {
+			$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $context, $reference );
+			return;
+		}
+		if ( '' === $external_id || ! isset( $id_sets[ $section ][ $external_id ] ) ) {
+			$errors[] = sprintf( '%s references unknown %s id "%s".', $context, $section, $external_id );
+		}
 	}
 
 	/**
@@ -368,6 +480,7 @@ class StoryOS_Importer {
 				'post_type'    => 'storyos_prop',
 				'post_title'   => sanitize_text_field( $prop['name'] ),
 				'post_status'  => 'publish',
+				'post_content' => isset( $prop['description'] ) ? wp_kses_post( $prop['description'] ) : '',
 			];
 
 			if ( $post_id ) {
@@ -389,6 +502,9 @@ class StoryOS_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			update_post_meta( $post_id, 'prop_name', sanitize_text_field( $prop['name'] ) );
+			if ( isset( $prop['description'] ) ) {
+				update_post_meta( $post_id, 'description', wp_kses_post( $prop['description'] ) );
+			}
 		}
 	}
 
@@ -409,9 +525,10 @@ class StoryOS_Importer {
 				continue;
 			}
 
+			$scene_label = sanitize_text_field( $scene['title'] ?? ( $scene['label'] ?? '' ) );
 			$post_data = [
 				'post_type'    => 'storyos_scene',
-				'post_title'   => sanitize_text_field( $scene['title'] ),
+				'post_title'   => $scene_label ?: sprintf( 'Scene %d', $scene_index ),
 				'post_status'  => 'publish',
 				'post_content' => isset( $scene['summary'] ) ? wp_kses_post( $scene['summary'] ) : '',
 			];
@@ -436,7 +553,7 @@ class StoryOS_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			update_post_meta( $post_id, 'scene_number', $scene_index );
-			update_post_meta( $post_id, 'title', sanitize_text_field( $scene['title'] ) );
+			update_post_meta( $post_id, 'title', $scene_label );
 			if ( isset( $scene['summary'] ) ) {
 				update_post_meta( $post_id, 'summary', wp_kses_post( $scene['summary'] ) );
 			}
@@ -447,9 +564,10 @@ class StoryOS_Importer {
 				$sequence = 1;
 				foreach ( $scene['dialogue'] as $line ) {
 					$dialogue[] = [
-						'speaker'  => sanitize_text_field( $line['speaker'] ?? '' ),
-						'line'     => sanitize_text_field( $line['text'] ?? '' ),
-						'sequence' => $sequence++,
+						'speaker'     => sanitize_text_field( $line['speaker'] ?? '' ),
+						'line'        => sanitize_text_field( $line['text'] ?? '' ),
+						'description' => sanitize_text_field( $line['description'] ?? '' ),
+						'sequence'    => $sequence++,
 					];
 				}
 				update_post_meta( $post_id, 'dialogue', $dialogue );
@@ -468,7 +586,8 @@ class StoryOS_Importer {
 		// Build a scene external ID → title lookup for useful shot names.
 		$scene_titles = [];
 		foreach ( $this->document['scenes'] as $scene ) {
-			$scene_titles[ sanitize_text_field( $scene['id'] ) ] = sanitize_text_field( $scene['title'] ?? '' );
+			$scene_label = sanitize_text_field( $scene['title'] ?? ( $scene['label'] ?? '' ) );
+			$scene_titles[ sanitize_text_field( $scene['id'] ) ] = $scene_label;
 		}
 
 		foreach ( $this->document['shots'] as $shot ) {
@@ -486,7 +605,9 @@ class StoryOS_Importer {
 			// Normalize the shot type so it matches the canonical options.
 			$shot_type = isset( $shot['type'] ) ? \StoryOS\Utils\storyos_normalize_shot_type( (string) $shot['type'] ) : '';
 
+			$explicit_shot_title = sanitize_text_field( $shot['title'] ?? ( $shot['label'] ?? '' ) );
 			$shot_name = \StoryOS\Utils\storyos_generate_shot_name( [
+				'title'            => $explicit_shot_title,
 				'shot_number'      => $shot_index,
 				'shot_type'        => $shot_type,
 				'shot_description' => $shot['description'] ?? '',
@@ -676,6 +797,15 @@ class StoryOS_Importer {
 				if ( $prop_id ) {
 					\StoryOS\Utils\add_relationship( $world_id, 'storyos_story_world', $prop_id, 'storyos_prop', 'contains' );
 				}
+			}
+		}
+
+		// Prop → Owner Character.
+		foreach ( $this->document['props'] as $prop ) {
+			$prop_id = $this->id_map[ $prop['id'] ] ?? 0;
+			$char_id = $this->id_map[ $prop['owner_character'] ?? '' ] ?? 0;
+			if ( $prop_id && $char_id ) {
+				\StoryOS\Utils\add_relationship( $prop_id, 'storyos_prop', $char_id, 'storyos_character', 'linked_to' );
 			}
 		}
 

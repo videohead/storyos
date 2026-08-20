@@ -76,6 +76,64 @@ function add_relationship( int $from_id, string $from_type, int $to_id, string $
 }
 
 /**
+ * Replace a scalar relationship slot with one current target.
+ *
+ * StoryOS fields such as Sound -> Scene are scalar selectors. Re-saving one of
+ * those fields must replace its old edge rather than append duplicate or stale
+ * relationships. The field name in metadata identifies the slot.
+ *
+ * @param int    $from_id   Source entity ID.
+ * @param string $from_type Source CPT slug.
+ * @param int    $to_id     Target entity ID, or zero to clear the slot.
+ * @param string $to_type   Target CPT slug.
+ * @param string $type      Relationship type.
+ * @param array  $metadata  Relationship metadata. The `field` key is recommended.
+ * @return int|\WP_Error Relationship count, zero when cleared, or an error.
+ */
+function set_relationship( int $from_id, string $from_type, int $to_id, string $to_type, string $type = 'references', array $metadata = [] ) {
+	$valid_types = array_keys( storyos_get_all_cpts() );
+	if ( ! in_array( $from_type, $valid_types, true ) || ! in_array( $to_type, $valid_types, true ) ) {
+		return new \WP_Error( 'invalid_entity_type', 'Invalid entity type.' );
+	}
+
+	if ( ! isset( relationship_types()[ $type ] ) ) {
+		return new \WP_Error( 'invalid_relationship_type', 'Invalid relationship type.' );
+	}
+
+	$meta_key   = STORYOS_CPT_PREFIX . 'relationships';
+	$existing   = get_post_meta( $from_id, $meta_key, true );
+	$existing   = is_array( $existing ) ? $existing : [];
+	$field_name = sanitize_key( (string) ( $metadata['field'] ?? '' ) );
+
+	$existing = array_values(
+		array_filter(
+			$existing,
+			static function( array $relationship ) use ( $to_type, $type, $field_name ): bool {
+				if ( $to_type !== (string) ( $relationship['to_type'] ?? '' ) || $type !== (string) ( $relationship['type'] ?? '' ) ) {
+					return true;
+				}
+
+				if ( '' === $field_name ) {
+					return false;
+				}
+
+				$existing_field = sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) );
+				return '' !== $existing_field && $field_name !== $existing_field;
+			}
+		)
+	);
+
+	update_post_meta( $from_id, $meta_key, $existing );
+
+	if ( 0 === $to_id ) {
+		return 0;
+	}
+
+	$metadata['field'] = $field_name;
+	return add_relationship( $from_id, $from_type, $to_id, $to_type, $type, $metadata );
+}
+
+/**
  * Get all relationships for an entity.
  *
  * @param int    $entity_id The entity ID.
@@ -108,13 +166,7 @@ function get_relationships( int $entity_id, string $entity_type = '', string $di
 				'meta_query'     => [
 					[
 						'key'     => STORYOS_CPT_PREFIX . 'relationships',
-						'value'   => serialize( [
-							[
-								'to_id'   => $entity_id,
-								'to_type' => $entity_type,
-							],
-						] ),
-						'compare' => 'LIKE',
+						'compare' => 'EXISTS',
 					],
 				],
 			] );
@@ -123,7 +175,7 @@ function get_relationships( int $entity_id, string $entity_type = '', string $di
 				$rels = get_post_meta( $post->ID, STORYOS_CPT_PREFIX . 'relationships', true );
 				if ( is_array( $rels ) ) {
 					foreach ( $rels as $rel ) {
-						if ( $rel['to_id'] === $entity_id && $rel['to_type'] === $entity_type ) {
+						if ( (int) ( $rel['to_id'] ?? 0 ) === $entity_id && (string) ( $rel['to_type'] ?? '' ) === $entity_type ) {
 							$rel['from_id'] = $post->ID;
 							$rel['from_type'] = $cpt;
 							$relationships[] = $rel;
@@ -214,6 +266,18 @@ function get_graph_entities( int $entity_id, string $entity_type = '', int $dept
 			$queue[] = [
 				'id'    => $rel['to_id'],
 				'type'  => $rel['to_type'],
+				'depth' => $current['depth'] + 1,
+				'rel'   => $rel,
+			];
+		}
+
+		// Traverse incoming relationships too so parent graphs include child-owned
+		// entities such as Sound cues that belong to a Scene or Shot.
+		$incoming = get_relationships( $current['id'], $current['type'], 'incoming' );
+		foreach ( $incoming as $rel ) {
+			$queue[] = [
+				'id'    => $rel['from_id'],
+				'type'  => $rel['from_type'],
 				'depth' => $current['depth'] + 1,
 				'rel'   => $rel,
 			];
