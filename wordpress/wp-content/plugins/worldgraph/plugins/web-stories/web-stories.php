@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: World Graph Studio - Web Stories Sync
+ * Plugin Name: World Graph Studio - Web Stories Prototype
  * Plugin URI: https://github.com/videohead/worldgraph
- * Description: Synchronize World Graph Studio elements (Scenes, Storyboard Frames) with Google Web Stories. Import Web Stories into World Graph Studio for production management, or export World Graph Studio scenes to Web Stories format.
+ * Description: Experimental adapter source for exploring World Graph Studio and Google Web Stories interoperability; not loaded by the main plugin.
  * Version: 1.0.0
  * Author: World Graph Studio Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: worldgraph-web-stories
- * Requires Plugins: worldgraph/worldgraph.php, web-stories/web-stories.php
+ * Requires Plugins: worldgraph, web-stories
  * Requires at least: 6.0
  * Requires PHP: 8.1
  *

@@ -35,7 +35,7 @@ AI Editor    Generation Engine   Interchange
     |             |              |
     v             v              v
 Configured   Comfy / fal /       JSON / Markdown /
-LLM endpoint ElevenLabs          JSON / Markdown / Celtx / EDL
+LLM endpoint ElevenLabs / Suno   Celtx / EDL
 ```
 
 Core Story Graph work has no AI dependency. An unavailable connection should
@@ -182,12 +182,15 @@ The generation lifecycle is:
 4. WP-Cron submits or polls queued work through the selected adapter.
 5. The adapter normalizes provider status and results.
 6. Supported returned media is imported into the WordPress Media Library and
-   linked back to its Story Graph source and Asset record.
+   linked back to its Story Graph source and Asset record; normalized text
+   results remain on the generation record.
 
 The delivered adapters cover Comfy Cloud MCP, local ComfyUI HTTP workflows,
-fal MCP, ElevenLabs, and manually managed external-generator workflows where
-configured. Job state, cancellation, validation failures, and generation logs
-remain in WordPress.
+fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, and manually
+managed external-generator workflows where configured. Suno uses one
+Connection with distinct REST and MCP credential references; its managed
+Templates cover prompt music, custom music, and `text_to_lyrics`. Job state,
+cancellation, validation failures, and generation logs remain in WordPress.
 
 A connection represents endpoint, environment, credentials, and capability
 configuration. A template represents reusable, provider-aware generation
@@ -196,7 +199,8 @@ resulting WordPress asset.
 
 See [Generation Engine](plugins/GENERATION_ENGINE.md),
 [Comfy Template Catalog](plugins/COMFY_TEMPLATE_CATALOG.md), and
-[Deployment and Connections](Deployment_and_Connections.md).
+[Deployment and Connections](Deployment_and_Connections.md). The two-provider
+Suno contract is detailed in [Suno Integration](plugins/SUNO.md).
 
 ### Interchange
 

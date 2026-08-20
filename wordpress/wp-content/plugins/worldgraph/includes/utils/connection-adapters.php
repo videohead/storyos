@@ -86,6 +86,27 @@ class Connection_Adapters {
 				],
 				'init'          => [ 'WorldGraph\\Utils\\ElevenLabs_Catalog', 'init' ],
 			],
+			'suno' => [
+				'label'         => 'Suno',
+				'description'   => 'Generate songs and lyrics through SunoAPI.org REST or the AceData Cloud Suno MCP server.',
+				'icon'          => 'dashicons-album',
+				'endpoint'      => 'https://api.sunoapi.org',
+				'mcp_endpoint'  => 'https://suno.mcp.acedata.cloud/mcp',
+				'setup_options' => [
+					'suno' => [
+						'label'                   => 'Suno API + MCP',
+						'environment'             => 'production',
+						'mcp_endpoint'            => true,
+						'separate_mcp_credential' => true,
+					],
+				],
+				'files'         => [
+					'includes/utils/suno-api.php',
+					'includes/utils/suno-mcp.php',
+					'includes/utils/suno-catalog.php',
+				],
+				'init'          => [ 'WorldGraph\\Utils\\Suno_Catalog', 'init' ],
+			],
 			'openai_compatible' => [ 'label' => 'OpenAI-compatible', 'endpoint' => '', 'files' => [] ],
 			'openai'            => [ 'label' => 'OpenAI', 'endpoint' => 'https://api.openai.com/v1', 'files' => [] ],
 			'anthropic'         => [ 'label' => 'Anthropic', 'endpoint' => 'https://api.anthropic.com', 'files' => [] ],
@@ -151,6 +172,12 @@ class Connection_Adapters {
 	public static function endpoint( string $provider_type ): string {
 		$adapter = self::all()[ sanitize_key( $provider_type ) ] ?? [];
 		return esc_url_raw( (string) ( $adapter['endpoint'] ?? '' ) );
+	}
+
+	/** Default MCP endpoint without loading provider API code. */
+	public static function mcp_endpoint( string $provider_type ): string {
+		$adapter = self::all()[ sanitize_key( $provider_type ) ] ?? [];
+		return esc_url_raw( (string) ( $adapter['mcp_endpoint'] ?? '' ) );
 	}
 
 	/**

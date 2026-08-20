@@ -193,6 +193,18 @@ class Test_WorldGraph_CPT extends TestCase {
 			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_storyboard_image_asset' )
 		);
 		$this->assertSame(
+			'field_worldgraph_editorial_artifact_type',
+			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_editorial_artifact_type' )
+		);
+		$this->assertSame(
+			'field_worldgraph_board_frame_number',
+			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_storyboard_frame_number' )
+		);
+		$this->assertSame(
+			'field_worldgraph_board_frame_description',
+			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_storyboard_frame_description' )
+		);
+		$this->assertSame(
 			'closedpostboxes_worldgraph_world',
 			\WorldGraph\Utils\worldgraph_migrate_machine_name( 'closedpostboxes_storyos_story_world' )
 		);
@@ -216,7 +228,7 @@ class Test_WorldGraph_CPT extends TestCase {
 		$this->assertSame( 'worldgraph/v1', \WorldGraph\Utils\worldgraph_transform_stored_value( 'storyos/v1' ) );
 		$this->assertSame( 'worldgraph/chat', \WorldGraph\Utils\worldgraph_transform_stored_value( 'storyos/chat' ) );
 		$this->assertSame( 'worldgraph/ai-editor-panel', \WorldGraph\Utils\worldgraph_transform_stored_value( 'storyos/ai-editor-panel' ) );
-		$this->assertSame( 'worldgraph-celtx/v1', \WorldGraph\Utils\worldgraph_transform_stored_value( 'storyos-celtx/v1' ) );
+		$this->assertSame( 'worldgraph/v1', \WorldGraph\Utils\worldgraph_transform_stored_value( 'storyos-celtx/v1' ) );
 		$this->assertSame( 'worldgraph-web-stories/v1', \WorldGraph\Utils\worldgraph_transform_stored_value( 'storyos-web-stories/v1' ) );
 		$this->assertSame( 'WorldGraphCeltx\\REST\\Sync', \WorldGraph\Utils\worldgraph_transform_stored_value( 'StoryOSCeltx\\REST\\Sync' ) );
 
@@ -245,6 +257,9 @@ class Test_WorldGraph_CPT extends TestCase {
 					'taxonomy'   => 'storyos_status',
 					'field_key'  => 'field_storyos_story_world_project',
 					'group_key'  => 'group_storyos_story_world',
+					'artifact_key' => 'field_storyos_editorial_artifact_type',
+					'frame_number_key' => 'field_storyos_storyboard_frame_number',
+					'frame_description_key' => 'field_storyos_storyboard_frame_description',
 					'description' => 'A StoryOS migration note belongs to the author.',
 				],
 			]
@@ -257,6 +272,9 @@ class Test_WorldGraph_CPT extends TestCase {
 		$this->assertSame( 'worldgraph_status', $migrated['worldgraph_world']['taxonomy'] );
 		$this->assertSame( 'field_worldgraph_world_project', $migrated['worldgraph_world']['field_key'] );
 		$this->assertSame( 'group_worldgraph_world', $migrated['worldgraph_world']['group_key'] );
+		$this->assertSame( 'field_worldgraph_editorial_artifact_type', $migrated['worldgraph_world']['artifact_key'] );
+		$this->assertSame( 'field_worldgraph_board_frame_number', $migrated['worldgraph_world']['frame_number_key'] );
+		$this->assertSame( 'field_worldgraph_board_frame_description', $migrated['worldgraph_world']['frame_description_key'] );
 		$this->assertSame( 'A StoryOS migration note belongs to the author.', $migrated['worldgraph_world']['description'] );
 	}
 

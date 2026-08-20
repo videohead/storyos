@@ -6,7 +6,9 @@
 
 ( function( React, wp ) {
 	const { PanelBody, TextareaControl, SelectControl, Button, Spinner, TabPanel, Notice, TextControl } = wp.components;
-	const { __ } = wp.i18n;
+	const __ = function( text ) {
+		return wp.i18n.__( text, 'worldgraph' );
+	};
 	const { useState, useEffect } = React;
 
 	function AIEditorPanel() {

@@ -75,8 +75,6 @@ services are replaceable connections; they do not own the Story Graph.
 - Docker Desktop or Docker Engine
 - [Lando](https://docs.lando.dev/getting-started/installation.html)
 - Git
-- The [Frost block theme](https://github.com/wpengine/frost) installed as the
-  parent theme for the included World Graph child theme
 - An API-connected LLM only if you want AI Editor or advisor features
 - ComfyUI, Comfy Cloud, or another configured provider only if you want
   automated asset generation
@@ -90,27 +88,33 @@ lando start
 lando info
 ```
 
-Before activating the included `worldgraph-child` theme, download Frost from
-the [official Frost repository](https://github.com/wpengine/frost)
-and install it as `wordpress/wp-content/themes/frost`. Frost is the parent theme
-declared by the child theme; WordPress must be able to find it before the child
-can be activated.
-
 Lando starts WordPress, PHP 8.2, MariaDB, and phpMyAdmin. The default local URL
 is `https://worldgraph.lndo.site`.
 
-For a fresh WordPress database, complete WordPress installation and activate
-the required plugins:
+WordPress core and Secure Custom Fields are deployment dependencies rather than
+tracked source in this repository. For a fresh checkout and database, install
+them before activating World Graph Studio:
 
 ```bash
+lando wp core download --force
+lando wp config create \
+  --dbname=wordpress \
+  --dbuser=wordpress \
+  --dbpass=wordpress \
+  --dbhost=database \
+  --skip-check
 lando wp core install \
   --url=https://worldgraph.lndo.site \
   --title="World Graph Studio" \
   --admin_user=admin \
   --admin_password=<choose-a-password> \
   --admin_email=<your-email>
-lando wp plugin activate secure-custom-fields worldgraph
+lando wp plugin install secure-custom-fields --activate
+lando wp plugin activate worldgraph
 ```
+
+World Graph Studio works with ordinary WordPress themes; no particular theme is
+required by the plugin.
 
 If you are restoring an existing database instead, import a serialization-safe
 WordPress backup before activating `worldgraph`. Activation migrates supported

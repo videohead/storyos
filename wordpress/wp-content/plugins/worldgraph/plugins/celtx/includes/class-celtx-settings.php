@@ -266,7 +266,7 @@ class Settings {
 								Enable Celtx synchronization
 							</label>
 							<p class="description">
-								When enabled, World Graph Studio elements will automatically sync to Celtx. Disable this to pause synchronization without removing your API credentials.
+								When enabled, authenticated REST requests and connector actions can send World Graph Studio elements to Celtx. Disable this to pause outbound synchronization without removing your API credentials.
 							</p>
 						</td>
 					</tr>
@@ -278,7 +278,7 @@ class Settings {
 						name="celtx_settings_submit" 
 						id="celtx_settings_submit" 
 						class="button button-primary" 
-						value="<?php esc_attr_e( 'Save Settings' ); ?>"
+						value="<?php esc_attr_e( 'Save Settings', 'worldgraph-celtx' ); ?>"
 					/>
 					<?php wp_nonce_field( 'celtx_settings', 'celtx_settings_nonce' ); ?>
 				</p>
@@ -296,7 +296,7 @@ class Settings {
 						name="celtx_test_connection" 
 						id="celtx_test_connection" 
 						class="button button-secondary" 
-						value="<?php esc_attr_e( 'Test Connection' ); ?>"
+						value="<?php esc_attr_e( 'Test Connection', 'worldgraph-celtx' ); ?>"
 					/>
 					<?php wp_nonce_field( 'celtx_test', 'celtx_test_nonce' ); ?>
 				</p>
@@ -313,7 +313,7 @@ class Settings {
 				<li><strong>Scenes</strong> → Celtx Scenes</li>
 				<li><strong>Shots</strong> → Celtx Scene Comments</li>
 			</ul>
-			<p>Each World Graph Studio element stores its corresponding Celtx element ID in post meta for bidirectional sync.</p>
+			<p>Each synchronized World Graph Studio element stores its corresponding Celtx element ID in post meta so later outbound updates can target the same remote element.</p>
 		</div>
 		<?php
 	}

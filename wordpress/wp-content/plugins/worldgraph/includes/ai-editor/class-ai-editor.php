@@ -450,6 +450,7 @@ class AI_Editor {
 			$asset_file['version'],
 			true
 		);
+		wp_set_script_translations( 'worldgraph-ai-editor', 'worldgraph', WORLDGRAPH_PLUGIN_DIR . 'languages' );
 
 		wp_enqueue_style(
 			'worldgraph-ai-editor',

@@ -14,7 +14,7 @@ providers. WordPress remains the control plane and source of truth for:
 - reusable generation Templates;
 - queued generation records;
 - prompts, parameters, source-post links, and provider provenance;
-- imported WordPress media and linked Asset records; and
+- imported WordPress media, retained text results, and linked Asset records; and
 - permissions, nonces, cancellation, status, and operator logs.
 
 No separate Python orchestrator or application queue is required. Long-running
@@ -33,10 +33,10 @@ Story Graph post or REST client
          WP-Cron batch worker
               |
               v
-  ComfyUI / fal / ElevenLabs adapter
+ ComfyUI / fal / ElevenLabs / Suno adapter
               |
               v
- WordPress attachments + Asset provenance
+ WordPress attachments / text results + provenance
 ```
 
 ## Current generation shapes
@@ -50,8 +50,9 @@ release registers these modalities:
 | `text_to_speech` | audio | `prompt` | none | ElevenLabs |
 | `text_to_dialogue` | audio | `prompt` | none | ElevenLabs |
 | `text_to_sound_effect` | audio | `prompt` | none | ElevenLabs |
-| `text_to_music` | audio | `prompt` | none | ElevenLabs |
+| `text_to_music` | audio | `prompt` | none | ElevenLabs or Suno |
 | `text_to_voice` | audio | `prompt` | none | ElevenLabs voice design |
+| `text_to_lyrics` | text | `prompt` | none | Suno |
 
 The media-import boundary can accept image, video, and audio provider results,
 and Assets can describe broader media. That storage capability does not make
@@ -121,6 +122,22 @@ available speech models and voices and provisions endpoint-specific Templates
 for the five registered audio modalities. Completed audio, including voice
 design previews, is imported into the WordPress media library before the job is
 marked complete.
+
+### Suno REST and MCP
+
+One `suno` Connection holds the SunoAPI.org REST endpoint and the AceData Cloud
+Suno MCP endpoint, but their bearer tokens remain in separate
+`credential_reference` and `mcp_credential_reference` fields. These are
+independent third-party providers; credentials and model names are not
+interchangeable.
+
+Catalog sync provisions six transport-specific Templates: prompt music,
+custom music, and lyrics for REST, plus the same three operations for MCP.
+SunoAPI.org jobs use a token-protected callback only to schedule polling and
+are reconciled through the provider record-info endpoint. MCP jobs use their
+returned task ID and `suno_get_task`. Music completion imports both returned
+tracks before the generation is marked complete. See [Suno
+Integration](SUNO.md) for the operator and transport contracts.
 
 ### Manually managed providers
 
@@ -205,9 +222,11 @@ The durable states are:
 | `failed` | Validation, provider execution, or media import failed |
 | `cancelled` | Cancelled in World Graph Studio |
 
-ElevenLabs may return completed audio synchronously. ComfyUI and fal can return
-asynchronous jobs. A local ComfyUI Connection with an MCP endpoint can fall
-back to the local HTTP adapter when MCP submission fails.
+ElevenLabs may return completed audio synchronously. ComfyUI, fal, and Suno can
+return asynchronous jobs. A local ComfyUI Connection with an MCP endpoint can
+fall back to the local HTTP adapter when MCP submission fails. Suno REST and
+MCP Templates do not fall back across transports because their credentials and
+provider contracts are different.
 
 ## Result import and provenance
 
@@ -216,6 +235,9 @@ validated by type and size, and inserted as media attachments. Multiple image
 or audio results are retained when the provider returns them. Depending on the
 originating request, the primary attachment can become the post's featured
 media and a linked `worldgraph_asset` record can be created.
+
+Text-output jobs such as Suno lyrics retain their normalized provider result on
+the generation record and do not create a media attachment.
 
 Generation metadata retains the source post, Template, provider, Connection,
 workflow/provider-template reference, prompt, parameters, timestamps, remote
@@ -289,3 +311,4 @@ abilities; their current LLM requests use `tool_choice: none`. See
 - [ComfyUI catalog](../../wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-catalog.php)
 - [ComfyUI manifests](../../wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-manifest.php)
 - [Setup and Connections](../Deployment_and_Connections.md)
+- [Suno Integration](SUNO.md)

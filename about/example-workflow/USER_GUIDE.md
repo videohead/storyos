@@ -6,22 +6,17 @@ export, and editorial tools work as ordinary WordPress features.
 
 ## 1. Install World Graph Studio
 
-World Graph Studio requires WordPress 6.0 or newer, PHP 8.1 or newer, the
-Secure Custom Fields plugin, and the [Frost block theme](https://github.com/wpengine/frost).
-Frost is the parent theme for the included `worldgraph-child` theme. Download
-Frost and install it at `wp-content/themes/frost` before activating the child
-theme; WordPress will not recognize the child correctly without its parent.
+World Graph Studio requires WordPress 6.0 or newer, PHP 8.1 or newer, and the
+Secure Custom Fields plugin. It works with ordinary WordPress themes and does
+not require a specific theme.
 
 For the repository's Lando environment:
 
 ```bash
 lando start
-lando wp plugin activate secure-custom-fields worldgraph
+lando wp plugin install secure-custom-fields --activate
+lando wp plugin activate worldgraph
 ```
-
-If you are using the custom World Graph theme, install the included
-`wordpress/wp-content/themes/worldgraph-child` directory after Frost is in
-place, then activate `worldgraph-child` from **Appearance > Themes**.
 
 Open the URL reported by `lando info`, sign in to WordPress, and choose **World
 Graph Studio > Setup**.
@@ -42,8 +37,8 @@ The setup screen separates core WordPress operation from optional services:
 - **LLM connection:** enable AI Editor conversations, analysis, generation
   assistance, and specialist advisor workflows.
 - **Generation connection:** submit supported templates to Comfy Cloud MCP,
-  local ComfyUI, fal MCP, or ElevenLabs, depending on the adapter and templates
-  you configure.
+  local ComfyUI, fal MCP, ElevenLabs, SunoAPI.org REST, or AceData Cloud Suno
+  MCP, depending on the adapter and templates you configure.
 - **Manual external generation:** create media in another tool, then import it
   into WordPress with its source and provenance.
 
@@ -118,6 +113,12 @@ job state, and available provenance. Supported output depends on the selected
 adapter and template. You can also upload media made elsewhere and link it to
 the same Story Graph records.
 
+The Assets metabox currently lists image-output Templates. Suno prompt music,
+custom music, and `text_to_lyrics` use the generic Template-backed generation
+API. A Suno Connection requires a SunoAPI.org REST key and a separate AceData
+Cloud MCP token; one cannot authenticate the other. See
+[Suno Integration](../plugins/SUNO.md).
+
 ## 7. Export and exchange work
 
 The current release provides these portable workflows:
@@ -161,4 +162,5 @@ and licensing terms.
 - [Setup guide](../../wordpress/wp-content/plugins/worldgraph/documentation/SETUP_GUIDE.md)
 - [REST API](../REST_API_Specification.md)
 - [Generation engine](../plugins/GENERATION_ENGINE.md)
+- [Suno integration](../plugins/SUNO.md)
 - [Script and EDL integration](../Script_EDL_Integration.md)

@@ -29,7 +29,9 @@ WordPress
         ├── local ComfyUI HTTP API
         ├── Comfy MCP
         ├── fal MCP
-        └── ElevenLabs REST API
+        ├── ElevenLabs REST API
+        ├── SunoAPI.org REST
+        └── AceData Cloud Suno MCP
 ```
 
 ## Bootstrap and naming
@@ -132,20 +134,23 @@ registry currently contains:
 - `text_to_speech`;
 - `text_to_dialogue`;
 - `text_to_sound_effect`;
-- `text_to_music`; and
-- `text_to_voice`.
+- `text_to_music`;
+- `text_to_voice`; and
+- `text_to_lyrics`.
 
 The first is the built-in ComfyUI image path. The five audio shapes are
-provisioned by the ElevenLabs adapter. The media-import layer can store image,
-video, and audio results, but broader storage does not imply a registered direct
-generation modality.
+provisioned by ElevenLabs, and Suno provisions music plus text-to-lyrics
+Templates. The media-import layer can store image, video, and audio results,
+but broader storage does not imply a registered direct generation modality.
 
 ### Connections and Templates
 
 `worldgraph_conn` records select a provider, environment, HTTP/MCP endpoints,
-credential value or reference, model selection/allowlist, status, and optional
-limits. Adapter implementations load only for configured, non-disabled
-Connections or while the provider is being configured.
+credential values or references, model selection/allowlist, status, and
+optional limits. Suno keeps the SunoAPI.org REST credential in
+`credential_reference` and the distinct AceData Cloud MCP token in
+`mcp_credential_reference`. Adapter implementations load only for configured,
+non-disabled Connections or while the provider is being configured.
 
 `worldgraph_template` records select the Connection, modality, provider
 template or endpoint, optional ComfyUI API workflow, default configuration,
@@ -155,8 +160,10 @@ The shipped executable adapters are:
 
 - local ComfyUI HTTP;
 - Comfy MCP, including Comfy Cloud;
-- fal MCP; and
-- ElevenLabs.
+- fal MCP;
+- ElevenLabs;
+- SunoAPI.org REST; and
+- AceData Cloud Suno MCP.
 
 Other provider names in the Connection schema are manually managed extension
 points unless an adapter registers executable behavior.
@@ -211,9 +218,10 @@ completed | failed | cancelled
 ```
 
 Completed image, video, and audio files pass through WordPress validation and
-media attachment creation. Generation records retain source, Template,
-Connection, provider, prompt, parameters, remote job, output IDs, status, and
-sanitized result metadata.
+media attachment creation. Text-output jobs retain their normalized provider
+result without creating a media attachment. Generation records retain source,
+Template, Connection, provider, prompt, parameters, remote job, output IDs,
+status, and sanitized result metadata.
 
 ## REST API
 
@@ -262,7 +270,8 @@ The guided generation choices are:
 - Comfy Cloud MCP;
 - local ComfyUI HTTP plus optional separate MCP;
 - fal MCP;
-- ElevenLabs generative audio; or
+- ElevenLabs generative audio;
+- Suno API + MCP, using separate credentials; or
 - no generation Connection.
 
 The wizard also configures the primary LLM provider, URL, model, API key, max
@@ -270,7 +279,9 @@ tokens, and temperature. It can be submitted with provider fields empty so
 core Story Graph work remains available.
 
 See [Setup Guide](SETUP_GUIDE.md) and
-[Setup Wizard Guide](SETUP_WIZARD_GUIDE.md).
+[Setup Wizard Guide](SETUP_WIZARD_GUIDE.md). See
+[Suno Integration](../../../../../about/plugins/SUNO.md) for the paired
+transport contract.
 
 ## Dependencies and runtime ownership
 

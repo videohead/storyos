@@ -28,7 +28,7 @@
             "name": "provider_type",
             "aria-label": "",
             "type": "select",
-            "instructions": "Provider adapter used by the paired Templates, such as ComfyUI, FAL, Google Gemini, or Veo.",
+            "instructions": "Provider adapter used by the paired Templates, such as ComfyUI, fal, ElevenLabs, Suno, Google Gemini, or Veo.",
             "required": 1,
             "conditional_logic": 0,
             "wrapper": {
@@ -40,6 +40,7 @@
                 "comfyui": "comfyui",
                 "fal": "fal",
                 "elevenlabs": "elevenlabs",
+                "suno": "suno",
                 "openai_compatible": "openai_compatible",
                 "openai": "openai",
                 "anthropic": "anthropic",
@@ -124,7 +125,7 @@
             "name": "endpoint_url",
             "aria-label": "",
             "type": "text",
-            "instructions": "Provider endpoint. For fal use https:\/\/mcp.fal.ai\/mcp; for ElevenLabs use https:\/\/api.elevenlabs.io\/v1; for local ComfyUI use its HTTP API base URL.",
+            "instructions": "Provider endpoint. For SunoAPI.org use https:\/\/api.sunoapi.org; for ElevenLabs use https:\/\/api.elevenlabs.io\/v1; for local ComfyUI use its HTTP API base URL.",
             "required": 1,
             "conditional_logic": 0,
             "wrapper": {
@@ -144,7 +145,7 @@
             "name": "mcp_endpoint_url",
             "aria-label": "",
             "type": "text",
-            "instructions": "Streamable HTTP MCP endpoint. Required for fal (https:\/\/mcp.fal.ai\/mcp); optional for local ComfyUI discovery and downloads.",
+            "instructions": "Streamable HTTP MCP endpoint. Required for fal; use https:\/\/suno.mcp.acedata.cloud\/mcp for Suno MCP; optional for local ComfyUI discovery and downloads.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {
@@ -164,7 +165,27 @@
             "name": "credential_reference",
             "aria-label": "",
             "type": "text",
-            "instructions": "Credential or environment reference, e.g. env:\/\/FAL_KEY, env:\/\/ELEVENLABS_API_KEY, or env:\/\/COMFYUI_API_KEY.",
+            "instructions": "REST\/API credential or environment reference, e.g. env:\/\/SUNO_API_KEY, env:\/\/ELEVENLABS_API_KEY, or env:\/\/COMFYUI_API_KEY.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_conn_mcp_credential_reference",
+            "label": "MCP API Key / OAuth (Reference)",
+            "name": "mcp_credential_reference",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Optional separate credential for the MCP endpoint. Suno MCP requires an AceData Cloud token such as env:\/\/ACEDATACLOUD_API_TOKEN, which is distinct from a SunoAPI.org key.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {
@@ -184,7 +205,7 @@
             "name": "model",
             "aria-label": "",
             "type": "text",
-            "instructions": "Optional default model. For fal use an endpoint ID; for ElevenLabs use a speech model ID such as eleven_multilingual_v2.",
+            "instructions": "Optional default model. For SunoAPI.org use V5_5 (mapped to chirp-v5-5 for MCP); for fal use an endpoint ID; for ElevenLabs use a speech model ID.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {
@@ -244,7 +265,7 @@
             "name": "model_access",
             "aria-label": "",
             "type": "textarea",
-            "instructions": "Optional JSON allowlist. fal uses model endpoint IDs; ElevenLabs uses voice IDs. Empty lets the adapter select a default.",
+            "instructions": "Optional JSON allowlist. fal uses model endpoint IDs; ElevenLabs uses voice IDs; Suno uses model version IDs. Empty lets the adapter select a default.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {
@@ -360,5 +381,5 @@
     "display_title": "",
     "allow_ai_access": false,
     "ai_description": "",
-    "modified": 1787243006
+    "modified": 1787252961
 }

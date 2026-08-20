@@ -2,10 +2,11 @@
 
 World Graph Studio keeps stories, Story Graph data, and specialist creative
 advisors in WordPress. Generative media workflows can run through configured
-tools including ComfyUI, fal, and ElevenLabs. Neither a GPU nor a generation
-connection is required for writing, planning, continuity, collaboration, asset
-tracking, JSON interchange, or Markdown export. AI-assisted and generated-media
-features require the corresponding configured service.
+tools including ComfyUI, fal, ElevenLabs, and Suno. Neither a GPU nor a
+generation connection is required for writing, planning, continuity,
+collaboration, asset tracking, JSON interchange, or Markdown export.
+AI-assisted and generated-media features require the corresponding configured
+service.
 
 The repository implementation is complete for the connections documented here.
 Credentials, reachable services, models, quotas, and provider accounts remain
@@ -17,7 +18,8 @@ Every World Graph Studio user needs:
 
 1. A WordPress.org-capable host, WP Local, or a local Docker/Lando deployment.
 2. Optionally, a local ComfyUI installation, Comfy Cloud account, fal account,
-   ElevenLabs account, or another manually managed asset source.
+   ElevenLabs account, separate SunoAPI.org and AceData Cloud accounts, or
+   another manually managed asset source.
 3. Optionally, an API-connected LLM: a local OpenAI-compatible server such as
    llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as
    OpenAI or Anthropic.
@@ -47,7 +49,8 @@ activate:
 
 ```bash
 lando db-import scripts/pre-worldgraph-upgrade.sql.gz
-lando wp plugin activate secure-custom-fields worldgraph
+lando wp plugin install secure-custom-fields --activate
+lando wp plugin activate worldgraph
 ```
 
 Do not use a raw SQL search-and-replace for this rename; WordPress options,
@@ -190,6 +193,27 @@ Returned audio is written into the WordPress media library and linked to the
 source Asset before generation is marked complete. Voice Design returns several
 previews, so every preview is imported. Raw audio bytes are never persisted in
 generation post meta.
+
+## Suno API and MCP
+
+World Graph Studio represents Suno generation with one `suno` Connection and
+two separate third-party transports. SunoAPI.org REST uses
+`https://api.sunoapi.org` and `credential_reference`; the AceData Cloud Suno
+MCP server uses `https://suno.mcp.acedata.cloud/mcp` and
+`mcp_credential_reference`. Each service issues its own bearer token. A key
+from one service cannot authenticate the other, and neither is a browser-based
+Suno subscription credential.
+
+Saving or testing the combined Connection provisions separate REST and MCP
+Templates for prompt music, custom music, and lyrics. REST tasks use the
+provider's callback to wake the WordPress poller and are reconciled through the
+record-info endpoints; MCP tasks are polled with `suno_get_task`. A music
+request normally returns two tracks, and World Graph Studio imports every
+final track into the media library before completing the generation record.
+
+See [Suno Integration](plugins/SUNO.md) for credential setup, Template
+contracts, callback-token behavior, polling, import, limits, and
+troubleshooting.
 
 ## Local ComfyUI HTTP API
 

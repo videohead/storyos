@@ -101,7 +101,7 @@ class Setup_Wizard {
 		}
 		?>
 		<div class="notice notice-warning">
-			<p><strong>World Graph Studio</strong> requires a one-time connection setup (local LLM and, optionally, ComfyUI) before use. <a href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-setup' ) ); ?>">Complete setup now</a></p>
+			<p><strong>World Graph Studio</strong> requires a one-time connection setup (an LLM and, optionally, a generation provider) before use. <a href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-setup' ) ); ?>">Complete setup now</a></p>
 		</div>
 		<?php
 	}
@@ -146,7 +146,8 @@ class Setup_Wizard {
 		}
 
 		// Populate the "Generation" Connection record from this section.
-		$comfy_api_key = sanitize_text_field( wp_unslash( $_POST['worldgraph_gen_credential_reference'] ?? '' ) );
+		$generation_api_key = sanitize_text_field( wp_unslash( $_POST['worldgraph_gen_credential_reference'] ?? '' ) );
+		$generation_mcp_api_key = sanitize_text_field( wp_unslash( $_POST['worldgraph_gen_mcp_credential_reference'] ?? '' ) );
 		$comfy_local_url = esc_url_raw( wp_unslash( $_POST['worldgraph_comfy_local_url'] ?? '' ) );
 		$comfy_local_mcp_url = esc_url_raw( wp_unslash( $_POST['worldgraph_comfy_local_mcp_url'] ?? '' ) );
 		if ( 'none' !== $comfy_mode ) {
@@ -154,6 +155,10 @@ class Setup_Wizard {
 			$is_fal = 'fal' === $provider_type;
 			$is_local_comfy = 'comfyui' === $provider_type && 'local' === ( $generation_choice['environment'] ?? '' );
 			$provider_endpoint = \WorldGraph\Utils\Connection_Adapters::endpoint( $provider_type );
+			$provider_mcp_endpoint = \WorldGraph\Utils\Connection_Adapters::mcp_endpoint( $provider_type );
+			if ( '' === $provider_mcp_endpoint && ! empty( $generation_choice['mcp_endpoint'] ) ) {
+				$provider_mcp_endpoint = $provider_endpoint;
+			}
 			\WorldGraph\Utils\Connection_Adapters::load( $provider_type );
 			$connection_id = \WorldGraph\CPT\Connection::upsert_managed(
 				'generation',
@@ -162,8 +167,9 @@ class Setup_Wizard {
 					'provider_type'        => $provider_type,
 					'environment'          => sanitize_key( (string) ( $generation_choice['environment'] ?? 'production' ) ),
 					'endpoint_url'         => $is_local_comfy ? $comfy_local_url : $provider_endpoint,
-					'mcp_endpoint_url'     => $is_local_comfy ? $comfy_local_mcp_url : ( ! empty( $generation_choice['mcp_endpoint'] ) ? $provider_endpoint : '' ),
-					'credential_reference' => $comfy_api_key,
+					'mcp_endpoint_url'     => $is_local_comfy ? $comfy_local_mcp_url : $provider_mcp_endpoint,
+					'credential_reference' => $generation_api_key,
+					'mcp_credential_reference' => ! empty( $generation_choice['separate_mcp_credential'] ) ? $generation_mcp_api_key : '',
 					'status'               => 'unverified',
 				]
 			);
@@ -177,6 +183,8 @@ class Setup_Wizard {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Fal_Catalog::HOOK, [ $connection_id ] );
 			} elseif ( 'elevenlabs' === $provider_type && $connection_id && ! wp_next_scheduled( \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $connection_id ] ) ) {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $connection_id ] );
+			} elseif ( 'suno' === $provider_type && $connection_id && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $connection_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $connection_id ] );
 			}
 		}
 
@@ -295,6 +303,29 @@ class Setup_Wizard {
 			}
 			wp_send_json_success( [ 'message' => sprintf( 'Connected to fal MCP; %d tools available.', count( $tools ) ) ] );
 		}
+		if ( 'suno' === $mode ) {
+			\WorldGraph\Utils\Connection_Adapters::load( 'suno' );
+			$api_key = sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) );
+			$mcp_api_key = sanitize_text_field( wp_unslash( $_POST['mcp_api_key'] ?? '' ) );
+			$credits = \WorldGraph\Utils\Suno_API::test_configuration( \WorldGraph\Utils\Connection_Adapters::endpoint( 'suno' ), $api_key );
+			if ( is_wp_error( $credits ) ) {
+				wp_send_json_error( [ 'message' => $credits->get_error_message() ] );
+			}
+
+			$tools = \WorldGraph\Utils\Suno_MCP::test_configuration( \WorldGraph\Utils\Connection_Adapters::mcp_endpoint( 'suno' ), $mcp_api_key );
+			if ( is_wp_error( $tools ) ) {
+				wp_send_json_error( [ 'message' => $tools->get_error_message() ] );
+			}
+
+			$missing = array_values( array_diff( \WorldGraph\Utils\Suno_MCP::REQUIRED_TOOLS, $tools ) );
+			if ( ! empty( $missing ) ) {
+				wp_send_json_error( [ 'message' => sprintf( 'Suno MCP is missing required tools: %s.', implode( ', ', $missing ) ) ] );
+			}
+
+			wp_send_json_success( [
+				'message' => sprintf( 'Connected to SunoAPI.org and AceData Cloud Suno MCP; %d MCP tools available. Saving provisions transport-specific Templates.', count( $tools ) ),
+			] );
+		}
 
 		$url = untrailingslashit( esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ) );
 		\WorldGraph\Utils\Connection_Adapters::load( 'comfyui' );
@@ -326,7 +357,8 @@ class Setup_Wizard {
 			'meta_value'     => 'generation', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 		] );
 		$generation_connection_id = $generation_connections ? (int) $generation_connections[0] : 0;
-		$comfy_api_key = $generation_connection_id ? (string) get_post_meta( $generation_connection_id, 'credential_reference', true ) : '';
+		$generation_api_key = $generation_connection_id ? (string) get_post_meta( $generation_connection_id, 'credential_reference', true ) : '';
+		$generation_mcp_api_key = $generation_connection_id ? (string) get_post_meta( $generation_connection_id, 'mcp_credential_reference', true ) : '';
 
 		?>
 		<div class="wrap">
@@ -337,7 +369,7 @@ class Setup_Wizard {
 			<?php if ( isset( $_GET['required'] ) ) : ?>
 				<div class="notice notice-warning"><p>Please review the connection settings below before continuing. Submitting this form (even with fields left blank) completes setup.</p></div>
 			<?php endif; ?>
-			<p>World Graph Studio requires a WordPress.org host or local Docker/Lando deployment. An API-connected LLM enables the World Graph Studio agents, while ComfyUI is optional for media generation.</p>
+			<p>World Graph Studio requires a WordPress.org host or local Docker/Lando deployment. An API-connected LLM enables the World Graph Studio agents, while a generation Connection is optional for media generation.</p>
 			<div class="notice notice-info inline">
 				<p><strong>Do not have API access?</strong> You can still use World Graph Studio to develop stories, manage characters and scenes, track continuity, and organize media. Generate content in a browser-based service using its own web app, download the result, and attach it to a World Graph Studio post as the featured asset or in its asset gallery. Browser subscriptions and web login credentials cannot be used as server API credentials.</p>
 			</div>
@@ -347,7 +379,7 @@ class Setup_Wizard {
 				<h2>WordPress Runtime</h2>
 				<p>WordPress is connected. For production, configure a host scheduler to run WP-Cron. Local Lando users can run <code>lando wp-cron</code>.</p>
 				<h2>Generation Connection (Optional)</h2>
-				<p class="description">This section only establishes <em>how</em> World Graph Studio reaches a generation provider (ComfyUI, Comfy Cloud, etc.). <em>What</em> gets generated for a given asset type and provider &mdash; workflow JSON, model, parameters &mdash; is configured per combination as a <strong>Template</strong> post, not here. Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-connections' ) ); ?>">World Graph Studio &gt; Connections</a>.</p>
+				<p class="description">This section only establishes <em>how</em> World Graph Studio reaches a generation provider (ComfyUI, fal, ElevenLabs, Suno, etc.). <em>What</em> gets generated for a given asset type and provider &mdash; workflow JSON, model, parameters &mdash; is configured per combination as a <strong>Template</strong> post, not here. Saving this section creates or updates a <strong>Connection</strong> record, testable from <a href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-connections' ) ); ?>">World Graph Studio &gt; Connections</a>.</p>
 				<p><label for="worldgraph_gen_connection_mode">Preferred Connection</label><br />
 				<select name="worldgraph_gen_connection_mode" id="worldgraph_gen_connection_mode">
 					<?php foreach ( $generation_options as $value => $label ) : ?>
@@ -355,7 +387,9 @@ class Setup_Wizard {
 					<?php endforeach; ?>
 				</select> <span class="description">This list is supplied by installed Connection adapters. Additional providers can be added from World Graph Studio &gt; Connections.</span></p>
 				<p id="worldgraph-generation-credential-fields"><label for="worldgraph_gen_credential_reference">Generation Provider API Key</label><br />
-				<input type="password" class="regular-text" name="worldgraph_gen_credential_reference" id="worldgraph_gen_credential_reference" value="<?php echo esc_attr( $comfy_api_key ); ?>" autocomplete="new-password" /> <span class="description">Use the selected hosted provider's API key. The managed Connection stores this value as its credential.</span></p>
+				<input type="password" class="regular-text" name="worldgraph_gen_credential_reference" id="worldgraph_gen_credential_reference" value="<?php echo esc_attr( $generation_api_key ); ?>" autocomplete="new-password" /> <span class="description">Use the selected hosted provider's API key. The managed Connection stores this value as its API credential reference.</span></p>
+				<p id="worldgraph-generation-mcp-credential-fields"><label for="worldgraph_gen_mcp_credential_reference">Generation Provider MCP Token</label><br />
+				<input type="password" class="regular-text" name="worldgraph_gen_mcp_credential_reference" id="worldgraph_gen_mcp_credential_reference" value="<?php echo esc_attr( $generation_mcp_api_key ); ?>" autocomplete="new-password" /> <span class="description">Suno MCP is operated by AceData Cloud and requires its own token; a SunoAPI.org key cannot authenticate this endpoint.</span></p>
 				<p id="worldgraph-comfy-local-api-fields"><label for="worldgraph_comfy_local_url">Local ComfyUI API URL</label><br />
 				<input type="url" class="regular-text" name="worldgraph_comfy_local_url" id="worldgraph_comfy_local_url" value="<?php echo esc_attr( get_option( 'worldgraph_comfy_local_url', 'http://host.lando.internal:8188' ) ); ?>" placeholder="http://host.lando.internal:8188" /> <span class="description">For ComfyUI running on the Lando host, use <code>http://host.lando.internal:8188</code> (Lando's built-in host hostname, Lando &ge; 3.22); do not use <code>localhost</code> or <code>host.docker.internal</code>.</span></p>
 				<p id="worldgraph-comfy-local-mcp-fields"><label for="worldgraph_comfy_local_mcp_url">Local ComfyUI MCP URL <em>(optional)</em></label><br />
@@ -374,6 +408,9 @@ class Setup_Wizard {
 				<?php elseif ( 'elevenlabs' === $comfy_mode ) : ?>
 					<h3>ElevenLabs Template Configuration</h3>
 					<p class="description">After saving, World Graph Studio discovers your available voices and models, then creates active Templates for text to speech, dialogue, sound effects, music, and voice design. Advanced users can select the speech model or place voice IDs in Model Access on the Connection.</p>
+				<?php elseif ( 'suno' === $comfy_mode ) : ?>
+					<h3>Suno Template Configuration</h3>
+					<p class="description">After saving, World Graph Studio creates transport-specific music, custom-music, and lyrics Templates for SunoAPI.org REST and the AceData Cloud Suno MCP server. The two services use separate bearer tokens. Generation is polled asynchronously and every final song returned by the provider is imported.</p>
 				<?php endif; ?>
 				<h2>External Generator Workflow</h2>
 				<ol>
@@ -408,12 +445,14 @@ class Setup_Wizard {
 				(function () {
 					var generationMode = document.getElementById('worldgraph_gen_connection_mode');
 					var generationCredentialFields = document.getElementById('worldgraph-generation-credential-fields');
+					var generationMcpCredentialFields = document.getElementById('worldgraph-generation-mcp-credential-fields');
 					var localApiFields = document.getElementById('worldgraph-comfy-local-api-fields');
 					var localMcpFields = document.getElementById('worldgraph-comfy-local-mcp-fields');
 					var generationTestButton = document.getElementById('worldgraph-test-comfy-connection');
 					function updateGenerationFields() {
 						var mode = generationMode ? generationMode.value : 'none';
 						generationCredentialFields.hidden = mode === 'none' || mode === 'local_mcp';
+						generationMcpCredentialFields.hidden = mode !== 'suno';
 						localApiFields.hidden = mode !== 'local_mcp';
 						localMcpFields.hidden = mode !== 'local_mcp';
 						generationTestButton.hidden = mode === 'none' || mode === 'cloud';
@@ -474,7 +513,8 @@ class Setup_Wizard {
 								nonce: '<?php echo esc_js( wp_create_nonce( 'worldgraph_test_comfy_connection' ) ); ?>',
 								mode: document.getElementById('worldgraph_gen_connection_mode').value || 'none',
 								url: document.getElementById('worldgraph_comfy_local_url').value,
-								api_key: document.getElementById('worldgraph_gen_credential_reference').value
+								api_key: document.getElementById('worldgraph_gen_credential_reference').value,
+								mcp_api_key: document.getElementById('worldgraph_gen_mcp_credential_reference').value
 							});
 							fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: data })
 								.then(function (response) { return response.json(); })

@@ -368,7 +368,7 @@ class Settings {
 	 * @return array
 	 */
 	public function add_plugin_links( array $links ): array {
-		$settings_link = '<a href="' . esc_url( admin_url( 'admin.php?page=' . $this->page_slug ) ) . '">' . esc_html__( 'Settings' ) . '</a>';
+		$settings_link = '<a href="' . esc_url( admin_url( 'admin.php?page=' . $this->page_slug ) ) . '">' . esc_html__( 'Settings', 'worldgraph-web-stories' ) . '</a>';
 		array_unshift( $links, $settings_link );
 
 		return $links;

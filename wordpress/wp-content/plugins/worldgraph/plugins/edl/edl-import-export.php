@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: World Graph Studio - EDL Import/Export
+ * Plugin Name: World Graph Studio - EDL Format Tools
  * Plugin URI: https://github.com/videohead/worldgraph
- * Description: Import and export Edit Decision Lists (ASCII/CMX 3600 & XML) for World Graph Studio projects and episodes.
+ * Description: Parse, preview, and generate CMX-style text and XML edit decision list data for custom editorial adapters.
  * Version: 1.0.0
  * Author: World Graph Studio Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: worldgraph-edl
- * Requires Plugins: worldgraph/worldgraph.php
+ * Requires Plugins: worldgraph
  * Requires at least: 6.0
  * Requires PHP: 8.1
  *

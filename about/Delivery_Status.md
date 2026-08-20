@@ -18,7 +18,7 @@ not been configured.
 | AI assistance | Gutenberg AI Editor, Story Graph context, configured LLM access, WordPress Abilities, and 50+ specialist creative advisors |
 | Story intelligence | Search, optional semantic assistance, continuity checks, relationship analytics, summaries, and admin panels |
 | Generation | Connection and template records, validation, queued generation jobs, WP-Cron processing, job state, cancellation, result import, and provenance |
-| Provider adapters | local ComfyUI HTTP workflows, Comfy Cloud MCP, fal MCP, ElevenLabs, and manually managed external-generator workflows where configured |
+| Provider adapters | local ComfyUI HTTP workflows, Comfy Cloud MCP, fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, and manually managed external-generator workflows where configured |
 | Project interchange | World Graph Studio JSON import and Markdown screenplay/storyboard export |
 | Script synchronization | Optional outbound Celtx synchronization for supported entities, with persistent remote-ID mapping |
 | Editorial utilities | Optional CMX 3600 and SMPTE 436m XML parsers, preview data, timecode helpers, and format generators |
@@ -28,6 +28,11 @@ not been configured.
 valid credentials, a reachable service, and models or workflows compatible
 with that service. Provider-specific availability is an operating condition,
 not unfinished World Graph Studio implementation.
+
+The delivered Suno path provisions prompt-music, custom-music, and
+`text_to_lyrics` Templates for both REST and MCP. One `suno` Connection keeps
+the SunoAPI.org REST credential distinct from the AceData Cloud MCP credential.
+See [Suno Integration](plugins/SUNO.md) for the transport boundary.
 
 ## On hold: additional script import/export
 

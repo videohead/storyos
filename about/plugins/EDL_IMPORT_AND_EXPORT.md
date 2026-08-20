@@ -1,6 +1,6 @@
 # EDL format tools
 
-Status: bundled extension; disabled by default.
+Status: bundled utility; enabled by default and optional.
 
 World Graph Studio includes a PHP utility for reading, previewing, and writing edit decision list data. Its current role is format handling—not a finished timeline interchange workflow.
 
@@ -35,4 +35,4 @@ This adapter work is distinct from the additional screenplay import/export forma
 
 ## Enablement
 
-The extension is bundled at `wordpress/wp-content/plugins/worldgraph/plugins/edl/` and can be enabled through **World Graph Studio → Plugins** when developing against the format layer.
+The extension is bundled at `wordpress/wp-content/plugins/worldgraph/plugins/edl/` and is enabled by default. It can be disabled through **World Graph Studio → Plugins** when the format layer is not needed.

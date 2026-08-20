@@ -56,7 +56,7 @@ The runtime uses these Template concerns:
 
 | Field | Current meaning |
 | --- | --- |
-| `modality` | Registered input/output shape, currently text-to-image or an ElevenLabs audio modality |
+| `modality` | Registered input/output shape: text-to-image; audio modalities used by ElevenLabs and Suno; or Suno `text_to_lyrics` |
 | `generation_structure` | Human/configuration label; managed Templates currently write the modality output type |
 | `connection_id` | Owning provider Connection |
 | `provider_template_id` | Provider workflow, endpoint, or voice identifier |

@@ -88,6 +88,25 @@ class Generation_Controller extends Base_Controller {
 			],
 		] );
 
+		// SunoAPI.org requires a callback URL for generation requests. The
+		// callback only wakes the canonical poller; provider payloads never mark
+		// a job complete before WordPress fetches and imports the final result.
+		register_rest_route( 'worldgraph/v1', '/generation/suno-callback', [
+			'methods'             => 'POST',
+			'callback'            => [ $this, 'receive_suno_callback' ],
+			'permission_callback' => '__return_true',
+			'args'                => [
+				'connection_id' => [
+					'type'     => 'integer',
+					'required' => true,
+				],
+				'token'         => [
+					'type'     => 'string',
+					'required' => true,
+				],
+			],
+		] );
+
 		// Get generation status.
 		register_rest_route( 'worldgraph/v1', '/generation/(?P<id>\d+)', [
 			'methods'             => 'GET',
@@ -150,6 +169,29 @@ class Generation_Controller extends Base_Controller {
 				],
 			],
 		] );
+	}
+
+	/**
+	 * Authenticate a SunoAPI.org callback and wake the polling worker.
+	 *
+	 * @param WP_REST_Request $request Callback request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function receive_suno_callback( WP_REST_Request $request ) {
+		$connection_id = absint( $request->get_param( 'connection_id' ) );
+		$connection    = \WorldGraph\Utils\Connection_Repository::get( $connection_id );
+		if ( ! $connection || 'suno' !== ( $connection['provider_type'] ?? '' ) ) {
+			return new WP_Error( 'suno_callback_connection_invalid', 'The Suno callback Connection is invalid.', [ 'status' => 404 ] );
+		}
+
+		\WorldGraph\Utils\Connection_Adapters::load( 'suno' );
+		$token = sanitize_text_field( (string) $request->get_param( 'token' ) );
+		if ( ! \WorldGraph\Utils\Suno_API::verify_callback_token( $connection_id, $token ) ) {
+			return new WP_Error( 'suno_callback_unauthorized', 'The Suno callback token is invalid.', [ 'status' => 403 ] );
+		}
+
+		\WorldGraph\Utils\Generation_Batch::schedule();
+		return new WP_REST_Response( [ 'accepted' => true ], 200 );
 	}
 
 	/**

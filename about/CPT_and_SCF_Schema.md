@@ -15,7 +15,7 @@ The schema serves as the foundation for:
 
 - Story development
 - AI advisor context retrieval
-- ComfyUI asset generation
+- Template-backed media and lyrics generation
 - Production planning
 - Script integration
 - Editorial workflows
@@ -459,11 +459,14 @@ keys use the `_worldgraph_gen_*` prefix, including
 `_worldgraph_gen_provider_type`, and `_worldgraph_gen_status`.
 
 WP-Cron processes bounded batches, submits or polls the configured adapter,
-supports cancellation, and imports completed media for supported Template
-modalities into the WordPress media library before marking those jobs complete.
-The built-in catalog currently provisions text-to-image and ElevenLabs audio
-Templates; other modalities require an adapter extension. Imported attachments
-and Asset records retain generation lineage. Featured-image and
+supports cancellation, imports completed media for supported Template
+modalities into the WordPress media library, and retains normalized results for
+text-output Templates before marking those jobs complete.
+The built-in catalogs currently provision text-to-image, ElevenLabs audio,
+and Suno prompt-music, custom-music, and `text_to_lyrics` Templates. Suno
+Templates are transport-specific for SunoAPI.org REST or AceData Cloud MCP;
+other modalities require an adapter extension. Imported attachments and Asset
+records retain generation lineage. Featured-image and
 `_worldgraph_asset_gallery_ids` updates remain separate from the Template
 configuration itself.
 
@@ -503,12 +506,14 @@ an AAF or OMF codec in the current release; those are extension points.
 # CPT: Connection
 
 The `worldgraph_conn` CPT is a control-plane record for a configured provider
-endpoint. Its `credential_reference` field may contain an `env://` pointer or
-a literal provider key entered through the current setup UI. Use environment
-references in managed deployments and restrict Connection access to
-administrators. Templates and generation jobs select a Connection by post ID;
-this association is currently stored as configuration rather than as a Story
-Graph edge.
+endpoint. Its `credential_reference` and `mcp_credential_reference` fields may
+contain `env://` pointers or literal provider keys entered through the current
+setup UI. Use environment references in managed deployments and restrict
+Connection access to administrators. A `suno` Connection uses the former for
+SunoAPI.org REST and the latter for AceData Cloud MCP; those credentials are
+distinct and are not interchangeable. Templates and generation jobs select a
+Connection by post ID; this association is currently stored as configuration
+rather than as a Story Graph edge.
 
 ## Fields
 
@@ -519,6 +524,7 @@ Graph edge.
 - `endpoint_url` (text)
 - `mcp_endpoint_url` (text)
 - `credential_reference` (text)
+- `mcp_credential_reference` (text)
 - `model` (text)
 - `max_tokens` (text)
 - `temperature` (text)

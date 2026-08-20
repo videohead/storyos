@@ -45,14 +45,14 @@ class Plugins {
 	 * Register available plugins.
 	 */
 	private static function register_plugins(): void {
-		// Celtx Sync plugin.
+		// Celtx connector.
 		if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php' ) ) {
 			self::register_plugin(
 				'celtx',
-				'World Graph Studio - Celtx Sync',
+				'World Graph Studio - Celtx Connector',
 				[
-					'name'        => 'Celtx Sync',
-					'description' => 'Synchronize World Graph Studio elements with Celtx using the Celtx GEM Bi-Directional API.',
+					'name'        => 'Celtx Connector',
+					'description' => 'Send supported World Graph Studio elements to Celtx and retain their remote element mappings.',
 					'version'     => '1.0.0',
 					'author'      => 'World Graph Studio Contributors',
 					'icon'        => 'dashicons-external',
@@ -81,14 +81,14 @@ class Plugins {
 			);
 		}
 
-		// EDL Import/Export plugin.
+		// EDL format tools.
 		if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/edl/edl-import-export.php' ) ) {
 			self::register_plugin(
 				'edl',
-				'World Graph Studio - EDL Import/Export',
+				'World Graph Studio - EDL Format Tools',
 				[
-					'name'        => 'EDL Import/Export',
-					'description' => 'Import and export Edit Decision Lists (ASCII/CMX 3600 & XML) for World Graph Studio projects and episodes.',
+					'name'        => 'EDL Format Tools',
+					'description' => 'Parse, preview, and generate CMX-style text and XML edit decision list data for custom editorial adapters.',
 					'version'     => '1.0.0',
 					'author'      => 'World Graph Studio Contributors',
 					'icon'        => 'dashicons-media-video',

@@ -7,8 +7,8 @@
  * credential reference, and quota configuration. Generation jobs reference
  * connections by ID: { "provider_type": "comfyui", "connection_id": 32 }.
  *
- * Raw credentials are never stored here. The credential_reference field holds
- * a pointer only (e.g. env://COMFYUI_API_KEY or secret://comfyui/local);
+ * Raw credentials are never stored here. The credential-reference fields hold
+ * pointers only (e.g. env://COMFYUI_API_KEY or secret://comfyui/local);
  * secret values live in the environment or the encrypted Credential_Store.
  *
  * @package WorldGraph
@@ -131,6 +131,7 @@ class Connection {
 
 			case 'connection_name':
 			case 'credential_reference':
+			case 'mcp_credential_reference':
 			case 'model':
 				return sanitize_text_field( (string) $value );
 		}
@@ -196,6 +197,8 @@ class Connection {
 			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Fal_Catalog::HOOK, [ $post_id ] );
 		} elseif ( 'elevenlabs' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] ) ) {
 			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
+		} elseif ( 'suno' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] ) ) {
+			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] );
 		}
 	}
 
@@ -259,25 +262,31 @@ class Connection {
 				'type'        => 'text',
 				'label'       => 'Endpoint URL',
 				'required'    => true,
-				'description' => 'Provider endpoint. For fal use https://mcp.fal.ai/mcp; for ElevenLabs use https://api.elevenlabs.io/v1; for local ComfyUI use its HTTP API base URL.',
+				'description' => 'Provider endpoint. For SunoAPI.org use https://api.sunoapi.org; for ElevenLabs use https://api.elevenlabs.io/v1; for local ComfyUI use its HTTP API base URL.',
 			],
 			'mcp_endpoint_url'     => [
 				'type'        => 'text',
 				'label'       => 'MCP Endpoint URL',
 				'required'    => false,
-				'description' => 'Streamable HTTP MCP endpoint. Required for fal (https://mcp.fal.ai/mcp); optional for local ComfyUI discovery and downloads.',
+				'description' => 'Streamable HTTP MCP endpoint. Required for fal; use https://suno.mcp.acedata.cloud/mcp for Suno MCP; optional for local ComfyUI discovery and downloads.',
 			],
 			'credential_reference' => [
 				'type'        => 'text',
 				'label'       => 'API Key / OAuth (Reference)',
 				'required'    => false,
-				'description' => 'Credential or environment reference, e.g. env://FAL_KEY, env://ELEVENLABS_API_KEY, or env://COMFYUI_API_KEY.',
+				'description' => 'REST/API credential or environment reference, e.g. env://SUNO_API_KEY, env://ELEVENLABS_API_KEY, or env://COMFYUI_API_KEY.',
+			],
+			'mcp_credential_reference' => [
+				'type'        => 'text',
+				'label'       => 'MCP API Key / OAuth (Reference)',
+				'required'    => false,
+				'description' => 'Optional separate credential for the MCP endpoint. Suno MCP requires an AceData Cloud token such as env://ACEDATACLOUD_API_TOKEN, which is distinct from a SunoAPI.org key.',
 			],
 			'model'                => [
 				'type'        => 'text',
 				'label'       => 'Model',
 				'required'    => false,
-				'description' => 'Optional default model. For fal use an endpoint ID; for ElevenLabs use a speech model ID such as eleven_multilingual_v2.',
+				'description' => 'Optional default model. For SunoAPI.org use V5_5 (mapped to chirp-v5-5 for MCP); for fal use an endpoint ID; for ElevenLabs use a speech model ID.',
 			],
 			'max_tokens'           => [
 				'type'        => 'text',
@@ -296,7 +305,7 @@ class Connection {
 				'format'      => 'json',
 				'label'       => 'Model Access',
 				'required'    => false,
-				'description' => 'Optional JSON allowlist. fal uses model endpoint IDs; ElevenLabs uses voice IDs. Empty lets the adapter select a default.',
+				'description' => 'Optional JSON allowlist. fal uses model endpoint IDs; ElevenLabs uses voice IDs; Suno uses model version IDs. Empty lets the adapter select a default.',
 			],
 			'enabled_structures'   => [
 				'type'        => 'textarea',
@@ -413,10 +422,11 @@ class Connection {
 				var endpoint = document.getElementById('endpoint_url');
 				var mcpEndpoint = document.getElementById('mcp_endpoint_url');
 				var endpoints = <?php echo wp_json_encode( array_map( [ '\WorldGraph\Utils\Connection_Adapters', 'endpoint' ], array_combine( self::provider_types(), self::provider_types() ) ) ); ?>;
+				var mcpEndpoints = <?php echo wp_json_encode( array_map( [ '\WorldGraph\Utils\Connection_Adapters', 'mcp_endpoint' ], array_combine( self::provider_types(), self::provider_types() ) ) ); ?>;
 				if (!provider || !endpoint || !mcpEndpoint) { return; }
 				provider.addEventListener('change', function () {
 					if (!endpoint.value.trim() && endpoints[provider.value]) { endpoint.value = endpoints[provider.value]; }
-					if ('fal' === provider.value && !mcpEndpoint.value.trim()) { mcpEndpoint.value = endpoints.fal; }
+					if (!mcpEndpoint.value.trim() && mcpEndpoints[provider.value]) { mcpEndpoint.value = mcpEndpoints[provider.value]; }
 				});
 			}());
 		</script>
@@ -463,6 +473,23 @@ class Connection {
 				<li><?php echo esc_html__( 'Model selects the ElevenLabs speech model. When empty, World Graph Studio prefers eleven_multilingual_v2.', 'worldgraph' ); ?></li>
 				<li><?php echo esc_html__( 'Model Access may contain a JSON array of voice IDs. When empty, World Graph Studio provisions one available voice to minimize setup.', 'worldgraph' ); ?></li>
 				<li><?php echo esc_html__( 'Each generated audio response is imported into WordPress before its generation job completes.', 'worldgraph' ); ?></li>
+			</ul>
+			<p><strong><?php echo esc_html__( 'Last template sync:', 'worldgraph' ); ?></strong> <?php echo esc_html( $synced_at ?: '—' ); ?></p>
+			<?php if ( '' !== $error ) : ?><p class="notice notice-error inline"><?php echo esc_html( $error ); ?></p><?php endif; ?>
+			<?php
+			return;
+		}
+
+		if ( 'suno' === $provider_type ) {
+			\WorldGraph\Utils\Connection_Adapters::load( 'suno' );
+			$synced_at = (string) get_post_meta( $post->ID, 'suno_catalog_synced_at', true );
+			$error     = (string) get_post_meta( $post->ID, 'suno_catalog_error', true );
+			?>
+			<p><?php echo esc_html__( 'World Graph Studio maintains transport-specific music and lyrics Templates for SunoAPI.org REST and the AceData Cloud Suno MCP server. Saving or testing this Connection refreshes those Templates.', 'worldgraph' ); ?></p>
+			<ul>
+				<li><?php echo esc_html__( 'API Key authenticates api.sunoapi.org; MCP API Key authenticates suno.mcp.acedata.cloud. These services issue different bearer tokens.', 'worldgraph' ); ?></li>
+				<li><?php echo esc_html__( 'Model selects the preferred Suno version. World Graph Studio maps API model names such as V5_5 to MCP model names such as chirp-v5-5.', 'worldgraph' ); ?></li>
+				<li><?php echo esc_html__( 'Suno normally returns two tracks. Every final track URL is imported into WordPress before a generation job completes.', 'worldgraph' ); ?></li>
 			</ul>
 			<p><strong><?php echo esc_html__( 'Last template sync:', 'worldgraph' ); ?></strong> <?php echo esc_html( $synced_at ?: '—' ); ?></p>
 			<?php if ( '' !== $error ) : ?><p class="notice notice-error inline"><?php echo esc_html( $error ); ?></p><?php endif; ?>
@@ -870,10 +897,12 @@ class Connection {
 					break;
 
 				case 'endpoint_url':
+				case 'mcp_endpoint_url':
 					$value = esc_url_raw( trim( (string) $raw ) );
 					break;
 
 				case 'credential_reference':
+				case 'mcp_credential_reference':
 					$value = sanitize_text_field( $raw );
 					break;
 
@@ -917,6 +946,8 @@ class Connection {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Fal_Catalog::HOOK, [ $post_id ] );
 			} elseif ( 'elevenlabs' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] ) ) {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
+			} elseif ( 'suno' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] );
 			}
 		}
 	}

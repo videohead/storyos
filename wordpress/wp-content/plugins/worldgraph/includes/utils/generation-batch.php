@@ -67,7 +67,7 @@ class Generation_Batch {
 			}
 			$provider_type = $connection['provider_type'];
 			Connection_Adapters::load( (string) $provider_type );
-			if ( ! in_array( $provider_type, [ 'comfyui', 'fal', 'elevenlabs' ], true ) ) {
+			if ( ! in_array( $provider_type, [ 'comfyui', 'fal', 'elevenlabs', 'suno' ], true ) ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 				update_post_meta( $job_id, '_worldgraph_gen_error', sprintf( 'No generation adapter is registered for provider: %s.', $provider_type ) );
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no adapter for provider %s.', $job_id, $provider_type ), [], (string) $job_id );
@@ -76,7 +76,7 @@ class Generation_Batch {
 			$client = self::client_for_job( $job_id, $connection );
 			$params = (array) get_post_meta( $job_id, '_worldgraph_gen_params', true );
 			$template_id = absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) );
-			if ( in_array( $provider_type, [ 'fal', 'elevenlabs' ], true ) && $template_id ) {
+			if ( in_array( $provider_type, [ 'fal', 'elevenlabs', 'suno' ], true ) && $template_id ) {
 				$params = array_merge( self::template_input( $template_id ), $params );
 			}
 			$inputs = get_post_meta( $job_id, '_worldgraph_gen_inputs', true );
@@ -160,14 +160,14 @@ class Generation_Batch {
 		foreach ( $jobs as $job_id ) {
 			$connection_id = absint( get_post_meta( $job_id, '_worldgraph_gen_connection_id', true ) );
 			$connection = Connection_Repository::get( $connection_id );
-			if ( ! $connection || ! in_array( $connection['provider_type'], [ 'comfyui', 'fal' ], true ) ) {
+			if ( ! $connection || ! in_array( $connection['provider_type'], [ 'comfyui', 'fal', 'suno' ], true ) ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 				update_post_meta( $job_id, '_worldgraph_gen_error', 'No generation adapter is registered for this Connection provider.' );
 				continue;
 			}
 			Connection_Adapters::load( (string) $connection['provider_type'] );
 			$client = self::client_for_job( $job_id, $connection );
-			if ( Fal_MCP::class === $client ) {
+			if ( in_array( $client, [ Fal_MCP::class, Suno_API::class, Suno_MCP::class ], true ) ) {
 				$result = $client::get_job_status(
 					(string) get_post_meta( $job_id, '_worldgraph_gen_job_id', true ),
 					$connection_id,
@@ -223,6 +223,10 @@ class Generation_Batch {
 		}
 		if ( 'fal' === ( $connection['provider_type'] ?? '' ) ) {
 			return Fal_MCP::class;
+		}
+		if ( 'suno' === ( $connection['provider_type'] ?? '' ) ) {
+			$template = trim( (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) );
+			return str_starts_with( $template, 'mcp:' ) ? Suno_MCP::class : Suno_API::class;
 		}
 
 		$adapter = sanitize_key( (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true ) );

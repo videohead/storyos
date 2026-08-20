@@ -13,6 +13,7 @@ The entries below describe the delivered connector boundary. See
 | Local ComfyUI through an MCP-capable client | Supported workflow | Connect the client to both World Graph Studio and the local `comfy-mcp` server. Run local workflows and register or upload the resulting assets in World Graph Studio. |
 | fal MCP | Supported | Configure a fal API key, discover model schemas, provision text-to-image Templates, submit image jobs, poll them through WP-Cron, and import the returned media into WordPress. |
 | ElevenLabs Generative Audio API | Supported | Configure an ElevenLabs API key, provision Templates for speech, dialogue, sound effects, music, or voice design, and import the generated audio into WordPress. |
+| SunoAPI.org REST + AceData Cloud Suno MCP | Supported | Configure one `suno` Connection with separate REST and MCP credentials, provision transport-specific prompt-music, custom-music, and lyrics Templates, poll asynchronous tasks, import every final song, and retain generated lyric results. |
 | OpenAI, Anthropic, or OpenAI-compatible LLM API | Supported for AI Editor | Configure an API credential and compatible base URL in **World Graph Studio > AI Settings**. A browser subscription alone is not sufficient. |
 | Other web image/video platforms | External asset source | Generate in the provider's own web app, then upload or register the result in World Graph Studio with its prompt, model, source URL, and usage-rights information. |
 
@@ -48,15 +49,24 @@ The presence of `veo` or `nova_reel` in the connection form is an extension poin
 
 ### Path B: Hosted generation through a supported provider
 
-1. Create a fal or ElevenLabs account and API key.
+1. Create a fal or ElevenLabs account and API key, or obtain both a
+   SunoAPI.org key and a separate AceData Cloud token for Suno.
 2. In the Setup Wizard or **World Graph Studio > Connections**, choose the matching provider.
-3. Use `env://FAL_KEY` or `env://ELEVENLABS_API_KEY` in production when the key is supplied by the runtime.
+3. Use `env://FAL_KEY`, `env://ELEVENLABS_API_KEY`, or the paired
+   `env://SUNO_API_KEY` and `env://ACEDATACLOUD_API_TOKEN` references in
+   production when credentials are supplied by the runtime.
 4. Test the Connection so World Graph Studio can discover provider capabilities and create or update Templates.
 5. Select a provider Template and submit the generation from World Graph Studio.
 
-fal jobs are queued and polled through WP-Cron. ElevenLabs audio responses are imported synchronously, including every preview returned by Voice Design.
+fal and Suno jobs are queued and polled through WP-Cron. ElevenLabs audio
+responses are imported synchronously, including every preview returned by
+Voice Design. Suno music completion imports every final track; the
+`text_to_lyrics` modality retains normalized text results without pretending
+they are media attachments.
 
-These are first-party World Graph Studio execution paths. Provider model availability, quotas, pricing, regions, and terms remain controlled by fal and ElevenLabs.
+These are first-party World Graph Studio execution paths. Provider model
+availability, quotas, pricing, regions, and terms remain controlled by fal,
+ElevenLabs, SunoAPI.org, and AceData Cloud.
 
 ### Path C: Local or third-party web generation
 
@@ -72,9 +82,9 @@ World Graph Studio can manage the story context, asset relationship, provenance,
 A third-party extension can make another web platform a direct connector by
 implementing its authentication, capability validation, submission, polling or
 webhooks, cancellation where available, artifact download, and asset ingestion.
-The delivered generation batch already dispatches ComfyUI, fal, and ElevenLabs
-jobs through their adapters; adding an arbitrary provider name or endpoint to a
-Connection record does not create an executable adapter.
+The delivered generation batch already dispatches ComfyUI, fal, ElevenLabs,
+and Suno jobs through their adapters; adding an arbitrary provider name or
+endpoint to a Connection record does not create an executable adapter.
 
 Before an extension labels another provider supported, its maintainer should
 verify official API access and terms, implement the complete job lifecycle,
@@ -82,4 +92,7 @@ preserve permitted provenance, exercise retries and failures, and prove media
 ingestion end to end. These are acceptance criteria for extensions, not a
 current World Graph Studio roadmap commitment.
 
-See [Deployment and Connections](Deployment_and_Connections.md) for credentials and runtime setup. Keep provider availability, pricing, regions, model limits, and terms of use with the provider's official documentation.
+See [Deployment and Connections](Deployment_and_Connections.md) for credentials
+and runtime setup, and [Suno Integration](plugins/SUNO.md) for the distinct
+REST/MCP contract. Keep provider availability, pricing, regions, model limits,
+and terms of use with the provider's official documentation.

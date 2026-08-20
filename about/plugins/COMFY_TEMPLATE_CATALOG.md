@@ -57,8 +57,13 @@ The current task types are:
 - `text-to-speech`;
 - `text-to-dialogue`;
 - `text-to-sound-effects`;
-- `text-to-music`; and
-- `text-to-voice`.
+- `text-to-music`;
+- `text-to-voice`; and
+- `text-to-lyrics`.
+
+`text-to-lyrics` is registered for the delivered Suno adapter. A Comfy provider
+that does not advertise a matching task leaves that catalog entry unmappable;
+registry membership alone does not make it a ComfyUI workflow.
 
 Each stored entry can include its provider ID and name, task type, mapped
 World Graph Studio modality, required nodes, models, model URLs, default

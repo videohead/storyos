@@ -17,6 +17,10 @@ The canonical field-by-field guide is the
 - Local ComfyUI can be configured without a provider credential.
 - Hosted fal, ElevenLabs, and Comfy Cloud choices accept the credential needed
   by their adapter.
+- The Suno API + MCP choice accepts two separate credentials: a SunoAPI.org
+  REST key and an AceData Cloud MCP token. Testing requires both services to
+  pass; saving schedules six transport-specific music, custom-music, and
+  `text_to_lyrics` Templates.
 - LLM configuration stores provider, endpoint, model, credential, maximum
   tokens, and temperature.
 - Connection and LLM tests use the unsaved form values; testing and saving are
@@ -28,13 +32,17 @@ The current form does not expose separate fallback-LLM credential fields.
 
 ## Where credentials live
 
-Wizard-entered provider credentials are persisted in the managed Connection's
-`credential_reference` field. The primary LLM key is also represented by the
-`worldgraph_ai_api_key` option for the AI Editor's current configuration path.
+Wizard-entered REST/provider credentials are persisted in the managed
+Connection's `credential_reference` field. Suno's separate AceData Cloud token
+is persisted in `mcp_credential_reference`; it must not be replaced by or
+copied from the SunoAPI.org key. The primary LLM key is also represented by
+the `worldgraph_ai_api_key` option for the AI Editor's current configuration
+path.
 
 For the primary LLM, deployments can define `WORLDGRAPH_AI_API_KEY` in
 `wp-config.php`. fal and ElevenLabs Connections also support explicit
-`env://FAL_KEY` and `env://ELEVENLABS_API_KEY` references.
+`env://FAL_KEY` and `env://ELEVENLABS_API_KEY` references. Suno supports
+`env://SUNO_API_KEY` for REST and `env://ACEDATACLOUD_API_TOKEN` for MCP.
 
 Database backups can contain secrets. Keep backups, logs, screenshots, and
 tracked environment files private.
@@ -50,3 +58,6 @@ lando wp option get worldgraph_setup_complete
 
 Do not print credential options in shared terminal logs. Use **World Graph
 Studio → Connections** to test providers and review non-secret status fields.
+
+See [Suno Integration](plugins/SUNO.md) for its credential, Template, callback,
+polling, and result-import contract.

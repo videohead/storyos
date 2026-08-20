@@ -35,10 +35,11 @@ service-account protocol. A site may add those mechanisms with a WordPress
 authentication plugin, but that is an extension boundary rather than part of
 this API.
 
-Connection routes are administrator-only because `credential_reference` may be
-an `env://` pointer or a credential entered for local evaluation. Treat their
-responses as sensitive control-plane data; do not expose them to public clients
-or application logs.
+Connection routes are administrator-only because `credential_reference` and
+`mcp_credential_reference` may be `env://` pointers or credentials entered for
+local evaluation. Treat their responses as sensitive control-plane data; do
+not expose them to public clients or application logs. Suno uses the first for
+SunoAPI.org REST and the second for AceData Cloud MCP; the values are distinct.
 
 ## Common Resource Contract
 
@@ -186,10 +187,12 @@ hold. Consumers must not depend on `/scripts/*` paths.
 Generation uses an active `worldgraph_template` paired with an available
 `worldgraph_conn`. WordPress creates an internal generation record, schedules a
 bounded WP-Cron batch, invokes the matching adapter, polls asynchronous jobs,
-imports returned media, and records provenance.
+imports returned media or retains normalized text results, and records
+provenance.
 
 ```http
 POST /wp-json/worldgraph/v1/generation
+POST /wp-json/worldgraph/v1/generation/suno-callback
 GET  /wp-json/worldgraph/v1/generation/{id}
 POST /wp-json/worldgraph/v1/generation/{id}/cancel
 GET  /wp-json/worldgraph/v1/generation/asset/{asset_id}/history
@@ -210,10 +213,17 @@ POST /wp-json/worldgraph/v1/assets/generate
 ```
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
-fal MCP, and ElevenLabs. The built-in catalog currently provisions
-text-to-image and ElevenLabs audio Templates. Additional output modalities need
-an adapter that registers and executes a compatible Template; a provider value
-without that implementation is configuration metadata only.
+fal MCP, ElevenLabs, and Suno through SunoAPI.org REST and AceData Cloud MCP.
+The Suno callback route is public because the provider calls it, but an HMAC
+query token binds it to one Suno Connection. It only schedules an authenticated
+poll; the worker still retrieves canonical status and imports every final track
+before completing the job. The built-in catalogs provision text-to-image,
+ElevenLabs audio, and Suno music/lyrics Templates. Additional output modalities
+need an adapter that registers and executes a compatible Template; a provider
+value without that implementation is configuration metadata only.
+
+See [Suno Integration](plugins/SUNO.md) for the transport-specific Template,
+callback, polling, credential, and result contracts.
 
 ## Connections
 
@@ -230,7 +240,7 @@ POST   /wp-json/worldgraph/v1/connections/{id}/test
 
 Connection status is the load/disable authority for provider adapters.
 `resolve` reports the normalized Connection configuration, including its
-sensitive credential reference; `test` exercises the provider-specific
+sensitive credential references; `test` exercises the provider-specific
 readiness check; `sync` refreshes the local provider-capability descriptor.
 Provider catalog and Template discovery run through provider-specific
 save/test/admin flows rather than this generic capability route.
@@ -251,7 +261,7 @@ GET  /wp-json/worldgraph/v1/ai/settings
 GET  /wp-json/worldgraph/v1/ai/health
 ```
 
-Specialist advisor definitions and action/history records use:
+The plugin also registers an older record-oriented route shape:
 
 ```http
 GET|POST        /wp-json/worldgraph/v1/agents
@@ -259,6 +269,12 @@ GET|PUT|DELETE  /wp-json/worldgraph/v1/agents/{id}
 POST            /wp-json/worldgraph/v1/agents/{id}/actions
 GET             /wp-json/worldgraph/v1/agents/{id}/history
 ```
+
+Those record routes expect a `worldgraph_agent` post type, which is not part of
+the current 15-type Story Graph registration. They are retained implementation
+surface, not a supported advisor-record API. Current clients should discover
+the `.agent.md` advisor profiles through `GET /worldgraph/v1/ai/agents` and use
+the `/ai/*` routes above.
 
 An LLM connection is optional for the Story Graph itself but required for
 routes that request model output.

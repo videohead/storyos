@@ -81,10 +81,13 @@ function worldgraph_migrate_machine_identifier( string $value ): string {
 		worldgraph_legacy_cpt_key_map(),
 		worldgraph_legacy_taxonomy_key_map(),
 		[
-			'storyos/storyos.php'        => 'worldgraph/worldgraph.php',
-			'storyos/v1'                 => 'worldgraph/v1',
-			'storyos-celtx/v1'           => 'worldgraph-celtx/v1',
-			'storyos-web-stories/v1'     => 'worldgraph-web-stories/v1',
+			'storyos/storyos.php'                          => 'worldgraph/worldgraph.php',
+			'storyos/v1'                                   => 'worldgraph/v1',
+			'storyos-celtx/v1'                             => 'worldgraph/v1',
+			'storyos-web-stories/v1'                       => 'worldgraph-web-stories/v1',
+			'field_storyos_editorial_artifact_type'        => 'field_worldgraph_editorial_artifact_type',
+			'field_storyos_storyboard_frame_number'        => 'field_worldgraph_board_frame_number',
+			'field_storyos_storyboard_frame_description'   => 'field_worldgraph_board_frame_description',
 		]
 	);
 	if ( isset( $identifier_map[ $value ] ) ) {

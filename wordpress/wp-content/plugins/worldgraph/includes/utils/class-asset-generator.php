@@ -505,10 +505,11 @@ class Asset_Generator {
 			}
 		}
 
-		$provider  = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
-		$video_url = self::find_result_video_url( $result );
-		$audio_url = self::find_result_audio_url( $result );
-		$image_url = self::find_result_url( $result );
+		$provider   = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
+		$video_url  = self::find_result_video_url( $result );
+		$audio_urls = self::find_result_audio_urls( $result );
+		$audio_url  = (string) ( $audio_urls[0] ?? '' );
+		$image_url  = self::find_result_url( $result );
 
 		// A video-only workflow reports its file through the same result keys
 		// as an image, so do not try to decode the video as a still frame.
@@ -579,7 +580,8 @@ class Asset_Generator {
 			if ( is_wp_error( $audio_bytes ) ) {
 				return $audio_bytes;
 			}
-			$audio = self::validate_audio_bytes( $audio_bytes, (string) ( $result['audio_mime'] ?? '' ), $audio_url );
+			$audio_mime = (string) ( $result['audio_mime'] ?? ( 'suno' === $provider ? 'audio/mpeg' : '' ) );
+			$audio      = self::validate_audio_bytes( $audio_bytes, $audio_mime, $audio_url );
 			if ( is_wp_error( $audio ) ) {
 				return $audio;
 			}
@@ -627,7 +629,9 @@ class Asset_Generator {
 			}
 			$additional_media = self::is_video_url( $additional_url )
 				? self::validate_video_bytes( $additional_download, $additional_url )
-				: ( self::is_audio_url( $additional_url ) ? self::validate_audio_bytes( $additional_download, '', $additional_url ) : self::validate_image_bytes( $additional_download ) );
+				: ( in_array( $additional_url, $audio_urls, true ) || self::is_audio_url( $additional_url )
+					? self::validate_audio_bytes( $additional_download, 'suno' === $provider ? 'audio/mpeg' : '', $additional_url )
+					: self::validate_image_bytes( $additional_download ) );
 			if ( is_wp_error( $additional_media ) ) {
 				return $additional_media;
 			}
@@ -723,7 +727,7 @@ class Asset_Generator {
 	 * @return string
 	 */
 	private static function find_result_url( array $result ): string {
-		foreach ( [ 'image_url', 'output_url', 'url' ] as $key ) {
+		foreach ( [ 'image_url', 'output_url', 'url', 'audio_url', 'audioUrl' ] as $key ) {
 			if ( isset( $result[ $key ] ) && is_string( $result[ $key ] ) && filter_var( $result[ $key ], FILTER_VALIDATE_URL ) ) {
 				return $result[ $key ];
 			}
@@ -777,20 +781,21 @@ class Asset_Generator {
 		return in_array( $ext, array_keys( self::AUDIO_MIME_TYPES ), true );
 	}
 
-	/** Find the first supported audio URL in a nested provider response. */
-	private static function find_result_audio_url( array $result ): string {
-		foreach ( $result as $value ) {
-			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) && self::is_audio_url( $value ) ) {
-				return $value;
-			}
-			if ( is_array( $value ) ) {
-				$url = self::find_result_audio_url( $value );
-				if ( '' !== $url ) {
-					return $url;
+	/** Find all explicit or extension-recognizable audio URLs in a provider response. */
+	private static function find_result_audio_urls( array $result ): array {
+		$urls = [];
+		foreach ( $result as $key => $value ) {
+			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
+				$is_explicit_audio = in_array( (string) $key, [ 'audio_url', 'audioUrl', 'stream_audio_url', 'download_audio_url' ], true );
+				if ( $is_explicit_audio || self::is_audio_url( $value ) ) {
+					$urls[] = $value;
 				}
+			} elseif ( is_array( $value ) ) {
+				$urls = array_merge( $urls, self::find_result_audio_urls( $value ) );
 			}
 		}
-		return '';
+
+		return array_values( array_unique( $urls ) );
 	}
 
 	/**

@@ -72,8 +72,11 @@ The product direction is guided by four rules:
 - Queued generation records and WP-Cron processing.
 - Status polling, cancellation, failure reporting, and generation logs.
 - Returned-media import, source linkage, and provenance.
-- Comfy Cloud MCP, local ComfyUI HTTP, fal MCP, ElevenLabs, and manually
-  managed external-generator workflows where configured.
+- Comfy Cloud MCP, local ComfyUI HTTP, fal MCP, ElevenLabs, SunoAPI.org REST,
+  AceData Cloud Suno MCP, and manually managed external-generator workflows
+  where configured.
+- Suno prompt-music, custom-music, and `text_to_lyrics` Templates, with
+  distinct REST and MCP credentials.
 
 ### Interchange and publishing — complete
 
@@ -156,3 +159,4 @@ release. Changes should:
 - [Architecture](World_Graph_Studio_Architecture.md)
 - [AI Editor](AI_Editor.md)
 - [Script and Editorial Interchange](Script_EDL_Integration.md)
+- [Suno Integration](plugins/SUNO.md)

@@ -138,6 +138,31 @@ The Connection's `Model` selects the speech model. `Model Access` may contain
 a JSON voice-ID allowlist. A manually edited Connection may use an
 `env://ELEVENLABS_API_KEY` reference.
 
+### Suno API plus AceData Cloud MCP
+
+The managed `suno` Connection uses both:
+
+- SunoAPI.org REST: `https://api.sunoapi.org`
+- AceData Cloud Suno MCP: `https://suno.mcp.acedata.cloud/mcp`
+
+These are separate third-party services. Enter the SunoAPI.org key in
+**Generation Provider API Key** and the AceData Cloud token in **Generation
+Provider MCP Token**. The credentials are different bearer tokens; neither a
+Suno web subscription nor one of these tokens can authenticate the other
+service.
+
+The wizard test reads the SunoAPI.org credit balance, initializes MCP, and
+verifies `suno_generate_music`, `suno_generate_custom_music`,
+`suno_generate_lyrics`, and `suno_get_task`. Saving schedules provisioning of
+six Templates: prompt music, custom music, and lyrics for REST, plus the same
+three operations for MCP.
+
+A manually edited production Connection may use `env://SUNO_API_KEY` in
+`credential_reference` and `env://ACEDATACLOUD_API_TOKEN` in
+`mcp_credential_reference`. See the [Suno Integration
+guide](../../../../../about/plugins/SUNO.md) for transport-specific model IDs,
+callbacks, polling, two-track imports, and limitations.
+
 ## Configure the primary LLM
 
 An API-connected LLM enables the AI Editor and filmmaking advisors. The wizard
@@ -180,12 +205,13 @@ not expose separate fallback fields. Do not expect the wizard to save
   when a provider is selected;
 - stores the primary LLM options;
 - creates or updates one managed Connection with wizard slot `llm`;
-- schedules fal or ElevenLabs Template catalog work where applicable;
+- schedules fal, ElevenLabs, or Suno Template catalog work where applicable;
 - provisions the managed local ComfyUI Template where applicable; and
 - sets `worldgraph_setup_complete = true`.
 
 The generation credential entered in this form is stored on the managed
-Connection's `credential_reference` meta. The LLM key is stored in
+Connection's `credential_reference` meta. For Suno, the separate AceData Cloud
+token is stored in `mcp_credential_reference`. The LLM key is stored in
 `worldgraph_ai_api_key` unless `WORLDGRAPH_AI_API_KEY` is defined. Use
 deployment-managed secret references where the relevant adapter supports them,
 protect database backups, and never commit credentials.
@@ -214,6 +240,8 @@ Provider-specific behavior:
 - local ComfyUI checks `/system_stats`;
 - fal verifies MCP tools and synchronizes Templates;
 - ElevenLabs verifies voices/models and synchronizes Templates;
+- Suno verifies the SunoAPI.org credit endpoint and required AceData Cloud MCP
+  tools, then synchronizes transport-specific Templates;
 - Comfy Cloud's Connection test currently verifies credential presence; catalog
   sync is the stronger MCP capability check; and
 - LLM Connections run the configured LLM health test.
@@ -310,6 +338,10 @@ activate World Graph Studio again.
 - Leave the MCP URL blank for the HTTP-only local catalog and managed
   text-to-image path.
 
+For Suno, also confirm that the MCP field contains an AceData Cloud token, not
+the SunoAPI.org key. The combined Suno Connection test fails when either the
+REST credit check or required MCP-tool check fails.
+
 ### No Template appears in the Assets metabox
 
 - Confirm the Template is published with `status = active`.
@@ -341,3 +373,4 @@ activate World Graph Studio again.
 - [Generation Engine](../../../../../about/plugins/GENERATION_ENGINE.md)
 - [ComfyUI Template Catalog](../../../../../about/plugins/COMFY_TEMPLATE_CATALOG.md)
 - [Deployment and Connections](../../../../../about/Deployment_and_Connections.md)
+- [Suno Integration](../../../../../about/plugins/SUNO.md)

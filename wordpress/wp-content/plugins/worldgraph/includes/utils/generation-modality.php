@@ -32,6 +32,7 @@ class Generation_Modality {
 	const TEXT_TO_SOUND_EFFECT = 'text_to_sound_effect';
 	const TEXT_TO_MUSIC       = 'text_to_music';
 	const TEXT_TO_VOICE       = 'text_to_voice';
+	const TEXT_TO_LYRICS      = 'text_to_lyrics';
 
 	/**
 	 * Modality assumed for Templates saved before modalities existed.
@@ -125,6 +126,15 @@ class Generation_Modality {
 				'nodes'       => [],
 				'models'      => [],
 			],
+			self::TEXT_TO_LYRICS      => [
+				'label'       => 'Text to lyrics',
+				'description' => 'Structured song lyrics generated from a text description.',
+				'output_type' => 'text',
+				'task_type'   => 'text-to-lyrics',
+				'inputs'      => [ 'prompt' => $prompt_input ],
+				'nodes'       => [],
+				'models'      => [],
+			],
 		];
 	}
 
@@ -176,7 +186,7 @@ class Generation_Modality {
 	}
 
 	/**
-	 * The media kind a modality produces: 'image' or 'video'.
+	 * The output kind a modality produces: image, video, audio, or text.
 	 *
 	 * @param string $slug Modality slug.
 	 * @return string
@@ -249,7 +259,7 @@ class Generation_Modality {
 	 * @return array<string, mixed>
 	 */
 	public static function default_settings( string $slug ): array {
-		if ( 'audio' === self::output_type( $slug ) ) {
+		if ( in_array( self::output_type( $slug ), [ 'audio', 'text' ], true ) ) {
 			return [];
 		}
 		if ( 'video' === self::output_type( $slug ) ) {
@@ -290,7 +300,7 @@ class Generation_Modality {
 	 */
 	public static function default_workflow( string $slug, array $settings = [] ): array {
 		$slug     = self::sanitize( $slug );
-		if ( 'audio' === self::output_type( $slug ) ) {
+		if ( in_array( self::output_type( $slug ), [ 'audio', 'text' ], true ) ) {
 			return [];
 		}
 		$settings = array_merge( self::default_settings( $slug ), array_filter( $settings, static function ( $value ) {

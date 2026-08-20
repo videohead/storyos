@@ -68,7 +68,7 @@
             "name": "modality",
             "aria-label": "",
             "type": "select",
-            "instructions": "What this Template generates and which inputs it consumes. Determines the built-in workflow and the ComfyUI nodes and models World Graph Studio checks for.",
+            "instructions": "What this Template generates and which inputs it consumes. Determines the output type and any provider-specific workflow requirements.",
             "required": 1,
             "conditional_logic": 0,
             "wrapper": {
@@ -82,7 +82,8 @@
                 "text_to_dialogue": "Text to dialogue",
                 "text_to_sound_effect": "Text to sound effect",
                 "text_to_music": "Text to music",
-                "text_to_voice": "Text to voice design"
+                "text_to_voice": "Text to voice design",
+                "text_to_lyrics": "Text to lyrics"
             },
             "allow_null": 0,
             "multiple": 0,
@@ -190,7 +191,7 @@
             "name": "provider_template_id",
             "aria-label": "",
             "type": "text",
-            "instructions": "Provider identifier paired with the Connection. For fal use a model endpoint ID, for ElevenLabs use a voice ID, and for ComfyUI use the discovered MCP Template ID.",
+            "instructions": "Provider identifier paired with the Connection. For Suno use an api: or mcp: operation reference; for fal use a model endpoint ID; for ElevenLabs use a voice ID; for ComfyUI use the discovered MCP Template ID.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {
@@ -375,5 +376,5 @@
     "display_title": "",
     "allow_ai_access": false,
     "ai_description": "",
-    "modified": 1787242024
+    "modified": 1787252961
 }

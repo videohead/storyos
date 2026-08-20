@@ -126,14 +126,19 @@ The current release provides:
 - Provider-neutral request validation and input binding.
 - Queued generation jobs processed through WP-Cron.
 - Job state, cancellation, error reporting, and generation logs.
-- Returned-media import into WordPress with source linkage and provenance.
+- Returned-media import into WordPress, normalized text-result retention, and
+  source linkage and provenance.
 - Adapters for Comfy Cloud MCP, local ComfyUI HTTP workflows, fal MCP,
-  ElevenLabs, and manually managed external-generator workflows where
-  configured.
+  ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, and manually managed
+  external-generator workflows where configured.
 
 Capabilities depend on the selected adapter, template, model, credentials, and
 reachable service. The product may store media types for which the current
 installation has no direct generator.
+
+The Suno integration delivers prompt music, custom music, and
+`text_to_lyrics` through transport-specific Templates. Its REST and MCP
+providers require separate credentials. See [Suno Integration](plugins/SUNO.md).
 
 ### Project interchange and publishing
 

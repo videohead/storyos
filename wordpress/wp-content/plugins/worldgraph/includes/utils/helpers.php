@@ -115,6 +115,42 @@ function register_cpt( string $cpt, string $label, array $args = [], array $fiel
 }
 
 /**
+ * Get registration arguments for the internal generation-job record type.
+ *
+ * Generation jobs are persisted so WP-Cron can submit and poll them, but they
+ * are operational records rather than authoring content. Dedicated
+ * worldgraph/v1 generation routes expose the permitted workflow surface.
+ *
+ * @return array<string, mixed>
+ */
+function worldgraph_get_generation_record_cpt_args(): array {
+	return [
+		'label'               => 'Generation Jobs',
+		'public'              => false,
+		'publicly_queryable'  => false,
+		'exclude_from_search' => true,
+		'show_ui'             => false,
+		'show_in_menu'        => false,
+		'show_in_nav_menus'   => false,
+		'show_in_admin_bar'   => false,
+		'show_in_rest'        => false,
+		'has_archive'         => false,
+		'rewrite'             => false,
+		'query_var'           => false,
+		'can_export'          => false,
+		'delete_with_user'    => false,
+		'supports'            => [ 'title' ],
+		'capability_type'     => 'post',
+		'map_meta_cap'        => true,
+	];
+}
+
+/** Register the internal record type used by generation controllers and workers. */
+function worldgraph_register_generation_record_type(): void {
+	register_post_type( 'worldgraph_gen', worldgraph_get_generation_record_cpt_args() );
+}
+
+/**
  * Register structured content fields for a CPT.
  *
  * @param string $cpt    The CPT slug.
@@ -294,7 +330,7 @@ function worldgraph_expected_fields_for_cpt( string $cpt ): array {
 		'worldgraph_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
 		'worldgraph_editorial'          => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
 		'worldgraph_template'           => [ 'template_name', 'description', 'generation_structure', 'modality', 'connection_id', 'checkpoint', 'model_family', 'workflow_json', 'provider_template_id', 'configuration_json', 'input_bindings', 'model_requirements', 'default_values', 'provider_type', 'version', 'status' ],
-		'worldgraph_conn'         => [ 'connection_name', 'provider_type', 'environment', 'status', 'endpoint_url', 'mcp_endpoint_url', 'credential_reference', 'model', 'max_tokens', 'temperature', 'model_access', 'enabled_structures', 'enabled_templates', 'rate_limits', 'cost_controls' ],
+		'worldgraph_conn'         => [ 'connection_name', 'provider_type', 'environment', 'status', 'endpoint_url', 'mcp_endpoint_url', 'credential_reference', 'mcp_credential_reference', 'model', 'max_tokens', 'temperature', 'model_access', 'enabled_structures', 'enabled_templates', 'rate_limits', 'cost_controls' ],
 	];
 
 	return $expected_fields[ $cpt ] ?? [];

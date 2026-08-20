@@ -158,7 +158,7 @@ class Template {
 				'label'       => 'Modality',
 				'required'    => true,
 				'options'     => \WorldGraph\Utils\Generation_Modality::labels(),
-				'description' => 'What this Template generates and which inputs it consumes. Determines the built-in workflow and the ComfyUI nodes and models World Graph Studio checks for.',
+				'description' => 'What this Template generates and which inputs it consumes. Determines the output type and any provider-specific workflow requirements.',
 			],
 			'connection_id'       => [
 				'type'        => 'text',
@@ -190,7 +190,7 @@ class Template {
 				'type'        => 'text',
 				'label'       => 'Provider Template / Model Endpoint ID',
 				'required'    => false,
-				'description' => 'Provider identifier paired with the Connection. For fal use a model endpoint ID, for ElevenLabs use a voice ID, and for ComfyUI use the discovered MCP Template ID.',
+				'description' => 'Provider identifier paired with the Connection. For Suno use an api: or mcp: operation reference; for fal use a model endpoint ID; for ElevenLabs use a voice ID; for ComfyUI use the discovered MCP Template ID.',
 			],
 			'configuration_json'  => [
 				'type'        => 'textarea',

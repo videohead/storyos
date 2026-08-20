@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Celtx Sync class.
  *
- * Manages bidirectional sync between World Graph Studio and Celtx.
+ * Manages outbound synchronization from World Graph Studio to Celtx.
  */
 class Sync {
 

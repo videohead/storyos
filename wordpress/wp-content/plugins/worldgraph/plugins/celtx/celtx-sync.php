@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: World Graph Studio - Celtx Sync
+ * Plugin Name: World Graph Studio - Celtx Connector
  * Plugin URI: https://github.com/videohead/worldgraph
- * Description: Synchronize World Graph Studio elements (Projects, Characters, Locations, Scenes, Shots) with Celtx using the Celtx GEM Bi-Directional API.
+ * Description: Send supported World Graph Studio elements to Celtx and retain their remote element mappings.
  * Version: 1.0.0
  * Author: World Graph Studio Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: worldgraph-celtx
- * Requires Plugins: worldgraph/worldgraph.php
+ * Requires Plugins: worldgraph
  * Requires at least: 6.0
  * Requires PHP: 8.1
  *

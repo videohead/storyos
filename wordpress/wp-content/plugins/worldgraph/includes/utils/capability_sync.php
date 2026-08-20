@@ -42,6 +42,12 @@ class Capability_Sync {
 			'label'         => 'ElevenLabs',
 			'endpoint'      => Connection_Adapters::endpoint( 'elevenlabs' ),
 			'capabilities'  => [ 'audio', 'text_to_speech', 'text_to_dialogue', 'sound_effects', 'music', 'voice_design', 'voice_discovery', 'model_discovery' ],
+		], [
+			'provider_type' => 'suno',
+			'label'         => 'SunoAPI.org + AceData Cloud MCP',
+			'endpoint'      => Connection_Adapters::endpoint( 'suno' ),
+			'mcp_endpoint'  => Connection_Adapters::mcp_endpoint( 'suno' ),
+			'capabilities'  => [ 'audio', 'text', 'text_to_music', 'text_to_lyrics', 'async_generation', 'rest_execution', 'mcp_execution', 'tool_discovery' ],
 		] ];
 
 		$snapshot = [

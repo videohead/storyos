@@ -69,8 +69,9 @@ have their own prices, quotas, licenses, moderation rules, and terms.
   require a commercial credit balance from this project.
 - **Model agnostic.** Use supported local or hosted connections and change
   providers without rebuilding the Story Graph.
-- **No project lock-in.** WordPress data, REST endpoints, JSON, Markdown, EDL,
-  and synchronization tools provide practical ways into and out of the system.
+- **No project lock-in.** WordPress data, REST endpoints, JSON, Markdown, and
+  outbound Celtx synchronization provide practical paths into and out of the
+  system; EDL format utilities are available for custom editorial adapters.
 - **Privacy under your control.** Keep a site private or publish from it by
   configuring WordPress and its hosting appropriately.
 - **Creator ownership.** World Graph Studio does not claim ownership of your

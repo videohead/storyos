@@ -70,6 +70,9 @@ class Connection_Tester {
 		if ( 'elevenlabs' === $record['provider_type'] ) {
 			return self::test_elevenlabs( $connection_id );
 		}
+		if ( 'suno' === $record['provider_type'] ) {
+			return self::test_suno( $connection_id );
+		}
 
 		$has_key = '' !== trim( (string) $record['credential_reference'] );
 		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
@@ -125,6 +128,42 @@ class Connection_Tester {
 			true,
 			sprintf( 'Connected to ElevenLabs; %d voice(s), %d text-to-speech model(s), and %d endpoint Template(s) available.', $voice_count, $model_count, $template_count ),
 			[ 'model_count' => $model_count, 'voice_count' => $voice_count, 'template_ids' => $provisioned['template_ids'] ?? [] ]
+		);
+	}
+
+	/** Test both services represented by a combined Suno Connection. */
+	private static function test_suno( int $connection_id ): array {
+		$credits = Suno_API::credits( $connection_id );
+		if ( is_wp_error( $credits ) ) {
+			return self::record_result( $connection_id, false, $credits->get_error_message(), [] );
+		}
+
+		$tools = Suno_MCP::available_tools( $connection_id );
+		if ( is_wp_error( $tools ) ) {
+			return self::record_result( $connection_id, false, $tools->get_error_message(), [ 'credits' => $credits ] );
+		}
+
+		$missing = array_values( array_diff( Suno_MCP::REQUIRED_TOOLS, $tools ) );
+		if ( ! empty( $missing ) ) {
+			return self::record_result(
+				$connection_id,
+				false,
+				sprintf( 'Suno MCP is reachable but does not expose required tools: %s.', implode( ', ', $missing ) ),
+				[ 'credits' => $credits, 'tools' => $tools ]
+			);
+		}
+
+		$provisioned = Suno_Catalog::provision( $connection_id );
+		if ( is_wp_error( $provisioned ) ) {
+			return self::record_result( $connection_id, false, $provisioned->get_error_message(), [ 'credits' => $credits, 'tools' => $tools ] );
+		}
+
+		$template_ids = (array) ( $provisioned['template_ids'] ?? [] );
+		return self::record_result(
+			$connection_id,
+			true,
+			sprintf( 'Connected to SunoAPI.org and AceData Cloud Suno MCP; %d MCP tools and %d transport-specific Templates are available.', count( $tools ), count( $template_ids ) ),
+			[ 'credits' => $credits, 'tools' => $tools, 'template_ids' => $template_ids ]
 		);
 	}
 

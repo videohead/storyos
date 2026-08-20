@@ -274,6 +274,7 @@ function init(): void {
 	CPT\EditorialArtifact::init();
 	CPT\Template::init();
 	CPT\Connection::init();
+	Utils\worldgraph_register_generation_record_type();
 	Utils\worldgraph_maybe_migrate_cpt_keys();
 	Utils\Connection_Adapters::load_configured();
 

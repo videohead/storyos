@@ -40,6 +40,7 @@ class Test_Generation_Modality extends TestCase {
 				'text_to_sound_effect',
 				'text_to_music',
 				'text_to_voice',
+				'text_to_lyrics',
 			],
 			Generation_Modality::slugs()
 		);
@@ -78,6 +79,7 @@ class Test_Generation_Modality extends TestCase {
 			'text to sound effect' => [ Generation_Modality::TEXT_TO_SOUND_EFFECT, [ 'prompt' ] ],
 			'text to music'        => [ Generation_Modality::TEXT_TO_MUSIC, [ 'prompt' ] ],
 			'text to voice'        => [ Generation_Modality::TEXT_TO_VOICE, [ 'prompt' ] ],
+			'text to lyrics'       => [ Generation_Modality::TEXT_TO_LYRICS, [ 'prompt' ] ],
 			'legacy mode falls back' => [ Generation_Modality::TEXT_TO_VIDEO, [ 'prompt' ] ],
 		];
 	}

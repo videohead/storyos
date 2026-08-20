@@ -45,6 +45,7 @@ what you are trying to do.
 ## Work with generation and production integrations
 
 - [Generation engine](plugins/GENERATION_ENGINE.md)
+- [Suno integration](plugins/SUNO.md)
 - [Comfy template catalog](plugins/COMFY_TEMPLATE_CATALOG.md)
 - [Comfy and prompt advisors](plugins/COMFY_AND_PROMPT_AGENTS.md)
 - [Generation preferences](plugins/GENERATE_PREFERENCES.md)
