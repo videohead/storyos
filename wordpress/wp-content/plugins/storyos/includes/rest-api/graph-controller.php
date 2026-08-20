@@ -47,8 +47,8 @@ class Graph_Controller extends Base_Controller {
 		// Get graph entities for a node.
 		register_rest_route( 'storyos/v1', '/graph/(?P<id>\d+)', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_graph' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_graph' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'id'     => [
 					'description' => 'Node ID.',
@@ -70,8 +70,8 @@ class Graph_Controller extends Base_Controller {
 		// Get all entities of a type.
 		register_rest_route( 'storyos/v1', '/graph/entities', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_entities' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_entities' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'type'   => [
 					'description' => 'Filter by CPT type.',
@@ -85,8 +85,8 @@ class Graph_Controller extends Base_Controller {
 		// Get all relationships.
 		register_rest_route( 'storyos/v1', '/graph/relationships', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_relationships' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_relationships' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'from_id'  => [ 'type' => 'integer' ],
 				'to_id'    => [ 'type' => 'integer' ],
@@ -99,8 +99,8 @@ class Graph_Controller extends Base_Controller {
 		// Create relationship.
 		register_rest_route( 'storyos/v1', '/graph/relationships', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'create_relationship' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'create_relationship' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'from_id'  => [
 					'description' => 'Source node ID.',
@@ -133,8 +133,8 @@ class Graph_Controller extends Base_Controller {
 		// Delete relationship.
 		register_rest_route( 'storyos/v1', '/graph/relationships/(?P<from_id>\d+)/(?P<to_id>\d+)', [
 			'methods'             => 'DELETE',
-			'callback'            => [ __CLASS__, 'delete_relationship' ],
-			'permission_callback' => [ __CLASS__, 'check_delete_permission' ],
+			'callback'            => [ $this, 'delete_relationship' ],
+			'permission_callback' => [ $this, 'check_delete_permission' ],
 			'args'                => [
 				'from_id'  => [ 'required' => true ],
 				'to_id'    => [ 'required' => true ],

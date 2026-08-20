@@ -623,7 +623,7 @@ class StoryOS_Exporter {
 		}
 
 		$frames = get_posts( [
-			'post_type'      => 'storyos_storyboard_frame',
+			'post_type'      => 'storyos_storyboard',
 			'post_status'    => 'any',
 			'posts_per_page' => -1,
 			'orderby'        => 'meta_value_num',
@@ -636,7 +636,7 @@ class StoryOS_Exporter {
 			$matches_shot = false;
 			$matches_scene = false;
 
-			foreach ( \StoryOS\Utils\get_relationships( $frame->ID, 'storyos_storyboard_frame', 'outgoing' ) as $rel ) {
+			foreach ( \StoryOS\Utils\get_relationships( $frame->ID, 'storyos_storyboard', 'outgoing' ) as $rel ) {
 				$to_id = (int) ( $rel['to_id'] ?? 0 );
 				if ( $shot_id === $to_id && 'storyos_shot' === ( $rel['to_type'] ?? '' ) ) {
 					$matches_shot = true;
@@ -677,7 +677,7 @@ class StoryOS_Exporter {
 		}
 
 		$frames = get_posts( [
-			'post_type'      => 'storyos_storyboard_frame',
+			'post_type'      => 'storyos_storyboard',
 			'post_status'    => 'any',
 			'posts_per_page' => -1,
 			'orderby'        => 'meta_value_num',
@@ -690,7 +690,7 @@ class StoryOS_Exporter {
 			$matches_scene = false;
 			$matches_shot  = false;
 
-			foreach ( \StoryOS\Utils\get_relationships( $frame->ID, 'storyos_storyboard_frame', 'outgoing' ) as $rel ) {
+			foreach ( \StoryOS\Utils\get_relationships( $frame->ID, 'storyos_storyboard', 'outgoing' ) as $rel ) {
 				$to_id = (int) ( $rel['to_id'] ?? 0 );
 				if ( $scene_id === $to_id && 'storyos_scene' === ( $rel['to_type'] ?? '' ) ) {
 					$matches_scene = true;
@@ -730,7 +730,7 @@ class StoryOS_Exporter {
 			return '';
 		}
 
-		foreach ( \StoryOS\Utils\get_relationships( $frame_id, 'storyos_storyboard_frame', 'outgoing' ) as $rel ) {
+		foreach ( \StoryOS\Utils\get_relationships( $frame_id, 'storyos_storyboard', 'outgoing' ) as $rel ) {
 			if ( 'storyos_asset' !== ( $rel['to_type'] ?? '' ) ) {
 				continue;
 			}

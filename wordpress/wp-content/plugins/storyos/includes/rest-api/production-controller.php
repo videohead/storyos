@@ -47,8 +47,8 @@ class Production_Controller extends Base_Controller {
 		// Get production overview for a project.
 		register_rest_route( 'storyos/v1', '/production/(?P<project_id>\d+)/overview', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_overview' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_overview' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -61,8 +61,8 @@ class Production_Controller extends Base_Controller {
 		// Get production pipeline status.
 		register_rest_route( 'storyos/v1', '/production/(?P<project_id>\d+)/pipeline', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_pipeline' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_pipeline' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -75,8 +75,8 @@ class Production_Controller extends Base_Controller {
 		// Update production stage.
 		register_rest_route( 'storyos/v1', '/production/(?P<project_id>\d+)/stage', [
 			'methods'             => 'PUT',
-			'callback'            => [ __CLASS__, 'update_stage' ],
-			'permission_callback' => [ __CLASS__, 'check_update_permission' ],
+			'callback'            => [ $this, 'update_stage' ],
+			'permission_callback' => [ $this, 'check_update_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -94,8 +94,8 @@ class Production_Controller extends Base_Controller {
 		// Get production tasks.
 		register_rest_route( 'storyos/v1', '/production/(?P<project_id>\d+)/tasks', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_tasks' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_tasks' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -114,8 +114,8 @@ class Production_Controller extends Base_Controller {
 		// Create production task.
 		register_rest_route( 'storyos/v1', '/production/(?P<project_id>\d+)/tasks', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'create_task' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'create_task' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -142,8 +142,8 @@ class Production_Controller extends Base_Controller {
 		// Update task status.
 		register_rest_route( 'storyos/v1', '/production/tasks/(?P<task_id>\d+)/status', [
 			'methods'             => 'PUT',
-			'callback'            => [ __CLASS__, 'update_task_status' ],
-			'permission_callback' => [ __CLASS__, 'check_update_permission' ],
+			'callback'            => [ $this, 'update_task_status' ],
+			'permission_callback' => [ $this, 'check_update_permission' ],
 			'args'                => [
 				'task_id'  => [
 					'description' => 'Task ID.',
@@ -161,8 +161,8 @@ class Production_Controller extends Base_Controller {
 		// Get production timeline.
 		register_rest_route( 'storyos/v1', '/production/(?P<project_id>\d+)/timeline', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_timeline' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_timeline' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',

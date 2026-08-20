@@ -4,7 +4,7 @@
 
 ## Overview
 
-> **Implementation update:** the current API is WordPress-native. WordPress Abilities replace MAF services, and Comfy Cloud MCP replaces the Python generation runtime. Historical endpoints in this document require review before implementation; see [Deployment and Connections](Deployment_and_Connections.md).
+>  see [Deployment and Connections](Deployment_and_Connections.md).
 
 The StoryOS REST API provides a unified integration layer between:
 

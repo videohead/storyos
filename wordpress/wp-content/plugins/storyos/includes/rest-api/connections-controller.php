@@ -76,7 +76,7 @@ class Connections_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/connections/sync', [
 			[
 				'methods'             => 'POST',
-				'callback'            => [ __CLASS__, 'sync_capabilities' ],
+				'callback'            => [ $this, 'sync_capabilities' ],
 				'permission_callback' => [ $this, 'check_create_permission' ],
 			],
 		] );
@@ -103,7 +103,7 @@ class Connections_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/connections/(?P<id>\d+)/resolve', [
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'resolve_connection' ],
+				'callback'            => [ $this, 'resolve_connection' ],
 				'permission_callback' => [ $this, 'check_read_permission' ],
 			],
 		] );
@@ -111,7 +111,7 @@ class Connections_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/connections/(?P<id>\d+)/test', [
 			[
 				'methods'             => 'POST',
-				'callback'            => [ __CLASS__, 'test_connection' ],
+				'callback'            => [ $this, 'test_connection' ],
 				'permission_callback' => [ $this, 'check_update_permission' ],
 			],
 		] );

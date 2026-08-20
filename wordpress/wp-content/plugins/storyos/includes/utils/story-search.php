@@ -57,13 +57,13 @@ function search_config(): array {
 			],
 			'storyboard_frames' => [
 				'label'       => 'Storyboard Frames',
-				'post_type'   => 'storyos_storyboard_frame',
+				'post_type'   => 'storyos_storyboard',
 				'icon'        => 'slides',
 				'color'       => '#2563eb',
 			],
 			'editorial_artifacts' => [
 				'label'       => 'Editorial',
-				'post_type'   => 'storyos_editorial_artifact',
+				'post_type'   => 'storyos_editorial',
 				'icon'        => 'admin-tools',
 				'color'       => '#dc2626',
 			],

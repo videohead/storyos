@@ -35,6 +35,59 @@ The Story Graph is the canonical source of truth.
 
 ---
 
+# SCF Persistence and Runtime Contract
+
+StoryOS archives one REST-enabled SCF field group per CPT under
+`wordpress/wp-content/plugins/storyos/acf-json/`. These Local JSON files are
+committed with the plugin and are the portable field-schema baseline. StoryOS
+adds that directory to SCF's JSON load paths and routes saves for
+`group_storyos_*` groups back to the same directory; unrelated SCF groups keep
+their configured save paths.
+
+At plugin initialization, StoryOS imports any missing archived group into the
+WordPress database. The database copy makes the group available in SCF's
+Field Groups admin screen, where administrators can add, update, and manage
+custom fields. Saving a StoryOS-owned group in SCF refreshes its Local JSON
+archive, which should be reviewed and committed like any other schema change.
+
+SCF field groups are the runtime authority for the StoryOS field schema.
+StoryOS's PHP field definitions seed the persisted groups, provide a fallback
+when SCF is unavailable, and retain StoryOS-only semantics that SCF cannot
+express. Runtime consumers use `storyos_get_fields()`, and value reads, writes,
+and deletes use SCF's field APIs when a declared field exists. Compatibility
+hooks also maintain SCF's hidden field-key reference when legacy code writes
+named post meta directly.
+
+Committed core fields use deterministic, per-CPT keys so common field names
+remain globally unique:
+
+- Group key: `group_{cpt}`, for example `group_storyos_project`
+- Field key: `field_{cpt}_{field_name}`, for example
+  `field_storyos_project_status`
+
+Keep these keys stable when changing labels or other field settings. Additions
+to the committed core contract use the same per-CPT convention; extension
+fields created in SCF retain the stable key generated for them by SCF.
+
+SCF complex fields participate in the wider WordPress and StoryOS models:
+
+- Taxonomy fields load assigned terms, save edited selections back to the
+  object, allow term creation, and return term IDs.
+- SCF post-object and relationship fields are bridged to named Story Graph
+  slots. Saving a control replaces the slot's graph edges, and loading it reads
+  the current targets from the Story Graph. Legacy named relationship meta is
+  only a fallback until graph relationship metadata exists.
+- Scene `dialogue` is an importer-managed SCF repeater with speaker, line,
+  description, and sequence values. Its value is read-only in the content edit
+  form so manual edits cannot diverge from the imported screenplay structure.
+
+The canonical WordPress post-type keys for Storyboard Frame and Editorial
+Artifact are `storyos_storyboard` and `storyos_editorial`. The longer names
+`storyos_storyboard_frame` and `storyos_editorial_artifact` are REST-facing
+bases and legacy identifiers, not valid current CPT keys.
+
+---
+
 # CPT: Project
 
 ## Purpose
@@ -43,15 +96,21 @@ Top-level container for all story assets.
 
 ## Fields
 
-- project_name (text)
-- project_slug (slug)
-- description (wysiwyg)
-- genre (taxonomy)
-- target_medium (select)
-- status (select)
-- owner (user)
-- start_date (date)
-- team_members (relationship)
+- `project_name` (text)
+- `project_slug` (text)
+- `description` (wysiwyg)
+- `genre` (taxonomy: `storyos_genre`, multiple)
+- `target_medium` (select)
+- `status` (taxonomy: `storyos_status`)
+- `owner` (user)
+- `start_date` (date)
+- `end_date` (date)
+- `team_members` (relationship to `storyos_character`, multiple)
+- `production_stage` (select)
+- `frame_width` (number)
+- `frame_height` (number)
+- `aspect_ratio` (text)
+- `frame_rate` (number)
 
 ## Relationships
 
@@ -220,13 +279,18 @@ When synced with Celtx, the following post meta fields are added:
 
 ## Fields
 
-- shot_number
-- shot_type
-- camera_angle
-- lens
-- duration
-- shot_description
-- editorial_notes
+- `shot_name` (text)
+- `shot_number` (number)
+- `shot_type` (select)
+- `camera_angle` (select)
+- `lens` (text)
+- `duration` (text)
+- `take_number` (number)
+- `slate_id` (text)
+- `shot_description` (wysiwyg)
+- `editorial_notes` (wysiwyg)
+- `scene` (relationship to `storyos_scene`)
+- `sequence` (taxonomy: `storyos_sequence`)
 
 ## Relationships
 
@@ -238,6 +302,8 @@ When synced with Celtx, the following post meta fields are added:
 ---
 
 # CPT: Storyboard Frame
+
+Canonical CPT key: `storyos_storyboard`.
 
 ## Fields
 
@@ -297,15 +363,20 @@ cue; a reusable composition entity can normalize repeated music works later.
 
 ## Fields
 
-- asset_title
-- asset_type
-- workflow_name
-- prompt
-- model_name
-- seed
-- generation_parameters
-- version
-- storage_uri
+- `asset_title` (text)
+- `asset_type` (taxonomy: `storyos_asset_type`)
+- `workflow_name` (text)
+- `prompt` (wysiwyg)
+- `model_name` (text)
+- `seed` (number)
+- `generation_parameters` (wysiwyg)
+- `version` (text)
+- `status` (select)
+- `storage_uri` (text)
+- `character` (relationship to `storyos_character`)
+- `location` (relationship to `storyos_location`)
+- `scene` (relationship to `storyos_scene`)
+- `storyboard` (relationship to `storyos_storyboard`)
 
 ## Relationships
 
@@ -325,14 +396,22 @@ workflow and not a replacement for the StoryOS Assets metabox.
 
 ## Fields
 
-- template_name
-- description
-- generation_structure
-- configuration_json
-- default_values
-- provider_type
-- version
-- status (`draft`, `active`, or `archived`)
+- `template_name` (text)
+- `description` (wysiwyg)
+- `generation_structure` (text)
+- `modality` (select)
+- `connection_id` (text; a `storyos_connection` post ID)
+- `checkpoint` (text)
+- `model_family` (select)
+- `workflow_json` (textarea)
+- `provider_template_id` (text)
+- `configuration_json` (textarea)
+- `input_bindings` (textarea)
+- `model_requirements` (textarea)
+- `default_values` (textarea)
+- `provider_type` (text)
+- `version` (text)
+- `status` (select: `draft`, `active`, or `archived`)
 
 `configuration_json` contains the parameter definitions, reference roles, and
 SCF field mappings used to resolve a generation request. `default_values` may
@@ -359,14 +438,17 @@ epic and are not yet represented as a completed CPT contract.
 
 # CPT: Editorial Artifact
 
+Canonical CPT key: `storyos_editorial`.
+
 ## Fields
 
-- artifact_type
-- export_format
-- generated_date
-- source_scene
-- source_shot
-- notes
+- `artifact_type` (select)
+- `export_format` (text)
+- `generated_date` (date)
+- `source_scene` (relationship to `storyos_scene`)
+- `source_shot` (relationship to `storyos_shot`)
+- `notes` (wysiwyg)
+- `project` (relationship to `storyos_project`)
 
 ## Artifact Types
 
@@ -375,6 +457,33 @@ epic and are not yet represented as a completed CPT contract.
 - AAF
 - Timeline Metadata
 - Production Reports
+
+---
+
+# CPT: Connection
+
+The `storyos_connection` CPT is a control-plane record for a configured
+provider endpoint. It stores credential references, never raw secret values.
+Templates and generation jobs select a Connection by post ID; this association
+is currently stored as configuration rather than as a Story Graph edge.
+
+## Fields
+
+- `connection_name` (text)
+- `provider_type` (select)
+- `environment` (select)
+- `status` (select)
+- `endpoint_url` (text)
+- `mcp_endpoint_url` (text)
+- `credential_reference` (text)
+- `model` (text)
+- `max_tokens` (text)
+- `temperature` (text)
+- `model_access` (textarea containing JSON)
+- `enabled_structures` (textarea containing JSON)
+- `enabled_templates` (textarea containing JSON)
+- `rate_limits` (textarea containing JSON)
+- `cost_controls` (textarea containing JSON)
 
 ---
 
@@ -462,6 +571,7 @@ Asset -> Character
 Asset -> Location
 Editorial Artifact -> Scene
 Editorial Artifact -> Shot
+Editorial Artifact -> Project
 ```
 
 ---

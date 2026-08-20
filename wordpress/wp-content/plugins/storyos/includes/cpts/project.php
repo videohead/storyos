@@ -16,7 +16,6 @@ class Project {
 	 */
 	public static function init(): void {
 		self::register_cpt();
-		self::register_meta_boxes();
 	}
 
 	/**

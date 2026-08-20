@@ -17,7 +17,7 @@ class EditorialArtifacts_Controller extends Base_Controller {
 	 *
 	 * @var string
 	 */
-	protected $cpt = 'storyos_editorial_artifact';
+	protected $cpt = 'storyos_editorial';
 
 	/**
 	 * Rest base.
@@ -41,8 +41,8 @@ class EditorialArtifacts_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/editorial-artifacts', [
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_items' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_items' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 				'args'                => [
 					'page'     => [ 'default' => 1 ],
 					'per_page' => [ 'default' => 10, 'maximum' => 100 ],
@@ -52,8 +52,8 @@ class EditorialArtifacts_Controller extends Base_Controller {
 			],
 			[
 				'methods'             => 'POST',
-				'callback'            => [ __CLASS__, 'create_item' ],
-				'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+				'callback'            => [ $this, 'create_item' ],
+				'permission_callback' => [ $this, 'check_create_permission' ],
 			],
 		] );
 
@@ -61,25 +61,25 @@ class EditorialArtifacts_Controller extends Base_Controller {
 			'args'   => [ 'id' => [ 'type' => 'integer' ] ],
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_item' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_item' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 			],
 			[
 				'methods'             => 'PUT',
-				'callback'            => [ __CLASS__, 'update_item' ],
-				'permission_callback' => [ __CLASS__, 'check_update_permission' ],
+				'callback'            => [ $this, 'update_item' ],
+				'permission_callback' => [ $this, 'check_update_permission' ],
 			],
 			[
 				'methods'             => 'DELETE',
-				'callback'            => [ __CLASS__, 'delete_item' ],
-				'permission_callback' => [ __CLASS__, 'check_delete_permission' ],
+				'callback'            => [ $this, 'delete_item' ],
+				'permission_callback' => [ $this, 'check_delete_permission' ],
 			],
 		] );
 
 		register_rest_route( 'storyos/v1', '/editorial-artifacts/(?P<id>\d+)/graph', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_graph' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_graph' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 		] );
 	}
 
@@ -91,7 +91,7 @@ class EditorialArtifacts_Controller extends Base_Controller {
 	 */
 	public static function get_graph( \WP_REST_Request $request ) {
 		$post_id = absint( $request->get_param( 'id' ) );
-		$entities = \StoryOS\Utils\get_graph_entities( $post_id, 'storyos_editorial_artifact' );
+		$entities = \StoryOS\Utils\get_graph_entities( $post_id, 'storyos_editorial' );
 		return rest_ensure_response( $entities );
 	}
 }

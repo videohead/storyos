@@ -155,6 +155,82 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 }
 
 /**
+ * Replace all targets assigned to one SCF relationship field.
+ *
+ * SCF's Relationship field can store more than one post, while
+ * set_relationship() intentionally models a scalar slot. This helper keeps a
+ * multi-value SCF control and the canonical Story Graph in sync without
+ * allowing stale edges to accumulate.
+ *
+ * @param int               $from_id    Source post ID.
+ * @param string            $from_type  Source CPT.
+ * @param array<int, mixed> $target_ids Target post IDs.
+ * @param string            $to_type    Target CPT.
+ * @param string            $type       Relationship verb.
+ * @param string            $field_name SCF field name.
+ * @return int|\WP_Error Relationship count, or a validation error.
+ */
+function set_relationships_for_field( int $from_id, string $from_type, array $target_ids, string $to_type, string $type, string $field_name ) {
+	$valid_types = array_keys( storyos_get_all_cpts() );
+	if ( ! in_array( $from_type, $valid_types, true ) || ! in_array( $to_type, $valid_types, true ) ) {
+		return new \WP_Error( 'invalid_entity_type', 'Invalid entity type.' );
+	}
+
+	if ( $from_id <= 0 || $from_type !== get_post_type( $from_id ) ) {
+		return new \WP_Error( 'invalid_source_entity', 'The relationship source does not match its declared entity type.' );
+	}
+
+	if ( ! isset( relationship_types()[ $type ] ) ) {
+		return new \WP_Error( 'invalid_relationship_type', 'Invalid relationship type.' );
+	}
+
+	$target_ids = array_values( array_unique( array_filter( array_map( 'absint', $target_ids ) ) ) );
+	foreach ( $target_ids as $target_id ) {
+		$valid = validate_relationship_entities( $from_id, $from_type, $target_id, $to_type );
+		if ( is_wp_error( $valid ) ) {
+			return $valid;
+		}
+	}
+
+	$field_name = sanitize_key( $field_name );
+	$meta_key   = STORYOS_CPT_PREFIX . 'relationships';
+	$existing   = get_post_meta( $from_id, $meta_key, true );
+	$existing   = is_array( $existing ) ? $existing : [];
+	$existing   = array_values(
+		array_filter(
+			$existing,
+			static function( array $relationship ) use ( $to_type, $type, $field_name ): bool {
+				$existing_field = sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) );
+				if ( '' !== $existing_field ) {
+					return $field_name !== $existing_field;
+				}
+
+				// Legacy edges did not identify their source control. Remove only
+				// those that match this field's configured target and verb.
+				return $to_type !== (string) ( $relationship['to_type'] ?? '' ) || $type !== (string) ( $relationship['type'] ?? '' );
+			}
+		)
+	);
+	update_post_meta( $from_id, $meta_key, $existing );
+
+	foreach ( $target_ids as $target_id ) {
+		$result = add_relationship(
+			$from_id,
+			$from_type,
+			$target_id,
+			$to_type,
+			$type,
+			[ 'field' => $field_name ]
+		);
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+	}
+
+	return count( $target_ids );
+}
+
+/**
  * Validate that relationship IDs resolve to the declared StoryOS CPTs.
  *
  * @param int    $from_id    Source post ID.

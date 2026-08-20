@@ -37,9 +37,9 @@ class Asset_Generator_MetaBox {
 		'storyos_episode',
 		'storyos_scene',
 		'storyos_shot',
-		'storyos_storyboard_frame',
+		'storyos_storyboard',
 		'storyos_asset',
-		'storyos_editorial_artifact',
+		'storyos_editorial',
 	];
 
 	/**

@@ -47,8 +47,8 @@ class Editorial_Controller extends Base_Controller {
 		// Get editorial overview.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/overview', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_overview' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_overview' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -61,8 +61,8 @@ class Editorial_Controller extends Base_Controller {
 		// Get editorial artifacts.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/artifacts', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_artifacts' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_artifacts' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -81,8 +81,8 @@ class Editorial_Controller extends Base_Controller {
 		// Create editorial artifact.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/artifacts', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'create_artifact' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'create_artifact' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -104,8 +104,8 @@ class Editorial_Controller extends Base_Controller {
 		// Export project.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/export', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'export_project' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'export_project' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -128,8 +128,8 @@ class Editorial_Controller extends Base_Controller {
 		// Get review notes.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/reviews', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_reviews' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_reviews' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -144,8 +144,8 @@ class Editorial_Controller extends Base_Controller {
 		// Add review note.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/reviews', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'add_review' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'add_review' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -171,8 +171,8 @@ class Editorial_Controller extends Base_Controller {
 		// Get storyboard sequence.
 		register_rest_route( 'storyos/v1', '/editorial/(?P<project_id>\d+)/storyboard', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_storyboard' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_storyboard' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'project_id' => [
 					'description' => 'Project ID.',
@@ -203,7 +203,7 @@ class Editorial_Controller extends Base_Controller {
 		}
 
 		// Get counts.
-		$artifact_count = count_user_posts( $project_id, 'storyos_editorial_artifact' );
+		$artifact_count = count_user_posts( $project_id, 'storyos_editorial' );
 		$review_count = count_user_posts( $project_id, 'storyos_review' );
 
 		// Get export history.
@@ -236,7 +236,7 @@ class Editorial_Controller extends Base_Controller {
 		$per_page = absint( $request->get_param( 'per_page' ) ) ?: 20;
 
 		$args = [
-			'post_type'      => 'storyos_editorial_artifact',
+			'post_type'      => 'storyos_editorial',
 			'post_status'    => 'any',
 			'posts_per_page' => $per_page,
 			'paged'          => $page,
@@ -296,7 +296,7 @@ class Editorial_Controller extends Base_Controller {
 		}
 
 		$post_id = wp_insert_post( [
-			'post_type'   => 'storyos_editorial_artifact',
+			'post_type'   => 'storyos_editorial',
 			'post_title'  => "Artifact: {$type} - " . current_time( 'mysql' ),
 			'post_status' => 'draft',
 		], true );
@@ -478,7 +478,7 @@ class Editorial_Controller extends Base_Controller {
 		$scene_id = $request->get_param( 'scene_id' ) ? absint( $request->get_param( 'scene_id' ) ) : null;
 
 		$args = [
-			'post_type'      => 'storyos_storyboard_frame',
+			'post_type'      => 'storyos_storyboard',
 			'post_status'    => 'any',
 			'posts_per_page' => -1,
 			'orderby'        => 'menu_order',

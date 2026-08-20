@@ -47,8 +47,8 @@ class Agents_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/agents', [
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_items' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_items' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 				'args'                => [
 					'page'     => [ 'default' => 1 ],
 					'per_page' => [ 'default' => 10, 'maximum' => 100 ],
@@ -56,8 +56,8 @@ class Agents_Controller extends Base_Controller {
 			],
 			[
 				'methods'             => 'POST',
-				'callback'            => [ __CLASS__, 'create_item' ],
-				'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+				'callback'            => [ $this, 'create_item' ],
+				'permission_callback' => [ $this, 'check_create_permission' ],
 			],
 		] );
 
@@ -65,26 +65,26 @@ class Agents_Controller extends Base_Controller {
 			'args'   => [ 'id' => [ 'type' => 'integer' ] ],
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_item' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_item' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 			],
 			[
 				'methods'             => 'PUT',
-				'callback'            => [ __CLASS__, 'update_item' ],
-				'permission_callback' => [ __CLASS__, 'check_update_permission' ],
+				'callback'            => [ $this, 'update_item' ],
+				'permission_callback' => [ $this, 'check_update_permission' ],
 			],
 			[
 				'methods'             => 'DELETE',
-				'callback'            => [ __CLASS__, 'delete_item' ],
-				'permission_callback' => [ __CLASS__, 'check_delete_permission' ],
+				'callback'            => [ $this, 'delete_item' ],
+				'permission_callback' => [ $this, 'check_delete_permission' ],
 			],
 		] );
 
 		// Agent actions.
 		register_rest_route( 'storyos/v1', '/agents/(?P<id>\d+)/actions', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'agent_action' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'agent_action' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'action' => [
 					'description' => 'Action to perform.',
@@ -101,8 +101,8 @@ class Agents_Controller extends Base_Controller {
 		// Agent history.
 		register_rest_route( 'storyos/v1', '/agents/(?P<id>\d+)/history', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_history' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_history' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'page'     => [ 'default' => 1 ],
 				'per_page' => [ 'default' => 20, 'maximum' => 100 ],

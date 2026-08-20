@@ -72,10 +72,11 @@ class EditorialArtifact {
 	];
 
 	\StoryOS\Utils\register_cpt(
-		'storyos_editorial_artifact',
+		'storyos_editorial',
 		'Editorial Artifacts',
 		[
-			'menu_icon' => 'dashicons-media-video',
+			'menu_icon'    => 'dashicons-media-video',
+			'rest_base'    => 'storyos_editorial_artifact',
 			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
@@ -83,7 +84,7 @@ class EditorialArtifact {
 	}
 
 	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( ! isset( $_POST['storyos_editorial_artifact_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_editorial_artifact_nonce'], 'storyos_editorial_artifact_details' ) ) {
+		if ( ! isset( $_POST['storyos_editorial_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_editorial_nonce'], 'storyos_editorial_details' ) ) {
 			return;
 		}
 
@@ -95,7 +96,7 @@ class EditorialArtifact {
 			return;
 		}
 
-		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_editorial_artifact' );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_editorial' );
 
 		foreach ( $fields as $key => $field ) {
 			if ( isset( $_POST[ $key ] ) ) {
@@ -104,7 +105,7 @@ class EditorialArtifact {
 				} elseif ( 'relationship' === $field['type'] ) {
 					\StoryOS\Utils\add_relationship(
 						$post_id,
-						'storyos_editorial_artifact',
+						'storyos_editorial',
 						absint( $_POST[ $key ] ),
 						$field['related_cpt'],
 						'references'

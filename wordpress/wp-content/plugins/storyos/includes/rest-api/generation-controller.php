@@ -47,8 +47,8 @@ class Generation_Controller extends Base_Controller {
 		// Submit generation request.
 		register_rest_route( 'storyos/v1', '/generation', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'submit_generation' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'submit_generation' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'type'       => [
 					'description' => 'Generation type (image, video, audio).',
@@ -91,8 +91,8 @@ class Generation_Controller extends Base_Controller {
 		// Get generation status.
 		register_rest_route( 'storyos/v1', '/generation/(?P<id>\d+)', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_generation_status' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_generation_status' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'id' => [
 					'description' => 'Generation request ID.',
@@ -105,8 +105,8 @@ class Generation_Controller extends Base_Controller {
 		// Cancel generation.
 		register_rest_route( 'storyos/v1', '/generation/(?P<id>\d+)/cancel', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'cancel_generation' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'cancel_generation' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'id' => [
 					'description' => 'Generation request ID.',
@@ -119,8 +119,8 @@ class Generation_Controller extends Base_Controller {
 		// Get generation history for an asset.
 		register_rest_route( 'storyos/v1', '/generation/asset/(?P<asset_id>\d+)/history', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_asset_history' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_asset_history' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 			'args'                => [
 				'asset_id' => [
 					'description' => 'Asset ID.',
@@ -135,8 +135,8 @@ class Generation_Controller extends Base_Controller {
 		// Inspect what a Template needs from ComfyUI, and whether it is installed.
 		register_rest_route( 'storyos/v1', '/generation/templates/(?P<id>\d+)/requirements', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_template_requirements' ],
-			'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+			'callback'            => [ $this, 'get_template_requirements' ],
+			'permission_callback' => [ $this, 'check_create_permission' ],
 			'args'                => [
 				'id'       => [
 					'description' => 'Template post ID.',

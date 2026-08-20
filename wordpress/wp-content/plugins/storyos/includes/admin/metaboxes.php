@@ -2,7 +2,7 @@
 /**
  * Admin MetaBoxes for StoryOS.
  *
- * Provides generic meta box rendering for StoryOS CPTs.
+ * Provides Story Graph connection meta boxes for StoryOS CPTs.
  *
  * @package StoryOS
  */
@@ -25,36 +25,14 @@ class MetaBoxes {
 	}
 
 	/**
-	 * CPTs that render their own custom "Details" meta box and must be
-	 * skipped by the generic storyos_details box to avoid duplicate fields.
-	 *
-	 * @var array<int, string>
-	 */
-	private const CUSTOM_DETAILS_CPTS = [
-		'storyos_connection',
-		'storyos_template',
-	];
-
-	/**
 	 * Register meta boxes.
 	 */
 	public static function register_meta_boxes(): void {
 		$cpts = array_keys( \StoryOS\Utils\storyos_get_all_cpts() );
 
 		foreach ( $cpts as $cpt ) {
-			// Add details meta box, unless the CPT already renders its own.
-			if ( ! in_array( $cpt, self::CUSTOM_DETAILS_CPTS, true ) ) {
-				add_meta_box(
-					'storyos_details',
-					__( 'StoryOS Details', 'storyos' ),
-					[ __CLASS__, 'render_details_box' ],
-					$cpt,
-					'normal',
-					'default'
-				);
-			}
-
-			// Add graph connections meta box.
+			// SCF owns structured metadata controls and saving. StoryOS retains a
+			// separate read-only view of canonical graph edges.
 			add_meta_box(
 				'storyos_graph',
 				__( 'Graph Connections', 'storyos' ),

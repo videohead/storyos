@@ -84,7 +84,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 			if ( in_array( $field['type'], [ 'relationship', 'taxonomy' ], true ) ) {
 				continue;
 			}
-			$value = get_post_meta( $post->ID, $key, true );
+			$value = \StoryOS\Utils\storyos_get_field_value( $post->ID, $key );
 			if ( '' !== $value ) {
 				$meta[ $key ] = $value;
 			}
@@ -364,9 +364,18 @@ abstract class Base_Controller extends WP_REST_Controller {
 			}
 
 			if ( '' === $meta[ $key ] || null === $meta[ $key ] ) {
-				delete_post_meta( $post_id, $key );
+				\StoryOS\Utils\storyos_delete_field_value( $post_id, $key );
 			} else {
-				update_post_meta( $post_id, $key, \StoryOS\Utils\storyos_sanitize_field_value( $meta[ $key ], $field ) );
+				$value = $meta[ $key ];
+				if ( ! is_array( $value ) && ! is_object( $value ) ) {
+					$value = \StoryOS\Utils\storyos_sanitize_field_value( $value, $field );
+				}
+
+				\StoryOS\Utils\storyos_update_field_value(
+					$post_id,
+					$key,
+					$value
+				);
 			}
 		}
 	}
@@ -384,13 +393,21 @@ abstract class Base_Controller extends WP_REST_Controller {
 
 		foreach ( $fields as $key => $field ) {
 			if ( 'relationship' === $field['type'] && array_key_exists( $key, $meta ) ) {
-				\StoryOS\Utils\set_relationship(
+				$target_ids = is_array( $meta[ $key ] ) ? $meta[ $key ] : [ $meta[ $key ] ];
+				$target_ids = array_values( array_filter( array_map( 'absint', $target_ids ) ) );
+				\StoryOS\Utils\set_relationships_for_field(
 					$post_id,
 					$this->cpt,
-					absint( $meta[ $key ] ),
+					$target_ids,
 					$field['related_cpt'],
 					(string) ( $field['relationship_type'] ?? 'belongs_to' ),
-					[ 'field' => $key ]
+					$key
+				);
+
+				\StoryOS\Utils\storyos_update_field_value(
+					$post_id,
+					$key,
+					! empty( $field['multiple'] ) ? $target_ids : ( $target_ids[0] ?? '' )
 				);
 			}
 		}

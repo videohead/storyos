@@ -196,14 +196,6 @@ class Connection {
 	private static function register_meta_boxes(): void {
 		add_action( 'add_meta_boxes', function (): void {
 			add_meta_box(
-				'storyos_connection_details',
-				'Connection Details',
-				[ self::class, 'render_connection_meta_box' ],
-				self::CPT,
-				'normal',
-				'default'
-			);
-			add_meta_box(
 				'storyos_connection_configurator',
 				'Connection Configurator',
 				[ self::class, 'render_configurator_meta_box' ],

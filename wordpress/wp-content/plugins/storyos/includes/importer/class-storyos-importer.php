@@ -412,10 +412,10 @@ class StoryOS_Importer {
 
 		// SCF fields.
 		update_post_meta( $post_id, 'external_id', $external_id );
-		update_post_meta( $post_id, 'project_name', sanitize_text_field( $project['title'] ) );
-		update_post_meta( $post_id, 'project_slug', \StoryOS\Utils\sanitize_story_id( $external_id ) );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'project_name', sanitize_text_field( $project['title'] ) );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'project_slug', \StoryOS\Utils\sanitize_story_id( $external_id ) );
 		if ( isset( $project['description'] ) ) {
-			update_post_meta( $post_id, 'description', wp_kses_post( $project['description'] ) );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'description', wp_kses_post( $project['description'] ) );
 		}
 	}
 
@@ -459,9 +459,9 @@ class StoryOS_Importer {
 
 		// SCF fields.
 		update_post_meta( $post_id, 'external_id', $external_id );
-		update_post_meta( $post_id, 'world_name', sanitize_text_field( $world['name'] ) );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'world_name', sanitize_text_field( $world['name'] ) );
 		if ( isset( $world['description'] ) ) {
-			update_post_meta( $post_id, 'synopsis', wp_kses_post( $world['description'] ) );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'synopsis', wp_kses_post( $world['description'] ) );
 		}
 	}
 
@@ -505,12 +505,12 @@ class StoryOS_Importer {
 
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
-			update_post_meta( $post_id, 'display_name', sanitize_text_field( $character['name'] ) );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'display_name', sanitize_text_field( $character['name'] ) );
 			if ( isset( $character['archetype'] ) ) {
 				update_post_meta( $post_id, 'archetype', sanitize_text_field( $character['archetype'] ) );
 			}
 			if ( isset( $character['description'] ) ) {
-				update_post_meta( $post_id, 'biography', wp_kses_post( $character['description'] ) );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'biography', wp_kses_post( $character['description'] ) );
 			}
 		}
 	}
@@ -555,9 +555,9 @@ class StoryOS_Importer {
 
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
-			update_post_meta( $post_id, 'location_name', sanitize_text_field( $location['name'] ) );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'location_name', sanitize_text_field( $location['name'] ) );
 			if ( isset( $location['description'] ) ) {
-				update_post_meta( $post_id, 'description', wp_kses_post( $location['description'] ) );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'description', wp_kses_post( $location['description'] ) );
 			}
 		}
 	}
@@ -602,9 +602,9 @@ class StoryOS_Importer {
 
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
-			update_post_meta( $post_id, 'prop_name', sanitize_text_field( $prop['name'] ) );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'prop_name', sanitize_text_field( $prop['name'] ) );
 			if ( isset( $prop['description'] ) ) {
-				update_post_meta( $post_id, 'description', wp_kses_post( $prop['description'] ) );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'description', wp_kses_post( $prop['description'] ) );
 			}
 		}
 	}
@@ -653,10 +653,10 @@ class StoryOS_Importer {
 
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
-			update_post_meta( $post_id, 'scene_number', $scene_index );
-			update_post_meta( $post_id, 'title', $scene_label );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'scene_number', $scene_index );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'title', $scene_label );
 			if ( isset( $scene['summary'] ) ) {
-				update_post_meta( $post_id, 'summary', wp_kses_post( $scene['summary'] ) );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'summary', wp_kses_post( $scene['summary'] ) );
 			}
 
 			// Store dialogue as structured metadata.
@@ -671,7 +671,7 @@ class StoryOS_Importer {
 						'sequence'    => $sequence++,
 					];
 				}
-				update_post_meta( $post_id, 'dialogue', $dialogue );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'dialogue', $dialogue );
 			}
 
 			$scene_index++;
@@ -742,13 +742,13 @@ class StoryOS_Importer {
 
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
-			update_post_meta( $post_id, 'shot_number', $shot_index );
-			update_post_meta( $post_id, 'shot_name', $shot_name );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'shot_number', $shot_index );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'shot_name', $shot_name );
 			if ( '' !== $shot_type ) {
-				update_post_meta( $post_id, 'shot_type', $shot_type );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'shot_type', $shot_type );
 			}
 			if ( isset( $shot['description'] ) ) {
-				update_post_meta( $post_id, 'shot_description', wp_kses_post( $shot['description'] ) );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'shot_description', wp_kses_post( $shot['description'] ) );
 			}
 
 			$shot_index++;
@@ -803,12 +803,12 @@ class StoryOS_Importer {
 				if ( array_key_exists( $meta_field, $sound ) ) {
 					$value = \StoryOS\Utils\storyos_sanitize_field_value( $sound[ $meta_field ], $fields[ $meta_field ] ?? [] );
 					if ( '' === $value ) {
-						delete_post_meta( $post_id, $meta_field );
+						\StoryOS\Utils\storyos_delete_field_value( $post_id, $meta_field );
 					} else {
-						update_post_meta( $post_id, $meta_field, $value );
+						\StoryOS\Utils\storyos_update_field_value( $post_id, $meta_field, $value );
 					}
 				} elseif ( $this->overwrite ) {
-					delete_post_meta( $post_id, $meta_field );
+					\StoryOS\Utils\storyos_delete_field_value( $post_id, $meta_field );
 				}
 			}
 
@@ -850,7 +850,7 @@ class StoryOS_Importer {
 		foreach ( $this->document['storyboards'] as $frame ) {
 			$external_id = sanitize_text_field( $frame['id'] );
 
-			$post_id = $this->find_existing( 'storyos_storyboard_frame', $external_id );
+			$post_id = $this->find_existing( 'storyos_storyboard', $external_id );
 
 			if ( $post_id && ! $this->overwrite ) {
 				$this->report['skipped'][] = "Storyboard frame {$external_id} already exists.";
@@ -860,7 +860,7 @@ class StoryOS_Importer {
 			}
 
 			$post_data = [
-				'post_type'    => 'storyos_storyboard_frame',
+				'post_type'    => 'storyos_storyboard',
 				'post_title'   => sprintf( 'Storyboard Frame %d', $frame_index ),
 				'post_status'  => 'publish',
 				'post_content' => isset( $frame['description'] ) ? wp_kses_post( $frame['description'] ) : '',
@@ -885,9 +885,9 @@ class StoryOS_Importer {
 
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
-			update_post_meta( $post_id, 'frame_number', $frame_index );
+			\StoryOS\Utils\storyos_update_field_value( $post_id, 'frame_number', $frame_index );
 			if ( isset( $frame['description'] ) ) {
-				update_post_meta( $post_id, 'frame_description', wp_kses_post( $frame['description'] ) );
+				\StoryOS\Utils\storyos_update_field_value( $post_id, 'frame_description', wp_kses_post( $frame['description'] ) );
 			}
 
 			$frame_index++;
@@ -1125,7 +1125,7 @@ class StoryOS_Importer {
 
 			$shot_id = $this->id_map[ $frame['shot'] ] ?? 0;
 			if ( $shot_id ) {
-				\StoryOS\Utils\add_relationship( $shot_id, 'storyos_shot', $frame_id, 'storyos_storyboard_frame', 'contains' );
+				\StoryOS\Utils\add_relationship( $shot_id, 'storyos_shot', $frame_id, 'storyos_storyboard', 'contains' );
 			}
 		}
 	}
@@ -1143,7 +1143,7 @@ class StoryOS_Importer {
 			'storyos_scene'            => array_map( 'strval', array_column( $this->document['scenes'], 'id' ) ),
 			'storyos_shot'             => array_map( 'strval', array_column( $this->document['shots'], 'id' ) ),
 			'storyos_sound'            => array_map( 'strval', array_column( $this->document['sounds'], 'id' ) ),
-			'storyos_storyboard_frame' => array_map( 'strval', array_column( $this->document['storyboards'], 'id' ) ),
+			'storyos_storyboard'      => array_map( 'strval', array_column( $this->document['storyboards'], 'id' ) ),
 		];
 
 		$totals   = [];
@@ -1196,7 +1196,7 @@ class StoryOS_Importer {
 
 		foreach ( $this->document['scenes'] as $scene ) {
 			$scene_id          = (int) ( $this->id_map[ (string) $scene['id'] ] ?? 0 );
-			$stored_dialogue   = get_post_meta( $scene_id, 'dialogue', true );
+			$stored_dialogue   = \StoryOS\Utils\storyos_get_field_value( $scene_id, 'dialogue' );
 			$expected_dialogue = count( (array) ( $scene['dialogue'] ?? [] ) );
 			if ( $expected_dialogue !== count( is_array( $stored_dialogue ) ? $stored_dialogue : [] ) ) {
 				$this->report['errors'][] = sprintf( 'Scene %s dialogue verification failed.', $scene['id'] );

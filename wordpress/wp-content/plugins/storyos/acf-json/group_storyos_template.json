@@ -1,0 +1,379 @@
+{
+    "key": "group_storyos_template",
+    "title": "StoryOS: Template Fields",
+    "fields": [
+        {
+            "key": "field_storyos_template_template_name",
+            "label": "Template Name",
+            "name": "template_name",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_description",
+            "label": "Description",
+            "name": "description",
+            "aria-label": "",
+            "type": "wysiwyg",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "tabs": "all",
+            "toolbar": "full",
+            "media_upload": 1,
+            "default_value": "",
+            "delay": 0
+        },
+        {
+            "key": "field_storyos_template_generation_structure",
+            "label": "Generation Structure",
+            "name": "generation_structure",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_modality",
+            "label": "Modality",
+            "name": "modality",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "What this Template generates and which inputs it consumes. Determines the built-in workflow and the ComfyUI nodes and models StoryOS checks for.",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "text_to_image": "Text to image",
+                "text_to_speech": "Text to speech",
+                "text_to_dialogue": "Text to dialogue",
+                "text_to_sound_effect": "Text to sound effect",
+                "text_to_music": "Text to music",
+                "text_to_voice": "Text to voice design"
+            },
+            "allow_null": 0,
+            "multiple": 0,
+            "ui": 1,
+            "return_format": "value",
+            "default_value": false,
+            "ajax": 0,
+            "placeholder": "",
+            "create_options": 0,
+            "save_options": 0
+        },
+        {
+            "key": "field_storyos_template_connection_id",
+            "label": "Connection ID",
+            "name": "connection_id",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "The storyos_connection post ID this template runs against (a Connection can back many Templates\/checkpoints).",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_checkpoint",
+            "label": "Checkpoint \/ Model",
+            "name": "checkpoint",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Checkpoint filename installed on the Connection, e.g. LTX-2.3\/ltx-2.3-22b-dev-fp8.safetensors.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_model_family",
+            "label": "Model Family",
+            "name": "model_family",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "The generative model this Template runs, e.g. LTX 2.3, MiniMax, SCAIL, or Wan 2.1. Used to group Templates and cross-check against the Connection's allowed models.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "ltxv": "LTXV (LTX-Video)",
+                "wan": "Wan2.1",
+                "minimax": "MiniMax",
+                "scail": "SCAIL (Wan)"
+            },
+            "allow_null": 1,
+            "multiple": 0,
+            "ui": 1,
+            "return_format": "value",
+            "default_value": false,
+            "ajax": 0,
+            "placeholder": "",
+            "create_options": 0,
+            "save_options": 0
+        },
+        {
+            "key": "field_storyos_template_workflow_json",
+            "label": "ComfyUI API Workflow (optional)",
+            "name": "workflow_json",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Leave blank to use the built-in text-to-image workflow with the checkpoint above. To use a custom graph, export it with ComfyUI's “Save (API Format)”, then replace prompt values with placeholders such as {{prompt}} and {{negative_prompt}}.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "new_lines": "",
+            "maxlength": "",
+            "placeholder": "",
+            "rows": ""
+        },
+        {
+            "key": "field_storyos_template_provider_template_id",
+            "label": "Provider Template \/ Model Endpoint ID",
+            "name": "provider_template_id",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Provider identifier paired with the Connection. For fal use a model endpoint ID, for ElevenLabs use a voice ID, and for ComfyUI use the discovered MCP Template ID.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_configuration_json",
+            "label": "Configuration JSON",
+            "name": "configuration_json",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Provider-neutral JSON for optional parameter overrides, references, and SCF field mappings. Provider inputs live under {\"input\": {...}}; StoryOS adds the prompt and resolved bindings at runtime.",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "new_lines": "",
+            "maxlength": "",
+            "placeholder": "",
+            "rows": ""
+        },
+        {
+            "key": "field_storyos_template_input_bindings",
+            "label": "Input Bindings JSON",
+            "name": "input_bindings",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Optional JSON mapping prompt-related fields to Story Graph sources for the text-to-image workflow.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "new_lines": "",
+            "maxlength": "",
+            "placeholder": "",
+            "rows": ""
+        },
+        {
+            "key": "field_storyos_template_model_requirements",
+            "label": "Model Requirements JSON",
+            "name": "model_requirements",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Optional JSON array of download sources for the models this Template loads: [{\"filename\":\"ltx-2.3.safetensors\",\"folder\":\"checkpoints\",\"url\":\"https:\/\/…\"}]. Used by the requirement check to offer a one-click install.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "new_lines": "",
+            "maxlength": "",
+            "placeholder": "",
+            "rows": ""
+        },
+        {
+            "key": "field_storyos_template_default_values",
+            "label": "Default Values",
+            "name": "default_values",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "new_lines": "",
+            "maxlength": "",
+            "placeholder": "",
+            "rows": ""
+        },
+        {
+            "key": "field_storyos_template_provider_type",
+            "label": "Provider Type",
+            "name": "provider_type",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_version",
+            "label": "Version",
+            "name": "version",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_storyos_template_status",
+            "label": "Status",
+            "name": "status",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "draft": "Draft",
+                "active": "Active",
+                "archived": "Archived"
+            },
+            "allow_null": 0,
+            "multiple": 0,
+            "ui": 1,
+            "return_format": "value",
+            "default_value": false,
+            "ajax": 0,
+            "placeholder": "",
+            "create_options": 0,
+            "save_options": 0
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "storyos_template"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": "Structured metadata for the StoryOS Story Graph. This persisted group may be managed in Secure Custom Fields.",
+    "show_in_rest": 1,
+    "display_title": "",
+    "allow_ai_access": false,
+    "ai_description": "",
+    "modified": 1787242024
+}

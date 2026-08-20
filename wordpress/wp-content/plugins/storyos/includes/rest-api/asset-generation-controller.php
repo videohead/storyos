@@ -50,8 +50,8 @@ class Asset_Generation_Controller extends Base_Controller {
 	public function register_routes() {
 		register_rest_route( 'storyos/v1', '/assets/generate', [
 			'methods'             => 'POST',
-			'callback'            => [ __CLASS__, 'generate' ],
-			'permission_callback' => [ __CLASS__, 'check_generate_permission' ],
+			'callback'            => [ $this, 'generate' ],
+			'permission_callback' => [ $this, 'check_generate_permission' ],
 			'args'                => [
 				'post_id'      => [
 					'description' => 'Story element post ID the image belongs to.',
@@ -82,8 +82,8 @@ class Asset_Generation_Controller extends Base_Controller {
 
 		register_rest_route( 'storyos/v1', '/assets/generate/prompt', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_prompt' ],
-			'permission_callback' => [ __CLASS__, 'check_generate_permission' ],
+			'callback'            => [ $this, 'get_prompt' ],
+			'permission_callback' => [ $this, 'check_generate_permission' ],
 			'args'                => [
 				'post_id' => [
 					'description' => 'Story element post ID.',

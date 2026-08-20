@@ -230,8 +230,8 @@
 				'storyos_asset': 'Assets',
 				'storyos_prop': 'Props',
 				'storyos_episode': 'Episodes',
-				'storyos_storyboard_frame': 'Storyboards',
-				'storyos_editorial_artifact': 'Editorial',
+				'storyos_storyboard': 'Storyboards',
+				'storyos_editorial': 'Editorial',
 			};
 
 			for (const [type, count] of Object.entries(counts)) {

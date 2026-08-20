@@ -31,6 +31,41 @@ define( 'STORYOS_API_NAMESPACE', 'storyos/v1' );
 define( 'STORYOS_CPT_PREFIX', 'storyos_' );
 
 /**
+ * Add StoryOS's versioned SCF Local JSON archive to SCF's load paths.
+ *
+ * @param array<int, string> $paths Existing SCF JSON paths.
+ * @return array<int, string>
+ */
+function storyos_scf_json_load_paths( array $paths ): array {
+	$path = STORYOS_PLUGIN_DIR . 'acf-json';
+	if ( ! in_array( $path, $paths, true ) ) {
+		$paths[] = $path;
+	}
+
+	return $paths;
+}
+
+/**
+ * Save StoryOS-owned group changes back to the plugin's JSON archive.
+ *
+ * Other SCF groups retain their existing save paths.
+ *
+ * @param array<int, string>  $paths Candidate save paths.
+ * @param array<string, mixed> $post  SCF field group or internal post type.
+ * @return array<int, string>
+ */
+function storyos_scf_json_save_paths( array $paths, array $post ): array {
+	if ( 0 === strpos( (string) ( $post['key'] ?? '' ), 'group_storyos_' ) ) {
+		return [ STORYOS_PLUGIN_DIR . 'acf-json' ];
+	}
+
+	return $paths;
+}
+
+add_filter( 'acf/json/load_paths', __NAMESPACE__ . '\\storyos_scf_json_load_paths' );
+add_filter( 'acf/json/save_paths', __NAMESPACE__ . '\\storyos_scf_json_save_paths', 10, 2 );
+
+/**
  * Autoloader for StoryOS classes.
  *
  * @param string $class The class name.
@@ -159,6 +194,7 @@ function init(): void {
 
 	// Load dependencies.
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/helpers.php';
+	require_once STORYOS_PLUGIN_DIR . 'includes/utils/cpt-key-migration.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-log.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/generation-modality.php';
 	require_once STORYOS_PLUGIN_DIR . 'includes/utils/connection-adapters.php';
@@ -199,6 +235,7 @@ function init(): void {
 	CPT\EditorialArtifact::init();
 	CPT\Template::init();
 	CPT\Connection::init();
+	Utils\storyos_maybe_migrate_cpt_keys();
 	Utils\Connection_Adapters::load_configured();
 
 	// Register taxonomies.
@@ -211,6 +248,10 @@ function init(): void {
 	Taxonomies\Sequence::init();
 	Taxonomies\SoundType::init();
 	Taxonomies\TemplateCategory::init();
+
+	// SCF Local JSON is the portable schema archive; persisted copies allow
+	// administrators to edit those groups in Secure Custom Fields.
+	Utils\SCF_Fields::boot( Utils\storyos_get_all_field_defaults() );
 
 	// Register REST API routes.
 	REST\Projects_Controller::init();

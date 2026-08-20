@@ -72,7 +72,7 @@ class Asset_Generator {
 		'storyos_character'        => 'character',
 		'storyos_location'         => 'location',
 		'storyos_scene'            => 'scene',
-		'storyos_storyboard_frame' => 'storyboard',
+		'storyos_storyboard'       => 'storyboard',
 	];
 
 	/**

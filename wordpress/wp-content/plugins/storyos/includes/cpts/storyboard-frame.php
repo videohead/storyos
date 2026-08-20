@@ -64,10 +64,11 @@ class StoryboardFrame {
 	];
 
 	\StoryOS\Utils\register_cpt(
-		'storyos_storyboard_frame',
+		'storyos_storyboard',
 		'Storyboard Frames',
 		[
-			'menu_icon' => 'dashicons-images-alt2',
+			'menu_icon'    => 'dashicons-images-alt2',
+			'rest_base'    => 'storyos_storyboard_frame',
 			'show_in_menu' => 'storyos-editorial',
 		],
 		$fields
@@ -75,7 +76,7 @@ class StoryboardFrame {
 	}
 
 	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( ! isset( $_POST['storyos_storyboard_frame_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_storyboard_frame_nonce'], 'storyos_storyboard_frame_details' ) ) {
+		if ( ! isset( $_POST['storyos_storyboard_nonce'] ) || ! wp_verify_nonce( $_POST['storyos_storyboard_nonce'], 'storyos_storyboard_details' ) ) {
 			return;
 		}
 
@@ -87,14 +88,14 @@ class StoryboardFrame {
 			return;
 		}
 
-		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_storyboard_frame' );
+		$fields = \StoryOS\Utils\storyos_get_fields( 'storyos_storyboard' );
 
 		foreach ( $fields as $key => $field ) {
 			if ( isset( $_POST[ $key ] ) ) {
 				if ( 'relationship' === $field['type'] ) {
 					\StoryOS\Utils\add_relationship(
 						$post_id,
-						'storyos_storyboard_frame',
+						'storyos_storyboard',
 						absint( $_POST[ $key ] ),
 						$field['related_cpt'],
 						'references'
@@ -106,4 +107,4 @@ class StoryboardFrame {
 		}
 	}
 }
-add_action( 'save_post_storyos_storyboard_frame', [ __NAMESPACE__ . '\StoryboardFrame', 'save_meta' ], 10, 2 );
+add_action( 'save_post_storyos_storyboard', [ __NAMESPACE__ . '\StoryboardFrame', 'save_meta' ], 10, 2 );

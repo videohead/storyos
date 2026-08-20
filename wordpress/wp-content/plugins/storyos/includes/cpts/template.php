@@ -145,14 +145,6 @@ class Template {
 	private static function register_meta_boxes(): void {
 		add_action( 'add_meta_boxes', function (): void {
 			add_meta_box(
-				'storyos_template_details',
-				'Template Details',
-				[ self::class, 'render_template_meta_box' ],
-				'storyos_template',
-				'normal',
-				'default'
-			);
-			add_meta_box(
 				'storyos_template_requirements',
 				'ComfyUI Requirements',
 				[ self::class, 'render_requirements_meta_box' ],

@@ -43,8 +43,8 @@ class Locations_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/locations', [
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_items' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_items' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 				'args'                => [
 					'page'     => [ 'default' => 1 ],
 					'per_page' => [ 'default' => 10, 'maximum' => 100 ],
@@ -56,8 +56,8 @@ class Locations_Controller extends Base_Controller {
 			],
 			[
 				'methods'             => 'POST',
-				'callback'            => [ __CLASS__, 'create_item' ],
-				'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+				'callback'            => [ $this, 'create_item' ],
+				'permission_callback' => [ $this, 'check_create_permission' ],
 			],
 		] );
 
@@ -65,25 +65,25 @@ class Locations_Controller extends Base_Controller {
 			'args'   => [ 'id' => [ 'type' => 'integer' ] ],
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_item' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_item' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 			],
 			[
 				'methods'             => 'PUT',
-				'callback'            => [ __CLASS__, 'update_item' ],
-				'permission_callback' => [ __CLASS__, 'check_update_permission' ],
+				'callback'            => [ $this, 'update_item' ],
+				'permission_callback' => [ $this, 'check_update_permission' ],
 			],
 			[
 				'methods'             => 'DELETE',
-				'callback'            => [ __CLASS__, 'delete_item' ],
-				'permission_callback' => [ __CLASS__, 'check_delete_permission' ],
+				'callback'            => [ $this, 'delete_item' ],
+				'permission_callback' => [ $this, 'check_delete_permission' ],
 			],
 		] );
 
 		register_rest_route( 'storyos/v1', '/locations/(?P<id>\d+)/graph', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_graph' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_graph' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 		] );
 	}
 

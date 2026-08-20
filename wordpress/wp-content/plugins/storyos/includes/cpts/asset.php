@@ -102,7 +102,7 @@ class Asset {
 			'type'        => 'relationship',
 			'label'       => 'Source Storyboard Frame',
 			'required'    => false,
-			'related_cpt' => 'storyos_storyboard_frame',
+			'related_cpt' => 'storyos_storyboard',
 		],
 	];
 

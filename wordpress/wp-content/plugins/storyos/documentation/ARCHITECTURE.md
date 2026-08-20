@@ -107,12 +107,22 @@ Manages API connections to providers like Comfy Cloud MCP.
 | `storyos_scene` | Scene content and metadata |
 | `storyos_shot` | Shot/sequence data |
 | `storyos_sound` | Planned soundtrack cues linked to scenes, shots, characters, and rendered audio assets |
-| `storyos_storyboard_frame` | Storyboard visual frames |
+| `storyos_storyboard` | Storyboard visual frames (`storyos_storyboard_frame` is its REST base) |
 | `storyos_asset` | Generated/managed assets |
-| `storyos_editorial_artifact` | Editorial notes, scripts, etc. |
+| `storyos_editorial` | Editorial notes, scripts, etc. (`storyos_editorial_artifact` is its REST base) |
 | `storyos_template` | Story templates/patterns |
 | `storyos_connection` | Provider connections |
 | `storyos_generation` | Generation job tracking |
+
+### Secure Custom Fields Schema
+
+StoryOS commits its SCF Local JSON field groups under `acf-json/`. The plugin
+adds that directory to SCF's load path, imports missing groups into the
+WordPress database so they can be managed in the SCF Field Groups admin, and
+routes saves for StoryOS-owned `group_storyos_*` groups back to the archive.
+SCF groups are the runtime field-schema authority; committed core field keys
+remain stable and include their CPT key, for example
+`field_storyos_project_status`.
 
 ## REST API Endpoints
 

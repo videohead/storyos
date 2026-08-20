@@ -45,8 +45,8 @@ class StoryWorlds_Controller extends Base_Controller {
 		register_rest_route( 'storyos/v1', '/storyworlds', [
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_items' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_items' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 				'args'                => [
 					'page'     => [
 						'description' => 'Current page of the pagination.',
@@ -63,8 +63,8 @@ class StoryWorlds_Controller extends Base_Controller {
 			],
 			[
 				'methods'             => 'POST',
-				'callback'            => [ __CLASS__, 'create_item' ],
-				'permission_callback' => [ __CLASS__, 'check_create_permission' ],
+				'callback'            => [ $this, 'create_item' ],
+				'permission_callback' => [ $this, 'check_create_permission' ],
 			],
 		] );
 
@@ -77,26 +77,26 @@ class StoryWorlds_Controller extends Base_Controller {
 			],
 			[
 				'methods'             => 'GET',
-				'callback'            => [ __CLASS__, 'get_item' ],
-				'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+				'callback'            => [ $this, 'get_item' ],
+				'permission_callback' => [ $this, 'check_read_permission' ],
 			],
 			[
 				'methods'             => 'PUT',
-				'callback'            => [ __CLASS__, 'update_item' ],
-				'permission_callback' => [ __CLASS__, 'check_update_permission' ],
+				'callback'            => [ $this, 'update_item' ],
+				'permission_callback' => [ $this, 'check_update_permission' ],
 			],
 			[
 				'methods'             => 'DELETE',
-				'callback'            => [ __CLASS__, 'delete_item' ],
-				'permission_callback' => [ __CLASS__, 'check_delete_permission' ],
+				'callback'            => [ $this, 'delete_item' ],
+				'permission_callback' => [ $this, 'check_delete_permission' ],
 			],
 		] );
 
 		// Graph endpoint.
 		register_rest_route( 'storyos/v1', '/storyworlds/(?P<id>\d+)/graph', [
 			'methods'             => 'GET',
-			'callback'            => [ __CLASS__, 'get_graph' ],
-			'permission_callback' => [ __CLASS__, 'check_read_permission' ],
+			'callback'            => [ $this, 'get_graph' ],
+			'permission_callback' => [ $this, 'check_read_permission' ],
 		] );
 	}
 

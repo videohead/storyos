@@ -126,20 +126,126 @@ function storyos_register_fields( string $cpt, array $fields ): void {
 		$normalized_fields[ $field_name ] = array_merge( [ 'name' => $field_name ], $field_config );
 	}
 
-	$all_fields = get_option( 'storyos_fields', [] );
-	$all_fields[ $cpt ] = $normalized_fields;
-	update_option( 'storyos_fields', $all_fields );
+	// Keep the code-defined contract available during this request. SCF_Fields
+	// persists this contract as editable SCF field groups after every CPT has
+	// registered, and storyos_get_fields() then treats those groups as the
+	// authoritative runtime schema.
+	$GLOBALS['storyos_field_definitions'][ $cpt ] = $normalized_fields;
+
+	// Retain the legacy option as a compatibility fallback for CLI/unit contexts
+	// where SCF is unavailable. It is no longer the authoritative field store.
+	if ( function_exists( 'get_option' ) && function_exists( 'update_option' ) ) {
+		$all_fields = get_option( 'storyos_fields', [] );
+		$all_fields = is_array( $all_fields ) ? $all_fields : [];
+		$all_fields[ $cpt ] = $normalized_fields;
+		update_option( 'storyos_fields', $all_fields );
+	}
 }
 
 /**
- * Get registered fields for a CPT.
+ * Get the code-defined fallback fields for a CPT.
+
+ * SCF groups are the runtime authority. These definitions seed those groups
+ * and preserve StoryOS-only relationship semantics that SCF does not model.
  *
  * @param string $cpt The CPT slug.
  * @return array
  */
-function storyos_get_fields( string $cpt ): array {
+function storyos_get_field_defaults( string $cpt ): array {
+	$registered = $GLOBALS['storyos_field_definitions'] ?? [];
+	if ( isset( $registered[ $cpt ] ) && is_array( $registered[ $cpt ] ) ) {
+		return $registered[ $cpt ];
+	}
+
+	if ( ! function_exists( 'get_option' ) ) {
+		return [];
+	}
+
 	$all_fields = get_option( 'storyos_fields', [] );
-	return $all_fields[ $cpt ] ?? [];
+	return is_array( $all_fields ) && isset( $all_fields[ $cpt ] ) && is_array( $all_fields[ $cpt ] )
+		? $all_fields[ $cpt ]
+		: [];
+}
+
+/**
+ * Get all code-defined StoryOS field contracts.
+ *
+ * @return array<string, array<string, array<string, mixed>>>
+ */
+function storyos_get_all_field_defaults(): array {
+	$registered = $GLOBALS['storyos_field_definitions'] ?? [];
+	if ( is_array( $registered ) && ! empty( $registered ) ) {
+		return $registered;
+	}
+
+	if ( ! function_exists( 'get_option' ) ) {
+		return [];
+	}
+
+	$all_fields = get_option( 'storyos_fields', [] );
+	return is_array( $all_fields ) ? $all_fields : [];
+}
+
+/**
+ * Get registered fields for a CPT, preferring SCF's persisted field groups.
+ *
+ * @param string $cpt The CPT slug.
+ * @return array<string, array<string, mixed>>
+ */
+function storyos_get_fields( string $cpt ): array {
+	$defaults = storyos_get_field_defaults( $cpt );
+	if ( class_exists( __NAMESPACE__ . '\\SCF_Fields' ) ) {
+		return SCF_Fields::get_fields( $cpt, $defaults );
+	}
+
+	return $defaults;
+}
+
+/**
+ * Read a StoryOS scalar field through SCF when its field definition exists.
+ *
+ * @param int    $post_id    Post ID.
+ * @param string $field_name Field name.
+ * @return mixed
+ */
+function storyos_get_field_value( int $post_id, string $field_name ) {
+	if ( class_exists( __NAMESPACE__ . '\\SCF_Fields' ) ) {
+		return SCF_Fields::get_value( $post_id, $field_name );
+	}
+
+	return get_post_meta( $post_id, $field_name, true );
+}
+
+/**
+ * Update a StoryOS scalar field through SCF so its reference metadata and
+ * formatting lifecycle stay intact.
+ *
+ * @param int    $post_id    Post ID.
+ * @param string $field_name Field name.
+ * @param mixed  $value      Field value.
+ * @return bool
+ */
+function storyos_update_field_value( int $post_id, string $field_name, $value ): bool {
+	if ( class_exists( __NAMESPACE__ . '\\SCF_Fields' ) ) {
+		return SCF_Fields::update_value( $post_id, $field_name, $value );
+	}
+
+	return false !== update_post_meta( $post_id, $field_name, $value );
+}
+
+/**
+ * Delete a StoryOS scalar field through SCF.
+ *
+ * @param int    $post_id    Post ID.
+ * @param string $field_name Field name.
+ * @return bool
+ */
+function storyos_delete_field_value( int $post_id, string $field_name ): bool {
+	if ( class_exists( __NAMESPACE__ . '\\SCF_Fields' ) ) {
+		return SCF_Fields::delete_value( $post_id, $field_name );
+	}
+
+	return delete_post_meta( $post_id, $field_name );
 }
 
 /**
@@ -184,11 +290,11 @@ function storyos_expected_fields_for_cpt( string $cpt ): array {
 		'storyos_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'dialogue', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
 		'storyos_shot'               => [ 'shot_name', 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene', 'sequence' ],
 		'storyos_sound'              => [ 'sound_type', 'production_status', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
-		'storyos_storyboard_frame'   => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
+		'storyos_storyboard'         => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
 		'storyos_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
-		'storyos_editorial_artifact' => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
-		'storyos_template'           => [ 'template_name', 'description', 'generation_structure', 'configuration_json', 'default_values', 'provider_type', 'version', 'status' ],
-		'storyos_connection'         => [ 'connection_name', 'provider_type', 'environment', 'status', 'endpoint_url', 'credential_reference', 'model', 'max_tokens', 'temperature', 'model_access', 'enabled_structures', 'rate_limits', 'cost_controls' ],
+		'storyos_editorial'          => [ 'artifact_type', 'export_format', 'generated_date', 'source_scene', 'source_shot', 'notes', 'project' ],
+		'storyos_template'           => [ 'template_name', 'description', 'generation_structure', 'modality', 'connection_id', 'checkpoint', 'model_family', 'workflow_json', 'provider_template_id', 'configuration_json', 'input_bindings', 'model_requirements', 'default_values', 'provider_type', 'version', 'status' ],
+		'storyos_connection'         => [ 'connection_name', 'provider_type', 'environment', 'status', 'endpoint_url', 'mcp_endpoint_url', 'credential_reference', 'model', 'max_tokens', 'temperature', 'model_access', 'enabled_structures', 'enabled_templates', 'rate_limits', 'cost_controls' ],
 	];
 
 	return $expected_fields[ $cpt ] ?? [];
@@ -235,9 +341,9 @@ function storyos_get_all_cpts(): array {
 		'storyos_scene'           => 'Scene',
 		'storyos_shot'            => 'Shot',
 		'storyos_sound'           => 'Sound',
-		'storyos_storyboard_frame' => 'Storyboard Frame',
+		'storyos_storyboard'       => 'Storyboard Frame',
 		'storyos_asset'           => 'Asset',
-		'storyos_editorial_artifact' => 'Editorial Artifact',
+		'storyos_editorial'       => 'Editorial Artifact',
 		'storyos_template'        => 'Template',
 		'storyos_connection'      => 'Connection',
 	];
@@ -262,9 +368,9 @@ function storyos_schema_type_map(): array {
 		'storyos_scene'             => 'Clip',
 		'storyos_shot'              => 'Clip',
 		'storyos_sound'             => 'CreativeWork',
-		'storyos_storyboard_frame'  => 'ImageObject',
+		'storyos_storyboard'        => 'ImageObject',
 		'storyos_asset'             => 'MediaObject',
-		'storyos_editorial_artifact'=> 'CreativeWork',
+		'storyos_editorial'         => 'CreativeWork',
 		'storyos_template'           => 'CreativeWork',
 		'storyos_connection'         => 'Service',
 	];
@@ -444,7 +550,7 @@ function storyos_schema_field_map(): array {
 			'character'        => [ 'property' => 'character', 'match' => 'close' ],
 			'asset'            => [ 'property' => 'encoding', 'match' => 'close' ],
 		],
-		'storyos_storyboard_frame' => [
+		'storyos_storyboard' => [
 			'frame_number'      => [ 'property' => 'position', 'match' => 'close' ],
 			'frame_description' => [ 'property' => 'description', 'match' => 'exact' ],
 			'image_asset'       => [ 'property' => 'image', 'match' => 'close' ],
@@ -469,7 +575,7 @@ function storyos_schema_field_map(): array {
 			'scene'                  => [ 'property' => 'isPartOf', 'match' => 'close' ],
 			'storyboard'             => [ 'property' => 'isPartOf', 'match' => 'close' ],
 		],
-		'storyos_editorial_artifact' => [
+		'storyos_editorial' => [
 			'artifact_type'   => [ 'property' => 'additionalType', 'match' => 'close' ],
 			'export_format'   => [ 'property' => 'encodingFormat', 'match' => 'exact' ],
 			'generated_date'  => [ 'property' => 'dateCreated', 'match' => 'close' ],
@@ -597,7 +703,7 @@ function storyos_schema_property_for_relationship( string $relationship_type, st
 				return 'contentLocation';
 			}
 
-			if ( in_array( $to_cpt, [ 'storyos_project', 'storyos_episode', 'storyos_scene', 'storyos_shot', 'storyos_storyboard_frame' ], true ) ) {
+			if ( in_array( $to_cpt, [ 'storyos_project', 'storyos_episode', 'storyos_scene', 'storyos_shot', 'storyos_storyboard' ], true ) ) {
 				return 'isPartOf';
 			}
 

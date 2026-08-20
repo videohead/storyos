@@ -90,6 +90,34 @@ class Test_StoryOS_CPT extends TestCase {
 	}
 
 	/**
+	 * StoryOS CPT keys must fit WordPress's 20-character database limit.
+	 */
+	public function test_storyos_cpt_keys_fit_wordpress_limit() {
+		$cpts = \StoryOS\Utils\storyos_get_all_cpts();
+
+		$this->assertArrayHasKey( 'storyos_storyboard', $cpts );
+		$this->assertArrayHasKey( 'storyos_editorial', $cpts );
+		$this->assertArrayNotHasKey( 'storyos_storyboard_frame', $cpts );
+		$this->assertArrayNotHasKey( 'storyos_editorial_artifact', $cpts );
+
+		foreach ( array_keys( $cpts ) as $cpt ) {
+			$this->assertLessThanOrEqual( 20, strlen( $cpt ), "CPT key {$cpt} exceeds WordPress's 20-character limit." );
+		}
+	}
+
+	/**
+	 * Legacy and database-truncated CPT keys map to the current keys.
+	 */
+	public function test_legacy_cpt_key_migration_map() {
+		$legacy_keys = \StoryOS\Utils\storyos_legacy_cpt_key_map();
+
+		$this->assertSame( 'storyos_storyboard', $legacy_keys['storyos_storyboard_frame'] );
+		$this->assertSame( 'storyos_storyboard', $legacy_keys['storyos_storyboard_f'] );
+		$this->assertSame( 'storyos_editorial', $legacy_keys['storyos_editorial_artifact'] );
+		$this->assertSame( 'storyos_editorial', $legacy_keys['storyos_editorial_ar'] );
+	}
+
+	/**
 	 * Test the generic Details meta box excludes redundant built-in name/description fields.
 	 */
 	public function test_storyos_details_filters_redundant_name_and_description_fields() {
