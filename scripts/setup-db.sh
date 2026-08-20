@@ -1,12 +1,12 @@
 #!/bin/bash
-# Database bootstrap helper for the StoryOS Lando environment.
+# Database bootstrap helper for the World Graph Studio Lando environment.
 # This script is intended to run after the MariaDB service is available.
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BACKUP_SQL="$ROOT_DIR/scripts/backup.sql"
-DB_CONTAINER_NAME="storyos_database_1"
+DB_CONTAINER_NAME="worldgraph_database_1"
 
 if [[ ! -f "$BACKUP_SQL" ]]; then
   echo "Backup file not found: $BACKUP_SQL"
@@ -19,7 +19,7 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$DB_CONTAINER_NAME"; then
   exit 1
 fi
 
-echo "=== Bootstrapping StoryOS database ==="
+echo "=== Bootstrapping World Graph Studio database ==="
 
 docker exec "$DB_CONTAINER_NAME" bash -lc "
   mysql -uroot -proot -e \"CREATE DATABASE IF NOT EXISTS wordpress CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\"

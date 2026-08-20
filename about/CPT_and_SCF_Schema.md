@@ -1,10 +1,10 @@
-# StoryOS CPT and SCF Schema Specification v1.0
+# World Graph Studio CPT and SCF Schema Specification v1.0
 
 > Build Your Story Once. Create Everywhere.
 
 ## Purpose
 
-This document defines the WordPress Custom Post Types (CPTs), Structured Content Fields (SCF), taxonomies, and relationships used to implement the StoryOS Story Graph.
+This document defines the WordPress Custom Post Types (CPTs), Structured Content Fields (SCF), taxonomies, and relationships used to implement the World Graph Studio Story Graph.
 
 The schema serves as the foundation for:
 
@@ -28,7 +28,7 @@ Structured Content Fields
     ↓
 Story Graph Relationships
     ↓
-StoryOS Services
+World Graph Studio Services
 ```
 
 The Story Graph is the canonical source of truth.
@@ -37,8 +37,8 @@ The Story Graph is the canonical source of truth.
 
 # SCF Persistence and Runtime Contract
 
-StoryOS archives one SCF field group per CPT under
-`wordpress/wp-content/plugins/storyos/acf-json/`. These JSON files are committed
+World Graph Studio archives one SCF field group per CPT under
+`wordpress/wp-content/plugins/worldgraph/acf-json/`. These JSON files are committed
 with the plugin and provide the portable, versioned seed for each field schema.
 They are deliberately not registered as an always-on SCF load path: the
 editable database group is the runtime authority, so a failed filesystem write
@@ -47,9 +47,9 @@ cannot hide a newer administrator change.
 Content groups are exposed through SCF's native REST integration. The
 Connection group is deliberately excluded because it contains private
 control-plane configuration; Connections remain available only through the
-authenticated StoryOS API.
+authenticated World Graph Studio API.
 
-On a privileged administration or WP-CLI request, StoryOS validates a changed
+On a privileged administration or WP-CLI request, World Graph Studio validates a changed
 archive and merges it into the corresponding database group. Canonical fields
 receive required storage updates, while database-managed labels, instructions,
 layouts, choices, order, and site-added extension fields (including nested
@@ -57,21 +57,21 @@ fields) are preserved. The synchronizer is versioned, locked, verified after
 import, and reports a retryable administrator notice instead of replacing an
 invalid or ambiguous schema.
 
-Saving a StoryOS group—or using SCF's standalone field tools—routes the owning
-`group_storyos_*` definition back to the plugin archive. Unrelated SCF groups
+Saving a World Graph Studio group—or using SCF's standalone field tools—routes the owning
+`group_worldgraph_*` definition back to the plugin archive. Unrelated SCF groups
 retain their configured save paths. When the plugin directory or an existing
 JSON file is not writable, the database definition remains editable and
-runtime-authoritative, but StoryOS warns that the edit is not portable. Archive
+runtime-authoritative, but World Graph Studio warns that the edit is not portable. Archive
 changes intended for deployment should be reviewed and committed like code.
 The plugin-directory archive is a source-controlled deployment artifact, not
 durable per-site storage: export and commit intended changes before replacing
 or upgrading the plugin. On multisite, the archive is shared by the network,
 while each site's database groups remain its runtime definitions.
 
-SCF database field groups are the runtime authority for the StoryOS field
-schema. StoryOS's PHP definitions validate the canonical contract, provide a
-fallback, and retain StoryOS-only semantics that SCF cannot express. Runtime
-consumers use `storyos_get_fields()`, and value reads, writes, and deletes use
+SCF database field groups are the runtime authority for the World Graph Studio field
+schema. World Graph Studio's PHP definitions validate the canonical contract, provide a
+fallback, and retain World Graph Studio-only semantics that SCF cannot express. Runtime
+consumers use `worldgraph_get_fields()`, and value reads, writes, and deletes use
 SCF's field APIs when a declared field exists. Compatibility hooks also
 maintain SCF's hidden field-key reference when legacy code writes named post
 meta directly.
@@ -79,9 +79,9 @@ meta directly.
 Committed core fields use deterministic, per-CPT keys so common field names
 remain globally unique:
 
-- Group key: `group_{cpt}`, for example `group_storyos_project`
+- Group key: `group_{cpt}`, for example `group_worldgraph_project`
 - Field key: `field_{cpt}_{field_name}`, for example
-  `field_storyos_project_status`
+  `field_worldgraph_project_status`
 
 Keep these keys stable when changing labels or other field settings. Additions
 to the committed core contract use the same per-CPT convention; extension
@@ -93,7 +93,7 @@ order, and extension fields remain manageable in SCF.
 Relationship extension field names are also stable Story Graph slot identifiers;
 change their labels rather than renaming the field name after values exist.
 
-SCF complex fields participate in the wider WordPress and StoryOS models:
+SCF complex fields participate in the wider WordPress and World Graph Studio models:
 
 - Taxonomy fields load assigned terms, save edited selections back to the
   object, allow term creation, and return term IDs.
@@ -107,8 +107,8 @@ SCF complex fields participate in the wider WordPress and StoryOS models:
   form so manual edits cannot diverge from the imported screenplay structure.
 
 The canonical WordPress post-type keys for Storyboard Frame and Editorial
-Artifact are `storyos_storyboard` and `storyos_editorial`. The longer names
-`storyos_storyboard_frame` and `storyos_editorial_artifact` are REST-facing
+Artifact are `worldgraph_board` and `worldgraph_editorial`. The longer names
+`worldgraph_board_frame` and `worldgraph_editorial_artifact` are REST-facing
 bases and legacy identifiers, not valid current CPT keys.
 
 ---
@@ -124,13 +124,13 @@ Top-level container for all story assets.
 - `project_name` (text)
 - `project_slug` (text)
 - `description` (wysiwyg)
-- `genre` (taxonomy: `storyos_genre`, multiple)
+- `genre` (taxonomy: `worldgraph_genre`, multiple)
 - `target_medium` (select)
-- `status` (taxonomy: `storyos_status`)
+- `status` (taxonomy: `worldgraph_status`)
 - `owner` (user)
 - `start_date` (date)
 - `end_date` (date)
-- `team_members` (relationship to `storyos_character`, multiple)
+- `team_members` (relationship to `worldgraph_character`, multiple)
 - `production_stage` (select)
 - `frame_width` (number)
 - `frame_height` (number)
@@ -182,7 +182,7 @@ Top-level container for all story assets.
 
 ## Taxonomies
 
-- storyos_character_role
+- worldgraph_character_role
 
 ## Relationships
 
@@ -292,11 +292,11 @@ When synced with Celtx, the following post meta fields are added:
 
 | Meta Key | Type | Description |
 |----------|------|-------------|
-| `storyos_celtx_id` | string | Celtx element/project ID |
-| `storyos_celtx_type` | string | Celtx entity type (`scene`, `element`, etc.) |
-| `storyos_celtx_project_id` | string | Parent Celtx project ID |
-| `storyos_synced_at` | datetime | Last successful sync timestamp |
-| `storyos_sync_direction` | string | `wordpress_to_celtx`, `celtx_to_wordpress`, `bidirectional` |
+| `worldgraph_celtx_id` | string | Celtx element/project ID |
+| `worldgraph_celtx_type` | string | Celtx entity type (`scene`, `element`, etc.) |
+| `worldgraph_celtx_project_id` | string | Parent Celtx project ID |
+| `worldgraph_synced_at` | datetime | Last successful sync timestamp |
+| `worldgraph_sync_direction` | string | `wordpress_to_celtx`, `celtx_to_wordpress`, `bidirectional` |
 
 ---
 
@@ -314,8 +314,8 @@ When synced with Celtx, the following post meta fields are added:
 - `slate_id` (text)
 - `shot_description` (wysiwyg)
 - `editorial_notes` (wysiwyg)
-- `scene` (relationship to `storyos_scene`)
-- `sequence` (taxonomy: `storyos_sequence`)
+- `scene` (relationship to `worldgraph_scene`)
+- `sequence` (taxonomy: `worldgraph_sequence`)
 
 ## Relationships
 
@@ -328,7 +328,7 @@ When synced with Celtx, the following post meta fields are added:
 
 # CPT: Storyboard Frame
 
-Canonical CPT key: `storyos_storyboard`.
+Canonical CPT key: `worldgraph_board`.
 
 ## Fields
 
@@ -349,7 +349,7 @@ Canonical CPT key: `storyos_storyboard`.
 
 Represents a planned soundtrack cue. Sound is authorial and production intent;
 the recorded or generated file remains a WordPress attachment represented by
-an audio-typed `storyos_asset` linked through the `asset` relationship.
+an audio-typed `worldgraph_asset` linked through the `asset` relationship.
 
 Ordinary screenplay dialogue remains structured Scene dialogue metadata and is
 not duplicated as Sound records.
@@ -357,7 +357,7 @@ not duplicated as Sound records.
 ## Fields
 
 - sound_type (taxonomy)
-- production_status (storyos_status taxonomy)
+- production_status (worldgraph_status taxonomy)
 - spoken_text (textarea; narration, voice-over, or ADR only)
 - lyrics (textarea; music cues)
 - start_timecode (text)
@@ -389,7 +389,7 @@ cue; a reusable composition entity can normalize repeated music works later.
 ## Fields
 
 - `asset_title` (text)
-- `asset_type` (taxonomy: `storyos_asset_type`)
+- `asset_type` (taxonomy: `worldgraph_asset_type`)
 - `workflow_name` (text)
 - `prompt` (wysiwyg)
 - `model_name` (text)
@@ -398,10 +398,10 @@ cue; a reusable composition entity can normalize repeated music works later.
 - `version` (text)
 - `status` (select)
 - `storage_uri` (text)
-- `character` (relationship to `storyos_character`)
-- `location` (relationship to `storyos_location`)
-- `scene` (relationship to `storyos_scene`)
-- `storyboard` (relationship to `storyos_storyboard`)
+- `character` (relationship to `worldgraph_character`)
+- `location` (relationship to `worldgraph_location`)
+- `scene` (relationship to `worldgraph_scene`)
+- `storyboard` (relationship to `worldgraph_board`)
 
 ## Relationships
 
@@ -415,9 +415,9 @@ cue; a reusable composition entity can normalize repeated music works later.
 
 # CPT: Generation Template
 
-The `storyos_template` CPT stores reusable, provider-neutral generation
+The `worldgraph_template` CPT stores reusable, provider-neutral generation
 configuration. It is an editorial configuration record, not an executable
-workflow and not a replacement for the StoryOS Assets metabox.
+workflow and not a replacement for the World Graph Studio Assets metabox.
 
 ## Fields
 
@@ -425,7 +425,7 @@ workflow and not a replacement for the StoryOS Assets metabox.
 - `description` (wysiwyg)
 - `generation_structure` (text)
 - `modality` (select)
-- `connection_id` (text; a `storyos_connection` post ID)
+- `connection_id` (text; a `worldgraph_conn` post ID)
 - `checkpoint` (text)
 - `model_family` (select)
 - `workflow_json` (textarea)
@@ -448,7 +448,7 @@ after validation.
 The Assets workflow is expected to select an active template revision for the
 asset-generating Story Graph item. That relationship must preserve the
 template identity and revision on the generation record; it must not alter the
-featured attachment or `_storyos_asset_gallery_ids` gallery metadata.
+featured attachment or `_worldgraph_asset_gallery_ids` gallery metadata.
 
 After resolution, WordPress should create a normalized request package for the
 configured ComfyUI MCP connection. The package includes resolved prompts,
@@ -463,17 +463,17 @@ epic and are not yet represented as a completed CPT contract.
 
 # CPT: Editorial Artifact
 
-Canonical CPT key: `storyos_editorial`.
+Canonical CPT key: `worldgraph_editorial`.
 
 ## Fields
 
 - `artifact_type` (select)
 - `export_format` (text)
 - `generated_date` (date)
-- `source_scene` (relationship to `storyos_scene`)
-- `source_shot` (relationship to `storyos_shot`)
+- `source_scene` (relationship to `worldgraph_scene`)
+- `source_shot` (relationship to `worldgraph_shot`)
 - `notes` (wysiwyg)
-- `project` (relationship to `storyos_project`)
+- `project` (relationship to `worldgraph_project`)
 
 ## Artifact Types
 
@@ -487,7 +487,7 @@ Canonical CPT key: `storyos_editorial`.
 
 # CPT: Connection
 
-The `storyos_connection` CPT is a control-plane record for a configured
+The `worldgraph_conn` CPT is a control-plane record for a configured
 provider endpoint. It stores credential references, never raw secret values.
 Templates and generation jobs select a Connection by post ID; this association
 is currently stored as configuration rather than as a Story Graph edge.
@@ -603,7 +603,7 @@ Editorial Artifact -> Project
 
 # AI Advisor Access Requirements
 
-All fields should be exposed through StoryOS APIs.
+All fields should be exposed through World Graph Studio APIs.
 
 Agents must be able to:
 
@@ -617,7 +617,7 @@ Agents must be able to:
 
 # Vocabulary Alignment (Story Science + StudioBinder)
 
-To reduce ambiguity, StoryOS uses a controlled vocabulary that aligns with common story and film terminology.
+To reduce ambiguity, World Graph Studio uses a controlled vocabulary that aligns with common story and film terminology.
 
 ## Core Hierarchy
 
@@ -627,8 +627,8 @@ To reduce ambiguity, StoryOS uses a controlled vocabulary that aligns with commo
 
 Implementation note:
 
-- StoryOS models Shot and Scene as first-class entities.
-- Sequence is currently implemented as an optional Scene taxonomy (`storyos_sequence`).
+- World Graph Studio models Shot and Scene as first-class entities.
+- Sequence is currently implemented as an optional Scene taxonomy (`worldgraph_sequence`).
 
 ## Canonical Narrative Terms
 
@@ -651,7 +651,7 @@ Implementation note:
 
 - Take: a single uninterrupted recording instance of a shot
 - Clapperboard/Slate: production marker identifying scene and take for sync and tracking
-- Establishing Shot: a context-setting shot, represented in StoryOS by shot_type and scene metadata
+- Establishing Shot: a context-setting shot, represented in World Graph Studio by shot_type and scene metadata
 - Insert/Cutaway/Reaction Shot: shot function categories, represented in shot_type taxonomy/enum values
 - Continuity Error: a validation outcome for continuity checks, not a first-class entity
 

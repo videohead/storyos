@@ -1,10 +1,10 @@
-# StoryOS EDL Import/Export Plugin
+# World Graph Studio EDL Import/Export Plugin
 
 ## Overview
 
-The EDL (Edit Decision List) Import/Export plugin enables seamless integration between StoryOS and professional video editing software. It allows creators to export shot timelines from StoryOS projects and episodes, edit them in external NLEs (Non-Linear Editors), and re-import the results.
+The EDL (Edit Decision List) Import/Export plugin enables seamless integration between World Graph Studio and professional video editing software. It allows creators to export shot timelines from World Graph Studio projects and episodes, edit them in external NLEs (Non-Linear Editors), and re-import the results.
 
-**Status**: ✅ Implemented — StoryOS Plugin (disabled by default, enableable from **StoryOS → Plugins**)
+**Status**: ✅ Implemented — World Graph Studio Plugin (disabled by default, enableable from **World Graph Studio → Plugins**)
 
 ## Supported Formats
 
@@ -23,7 +23,7 @@ The EDL (Edit Decision List) Import/Export plugin enables seamless integration b
 - Error handling with detailed messages
 
 ### Export
-- Export StoryOS project/episode timelines as EDL
+- Export World Graph Studio project/episode timelines as EDL
 - **CMX 3600 ASCII** — universal NLE format
 - **SMPTE 436m XML** — structured XML format
 - **Drop-frame timecode** for 29.97/59.94fps NTSC
@@ -34,27 +34,27 @@ The EDL (Edit Decision List) Import/Export plugin enables seamless integration b
 
 ## Installation
 
-1. The plugin is included with StoryOS at `wordpress/wp-content/plugins/storyos/plugins/edl/`
+1. The plugin is included with World Graph Studio at `wordpress/wp-content/plugins/worldgraph/plugins/edl/`
 2. It is loaded automatically but **disabled by default**
-3. Enable it via **StoryOS → Plugins → EDL Import/Export → Enable**
-4. Navigate to **StoryOS → EDL Manager** to access the plugin
+3. Enable it via **World Graph Studio → Plugins → EDL Import/Export → Enable**
+4. Navigate to **World Graph Studio → EDL Manager** to access the plugin
 
 ## Usage
 
 ### Importing EDL
 
-1. Go to **StoryOS → EDL Manager**
+1. Go to **World Graph Studio → EDL Manager**
 2. Click the **Import EDL** tab
 3. Select the EDL format (CMX 3600 or XML)
 4. Choose the frame rate matching the source footage
 5. Upload the `.txt`, `.edl`, or `.xml` file
 6. Click **Preview EDL** to see detected clips
 7. Review the preview table (clip name, source in/out, record in/out, duration)
-8. Click **Confirm Import** to persist clips to StoryOS
+8. Click **Confirm Import** to persist clips to World Graph Studio
 
 ### Exporting EDL
 
-1. Go to **StoryOS → EDL Manager**
+1. Go to **World Graph Studio → EDL Manager**
 2. Click the **Export EDL** tab
 3. Select target type (Project or Episode)
 4. Choose export format:
@@ -76,10 +76,10 @@ The EDL (Edit Decision List) Import/Export plugin enables seamless integration b
 ### CMX 3600 ASCII Format
 
 ```
-TITLE:  StoryOS EDL
+TITLE:  World Graph Studio EDL
 FM:     CMX-3600
 DATE:   Aug 08 2026
-PM:     StoryOS
+PM:     World Graph Studio
 
 0001  REEL 00   V  C  00:00:00:00 00:00:03:00 00:00:00:00 00:00:03:00  * SC001_SH001
 0001  REEL 00   A  C  00:00:00:00 00:00:03:00 00:00:00:00 00:00:03:00  * SC001_SH001
@@ -125,7 +125,7 @@ Drop-frame skips frames 0 and 1 of every minute (except every 10th minute) to st
 
 ## Unreal Engine Sequencer Workflow
 
-1. **Export from StoryOS**: Export shot timeline as EDL with pre-roll/post-roll handles
+1. **Export from World Graph Studio**: Export shot timeline as EDL with pre-roll/post-roll handles
 2. **Render in Unreal Engine**: Sequencer exports video clips + EDL
 3. **Edit in NLE**: Import EDL into Premiere Pro/DaVinci Resolve, link media, make edits
 4. **Re-import to UE**: Export edited EDL from NLE, import back into Unreal Engine Sequencer
@@ -134,14 +134,14 @@ Drop-frame skips frames 0 and 1 of every minute (except every 10th minute) to st
 ## Architecture
 
 ```
-StoryOS (WordPress Plugin)
+World Graph Studio (WordPress Plugin)
     ↓
 EDL Manager (Admin UI)
     ├── Import Tab
     │   ├── File Upload
     │   ├── Format Detection (CMX 3600 / XML)
     │   ├── Preview Table
-    │   └── Confirm Import → Save to StoryOS
+    │   └── Confirm Import → Save to World Graph Studio
     └── Export Tab
         ├── Format Selection (CMX 3600 / XML)
         ├── Frame Rate Presets
@@ -150,7 +150,7 @@ EDL Manager (Admin UI)
         ├── Drop-Frame Toggle
         └── Download EDL File
     ↓
-AJAX Handler (wp_ajax_storyos_edl_action)
+AJAX Handler (wp_ajax_worldgraph_edl_action)
     ├── handle_import() → parse_edl() → set_transient()
     ├── handle_export() → generate_edl() → file download
     └── handle_confirm_import() → persist to DB
@@ -193,7 +193,7 @@ Utilities
 
 ## Support
 
-For issues or feature requests, visit the [StoryOS GitHub repository](https://github.com/storyos).
+For issues or feature requests, visit the [World Graph Studio GitHub repository](https://github.com/worldgraph).
 
 ## External References
 

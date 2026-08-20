@@ -1,10 +1,10 @@
-# StoryOS Agent Architecture v1.1
+# World Graph Studio Agent Architecture v1.1
 
 > Build Your Story Once. Create Everywhere.
 
 ## Purpose
 
-StoryOS uses WordPress Abilities API and plugin-owned filmmaking agents. See
+World Graph Studio uses WordPress Abilities API and plugin-owned filmmaking agents. See
 [Deployment and Connections](Deployment_and_Connections.md) for the supported
 runtime.
 
@@ -21,7 +21,7 @@ There is no separate agent execution service.
 
 ## Architectural Vision
 
-StoryOS does not use AI as a replacement for creators. It uses AI as a
+World Graph Studio does not use AI as a replacement for creators. It uses AI as a
 collaborative team of expert advisors. The creator remains the Executive
 Producer.
 
@@ -33,7 +33,7 @@ Agents provide:
 - Context retrieval
 - Production-aware conversation
 
-Generation jobs and other state-changing workflows remain explicit StoryOS
+Generation jobs and other state-changing workflows remain explicit World Graph Studio
 operations. Agent responses are suggestions and do not modify WordPress
 content or execute ComfyUI actions by themselves.
 
@@ -56,7 +56,7 @@ Each agent has a focused production responsibility and role-specific prompt.
 ### WordPress Owned
 
 Agent definitions, routing, permissions, Story Graph context, and LLM access
-are owned by the StoryOS WordPress plugin.
+are owned by the World Graph Studio WordPress plugin.
 
 ### Model Agnostic
 
@@ -76,10 +76,10 @@ runtime or transport.
 Creator
    |
    v
-StoryOS Editor / AI Workflow Metabox
+World Graph Studio Editor / AI Workflow Metabox
    |
    v
-POST /storyos/v1/ai/chat
+POST /worldgraph/v1/ai/chat
    |
    +----------------------+----------------------+
    |                      |                      |
@@ -100,15 +100,15 @@ Agent Registry      Story Graph Context    Permission Checks
 
 The classic-editor AI Workflow metabox is a vanilla JavaScript chat client.
 The Gutenberg AI Editor uses the same REST contract. Both surfaces retrieve
-the enabled agent list from `GET /storyos/v1/ai/agents` and send conversation
-turns to `POST /storyos/v1/ai/chat`.
+the enabled agent list from `GET /worldgraph/v1/ai/agents` and send conversation
+turns to `POST /worldgraph/v1/ai/chat`.
 
 ---
 
 ## Agent Registry and Routing
 
 Agent profiles live in
-`wordpress/wp-content/plugins/storyos/includes/agents/` as `.agent.md` files.
+`wordpress/wp-content/plugins/worldgraph/includes/agents/` as `.agent.md` files.
 Each profile contains metadata and a role-specific system prompt.
 
 `AI_MAF_Bridge` loads those files as a local WordPress registry. Its name is
@@ -178,14 +178,14 @@ Support post-production and story review, including:
 
 ## Comfy Technician
 
-`ComfyTechnician` is the ComfyUI-specific specialist for StoryOS operators. Its
+`ComfyTechnician` is the ComfyUI-specific specialist for World Graph Studio operators. Its
 profile is defined in
-`wordpress/wp-content/plugins/storyos/includes/agents/comfy_technician.agent.md`.
+`wordpress/wp-content/plugins/worldgraph/includes/agents/comfy_technician.agent.md`.
 
 It can advise on:
 
 - Workflow, checkpoint, custom-node, and model-file problems
-- StoryOS Connection and Template readiness
+- World Graph Studio Connection and Template readiness
 - Container networking and ComfyUI reachability
 - Low-cost diagnostic runs before expensive generations
 - GPU memory, resolution, frame count, model compatibility, and reproducibility
@@ -206,13 +206,13 @@ invent filenames, node classes, model URLs, or observed system state.
 The primary conversational endpoint is:
 
 ```text
-POST /storyos/v1/ai/chat
+POST /worldgraph/v1/ai/chat
 ```
 
 The request accepts:
 
 - `prompt`: the current user message
-- `post_id`: optional StoryOS entity used as Story Graph context
+- `post_id`: optional World Graph Studio entity used as Story Graph context
 - `agent`: optional enabled agent profile name
 - `action`: `chat`, `analyze`, `generate`, or `continuity`
 - `messages`: optional prior `user` and `assistant` turns
@@ -243,7 +243,7 @@ persist transcripts.
 
 ### Project and Story Memory
 
-Persistent knowledge remains in StoryOS entities and Story Graph relationships.
+Persistent knowledge remains in World Graph Studio entities and Story Graph relationships.
 `AI_Context_Builder` assembles relevant context for the current post on each
 request.
 
@@ -289,7 +289,7 @@ conversation states.
 
 ## Tooling Boundary
 
-StoryOS exposes typed capabilities through the WordPress Abilities API and
+World Graph Studio exposes typed capabilities through the WordPress Abilities API and
 provides REST controllers for Story Graph and generation operations. The chat
 runtime does not currently translate an agent profile's `tools` field into LLM
 function calls. Available application operations must not be confused with
@@ -297,7 +297,7 @@ operations an LLM is authorized to run.
 
 Current application capabilities include:
 
-- Querying and updating StoryOS custom post types
+- Querying and updating World Graph Studio custom post types
 - Searching and traversing the Story Graph
 - Importing and exporting scripts
 - Creating EDL and timeline metadata
@@ -350,7 +350,7 @@ Prompt / Previsualization Advice
 Human Review and Explicit Generate Action
   |
   v
-StoryOS Generation Service / ComfyUI
+World Graph Studio Generation Service / ComfyUI
   |
   v
 Generated Asset
@@ -390,7 +390,7 @@ Add a new advisor only when its responsibility, audience, or safety boundary
 is meaningfully distinct. A new profile should:
 
 1. Use a stable `name` that can be selected through the REST API.
-2. Describe a focused production role and its StoryOS knowledge.
+2. Describe a focused production role and its World Graph Studio knowledge.
 3. State what it can infer, what requires context, and what it must not claim.
 4. Remain advisory unless an audited tool broker explicitly grants abilities.
 5. Be added to router keywords only when automatic routing is useful.
@@ -404,5 +404,5 @@ The long-term goal is an intelligent advisor ecosystem built around the Story
 Graph. As models evolve, the Story Graph remains the persistent knowledge layer
 while agents remain interchangeable expert interfaces.
 
-StoryOS therefore preserves production knowledge while remaining model-agnostic
+World Graph Studio therefore preserves production knowledge while remaining model-agnostic
 and future-proof.

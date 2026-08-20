@@ -1,8 +1,8 @@
-# StoryOS Generation Engine
+# World Graph Studio Generation Engine
 
 ## Purpose
 
-The Generation Engine connects StoryOS story data and editorial intent to
+The Generation Engine connects World Graph Studio story data and editorial intent to
 generative media workflows. WordPress is the application boundary and the
 source of truth for configuration, generation records, and assets. ComfyUI is
 the supported generation environment, accessed through the Model Context
@@ -23,7 +23,7 @@ WordPress generation record and MCP request
 Comfy Cloud MCP or an MCP-capable local client
         |
         v
-Generated media registered as StoryOS assets
+Generated media registered as World Graph Studio assets
 ```
 
 There is no separate execution application in this architecture. Keep
@@ -37,12 +37,12 @@ boundary.
 Comfy Cloud is the supported server-side generation connection.
 
 - Endpoint: `https://cloud.comfy.org/mcp`
-- Authentication: `STORYOS_COMFY_API_KEY` or the WordPress setting
-  `storyos_comfy_api_key`
-- Client: `StoryOS\\Utils\\Comfy_Cloud_MCP`
+- Authentication: `WORLDGRAPH_COMFY_API_KEY` or the WordPress setting
+  `worldgraph_comfy_api_key`
+- Client: `WorldGraph\\Utils\\Comfy_Cloud_MCP`
 - Transport: Streamable HTTP using the MCP JSON-RPC protocol
 - WordPress responsibility: validate the request, call the MCP tool, persist
-  the generation record, and register returned media as StoryOS assets
+  the generation record, and register returned media as World Graph Studio assets
 
 The WordPress client establishes an MCP session and invokes the Comfy Cloud
 workflow tool with the selected template, prompt, and approved parameters.
@@ -66,13 +66,13 @@ Local ComfyUI has a minimal WordPress HTTP client in
 - WordPress responsibility: resolve and upload the Template's media inputs,
   refuse the job when ComfyUI is missing a required node or model, queue and
   poll the request, then import the returned image and/or video outputs as
-  StoryOS assets.
+  World Graph Studio assets.
 
 ## Template Modalities
 
 A Template declares a `modality` that determines its inputs, its built-in
-ComfyUI graph, and the requirements StoryOS validates. The registry is
-`StoryOS\\Utils\\Generation_Modality` in
+ComfyUI graph, and the requirements World Graph Studio validates. The registry is
+`WorldGraph\\Utils\\Generation_Modality` in
 `includes/utils/generation-modality.php`.
 
 | Modality | Output | Required inputs | Optional inputs |
@@ -99,7 +99,7 @@ requirement discovery then reads that graph instead.
 
 ## Requirement Manifests and Preflight
 
-`StoryOS\\Utils\\Comfy_Manifest` in `includes/utils/comfy-manifest.php` derives
+`WorldGraph\\Utils\\Comfy_Manifest` in `includes/utils/comfy-manifest.php` derives
 what a Template asks ComfyUI for and whether the connected instance can supply
 it:
 
@@ -119,7 +119,7 @@ The Template editor shows this as a ComfyUI Requirements panel with a
 forwards declared URLs to the MCP `download_models` tool. That tool must be
 implemented by whatever process answers **Local ComfyUI MCP URL** — a bare
 ComfyUI instance does not expose one. Generation submission
-runs the same check and fails the job in StoryOS with a specific message rather
+runs the same check and fails the job in World Graph Studio with a specific message rather
 than letting ComfyUI raise an opaque execution error. An unreachable catalog is
 treated as a connectivity problem and does not block submission.
 
@@ -127,16 +127,16 @@ treated as a connectivity problem and does not block submission.
 
 Discovery works in both directions across MCP:
 
-- **StoryOS to Comfy**: `Comfy_Cloud_MCP::available_tools()` reads `tools/list`
+- **World Graph Studio to Comfy**: `Comfy_Cloud_MCP::available_tools()` reads `tools/list`
   and gates the template-system calls `list_templates`, `get_template`, and
   `download_models`, so an MCP server that does not implement a tool reports
   that directly instead of failing inside a job.
-  `Comfy_Manifest::discover()` maps a StoryOS modality to a Comfy task type and
+  `Comfy_Manifest::discover()` maps a World Graph Studio modality to a Comfy task type and
   returns candidate templates with their required nodes, models, and model URLs.
-- **Comfy to StoryOS**: the `storyos/templates-manifest` resource and the
-  `storyos/template-requirements` tool publish each Template's modality, input
+- **Comfy to World Graph Studio**: the `worldgraph/templates-manifest` resource and the
+  `worldgraph/template-requirements` tool publish each Template's modality, input
   slots, required nodes, model files, and validation state.
-- **REST**: `GET /storyos/v1/generation/templates/{id}/requirements` returns the
+- **REST**: `GET /worldgraph/v1/generation/templates/{id}/requirements` returns the
   same manifest, with `validate=false` to skip the live ComfyUI check.
 
 This is deliberately not a generic ComfyUI workflow manager. It is a bridge for
@@ -149,11 +149,11 @@ The discovery, curation, and provisioning process for items 1-4 below is
 specified in `about/plugins/COMFY_TEMPLATE_CATALOG.md`.
 
 Local ComfyUI must not remain dependent on a global endpoint and free-form
-workflow option. The `storyos_connection` CPT is the intended control-plane
+workflow option. The `worldgraph_conn` CPT is the intended control-plane
 record for the local endpoint, environment, secret reference, allowed models,
 enabled structures, quota configuration, and verification state.
 
-Before local ComfyUI can be described as a complete StoryOS generation
+Before local ComfyUI can be described as a complete World Graph Studio generation
 connection, implement all of the following:
 
 1. A versioned workflow catalog linked to a specific Connection, including
@@ -184,7 +184,7 @@ administrator consent, auditability, and the existing asset-provenance model.
 
 ### No ComfyUI Connection
 
-StoryOS remains useful without media generation. Users can write, manage the
+World Graph Studio remains useful without media generation. Users can write, manage the
 Story Graph, use filmmaking abilities, plan production, run continuity work,
 import and export scripts or EDL data, and register externally generated media.
 
@@ -197,54 +197,54 @@ WordPress owns the following concerns:
 - Provider connection settings and secret references.
 - Generation records and their user-visible state.
 - Prompt, template, parameter, and Story Graph provenance.
-- WordPress media attachments and StoryOS asset metadata.
+- WordPress media attachments and World Graph Studio asset metadata.
 - Permissions, nonces, audit information, and REST resources.
 - Abilities exposed to MCP clients.
 
-ComfyUI owns workflow execution and generation-specific behavior. StoryOS must
+ComfyUI owns workflow execution and generation-specific behavior. World Graph Studio must
 not imitate a ComfyUI API or claim that every ComfyUI workflow supports every
-StoryOS generation structure.
+World Graph Studio generation structure.
 
 ## WordPress Abilities and MCP
 
-The WordPress Abilities API is the interface for AI and MCP clients. The StoryOS
+The WordPress Abilities API is the interface for AI and MCP clients. The World Graph Studio
 Abilities registration is in:
 
-`wordpress/wp-content/plugins/storyos/includes/ai-editor/class-ai-abilities.php`
+`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-abilities.php`
 
 The WordPress MCP Adapter can expose public abilities as MCP tools, resources,
-and prompts. StoryOS ability groups currently cover:
+and prompts. World Graph Studio ability groups currently cover:
 
 ### Tools
 
-- `storyos/chat` - Ask a StoryOS filmmaking ability for help with a story task.
-- `storyos/analyze` - Analyze the current post or story content.
-- `storyos/generate` - Prepare or request generation from WordPress context.
-- `storyos/continuity-check` - Check continuity against Story Graph context.
-- `storyos/template-requirements` - Report a Template's ComfyUI node and model
+- `worldgraph/chat` - Ask a World Graph Studio filmmaking ability for help with a story task.
+- `worldgraph/analyze` - Analyze the current post or story content.
+- `worldgraph/generate` - Prepare or request generation from WordPress context.
+- `worldgraph/continuity-check` - Check continuity against Story Graph context.
+- `worldgraph/template-requirements` - Report a Template's ComfyUI node and model
   requirements and whether the configured instance satisfies them.
 
 ### Resources
 
-- `storyos/post-context`
-- `storyos/character-context`
-- `storyos/scene-context`
-- `storyos/templates-manifest` - Discover active generation templates and
+- `worldgraph/post-context`
+- `worldgraph/character-context`
+- `worldgraph/scene-context`
+- `worldgraph/templates-manifest` - Discover active generation templates and
   their provider-neutral configuration schemas.
 
 ### Prompts
 
-- `storyos/story-review-prompt`
-- `storyos/continuity-prompt`
+- `worldgraph/story-review-prompt`
+- `worldgraph/continuity-prompt`
 
 Every ability must define an input schema, output schema, permission callback,
 and MCP metadata appropriate to its behavior. Use readonly, destructive, and
 idempotent annotations accurately. A public ability is a deliberate external
 contract, not an internal helper exposed for convenience.
 
-The `storyos/templates-manifest` resource is read-only and requires the
+The `worldgraph/templates-manifest` resource is read-only and requires the
 WordPress `edit_posts` capability. It is exposed at
-`storyos://templates-manifest` and returns published Templates CPT records
+`worldgraph://templates-manifest` and returns published Templates CPT records
 whose `status` is `active`. Each entry includes the template ID and slug,
 display name, description, generation structure, modality, output type, input
 slots, required ComfyUI nodes, model files, provider type, version,
@@ -258,7 +258,7 @@ generation path; credentials, raw provider responses, and arbitrary executable
 ComfyUI workflow content are never included in the manifest.
 
 The MCP Adapter is responsible for translating WordPress abilities into MCP
-operations. StoryOS should register abilities through WordPress and should not
+operations. World Graph Studio should register abilities through WordPress and should not
 create a second MCP server for the same capabilities.
 
 ## Generation Request Flow
@@ -314,7 +314,7 @@ parallel version store outside WordPress.
 
 ## Remaining Epic: Asset-to-Template Request Packaging
 
-The existing StoryOS Assets metabox and `storyos_template` CPT are currently
+The existing World Graph Studio Assets metabox and `worldgraph_template` CPT are currently
 separate admin surfaces. The Assets metabox owns the featured attachment and
 supporting gallery for a Story Graph post; the Templates CPT owns reusable
 provider-neutral generation configuration. The metabox does not yet select a
@@ -332,7 +332,7 @@ The target flow is:
   invoking ComfyUI MCP.
 5. The MCP adapter maps the normalized package to an approved ComfyUI
   operation, receives the result, and sends returned media through the
-  existing WordPress media and StoryOS asset-provenance pipeline.
+  existing WordPress media and World Graph Studio asset-provenance pipeline.
 
 The normalized package is a WordPress-owned contract. At minimum it contains:
 
@@ -359,7 +359,7 @@ metabox and Templates CPT as separate capabilities.
 The WordPress Comfy Cloud client is intentionally limited to the MCP contract.
 Keep transport and authentication details in:
 
-`wordpress/wp-content/plugins/storyos/includes/utils/comfy-cloud-mcp.php`
+`wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-cloud-mcp.php`
 
 The client is responsible for:
 
@@ -382,14 +382,14 @@ present available media types and template execution options.
 
 The current synchronization helper is:
 
-`wordpress/wp-content/plugins/storyos/includes/utils/capability_sync.php`
+`wordpress/wp-content/plugins/worldgraph/includes/utils/capability_sync.php`
 
 Capability data may include:
 
 - Connection type and display label.
 - MCP endpoint identity without secrets.
 - Supported media categories.
-- Supported StoryOS template operations.
+- Supported World Graph Studio template operations.
 - Synchronization timestamp.
 
 Capability snapshots are descriptive configuration, not executable provider
@@ -401,7 +401,7 @@ connector design and separate documentation.
 
 Generation records belong in WordPress and must be connected to the Story Graph
 entity that motivated the request. Generated files become normal WordPress media
-attachments and StoryOS assets with provenance.
+attachments and World Graph Studio assets with provenance.
 
 Minimum provenance should identify:
 
@@ -419,9 +419,9 @@ treated as durable local media until the user explicitly imports the asset.
 
 ## REST and Admin Surfaces
 
-StoryOS REST resources are WordPress-native and use the project namespace:
+World Graph Studio REST resources are WordPress-native and use the project namespace:
 
-`/api/storyos/v1`
+`/api/worldgraph/v1`
 
 Generation-related resources may include:
 
@@ -433,7 +433,7 @@ Generation-related resources may include:
 
 REST controllers must use WordPress permissions and nonces where appropriate,
 validate request schemas, sanitize input, escape output, and return actionable
-`WP_Error` responses. The REST API should expose StoryOS resources, not proxy
+`WP_Error` responses. The REST API should expose World Graph Studio resources, not proxy
 raw ComfyUI or Comfy Cloud APIs.
 
 The Generation Engine admin UI should make the following states clear:
@@ -446,7 +446,7 @@ The Generation Engine admin UI should make the following states clear:
 
 ## Security and Reliability
 
-- Prefer `STORYOS_COMFY_API_KEY` in deployed environments.
+- Prefer `WORLDGRAPH_COMFY_API_KEY` in deployed environments.
 - Never commit API keys or place them in client-side JavaScript.
 - Use capability checks and WordPress permissions for generation actions.
 - Sanitize prompts and parameters before persistence and external requests.
@@ -475,21 +475,21 @@ When changing the Generation Engine:
 ## Current Implementation Surfaces
 
 - Main plugin bootstrap:
-  `wordpress/wp-content/plugins/storyos/storyos.php`
+  `wordpress/wp-content/plugins/worldgraph/worldgraph.php`
 - Comfy Cloud MCP client:
-  `wordpress/wp-content/plugins/storyos/includes/utils/comfy-cloud-mcp.php`
+  `wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-cloud-mcp.php`
 - WordPress generation batch:
-  `wordpress/wp-content/plugins/storyos/includes/utils/generation-batch.php`
+  `wordpress/wp-content/plugins/worldgraph/includes/utils/generation-batch.php`
 - Capability snapshot helper:
-  `wordpress/wp-content/plugins/storyos/includes/utils/capability_sync.php`
+  `wordpress/wp-content/plugins/worldgraph/includes/utils/capability_sync.php`
 - AI and MCP abilities:
-  `wordpress/wp-content/plugins/storyos/includes/ai-editor/class-ai-abilities.php`
+  `wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-abilities.php`
 - ComfyUI integration plugin:
-  `wordpress/wp-content/plugins/storyos/plugins/comfy-generate/`
+  `wordpress/wp-content/plugins/worldgraph/plugins/comfy-generate/`
 - Deployment and connection guidance:
   `about/Deployment_and_Connections.md`
 - WordPress architecture:
-  `about/StoryOS_Architecture.md`
+  `about/World_Graph_Studio_Architecture.md`
 
 ## Definition of Done
 
@@ -498,7 +498,7 @@ When changing the Generation Engine:
 - [x] Comfy Cloud MCP credentials are protected and configurable.
 - [x] The WordPress MCP client handles valid and invalid MCP responses.
 - [x] Generation records persist sanitized request and result provenance.
-- [x] Returned media is linked to StoryOS assets.
+- [x] Returned media is linked to World Graph Studio assets.
 - [x] WordPress Abilities expose the supported AI and story context actions.
 - [x] Optional local ComfyUI MCP workflows are documented without requiring
       server-side local ComfyUI access.

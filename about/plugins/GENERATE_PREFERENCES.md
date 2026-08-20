@@ -37,14 +37,14 @@ text-to-image tool instead.
 The codebase and docs already carry a vocabulary for the missing layer — it was
 specified and never implemented:
 
-- `storyos_connection` meta `enabled_structures` is documented in
+- `worldgraph_conn` meta `enabled_structures` is documented in
   `includes/cpts/connection.php` as *"JSON array of generation structures
   enabled for this connection, e.g. `["character-sheet","scene-image"]`"*.
 - `about/REST_API_Specification.md` and the plugin's own `ARCHITECTURE.md` and
   `SETUP_GUIDE.md` all show `"workflow": "character-sheet"`.
 - `README.md` lists *"Templates: base, character-sheet, environment,
   storyboard"*.
-- `storyos_template` meta `generation_structure` exists on the CPT and in the
+- `worldgraph_template` meta `generation_structure` exists on the CPT and in the
   Abilities API.
 
 But nothing defines what a "structure" is. `Comfy_Bootstrap` writes
@@ -60,7 +60,7 @@ and `enabled_structures` mean what the docs always said they meant.
 
 | Layer | Answers | Owned by | Example |
 | --- | --- | --- | --- |
-| **Intent** | *What am I making?* | StoryOS, per CPT | "Character portrait" |
+| **Intent** | *What am I making?* | World Graph Studio, per CPT | "Character portrait" |
 | **Modality** | *What shape is the job?* | `Generation_Modality` | `text_to_image` |
 | **Template** | *Which graph runs it?* | ComfyUI / Connection | `flux_txt2img_basic` |
 
@@ -69,7 +69,7 @@ Template is resolved by preference and only surfaced under "Advanced".
 
 ## 4. Generation Intent Registry
 
-New class `StoryOS\Utils\Generation_Intent` in
+New class `WorldGraph\Utils\Generation_Intent` in
 `includes/utils/generation-intent.php`, mirroring the established
 `Generation_Modality` / `Model_Family` static-registry pattern.
 
@@ -79,7 +79,7 @@ Each intent:
 'character-portrait' => [
     'label'       => 'Portrait',
     'description' => 'Head-and-shoulders reference image.',
-    'post_types'  => [ 'storyos_character' ],
+    'post_types'  => [ 'worldgraph_character' ],
     'modality'    => Generation_Modality::TEXT_TO_IMAGE,
     'prompt_recipe' => [
         'fields' => [ 'appearance', 'physical_description', 'age', 'wardrobe' ],
@@ -127,7 +127,7 @@ Generation_Intent::build_prompt( string $slug, int $post_id ): string
 ```
 
 `for_post_type()` returns intents whose `post_types` contains the type or is
-`*`. Extensible via a `storyos_generation_intents` filter so sub-plugins can
+`*`. Extensible via a `worldgraph_gen_intents` filter so sub-plugins can
 register their own without patching the registry.
 
 ### 4.3 Prompt recipes replace the one-size prompt builder
@@ -141,14 +141,14 @@ establishing shot get the same prompt shape.
 prefix, and suffix, composed over the existing title/excerpt base and the
 existing `Asset_Generator::project_media_profile()` sizing. Keep
 `build_prompt()` as a thin delegate to `generic-image` so nothing breaks, and
-keep the `storyos_generate_asset_prompt` filter firing last.
+keep the `worldgraph_generate_asset_prompt` filter firing last.
 
 ## 5. Generate Preferences
 
 Preferences bind an intent to a Template. Resolution is a cascade, most
 specific first:
 
-1. **Per-post override** — post meta `_storyos_intent_template_{intent}`. Set
+1. **Per-post override** — post meta `_worldgraph_intent_template_{intent}`. Set
    only when an author uses Advanced. Rare.
 2. **Per-post-type preference** — the main configuration surface.
 3. **Global default** — one Template per modality.
@@ -162,13 +162,13 @@ override.
 
 ### 5.1 Storage
 
-Option `storyos_generate_preferences`:
+Option `worldgraph_generate_preferences`:
 
 ```json
 {
   "version": 1,
   "post_types": {
-    "storyos_character": {
+    "worldgraph_character": {
       "enabled_intents": ["character-portrait", "character-full-body"],
       "default_intent": "character-portrait",
       "intent_templates": { "character-portrait": 412 },
@@ -189,7 +189,7 @@ partial option never fatals.
 
 ### 5.2 Admin screen
 
-**StoryOS → Generate Preferences** (`includes/admin/generate-preferences.php`).
+**World Graph Studio → Generate Preferences** (`includes/admin/generate-preferences.php`).
 
 One collapsible section per story CPT:
 
@@ -270,9 +270,9 @@ existing JS keeps working, then drops it.
 
 `Asset_Generator::queue_for_post()` gains an `intent` arg. When `template_id` is
 absent it resolves via the §5 cascade; when present the explicit pick wins. The
-job record stores `_storyos_generation_intent` next to the existing workflow and
+job record stores `_worldgraph_gen_intent` next to the existing workflow and
 connection meta, so provenance answers *why* this asset exists, not just which
-graph made it. Carry it onto the created `storyos_asset` record too.
+graph made it. Carry it onto the created `worldgraph_asset` record too.
 
 ## 9. Why This Shape
 

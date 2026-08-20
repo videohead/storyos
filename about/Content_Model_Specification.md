@@ -1,10 +1,10 @@
-# StoryOS Content Model Specification v1.0
+# World Graph Studio Content Model Specification v1.0
 
 > Build Your Story Once. Create Everywhere.
 
 ## Overview
 
-The StoryOS Content Model defines the canonical Story Graph used by the platform.
+The World Graph Studio Content Model defines the canonical Story Graph used by the platform.
 
 All story, production, asset, and editorial information is represented as structured entities stored within WordPress using Custom Post Types (CPTs), Structured Content Fields (SCF), taxonomies, relationships, and metadata.
 
@@ -416,11 +416,11 @@ Advisors should retrieve context directly from Story Graph entities.
 
 ## ✅ Celtx Integration (COMPLETE — Phase E)
 
-StoryOS ↔ Celtx bi-directional sync via the `storyos-celtx` WordPress plugin.
+World Graph Studio ↔ Celtx bi-directional sync via the `worldgraph-celtx` WordPress plugin.
 
 ### Synced Entities
 
-| StoryOS CPT | Celtx Entity | Sync Direction |
+| World Graph Studio CPT | Celtx Entity | Sync Direction |
 |-------------|--------------|----------------|
 | Project | `/project` | Bi-directional |
 | Character | `/element` (character) | Bi-directional |
@@ -431,15 +431,15 @@ StoryOS ↔ Celtx bi-directional sync via the `storyos-celtx` WordPress plugin.
 ### ID Mapping
 
 Persistent mapping stored in WordPress post meta:
-- `storyos_celtx_id` — Celtx element/project ID
-- `storyos_celtx_type` — Celtx entity type
-- `storyos_synced_at` — Last sync timestamp
+- `worldgraph_celtx_id` — Celtx element/project ID
+- `worldgraph_celtx_type` — Celtx entity type
+- `worldgraph_synced_at` — Last sync timestamp
 
 ### API Endpoints
 
-- `GET /wp-json/storyos-celtx/v1/sync/status`
-- `POST /wp-json/storyos-celtx/v1/sync/{entity_type}`
-- `GET /wp-json/storyos-celtx/v1/settings`
+- `GET /wp-json/worldgraph-celtx/v1/sync/status`
+- `POST /wp-json/worldgraph-celtx/v1/sync/{entity_type}`
+- `GET /wp-json/worldgraph-celtx/v1/settings`
 
 ### Supported Formats (Planned)
 
@@ -468,7 +468,7 @@ Supported Targets:
 
 # Vocabulary Assumptions
 
-StoryOS aligns with widely used story and film terminology to keep metadata portable across writing, production, and editorial workflows.
+World Graph Studio aligns with widely used story and film terminology to keep metadata portable across writing, production, and editorial workflows.
 
 ## Structural Terms
 

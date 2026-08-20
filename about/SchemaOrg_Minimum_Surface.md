@@ -1,10 +1,10 @@
-# StoryOS Minimum Non-Destructive Schema Surface
+# World Graph Studio Minimum Non-Destructive Schema Surface
 
 Date: 2026-08-08
 
 ## Intent
 
-Align existing StoryOS fields to closest Schema.org properties without renaming, deleting, or migrating existing metadata.
+Align existing World Graph Studio fields to closest Schema.org properties without renaming, deleting, or migrating existing metadata.
 
 ## Minimum Surface Rules
 
@@ -15,15 +15,15 @@ Align existing StoryOS fields to closest Schema.org properties without renaming,
 
 ## CPT Type Alignment
 
-- `storyos_project` -> `CreativeWork` (runtime upgrade to `Movie` for `film`/`short_film`)
-- `storyos_episode` -> `Episode`
-- `storyos_scene` -> `Clip`
-- `storyos_shot` -> `Clip`
-- `storyos_sound` -> `CreativeWork` (runtime upgrade to `MusicComposition` for music cues)
-- `storyos_character` -> `Person`
-- `storyos_location` -> `Place`
-- `storyos_organization` -> `Organization`
-- `storyos_asset` -> `MediaObject`
+- `worldgraph_project` -> `CreativeWork` (runtime upgrade to `Movie` for `film`/`short_film`)
+- `worldgraph_episode` -> `Episode`
+- `worldgraph_scene` -> `Clip`
+- `worldgraph_shot` -> `Clip`
+- `worldgraph_sound` -> `CreativeWork` (runtime upgrade to `MusicComposition` for music cues)
+- `worldgraph_character` -> `Person`
+- `worldgraph_location` -> `Place`
+- `worldgraph_org` -> `Organization`
+- `worldgraph_asset` -> `MediaObject`
 
 Runtime asset subtype inference:
 
@@ -38,19 +38,19 @@ their attachments are `AudioObject` encodings.
 
 Counts reflect current mapping in code (`exact`, `close`, `weak`):
 
-- `storyos_project`: 3, 7, 1
-- `storyos_story_world`: 1, 6, 1
-- `storyos_character`: 1, 3, 6
-- `storyos_location`: 2, 3, 1
-- `storyos_prop`: 2, 2, 1
-- `storyos_organization`: 2, 2, 2
-- `storyos_episode`: 3, 2, 0
-- `storyos_scene`: 3, 3, 4
-- `storyos_shot`: 3, 2, 3
-- `storyos_sound`: 3, 6, 3
-- `storyos_storyboard_frame`: 1, 5, 1
-- `storyos_asset`: 2, 8, 4
-- `storyos_editorial_artifact`: 1, 6, 0
+- `worldgraph_project`: 3, 7, 1
+- `worldgraph_world`: 1, 6, 1
+- `worldgraph_character`: 1, 3, 6
+- `worldgraph_location`: 2, 3, 1
+- `worldgraph_prop`: 2, 2, 1
+- `worldgraph_org`: 2, 2, 2
+- `worldgraph_episode`: 3, 2, 0
+- `worldgraph_scene`: 3, 3, 4
+- `worldgraph_shot`: 3, 2, 3
+- `worldgraph_sound`: 3, 6, 3
+- `worldgraph_board_frame`: 1, 5, 1
+- `worldgraph_asset`: 2, 8, 4
+- `worldgraph_editorial_artifact`: 1, 6, 0
 
 ## High-Value Similarities (No Migration Needed)
 
@@ -85,12 +85,12 @@ Relationship output now maps to closest Schema.org properties:
 
 Use the new helper utilities to make schema assumptions explicit in API and tooling:
 
-- `storyos_schema_type_map()`
-- `storyos_schema_type_for_entity()`
-- `storyos_schema_field_map()`
-- `storyos_schema_property_for_field()`
-- `storyos_schema_hints_from_meta()`
-- `storyos_schema_property_for_relationship()`
-- `storyos_schema_similarity_summary()`
+- `worldgraph_schema_type_map()`
+- `worldgraph_schema_type_for_entity()`
+- `worldgraph_schema_field_map()`
+- `worldgraph_schema_property_for_field()`
+- `worldgraph_schema_hints_from_meta()`
+- `worldgraph_schema_property_for_relationship()`
+- `worldgraph_schema_similarity_summary()`
 
 This provides interoperability consistency now, while deferring deeper schema normalization or JSON-LD publication.

@@ -1,6 +1,6 @@
 # Little Red Riding Hood
 
-## StoryOS Sample Export
+## World Graph Studio Sample Export
 ### Screenplay Format
 
 ---
@@ -200,7 +200,7 @@ Storybook Illustration
 
 ---
 
-## STORYOS EXPORT METADATA
+## WORLD GRAPH STUDIO EXPORT METADATA
 
 ```yaml
 project: Little Red Riding Hood
@@ -237,4 +237,4 @@ export_format:
 
 ## Export Summary
 
-This sample export demonstrates how StoryOS transforms Story Graph entities, relationships, scene structure, dialogue, shot planning, storyboard planning, editorial sequencing, and production metadata into a screenplay-ready document.
+This sample export demonstrates how World Graph Studio transforms Story Graph entities, relationships, scene structure, dialogue, shot planning, storyboard planning, editorial sequencing, and production metadata into a screenplay-ready document.

@@ -7,7 +7,7 @@
 
 ## 1. The Finding
 
-StoryOS already has **both halves of an agent tool-calling bridge, built and
+World Graph Studio already has **both halves of an agent tool-calling bridge, built and
 disconnected.**
 
 **Half one — abilities pointed outward.** `includes/ai-editor/class-ai-abilities.php`
@@ -16,20 +16,20 @@ registers a well-formed ability set via `wp_register_ability()`, each carrying
 `readonly`/`destructive`/`idempotent` flags. Two of them are already
 ComfyUI-aware:
 
-- `storyos/templates-manifest` — every active Template with modality, inputs,
+- `worldgraph/templates-manifest` — every active Template with modality, inputs,
   required nodes, models, and defaults.
-- `storyos/template-requirements` — validates a Template's nodes and models
+- `worldgraph/template-requirements` — validates a Template's nodes and models
   against the live ComfyUI instance.
 
-Plus `storyos/suggest-asset-prompt` and `storyos/generate-asset`. These are
-exposed *to external MCP clients*. StoryOS's own LLM cannot call any of them.
+Plus `worldgraph/suggest-asset-prompt` and `worldgraph/generate-asset`. These are
+exposed *to external MCP clients*. World Graph Studio's own LLM cannot call any of them.
 
 **Half two — tool calling switched off.** `class-ai-llm-client.php` line 220
 hardcodes `'tool_choice' => 'none'`. The 50 `.agent.md` files each declare a
 `tools:` array, parsed by `AI_MAF_Bridge::parse_agent_file()` and never passed
 to the LLM.
 
-Worse, that `tools:` array is not StoryOS vocabulary at all. Every agent file
+Worse, that `tools:` array is not World Graph Studio vocabulary at all. Every agent file
 carries `tools: ['codebase', 'fetch', 'usages', 'search']` and
 `model: ['YOUR MODEL HERE (copilot)']` — unedited VS Code Copilot agent-template
 boilerplate. The field is not merely unused; it is populated with values that
@@ -65,18 +65,18 @@ instructions. It is the natural-language face of `Comfy_Manifest::validate()`.
 Representative exchanges:
 
 > *"Why is the Flux template greyed out?"*
-> → calls `storyos/template-requirements`, replies: two models missing —
+> → calls `worldgraph/template-requirements`, replies: two models missing —
 > `flux1-dev.safetensors` in `models/diffusion_models/`, `t5xxl_fp16.safetensors`
 > in `models/text_encoders/`. Offers to request the download.
 
 > *"I want to make video. What do I need?"*
-> → calls `storyos/comfy-catalog`, cross-references `Model_Family`, replies:
+> → calls `worldgraph/comfy-catalog`, cross-references `Model_Family`, replies:
 > your Connection is Tier C (no MCP), the Wan 2.1 templates need nodes you don't
 > have, here is the install plan.
 
-Ability allow-list: `storyos/templates-manifest`, `storyos/template-requirements`,
-`storyos/comfy-catalog`, `storyos/comfy-connection-status`,
-`storyos/comfy-provision` *(confirm-gated, §5)*.
+Ability allow-list: `worldgraph/templates-manifest`, `worldgraph/template-requirements`,
+`worldgraph/comfy-catalog`, `worldgraph/comfy-connection-status`,
+`worldgraph/comfy-provision` *(confirm-gated, §5)*.
 
 ### 2.2 Prompt Designer
 
@@ -94,14 +94,14 @@ Representative exchanges:
 > becomes available. Offers to run the portrait.
 
 > *"Make this shot more cinematic."*
-> → calls `storyos/suggest-asset-prompt`, rewrites against the intent's recipe,
+> → calls `worldgraph/suggest-asset-prompt`, rewrites against the intent's recipe,
 > explains which Story Graph fields it drew from and which are empty.
 
 > *"What's the difference between these two templates?"*
 > → answers in terms of intent and inputs. Never mentions samplers.
 
-Ability allow-list: `storyos/suggest-asset-prompt`, `storyos/post-context`,
-`storyos/generate-intents`, `storyos/generate-asset` *(confirm-gated)*.
+Ability allow-list: `worldgraph/suggest-asset-prompt`, `worldgraph/post-context`,
+`worldgraph/generate-intents`, `worldgraph/generate-asset` *(confirm-gated)*.
 
 This agent also owns the **"what do I need?" explanation**: for any unavailable
 intent, it converts `Template_Bindings::missing_required()` output into a
@@ -111,7 +111,7 @@ sentence and a next action. That is the single highest-value thing it does.
 
 While adding two agents, correct the boilerplate across all 52:
 
-- `tools:` becomes an array of **StoryOS ability slugs**, and becomes the actual
+- `tools:` becomes an array of **World Graph Studio ability slugs**, and becomes the actual
   per-agent allow-list enforced in §5. For the existing 50, the correct value is
   an empty array — they are advisory and should not gain tool access implicitly.
 - `model:` drops the `YOUR MODEL HERE (copilot)` placeholder; empty means "use
@@ -124,25 +124,25 @@ outcome. Default closed.
 
 Register in `class-ai-abilities.php` following the existing
 `AbstractAbilityGroup` pattern. New group `Comfy_Abilities` (slug
-`storyos-comfy`), plus two additions to the existing groups.
+`worldgraph-comfy`), plus two additions to the existing groups.
 
 | Ability | Type | Input | Output | Annotations |
 | --- | --- | --- | --- | --- |
-| `storyos/comfy-catalog` | tool | `connection_id?`, `modality?` | catalog entries with requirement status | readonly, idempotent |
-| `storyos/comfy-connection-status` | tool | `connection_id?` | tier, reachability, advertised MCP tools, missing nodes summary | readonly, idempotent |
-| `storyos/comfy-provision` | tool | `connection_id`, `entry_id` | provisioning job state | **destructive**, not idempotent |
-| `storyos/generate-intents` | tool | `post_id` | intents with availability + reason + resolved template | readonly, idempotent |
+| `worldgraph/comfy-catalog` | tool | `connection_id?`, `modality?` | catalog entries with requirement status | readonly, idempotent |
+| `worldgraph/comfy-connection-status` | tool | `connection_id?` | tier, reachability, advertised MCP tools, missing nodes summary | readonly, idempotent |
+| `worldgraph/comfy-provision` | tool | `connection_id`, `entry_id` | provisioning job state | **destructive**, not idempotent |
+| `worldgraph/generate-intents` | tool | `post_id` | intents with availability + reason + resolved template | readonly, idempotent |
 
-`storyos/comfy-provision` is marked `destructive: true` because it initiates
+`worldgraph/comfy-provision` is marked `destructive: true` because it initiates
 multi-gigabyte downloads. That flag is not decoration — §5 keys on it.
 
 These abilities are worth registering even before the agents exist: they make
 the catalog and intent surfaces available to external MCP clients, which is the
-reciprocal of StoryOS consuming Comfy MCP.
+reciprocal of World Graph Studio consuming Comfy MCP.
 
 ## 4. The Tool-Calling Bridge
 
-New class `StoryOS\AI\AI_Tool_Broker` in
+New class `WorldGraph\AI\AI_Tool_Broker` in
 `includes/ai-editor/class-ai-tool-broker.php`.
 
 Responsibilities:
@@ -185,7 +185,7 @@ Mitigations, all required:
 - **Allow-list per agent.** An agent may call only the abilities in its
   `tools:` frontmatter. Enforced at dispatch, not just at schema-build time.
 - **Never auto-execute destructive abilities.** Any ability annotated
-  `destructive: true` — `storyos/comfy-provision`, `storyos/generate-asset` —
+  `destructive: true` — `worldgraph/comfy-provision`, `worldgraph/generate-asset` —
   returns a *proposal*, not a result. The UI renders a confirmation with the
   concrete effect ("download 3 files, 14.2 GB, from huggingface.co"), and the
   human clicks. The agent can never spend disk, bandwidth, or GPU time on its
@@ -199,7 +199,7 @@ Mitigations, all required:
   result payload fed back to the LLM. Terminate and report on exceed.
 - **Current-user permissions.** Every dispatch runs the ability's
   `permission_callback` for the logged-in user. An author who cannot
-  `manage_options` cannot reach `storyos/comfy-provision` through the agent,
+  `manage_options` cannot reach `worldgraph/comfy-provision` through the agent,
   regardless of what the agent believes it may do.
 - **Full audit trail.** Agent, ability, arguments, outcome, user ID, timestamp
   to `Generation_Log`. Matches the least-privilege, auditable posture already
@@ -211,11 +211,11 @@ You raised two options — the existing AI Workflow metabox, or a new
 jQuery/admin-ajax chat. **Use the metabox. Do not add admin-ajax.**
 
 The AI Workflow metabox already exists: `AI_Editor::register_story_element_workflow_metabox()`
-registers `storyos_ai_workflow` on every story CPT, `normal` context, `high`
+registers `worldgraph_ai_workflow` on every story CPT, `normal` context, `high`
 priority, rendered as a classic PHP metabox driven by vanilla JS in
 `assets/ai-editor/js/shot-workflow.js`. It has an agent selector, an instruction
 textarea, three action buttons, an `aria-live` status region, and a result
-panel. It already talks to `/storyos/v1/ai/*` with `wp_rest` nonces.
+panel. It already talks to `/worldgraph/v1/ai/*` with `wp_rest` nonces.
 
 Reasons not to add an admin-ajax chat:
 
@@ -296,8 +296,8 @@ unsafe.
 ## 9. Dependencies and Sequencing
 
 This spec's abilities describe surfaces the companion specs create.
-`storyos/comfy-catalog` needs the catalog spec's steps 1–4;
-`storyos/generate-intents` needs the preferences spec's steps 1–3. Both agents
+`worldgraph/comfy-catalog` needs the catalog spec's steps 1–4;
+`worldgraph/generate-intents` needs the preferences spec's steps 1–3. Both agents
 degrade gracefully if those are absent — the Technician still has
 `template-requirements`, the Designer still has `suggest-asset-prompt` — but
 they are substantially less useful.

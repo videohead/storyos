@@ -11,18 +11,18 @@
 > Technician agent that explains catalog and provisioning state in natural
 > language.
 
-This document defines the actionable process by which StoryOS:
+This document defines the actionable process by which World Graph Studio:
 
 1. **Discovers** the ComfyUI workflow templates available on a given Connection,
    whether that Connection is Comfy Cloud MCP or a local ComfyUI.
 2. **Curates** that catalog — the operator enables the small number of templates
-   StoryOS should actually offer.
+   World Graph Studio should actually offer.
 3. **Provisions** each enabled template — forcing download/install of the models
    (and reporting the custom nodes) it requires on that Connection.
 4. **Validates** that provisioning succeeded before the template is usable.
 
 WordPress is the control plane. ComfyUI MCP is the authority on what ComfyUI can
-do; StoryOS mirrors it, never invents it.
+do; World Graph Studio mirrors it, never invents it.
 
 ---
 
@@ -30,16 +30,16 @@ do; StoryOS mirrors it, never invents it.
 
 | Term | Meaning |
 | --- | --- |
-| **Connection** | `storyos_connection` post. One endpoint + credential reference. `provider_type = comfyui`. |
-| **Catalog entry** | One template *as advertised by the Connection's provider*. Not a StoryOS Template. Ephemeral, refreshable, cached. |
+| **Connection** | `worldgraph_conn` post. One endpoint + credential reference. `provider_type = comfyui`. |
+| **Catalog entry** | One template *as advertised by the Connection's provider*. Not a World Graph Studio Template. Ephemeral, refreshable, cached. |
 | **Enabled entry** | A catalog entry the operator has switched on for that Connection. |
-| **Template** | `storyos_template` post. A StoryOS-owned, curated, bound, runnable configuration. Materialized from an enabled catalog entry. |
+| **Template** | `worldgraph_template` post. A World Graph Studio-owned, curated, bound, runnable configuration. Materialized from an enabled catalog entry. |
 | **Manifest** | The nodes + models + download URLs a Template needs, per `Comfy_Manifest`. |
 
 The key modeling decision: **catalog entries are not Templates.** A provider may
-advertise 70+ example workflows; StoryOS must not create 70 posts. Discovery
+advertise 70+ example workflows; World Graph Studio must not create 70 posts. Discovery
 produces a cached catalog; curation is a per-Connection allow-list; only enabled
-entries are materialized into `storyos_template` posts.
+entries are materialized into `worldgraph_template` posts.
 
 ---
 
@@ -92,8 +92,8 @@ list_templates( filters, connection_id )
 
 Call once per `Generation_Modality::all()` `task_type` (`txt2img`, `img2img`,
 `txt2video`, `img2video`, `video2video`, …), plus one unfiltered call, and merge
-by template id. Filtering by task type is what lets StoryOS map a provider
-template onto a StoryOS modality without guessing.
+by template id. Filtering by task type is what lets World Graph Studio map a provider
+template onto a World Graph Studio modality without guessing.
 
 For each returned entry, normalize to the **catalog entry schema**:
 
@@ -134,7 +134,7 @@ already produces most of it and should be refactored to share one normalizer.
 
 ### 3.2 Tier C: local ComfyUI without MCP
 
-There is no provider template list. Synthesize the catalog from what StoryOS
+There is no provider template list. Synthesize the catalog from what World Graph Studio
 already knows plus what the instance reports:
 
 1. Seed one catalog entry per `Generation_Modality::all()` slug, using
@@ -153,7 +153,7 @@ ComfyUI can run today, these need nodes/models."
 
 Store the catalog **per Connection**, not globally:
 
-- Snapshot: post meta `comfy_template_catalog` on the `storyos_connection` post
+- Snapshot: post meta `comfy_template_catalog` on the `worldgraph_conn` post
   (JSON: `{ synced_at, tier, source, entries: [...] }`).
 - Post meta, not a transient — the operator's enable decisions reference it, so
   it must not silently evaporate. Staleness is communicated by `synced_at`,
@@ -178,7 +178,7 @@ Rationale for this over the alternatives:
   as the default because it makes the offered set depend on install order, which
   is not reproducible. It is offered as a **bulk action** ("Enable all
   ready-to-run"), not as a default.
-- *Enable-by-modality (turn on a task type, StoryOS picks the best template)* —
+- *Enable-by-modality (turn on a task type, World Graph Studio picks the best template)* —
   rejected as the primary model because it hides which graph runs. It is
   reintroduced as a **preferred-template** setting per modality in Stage 5.
 - **Chosen: explicit per-entry toggle, opt-in, with bulk helpers.** Matches the
@@ -208,7 +208,7 @@ other public fields.
 ### 4.2 UI
 
 A "Template Catalog" panel on the Connection edit screen and on
-StoryOS → Connections:
+World Graph Studio → Connections:
 
 - Header: tier badge, `synced_at`, **Sync catalog** button.
 - Filter bar: modality, model family, and a `ready | needs models | needs nodes |
@@ -240,7 +240,7 @@ synchronous admin-ajax call will time out.
 Reuse the existing generation job/logging surface rather than inventing a second
 one:
 
-- Record: a `storyos_generation`-style provisioning record, or a dedicated
+- Record: a `worldgraph_gen`-style provisioning record, or a dedicated
   `comfy_provisioning` post meta queue on the Connection holding
   `{ entry_id, state, requested_urls, started_at, finished_at, report }`.
 - States: `queued` → `running` → `satisfied` | `partial` | `failed` |
@@ -270,7 +270,7 @@ Rules:
 
 ### 5.3 Tier C — local ComfyUI without MCP
 
-No remote download tool exists. StoryOS must not shell out or write to the
+No remote download tool exists. World Graph Studio must not shell out or write to the
 ComfyUI filesystem — that is outside the WordPress boundary and would break the
 container contract. Instead, produce a **manual install plan** and, where a
 manager API is present, delegate.
@@ -296,7 +296,7 @@ Order of preference:
    Folder targets come from `Comfy_Manifest::MODEL_FIELDS`; family-level
    fallback comes from `Model_Family::all()['checkpoint_folder']`.
 
-Custom **nodes** are never auto-installed on any tier. StoryOS reports missing
+Custom **nodes** are never auto-installed on any tier. World Graph Studio reports missing
 node classes; installing arbitrary code into ComfyUI is an operator decision.
 
 ### 5.4 Downloads with no URL
@@ -330,7 +330,7 @@ An entry only leaves the provisioning queue on `satisfied`,
 
 ## 7. Stage 5 — Materialization into Templates
 
-Only after an entry is enabled do we create a `storyos_template` post. Do it at
+Only after an entry is enabled do we create a `worldgraph_template` post. Do it at
 **enable** time (so the operator can bind inputs while models download), and
 record the resulting post ID back onto the `enabled_templates` entry.
 
@@ -367,7 +367,7 @@ names a modality but no explicit template.
 
 ## 8. REST Surface
 
-Under the existing `storyos/v1` namespace, alongside the connection routes:
+Under the existing `worldgraph/v1` namespace, alongside the connection routes:
 
 | Route | Method | Purpose |
 | --- | --- | --- |
@@ -399,7 +399,7 @@ declare it static.
   always logged, always cancellable, and never triggered by a read request.
 - Rate-limit sync and provision per Connection using the existing
   `rate_limits` meta.
-- Fail clearly when ComfyUI is absent. StoryOS remains fully usable for
+- Fail clearly when ComfyUI is absent. World Graph Studio remains fully usable for
   story work with no Connection at all.
 
 ---

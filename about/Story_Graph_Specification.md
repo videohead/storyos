@@ -1,14 +1,14 @@
-# StoryOS Story Graph Specification v1.0
+# World Graph Studio Story Graph Specification v1.0
 
 > Build Your Story Once. Create Everywhere.
 
 ## Purpose
 
-The Story Graph is the core architectural component of StoryOS.
+The Story Graph is the core architectural component of World Graph Studio.
 
-It provides a structured, interconnected representation of narrative, production, asset, and editorial information. Rather than treating a story as a collection of documents, StoryOS treats a story as a living graph of related entities.
+It provides a structured, interconnected representation of narrative, production, asset, and editorial information. Rather than treating a story as a collection of documents, World Graph Studio treats a story as a living graph of related entities.
 
-The Story Graph serves as the canonical source of truth for all StoryOS workflows.
+The Story Graph serves as the canonical source of truth for all World Graph Studio workflows.
 
 ---
 
@@ -234,7 +234,7 @@ This allows advisors to access relevant project knowledge without requiring full
 
 # Continuity Engine
 
-Future StoryOS releases should support automated continuity validation.
+Future World Graph Studio releases should support automated continuity validation.
 
 Potential checks:
 
@@ -322,10 +322,10 @@ Potential future support:
 
 # Strategic Importance
 
-The Story Graph is the long-term differentiator of StoryOS.
+The Story Graph is the long-term differentiator of World Graph Studio.
 
 AI models, image generators, video generators, and external tools will evolve rapidly.
 
 The structured representation of story knowledge remains the enduring asset.
 
-By treating stories as connected data, StoryOS can support the entire lifecycle of creative development, production planning, asset generation, and editorial workflows.
+By treating stories as connected data, World Graph Studio can support the entire lifecycle of creative development, production planning, asset generation, and editorial workflows.

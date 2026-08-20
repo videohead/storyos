@@ -1,0 +1,92 @@
+.worldgraph-dramaturgy-page {
+	max-width: 1180px;
+}
+
+.worldgraph-dramaturgy-intro {
+	font-size: 15px;
+	margin: 8px 0 24px;
+	max-width: 900px;
+}
+
+.worldgraph-dramaturgy-layout {
+	display: grid;
+	gap: 20px;
+	grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+	max-width: 1120px;
+}
+
+.worldgraph-dramaturgy-panel {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	box-sizing: border-box;
+	padding: 24px;
+}
+
+.worldgraph-dramaturgy-panel h2 {
+	font-size: 18px;
+	margin: 0 0 20px;
+}
+
+.worldgraph-dramaturgy-controls label {
+	display: block;
+	font-weight: 600;
+	margin: 0 0 6px;
+}
+
+.worldgraph-dramaturgy-controls select,
+.worldgraph-dramaturgy-controls textarea {
+	margin: 0 0 18px;
+}
+
+.worldgraph-dramaturgy-controls .button,
+.worldgraph-dramaturgy-result-header .button {
+	align-items: center;
+	display: inline-flex;
+	gap: 6px;
+}
+
+.worldgraph-dramaturgy-status {
+	color: #646970;
+	min-height: 20px;
+}
+
+.worldgraph-dramaturgy-method {
+	border-left: 3px solid #2271b1;
+	margin-top: 26px;
+	padding-left: 12px;
+}
+
+.worldgraph-dramaturgy-method p {
+	color: #646970;
+	line-height: 1.5;
+	margin: 6px 0 0;
+}
+
+.worldgraph-dramaturgy-result-header {
+	align-items: center;
+	display: flex;
+	gap: 12px;
+	justify-content: space-between;
+	margin-bottom: 20px;
+}
+
+.worldgraph-dramaturgy-result-header h2 {
+	margin: 0;
+}
+
+#worldgraph-dramaturgy-output {
+	font-size: 15px;
+	line-height: 1.6;
+	min-height: 440px;
+}
+
+@media screen and (max-width: 782px) {
+	.worldgraph-dramaturgy-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.worldgraph-dramaturgy-result-header {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+}

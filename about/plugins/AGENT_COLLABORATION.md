@@ -1,10 +1,10 @@
-# StoryOS Agent Collaboration Architecture
+# World Graph Studio Agent Collaboration Architecture
 
 > Agent Participation in CPT Creation, Editing, Review, and Generation
 
 ## Purpose
 
-This document defines how StoryOS agents participate in the lifecycle of Story Graph entities (CPTs).
+This document defines how World Graph Studio agents participate in the lifecycle of Story Graph entities (CPTs).
 
 This is intentionally separate from the Generation Engine architecture.
 
@@ -136,7 +136,7 @@ Acceptance Criteria:
 
 Given a generatable CPT
 When a user selects Polish
-Then StoryOS generates an improved generation request and presents changes before submission.
+Then World Graph Studio generates an improved generation request and presents changes before submission.
 
 ---
 
@@ -303,7 +303,7 @@ Agents should not rely solely on prompt text.
 Acceptance Criteria:
 
 Given a new agent type
-When registered with StoryOS
+When registered with World Graph Studio
 Then the agent may be associated with specific CPT types.
 
 Example:
@@ -363,4 +363,4 @@ Audit history includes:
 
 ## Strategic Goal
 
-StoryOS agents participate throughout content creation and refinement, making expert knowledge available during CPT creation and editing before generation requests are sent to external providers.
+World Graph Studio agents participate throughout content creation and refinement, making expert knowledge available during CPT creation and editing before generation requests are sent to external providers.

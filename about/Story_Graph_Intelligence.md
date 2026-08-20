@@ -6,9 +6,9 @@
 
 ## Implementation Update
 
-Story Graph Intelligence runs inside the StoryOS WordPress plugin. Story data,
+Story Graph Intelligence runs inside the World Graph Studio WordPress plugin. Story data,
 relationships, continuity findings, search configuration, and cached results
-are owned by WordPress. The feature is implemented within the StoryOS plugin
+are owned by WordPress. The feature is implemented within the World Graph Studio plugin
 and its WordPress data and API surfaces.
 
 ## Objective
@@ -33,7 +33,7 @@ WordPress REST resources, and the WordPress Abilities API.
 WordPress Admin and Gutenberg
         |
         v
-StoryOS WordPress plugin
+World Graph Studio WordPress plugin
         |
         +--> Story Graph CPTs, SCF, post metadata, relationships
         +--> Story search and entity filters
@@ -89,9 +89,9 @@ context and must never include credentials or unrelated private posts.
 
 Implementation:
 
-`wordpress/wp-content/plugins/storyos/includes/utils/story-search.php`
+`wordpress/wp-content/plugins/worldgraph/includes/utils/story-search.php`
 
-The search helper extends the normal WordPress search experience with StoryOS
+The search helper extends the normal WordPress search experience with World Graph Studio
 entity filters. Supported entity types currently include:
 
 - Characters
@@ -123,7 +123,7 @@ probability.
 
 ### Search and Abilities
 
-The `storyos/analyze` ability may use the same context and search helpers as the
+The `worldgraph/analyze` ability may use the same context and search helpers as the
 admin UI. It should return structured results that identify matching entities
 and the fields that contributed to the match. Do not expose an internal search
 implementation as a second external protocol.
@@ -134,7 +134,7 @@ implementation as a second external protocol.
 
 Implementation:
 
-`wordpress/wp-content/plugins/storyos/includes/utils/continuity-checker.php`
+`wordpress/wp-content/plugins/worldgraph/includes/utils/continuity-checker.php`
 
 The checker runs local rules against WordPress entities and stores sanitized
 issues in post metadata for display in the admin panel and REST responses.
@@ -180,7 +180,7 @@ Any fix action must be an explicit, permission-checked WordPress operation.
 
 The continuity panel is implemented in:
 
-`wordpress/wp-content/plugins/storyos/includes/admin/continuity-panel.php`
+`wordpress/wp-content/plugins/worldgraph/includes/admin/continuity-panel.php`
 
 It should provide:
 
@@ -196,9 +196,9 @@ It should provide:
 
 Implementation:
 
-`wordpress/wp-content/plugins/storyos/includes/utils/relationship-graph.php`
+`wordpress/wp-content/plugins/worldgraph/includes/utils/relationship-graph.php`
 
-Relationship analytics are calculated from the StoryOS relationship helpers and
+Relationship analytics are calculated from the World Graph Studio relationship helpers and
 registered post data. The current calculations include:
 
 - Relationship type distribution.
@@ -217,7 +217,7 @@ confirmation.
 
 Implementation:
 
-`wordpress/wp-content/plugins/storyos/includes/admin/analytics-panel.php`
+`wordpress/wp-content/plugins/worldgraph/includes/admin/analytics-panel.php`
 
 The panel presents:
 
@@ -256,15 +256,15 @@ unvalidated metadata keys in new features.
 Story Graph Intelligence is available to the WordPress AI surface through the
 Abilities API registered in:
 
-`wordpress/wp-content/plugins/storyos/includes/ai-editor/class-ai-abilities.php`
+`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-abilities.php`
 
 Relevant abilities include:
 
-- `storyos/analyze` for structured analysis of current content and context.
-- `storyos/continuity-check` for a permission-checked continuity request.
-- `storyos/post-context`, `storyos/character-context`, and
-  `storyos/scene-context` for contextual resources.
-- `storyos/story-review-prompt` and `storyos/continuity-prompt` for reusable
+- `worldgraph/analyze` for structured analysis of current content and context.
+- `worldgraph/continuity-check` for a permission-checked continuity request.
+- `worldgraph/post-context`, `worldgraph/character-context`, and
+  `worldgraph/scene-context` for contextual resources.
+- `worldgraph/story-review-prompt` and `worldgraph/continuity-prompt` for reusable
   prompt templates.
 
 The WordPress MCP Adapter may expose these abilities as MCP tools, resources,
@@ -277,7 +277,7 @@ the same WordPress services used by admin and REST surfaces.
 Intelligence data is exposed through WordPress-owned REST resources under the
 project namespace:
 
-`/api/storyos/v1`
+`/api/worldgraph/v1`
 
 Potential resource groups include:
 
@@ -295,7 +295,7 @@ Controllers must:
 - Return structured `WP_Error` responses.
 - Avoid leaking private entity content or implementation details.
 
-The REST API exposes StoryOS resources and calculations. It is not a proxy for
+The REST API exposes World Graph Studio resources and calculations. It is not a proxy for
 another application or a remote intelligence service.
 
 ## Implementation Surfaces

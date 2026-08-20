@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This document defines how `little-red-riding-hood.storyos.json` is imported into StoryOS CPTs, SCF fields, relationships, and Story Graph entities.
+This document defines how `little-red-riding-hood.worldgraph.json` is imported into World Graph Studio CPTs, SCF fields, relationships, and Story Graph entities.
 
 This specification is intended to make importer implementation deterministic and testable.
 
-The `sounds[]` section was added in StoryOS JSON 1.1. Writers should emit the
+The `sounds[]` section was added in World Graph Studio JSON 1.1. Writers should emit the
 section (using an empty array when there are no cues); readers treat a missing
 section as an empty array so version 1.0 documents remain compatible.
 
@@ -15,7 +15,7 @@ section as an empty array so version 1.0 documents remain compatible.
 # Import Workflow
 
 ```text
-StoryOS JSON
+World Graph Studio JSON
       ↓
 JSON Validation
       ↓
@@ -45,7 +45,7 @@ project
 ### CPT
 
 ```text
-storyos_project
+worldgraph_project
 ```
 
 ### Field Mapping
@@ -74,7 +74,7 @@ world
 ### CPT
 
 ```text
-storyos_story_world
+worldgraph_world
 ```
 
 ### Fields
@@ -104,7 +104,7 @@ characters[]
 ### CPT
 
 ```text
-storyos_character
+worldgraph_character
 ```
 
 ### Fields
@@ -141,7 +141,7 @@ locations[]
 ### CPT
 
 ```text
-storyos_location
+worldgraph_location
 ```
 
 ### Fields
@@ -171,7 +171,7 @@ props[]
 ### CPT
 
 ```text
-storyos_prop
+worldgraph_prop
 ```
 
 ### Fields
@@ -203,7 +203,7 @@ scenes[]
 ### CPT
 
 ```text
-storyos_scene
+worldgraph_scene
 ```
 
 ### Fields
@@ -252,7 +252,7 @@ shots[]
 ### CPT
 
 ```text
-storyos_shot
+worldgraph_shot
 ```
 
 ### Fields
@@ -289,11 +289,11 @@ sounds[]
 ### CPT
 
 ```text
-storyos_sound
+worldgraph_sound
 ```
 
 Each record is a planned soundtrack cue. The cue links to an audio-typed
-`storyos_asset`, which can represent a rendered file or WordPress attachment;
+`worldgraph_asset`, which can represent a rendered file or WordPress attachment;
 the Sound record itself is not the media encoding.
 
 ### Required Fields
@@ -310,8 +310,8 @@ the Sound record itself is not the media encoding.
 | id | external_id |
 | title | post_title |
 | description | post_content |
-| type | storyos_sound_type taxonomy |
-| production_status | storyos_status taxonomy (optional, existing term) |
+| type | worldgraph_sound_type taxonomy |
+| production_status | worldgraph_status taxonomy (optional, existing term) |
 | spoken_text | spoken_text |
 | lyrics | lyrics |
 | start_timecode | start_timecode |
@@ -337,7 +337,7 @@ Project membership is derived through the required Scene relationship; Sound
 does not store a second direct Project edge.
 
 When `shot` is present, it must belong to the referenced `scene`. An `asset`
-external ID must already resolve to an audio-typed `storyos_asset`; the sample
+external ID must already resolve to an audio-typed `worldgraph_asset`; the sample
 does not include one because the current JSON format has no top-level asset import.
 
 ### Expected Count
@@ -359,7 +359,7 @@ storyboards[]
 ### CPT
 
 ```text
-storyos_storyboard_frame
+worldgraph_board_frame
 ```
 
 ### Fields
@@ -394,7 +394,7 @@ sequence
 ### CPT
 
 ```text
-storyos_sequence
+worldgraph_sequence
 ```
 
 ### Fields
@@ -538,4 +538,4 @@ Sequences:          1
 
 # MVP Goal
 
-Importing this sample project should create a complete miniature StoryOS project in one action and provide a fully-functional demonstration of Story Graph creation, AI-assisted analysis, generation preparation, storyboard planning, sequencing, and script export.
+Importing this sample project should create a complete miniature World Graph Studio project in one action and provide a fully-functional demonstration of Story Graph creation, AI-assisted analysis, generation preparation, storyboard planning, sequencing, and script export.

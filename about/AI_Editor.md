@@ -34,12 +34,12 @@ WordPress Admin
           +------------------------------+
           |                              |
           v                              v
-StoryOS REST API                    WordPress Abilities API
-  /storyos/v1/ai/*                  tools, resources, prompts
+World Graph Studio REST API                    WordPress Abilities API
+  /worldgraph/v1/ai/*                  tools, resources, prompts
           |                              |
           +--------------+---------------+
                          v
-                  StoryOS AI Editor
+                  World Graph Studio AI Editor
                   - Context Builder
                   - LLM Client
                   - Ability callbacks
@@ -75,8 +75,8 @@ WordPress capability.
 The active implementation surfaces are:
 
 ```text
-wordpress/wp-content/plugins/storyos/
-├── storyos.php
+wordpress/wp-content/plugins/worldgraph/
+├── worldgraph.php
 ├── includes/
 │   └── ai-editor/
 │       ├── class-ai-editor.php
@@ -110,7 +110,7 @@ For a character post, a context object may contain:
 
 ```php
 $context = [
-    'post_type'    => 'storyos_character',
+    'post_type'    => 'worldgraph_character',
     'post_id'      => 123,
     'entity'       => $character_data,
     'relationships' => [
@@ -137,9 +137,9 @@ Context rules:
 
 Implementation:
 
-`wordpress/wp-content/plugins/storyos/includes/ai-editor/class-ai-llm-client.php`
+`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-llm-client.php`
 
-Supported connection modes are configured in **StoryOS > AI Settings**:
+Supported connection modes are configured in **World Graph Studio > AI Settings**:
 
 | Connection | Endpoint | Credential |
 | --- | --- | --- |
@@ -152,8 +152,8 @@ Deployment guidance is documented in
 
 Environment variables may override WordPress settings for deployed sites:
 
-- `STORYOS_AI_API_KEY` for the primary connection.
-- `STORYOS_AI_FALLBACK_API_KEY` for an optional fallback.
+- `WORLDGRAPH_AI_API_KEY` for the primary connection.
+- `WORLDGRAPH_AI_FALLBACK_API_KEY` for an optional fallback.
 
 The client must:
 
@@ -163,29 +163,29 @@ The client must:
 - Convert transport and provider failures into sanitized `WP_Error` values.
 - Never log or persist API keys, authorization headers, or full raw responses.
 
-Local model support is optional. StoryOS remains useful for story management,
+Local model support is optional. World Graph Studio remains useful for story management,
 continuity, planning, and asset organization when no LLM is configured.
 
 ## REST API
 
 The AI Editor REST controller is:
 
-`wordpress/wp-content/plugins/storyos/includes/ai-editor/class-ai-editor-rest.php`
+`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-editor-rest.php`
 
-Routes use the `storyos/v1` namespace:
+Routes use the `worldgraph/v1` namespace:
 
 ```text
-POST /storyos/v1/ai/chat
-POST /storyos/v1/ai/analyze
-POST /storyos/v1/ai/generate
-POST /storyos/v1/ai/continuity
-GET  /storyos/v1/ai/context
-GET  /storyos/v1/ai/agents
-GET  /storyos/v1/ai/settings
-GET  /storyos/v1/ai/health
+POST /worldgraph/v1/ai/chat
+POST /worldgraph/v1/ai/analyze
+POST /worldgraph/v1/ai/generate
+POST /worldgraph/v1/ai/continuity
+GET  /worldgraph/v1/ai/context
+GET  /worldgraph/v1/ai/agents
+GET  /worldgraph/v1/ai/settings
+GET  /worldgraph/v1/ai/health
 ```
 
-`POST /storyos/v1/ai/chat` accepts `prompt`, optional `post_id`, `agent`, and
+`POST /worldgraph/v1/ai/chat` accepts `prompt`, optional `post_id`, `agent`, and
 `action`, plus an optional `messages` array containing up to 20 prior `user`
 and `assistant` turns. The server owns the system prompt and Story Graph
 context, so client-supplied `system` messages are rejected. Chat history is
@@ -208,62 +208,62 @@ REST responses should provide stable fields such as:
 
 The Abilities API registration is in:
 
-`wordpress/wp-content/plugins/storyos/includes/ai-editor/class-ai-abilities.php`
+`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-abilities.php`
 
 The module registers three groups.
 
 ### Tools
 
-- `storyos/chat`
-- `storyos/analyze`
-- `storyos/generate`
-- `storyos/continuity-check`
+- `worldgraph/chat`
+- `worldgraph/analyze`
+- `worldgraph/generate`
+- `worldgraph/continuity-check`
 
 ### Resources
 
-- `storyos/post-context`
-- `storyos/character-context`
-- `storyos/scene-context`
-- `storyos/templates-manifest`
+- `worldgraph/post-context`
+- `worldgraph/character-context`
+- `worldgraph/scene-context`
+- `worldgraph/templates-manifest`
 
 ### Prompts
 
-- `storyos/story-review-prompt`
-- `storyos/continuity-prompt`
+- `worldgraph/story-review-prompt`
+- `worldgraph/continuity-prompt`
 
 Each ability must define:
 
 - Human-readable label and description.
 - JSON input and output schemas.
-- A PHP execute callback that uses existing StoryOS services.
+- A PHP execute callback that uses existing World Graph Studio services.
 - A permission callback based on the requested entity and action.
 - MCP metadata identifying whether it is a tool, resource, or prompt.
 - Accurate `readonly`, `destructive`, and `idempotent` annotations.
 
 The WordPress MCP Adapter may discover public abilities and expose them to
-MCP-compatible clients. StoryOS should register abilities through WordPress and
+MCP-compatible clients. World Graph Studio should register abilities through WordPress and
 should not duplicate them in a separate integration server.
 
 ## Ability Behavior
 
-### `storyos/chat`
+### `worldgraph/chat`
 
 Accepts a prompt and optional post context, then returns a response from the
 configured filmmaking ability and LLM connection. Chat does not write content.
 
-### `storyos/analyze`
+### `worldgraph/analyze`
 
 Returns structured observations about the current post, Story Graph context,
 prompt, or selected editorial concern. Analysis should identify evidence from
 the supplied context.
 
-### `storyos/generate`
+### `worldgraph/generate`
 
 Returns a draft, prompt, or other explicitly requested content. It should
 return proposed values for the editor to review rather than silently saving
 them.
 
-### `storyos/continuity-check`
+### `worldgraph/continuity-check`
 
 Calls the same WordPress continuity services used by the Phase 7 admin and REST
 surfaces. Results should include severity, rule, affected entities, evidence,
@@ -283,10 +283,10 @@ clear.
 
 ### Generation template discovery
 
-`storyos/templates-manifest` is a read-only resource for MCP clients that need
+`worldgraph/templates-manifest` is a read-only resource for MCP clients that need
 to discover available generation templates before preparing an asset request.
-It is exposed at `storyos://templates-manifest` and returns only published
-`storyos_template` records with `status` set to `active`. Entries include the
+It is exposed at `worldgraph://templates-manifest` and returns only published
+`worldgraph_template` records with `status` set to `active`. Entries include the
 template identity, revision/version, generation structure, provider type,
 configuration schema, and default values.
 
@@ -349,7 +349,7 @@ Engine contract.
 
 ### Gutenberg Panel
 
-- Loads on supported StoryOS post types.
+- Loads on supported World Graph Studio post types.
 - Displays loading, success, empty, and failure states.
 - Shows context before sending when requested.
 - Does not overwrite editor content without explicit confirmation.
@@ -357,7 +357,7 @@ Engine contract.
 
 ## Definition of Done
 
-- [x] AI Editor module is bootstrapped by the StoryOS plugin.
+- [x] AI Editor module is bootstrapped by the World Graph Studio plugin.
 - [x] Gutenberg sidebar provides chat and context-aware actions.
 - [x] Story Graph context is assembled in WordPress.
 - [x] Local and hosted LLM connection settings are supported.
@@ -386,4 +386,4 @@ Engine contract.
 The AI Editor should remain a focused WordPress feature: a permission-aware
 context layer, a reliable LLM client, an ergonomic Gutenberg panel, and a clear
 Abilities API contract. New capabilities should be added as typed WordPress
-abilities or editor actions that reuse existing StoryOS services.
+abilities or editor actions that reuse existing World Graph Studio services.

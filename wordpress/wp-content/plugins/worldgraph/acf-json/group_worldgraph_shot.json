@@ -1,0 +1,311 @@
+{
+    "key": "group_worldgraph_shot",
+    "title": "World Graph Studio: Shot Fields",
+    "fields": [
+        {
+            "key": "field_worldgraph_shot_shot_name",
+            "label": "Shot Name",
+            "name": "shot_name",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "Short, human-friendly name for this shot. Leave empty to auto-generate one from the scene, shot type and description.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_shot_shot_number",
+            "label": "Shot Number",
+            "name": "shot_number",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "min": "",
+            "max": "",
+            "step": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_shot_shot_type",
+            "label": "Shot Type",
+            "name": "shot_type",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "establishing": "Establishing",
+                "extreme_close_up": "Extreme Close Up",
+                "close_up": "Close Up",
+                "medium_close_up": "Medium Close Up",
+                "medium": "Medium",
+                "medium_wide": "Medium Wide",
+                "wide": "Wide",
+                "extreme_wide": "Extreme Wide",
+                "over_the_shoulder": "Over The Shoulder",
+                "point_of_view": "Point of View",
+                "cutaway": "Cutaway",
+                "reaction": "Reaction Shot",
+                "insert": "Insert"
+            },
+            "allow_null": 1,
+            "multiple": 0,
+            "ui": 1,
+            "return_format": "value",
+            "default_value": false,
+            "ajax": 0,
+            "placeholder": "",
+            "create_options": 0,
+            "save_options": 0
+        },
+        {
+            "key": "field_worldgraph_shot_camera_angle",
+            "label": "Camera Angle",
+            "name": "camera_angle",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "eye_level": "Eye Level",
+                "low_angle": "Low Angle",
+                "high_angle": "High Angle",
+                "birdseye": "Birdseye",
+                "wormseye": "Wormseye",
+                "dutch": "Dutch Angle"
+            },
+            "allow_null": 1,
+            "multiple": 0,
+            "ui": 1,
+            "return_format": "value",
+            "default_value": false,
+            "ajax": 0,
+            "placeholder": "",
+            "create_options": 0,
+            "save_options": 0
+        },
+        {
+            "key": "field_worldgraph_shot_lens",
+            "label": "Lens",
+            "name": "lens",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_shot_duration",
+            "label": "Duration",
+            "name": "duration",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_shot_take_number",
+            "label": "Take Number",
+            "name": "take_number",
+            "aria-label": "",
+            "type": "number",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "min": "",
+            "max": "",
+            "step": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_shot_slate_id",
+            "label": "Slate ID",
+            "name": "slate_id",
+            "aria-label": "",
+            "type": "text",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "",
+            "prepend": "",
+            "append": ""
+        },
+        {
+            "key": "field_worldgraph_shot_shot_description",
+            "label": "Shot Description",
+            "name": "shot_description",
+            "aria-label": "",
+            "type": "wysiwyg",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "tabs": "all",
+            "toolbar": "full",
+            "media_upload": 1,
+            "default_value": "",
+            "delay": 0
+        },
+        {
+            "key": "field_worldgraph_shot_editorial_notes",
+            "label": "Editorial Notes",
+            "name": "editorial_notes",
+            "aria-label": "",
+            "type": "wysiwyg",
+            "instructions": "",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "tabs": "all",
+            "toolbar": "full",
+            "media_upload": 1,
+            "default_value": "",
+            "delay": 0
+        },
+        {
+            "key": "field_worldgraph_shot_scene",
+            "label": "Scene",
+            "name": "scene",
+            "aria-label": "",
+            "type": "post_object",
+            "instructions": "",
+            "required": 1,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "post_type": [
+                "worldgraph_scene"
+            ],
+            "return_format": "id",
+            "allow_null": 0,
+            "multiple": 0,
+            "ui": 1,
+            "taxonomy": [],
+            "bidirectional_target": []
+        },
+        {
+            "key": "field_worldgraph_shot_sequence",
+            "label": "Sequence",
+            "name": "sequence",
+            "aria-label": "",
+            "type": "taxonomy",
+            "instructions": "The editorial sequence this shot belongs to.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "taxonomy": "worldgraph_sequence",
+            "field_type": "select",
+            "multiple": 0,
+            "allow_null": 1,
+            "return_format": "id",
+            "add_term": 1,
+            "load_terms": 1,
+            "save_terms": 1,
+            "bidirectional_target": []
+        }
+    ],
+    "location": [
+        [
+            {
+                "param": "post_type",
+                "operator": "==",
+                "value": "worldgraph_shot"
+            }
+        ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "hide_on_screen": "",
+    "active": true,
+    "description": "Structured metadata for the World Graph Studio Story Graph. This persisted group may be managed in Secure Custom Fields.",
+    "show_in_rest": 1,
+    "display_title": "",
+    "allow_ai_access": false,
+    "ai_description": "",
+    "modified": 1787242024
+}

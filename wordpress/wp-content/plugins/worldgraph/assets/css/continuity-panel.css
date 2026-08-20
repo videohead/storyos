@@ -1,0 +1,234 @@
+/**
+ * Continuity Validation Admin Panel Styles.
+ *
+ * @package WorldGraph
+ */
+
+.worldgraph-continuity-page {
+	max-width: 1200px;
+}
+
+.worldgraph-actions {
+	margin: 20px 0;
+}
+
+.worldgraph-actions .button {
+	margin-right: 10px;
+}
+
+/* Summary Cards */
+.worldgraph-summary {
+	display: grid;
+	grid-template-columns: repeat( auto-fit, minmax( 150px, 1fr ) );
+	gap: 16px;
+	margin: 20px 0;
+}
+
+.worldgraph-summary-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-left: 4px solid #0073aa;
+	border-radius: 4px;
+	padding: 16px;
+	text-align: center;
+	box-shadow: 0 1px 1px rgba( 0, 0, 0, 0.04 );
+}
+
+.worldgraph-summary-card.worldgraph-card-errors {
+	border-left-color: #d63638;
+}
+
+.worldgraph-summary-card.worldgraph-card-warnings {
+	border-left-color: #dba617;
+}
+
+.worldgraph-summary-card.worldgraph-card-infos {
+	border-left-color: #2271b1;
+}
+
+.worldgraph-summary-number {
+	font-size: 32px;
+	font-weight: 600;
+	line-height: 1.2;
+	color: #1d2327;
+}
+
+.worldgraph-summary-label {
+	font-size: 13px;
+	color: #646970;
+	margin-top: 4px;
+}
+
+/* Filter Tabs */
+.worldgraph-filter-tabs {
+	margin: 20px 0;
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.worldgraph-filter-tabs .button {
+	position: relative;
+}
+
+.worldgraph-filter-tabs .button .count {
+	background: #0073aa;
+	color: #fff;
+	border-radius: 10px;
+	padding: 2px 8px;
+	font-size: 11px;
+	margin-left: 6px;
+}
+
+/* Loading */
+.worldgraph-loading {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 20px;
+	background: #f0f0f1;
+	border-radius: 4px;
+	margin: 20px 0;
+	color: #50575e;
+}
+
+/* No Issues */
+.worldgraph-no-issues {
+	text-align: center;
+	padding: 60px 20px;
+	background: #f6f7f7;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	color: #646970;
+}
+
+.worldgraph-no-issues .dashicons {
+	font-size: 48px;
+	width: 48px;
+	height: 48px;
+	color: #72aee6;
+	margin-bottom: 16px;
+}
+
+.worldgraph-no-issues p {
+	font-size: 16px;
+	margin: 0;
+}
+
+/* Category Sections */
+.worldgraph-category-section {
+	margin: 24px 0;
+}
+
+.worldgraph-category-section h2 {
+	font-size: 18px;
+	font-weight: 600;
+	margin: 0 0 12px 0;
+	padding-bottom: 8px;
+	border-bottom: 2px solid #0073aa;
+	color: #1d2327;
+}
+
+/* Issue Cards */
+.worldgraph-issue-card {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	margin-bottom: 12px;
+	padding: 16px;
+	box-shadow: 0 1px 1px rgba( 0, 0, 0, 0.04 );
+	transition: box-shadow 0.2s ease;
+}
+
+.worldgraph-issue-card:hover {
+	box-shadow: 0 2px 4px rgba( 0, 0, 0, 0.08 );
+}
+
+.worldgraph-issue-card.worldgraph-issue-error {
+	border-left: 4px solid #d63638;
+}
+
+.worldgraph-issue-card.worldgraph-issue-warning {
+	border-left: 4px solid #dba617;
+}
+
+.worldgraph-issue-card.worldgraph-issue-info {
+	border-left: 4px solid #2271b1;
+}
+
+.worldgraph-issue-header {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.worldgraph-issue-severity {
+	display: inline-block;
+	color: #fff;
+	padding: 2px 10px;
+	border-radius: 3px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.worldgraph-issue-category {
+	color: #646970;
+	font-size: 13px;
+}
+
+.worldgraph-issue-description {
+	font-size: 14px;
+	line-height: 1.6;
+	color: #1d2327;
+	margin-bottom: 8px;
+}
+
+.worldgraph-issue-entities {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-bottom: 8px;
+}
+
+.worldgraph-entity-tag {
+	background: #f0f0f1;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	padding: 2px 8px;
+	font-size: 12px;
+	color: #50575e;
+}
+
+.worldgraph-issue-suggestion {
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 3px;
+	padding: 10px 12px;
+	font-size: 13px;
+	line-height: 1.5;
+	color: #50575e;
+}
+
+.worldgraph-issue-suggestion strong {
+	color: #1d2327;
+}
+
+/* Responsive */
+@media ( max-width: 782px ) {
+	.worldgraph-summary {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+
+	.worldgraph-filter-tabs {
+		flex-direction: column;
+	}
+
+	.worldgraph-filter-tabs .button {
+		width: 100%;
+		text-align: center;
+	}
+}

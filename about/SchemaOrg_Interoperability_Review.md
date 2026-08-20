@@ -1,10 +1,10 @@
-# StoryOS Schema.org Interoperability Review (Knowledge Graph Focus)
+# World Graph Studio Schema.org Interoperability Review (Knowledge Graph Focus)
 
 Date: 2026-08-08
 
 ## Goal
 
-Use Schema.org as the canonical interoperability vocabulary for StoryOS content types and relationships, with focus on:
+Use Schema.org as the canonical interoperability vocabulary for World Graph Studio content types and relationships, with focus on:
 
 - Knowledge graph alignment
 - Cross-system portability
@@ -17,38 +17,38 @@ Out of scope for now:
 
 ## Key Direction
 
-StoryOS should treat existing Schema.org classes and properties as the default semantic model, and only use StoryOS-specific fields where no practical Schema.org property exists.
+World Graph Studio should treat existing Schema.org classes and properties as the default semantic model, and only use World Graph Studio-specific fields where no practical Schema.org property exists.
 
 ## Canonical Type Mapping (Current CPT -> Schema.org)
 
 ### Core Content
 
-- `storyos_project` -> `Movie` (for film/short film targets), else `CreativeWork`
-- `storyos_episode` -> `Episode`
-- `storyos_scene` -> `Clip` (preferred) or `CreativeWork` when clip semantics are not available
-- `storyos_shot` -> `Clip` (child clip or segment)
-- `storyos_sound` -> `CreativeWork` (planned cue), with `MusicComposition` inferred for music
+- `worldgraph_project` -> `Movie` (for film/short film targets), else `CreativeWork`
+- `worldgraph_episode` -> `Episode`
+- `worldgraph_scene` -> `Clip` (preferred) or `CreativeWork` when clip semantics are not available
+- `worldgraph_shot` -> `Clip` (child clip or segment)
+- `worldgraph_sound` -> `CreativeWork` (planned cue), with `MusicComposition` inferred for music
 
 ### Narrative Entities
 
-- `storyos_character` -> `Person` (Schema.org allows fictional persons)
-- `storyos_location` -> `Place`
-- `storyos_organization` -> `Organization`
-- `storyos_prop` -> `Thing` (optionally `Product` if production inventory workflows emerge)
+- `worldgraph_character` -> `Person` (Schema.org allows fictional persons)
+- `worldgraph_location` -> `Place`
+- `worldgraph_org` -> `Organization`
+- `worldgraph_prop` -> `Thing` (optionally `Product` if production inventory workflows emerge)
 
 ### Media/Artifacts
 
-- `storyos_asset` -> `MediaObject` base with subtyping:
+- `worldgraph_asset` -> `MediaObject` base with subtyping:
   - image assets -> `ImageObject`
   - video assets -> `VideoObject`
   - audio assets -> `AudioObject`
-- `storyos_storyboard_frame` -> `ImageObject` or `CreativeWork` (depending on whether the frame is treated as media-first or annotation-first)
-- `storyos_editorial_artifact` -> `CreativeWork`
+- `worldgraph_board_frame` -> `ImageObject` or `CreativeWork` (depending on whether the frame is treated as media-first or annotation-first)
+- `worldgraph_editorial_artifact` -> `CreativeWork`
 
 Planned Sound cues and rendered media are intentionally distinct:
 
-- `storyos_sound` -> `CreativeWork` / `MusicComposition`
-- linked audio `storyos_asset` (representing its attachment) -> `AudioObject`
+- `worldgraph_sound` -> `CreativeWork` / `MusicComposition`
+- linked audio `worldgraph_asset` (representing its attachment) -> `AudioObject`
 
 For the MVP, a music cue is also the local composition record: its `lyrics`
 hint is emitted as a nested `CreativeWork`. This is deliberate denormalization;
@@ -57,7 +57,7 @@ occurrences need to share one musical work.
 
 ## Relationship Mapping (Story Graph -> Schema.org semantics)
 
-StoryOS relationship verbs can remain internal, but each should have a deterministic Schema.org mapping:
+World Graph Studio relationship verbs can remain internal, but each should have a deterministic Schema.org mapping:
 
 - `contains` -> `hasPart`
 - `belongs_to` -> `isPartOf`
@@ -72,7 +72,7 @@ StoryOS relationship verbs can remain internal, but each should have a determini
 
 ## Required Interop Field Set by Type
 
-### Movie / CreativeWork (`storyos_project`)
+### Movie / CreativeWork (`worldgraph_project`)
 
 Must support these Schema.org properties at minimum:
 
@@ -96,7 +96,7 @@ Movie-specific additions:
 - `contentRating`
 - `trailer` (link to `VideoObject`)
 
-### Episode (`storyos_episode`)
+### Episode (`worldgraph_episode`)
 
 - `name`
 - `description`
@@ -105,7 +105,7 @@ Movie-specific additions:
 - `hasPart`
 - `actor`, `director`, `productionCompany` (optional but supported)
 
-### Scene / Shot (`storyos_scene`, `storyos_shot`)
+### Scene / Shot (`worldgraph_scene`, `worldgraph_shot`)
 
 - `name`
 - `description`
@@ -115,28 +115,28 @@ Movie-specific additions:
 - `contentLocation`
 - `duration` (for shot-level timing)
 
-### Character (`storyos_character`)
+### Character (`worldgraph_character`)
 
 - `name`
 - `description`
 - `image`
 - `sameAs` (optional external identity links)
 
-### Location (`storyos_location`)
+### Location (`worldgraph_location`)
 
 - `name`
 - `description`
 - `address` or textual geography
 - `geo` (optional when available)
 
-### Organization (`storyos_organization`)
+### Organization (`worldgraph_org`)
 
 - `name`
 - `description`
 - `member`
 - `parentOrganization` / `subOrganization` where relevant
 
-### Asset (`storyos_asset` as MediaObject)
+### Asset (`worldgraph_asset` as MediaObject)
 
 - `name`
 - `description`
@@ -146,7 +146,7 @@ Movie-specific additions:
 - `dateCreated`
 - `isBasedOn` (prompt or source lineage)
 
-## Problems Identified in Current StoryOS Model (Interoperability Impact)
+## Problems Identified in Current World Graph Studio Model (Interoperability Impact)
 
 1. WordPress core fields (`post_title`, `post_content`) are duplicated by custom fields (`project_name`, `asset_title`, `display_name`) causing semantic drift.
 2. Relationship verbs are internal-only and not mapped to Schema.org semantics at the model level.
@@ -158,7 +158,7 @@ Movie-specific additions:
 
 ### 1) Adopt canonical aliases instead of replacing all existing fields
 
-Create a mapping layer where StoryOS fields resolve to canonical Schema.org property names:
+Create a mapping layer where World Graph Studio fields resolve to canonical Schema.org property names:
 
 - `project_name` -> `name`
 - `synopsis`/`summary` -> `description`
@@ -185,9 +185,9 @@ Ensure project -> episode -> scene -> shot is always representable as:
 - parent has `hasPart`
 - child has `isPartOf`
 
-### 4) Reserve custom StoryOS fields for production-only concepts
+### 4) Reserve custom World Graph Studio fields for production-only concepts
 
-Keep StoryOS-only fields when they are operational (e.g., generation seed, workflow internal IDs), but do not use them as replacements for existing Schema.org semantics.
+Keep World Graph Studio-only fields when they are operational (e.g., generation seed, workflow internal IDs), but do not use them as replacements for existing Schema.org semantics.
 
 ### 5) Add schema-contract tests
 
@@ -207,9 +207,9 @@ Introduce tests that validate:
 
 ## Success Criteria
 
-StoryOS is considered interoperability-ready when:
+World Graph Studio is considered interoperability-ready when:
 
 - Every CPT has an explicit Schema.org type assignment.
 - Every core entity can be losslessly represented using Schema.org property names.
 - Internal relationship verbs map deterministically to Schema.org relationship properties.
-- No major entity depends on StoryOS-only names for fundamental semantics like name, description, containment, people, place, or media identity.
+- No major entity depends on World Graph Studio-only names for fundamental semantics like name, description, containment, people, place, or media identity.

@@ -1,19 +1,19 @@
-# StoryOS Testing Guide
+# World Graph Studio Testing Guide
 
-This guide covers testing practices for the StoryOS project, including PHPUnit for unit tests, WordPress CLI usage via Lando, and Playwright for end-to-end testing.
+This guide covers testing practices for the World Graph Studio project, including PHPUnit for unit tests, WordPress CLI usage via Lando, and Playwright for end-to-end testing.
 
 ## PHPUnit
 
 ### Test Location
-StoryOS unit tests are located in:
+World Graph Studio unit tests are located in:
 ```
-wordpress/wp-content/plugins/storyos/tests/
+wordpress/wp-content/plugins/worldgraph/tests/
 ```
 
 ### PHPUnit Configuration
 The PHPUnit configuration is at:
 ```
-wordpress/wp-content/plugins/storyos/tests/phpunit.xml
+wordpress/wp-content/plugins/worldgraph/tests/phpunit.xml
 ```
 
 ### Running Tests via Lando
@@ -30,7 +30,7 @@ lando phpunit --coverage-html ./coverage
 
 #### Run Specific Test File
 ```bash
-lando phpunit wordpress/wp-content/plugins/storyos/tests/test-cpt.php
+lando phpunit wordpress/wp-content/plugins/worldgraph/tests/test-cpt.php
 ```
 
 #### Run Tests Matching a Pattern
@@ -52,7 +52,7 @@ lando exec appserver -- ./vendor/bin/phpunit --help
 
 ### Test Files
 
-Current test files in the StoryOS plugin:
+Current test files in the World Graph Studio plugin:
 - `test-admin-metabox-assets.php` - Admin metabox functionality
 - `test-cpt.php` - Custom Post Type tests
 - `test-exporter.php` - Export functionality tests
@@ -66,7 +66,7 @@ Current test files in the StoryOS plugin:
 
 The PHPUnit bootstrap file is at:
 ```
-wordpress/wp-content/plugins/storyos/tests/bootstrap.php
+wordpress/wp-content/plugins/worldgraph/tests/bootstrap.php
 ```
 
 This file sets up the WordPress testing environment before tests run.
@@ -90,10 +90,10 @@ lando wp [command] [args]
 lando wp post list
 
 # List custom post types
-lando wp post list --post_type=storyos_project
+lando wp post list --post_type=worldgraph_project
 
 # Create a new post
-lando wp post create --post_type=storyos_character --post_title="Character Name"
+lando wp post create --post_type=worldgraph_character --post_title="Character Name"
 
 # Get post information
 lando wp post get <post_id>
@@ -111,10 +111,10 @@ lando wp post delete <post_id>
 lando wp plugin list
 
 # Activate a plugin
-lando wp plugin activate storyos
+lando wp plugin activate worldgraph
 
 # Deactivate a plugin
-lando wp plugin deactivate storyos
+lando wp plugin deactivate worldgraph
 
 # Update plugins
 lando wp plugin update --all
@@ -220,7 +220,7 @@ Playwright is configured to use Chromium, with the following setup in `.lando.ym
 
 Set the WordPress URL for Playwright tests:
 ```bash
-export WORDPRESS_URL=https://storyos.lndo.site
+export WORDPRESS_URL=https://worldgraph.lndo.site
 lando playwright test
 ```
 
@@ -245,7 +245,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: process.env.WORDPRESS_URL || 'https://storyos.lndo.site',
+    baseURL: process.env.WORDPRESS_URL || 'https://worldgraph.lndo.site',
     trace: 'on-first-retry',
   },
   projects: [
@@ -256,7 +256,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'lando start',
-    url: 'https://storyos.lndo.site',
+    url: 'https://worldgraph.lndo.site',
     reuseExistingServer: !process.env.CI,
   },
 });
@@ -281,7 +281,7 @@ test('Login to WordPress', async ({ page }) => {
 
 To record tests for debugging:
 ```bash
-lando playwright codegen https://storyos.lndo.site
+lando playwright codegen https://worldgraph.lndo.site
 ```
 
 This opens a browser and generates Playwright code as you interact with the site.
@@ -306,8 +306,8 @@ lando playwright show-trace trace.zip
 ## Local Entry Points for Testing
 
 When Lando is running, use these URLs for validation:
-- WordPress app: https://storyos.lndo.site/
-- Playwright tests should target: https://storyos.lndo.site
+- WordPress app: https://worldgraph.lndo.site/
+- Playwright tests should target: https://worldgraph.lndo.site
 - phpMyAdmin: http://localhost:port (use `lando info` to find the exact port)
 
 ## Checking Lando Status
@@ -340,7 +340,7 @@ lando exec appserver -- php -r "opcache_reset();"
 ### Database State Issues
 Reset the test database by running the bootstrap script:
 ```bash
-lando wp db query < wordpress/wp-content/plugins/storyos/tests/bootstrap.php
+lando wp db query < wordpress/wp-content/plugins/worldgraph/tests/bootstrap.php
 ```
 
 ### Node Modules Not Installed

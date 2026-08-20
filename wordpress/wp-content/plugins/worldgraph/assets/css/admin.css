@@ -1,0 +1,206 @@
+/**
+ * World Graph Studio Admin Styles.
+ *
+ * Minimal styling that relies on WordPress default admin styles.
+ */
+
+.worldgraph-dashboard-intro {
+	font-size: 15px;
+	margin: 8px 0 24px;
+}
+
+.worldgraph-dashboard h2 {
+	font-size: 18px;
+}
+
+.worldgraph-setup-panel {
+	align-items: center;
+	background: #1d2327;
+	color: #fff;
+	display: flex;
+	gap: 18px;
+	margin: 0 0 32px;
+	max-width: 900px;
+	padding: 24px 28px;
+}
+
+.worldgraph-setup-icon {
+	align-items: center;
+	background: #2271b1;
+	display: flex;
+	height: 52px;
+	justify-content: center;
+	min-width: 52px;
+}
+
+.worldgraph-setup-icon .dashicons {
+	font-size: 28px;
+	height: 28px;
+	width: 28px;
+}
+
+.worldgraph-setup-content {
+	flex: 1;
+}
+
+.worldgraph-setup-content h2 {
+	color: #fff;
+	margin: 0 0 4px;
+}
+
+.worldgraph-setup-content p {
+	color: #dcdcde;
+	margin: 0;
+}
+
+.worldgraph-area-cards {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat( auto-fit, minmax(280px, 1fr) );
+	max-width: 1000px;
+}
+
+.worldgraph-area-card {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	color: #1d2327;
+	display: flex;
+	gap: 16px;
+	min-height: 112px;
+	padding: 20px;
+	text-decoration: none;
+}
+
+.worldgraph-area-card:hover,
+.worldgraph-area-card:focus {
+	border-color: #2271b1;
+	box-shadow: 0 2px 5px rgba( 0, 0, 0, .12 );
+	color: #135e96;
+}
+
+.worldgraph-area-card-content strong a {
+	color: #1d2327;
+	text-decoration: none;
+}
+
+.worldgraph-area-card-content strong a:hover,
+.worldgraph-area-card-content strong a:focus {
+	color: #135e96;
+	text-decoration: underline;
+}
+
+.worldgraph-area-icon {
+	color: #2271b1;
+	font-size: 34px;
+	height: 34px;
+	width: 34px;
+}
+
+.worldgraph-area-card-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.worldgraph-area-card-content strong {
+	font-size: 16px;
+}
+
+.worldgraph-area-card-content span {
+	color: #646970;
+	line-height: 1.45;
+}
+
+.worldgraph-area-card-content .worldgraph-area-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin-top: 4px;
+}
+
+.worldgraph-area-actions a {
+	color: #2271b1;
+	font-weight: 600;
+}
+
+.worldgraph-area-card-open {
+	color: #646970;
+	display: flex;
+	text-decoration: none;
+}
+
+.worldgraph-area-card-open:hover,
+.worldgraph-area-card-open:focus {
+	color: #135e96;
+}
+
+.worldgraph-group-intro {
+	font-size: 15px;
+	margin: 8px 0 24px;
+}
+
+.worldgraph-group-cards {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: repeat( auto-fit, minmax( 280px, 1fr ) );
+	max-width: 1000px;
+}
+
+.worldgraph-group-card {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	color: #1d2327;
+	display: flex;
+	gap: 16px;
+	min-height: 92px;
+	padding: 18px 20px;
+	text-decoration: none;
+}
+
+.worldgraph-group-card:hover,
+.worldgraph-group-card:focus {
+	border-color: #2271b1;
+	box-shadow: 0 2px 5px rgba( 0, 0, 0, .12 );
+	color: #135e96;
+}
+
+.worldgraph-group-card-icon {
+	color: #2271b1;
+	font-size: 30px;
+	height: 30px;
+	width: 30px;
+}
+
+.worldgraph-group-card-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.worldgraph-group-card-content strong {
+	font-size: 15px;
+}
+
+.worldgraph-group-card-content span {
+	color: #646970;
+	line-height: 1.4;
+}
+
+.worldgraph-group-card > .dashicons:last-child {
+	color: #646970;
+}
+
+@media screen and ( max-width: 600px ) {
+	.worldgraph-setup-panel {
+		align-items: flex-start;
+		flex-wrap: wrap;
+	}
+
+	.worldgraph-setup-panel .button {
+		margin-left: 70px;
+	}
+}

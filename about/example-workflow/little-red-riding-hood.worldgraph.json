@@ -1,0 +1,271 @@
+{
+  "worldgraph_version": "1.1",
+  "project": {
+    "id": "project_lrrh",
+    "title": "Little Red Riding Hood",
+    "description": "World Graph Studio sample project demonstrating Story Graph creation and AI-assisted production workflows."
+  },
+  "world": {
+    "id": "world_woodland_village",
+    "name": "Woodland Village",
+    "description": "A small rural village connected by a forest path to a grandmother's cottage."
+  },
+  "characters": [
+    {
+      "id": "char_red",
+      "name": "Little Red Riding Hood",
+      "archetype": "Hero",
+      "description": "A young traveler delivering a basket to Grandmother. This character wears the red hood prop and carries the basket prop."
+    },
+    {
+      "id": "char_grandmother",
+      "name": "Grandmother",
+      "archetype": "Mentor",
+      "description": "An elderly woman living alone near the forest."
+    },
+    {
+      "id": "char_wolf",
+      "name": "Wolf",
+      "archetype": "Trickster",
+      "description": "A cunning wolf who wants to intercept Red before reaching Grandmother."
+    }
+  ],
+  "locations": [
+    {
+      "id": "loc_village",
+      "name": "Village Cottage",
+      "description": "A quaint cottage in the forest."
+    },
+    {
+      "id": "loc_forest",
+      "name": "Forest Path",
+      "description": "A deserted path through a dark primeval forest."
+    },
+    {
+      "id": "loc_grandmother_house",
+      "name": "Grandmother's House",
+      "description": "A dilapidated cottage deep in the woods."
+    }
+  ],
+  "props": [
+    {
+      "id": "prop_cloak",
+      "name": "Red Cloak",
+      "owner_character": "char_red",
+      "description": "A cute clothing item that would fit on a little girl's head."
+    },
+    {
+      "id": "prop_basket",
+      "name": "Basket",
+      "owner_character": "char_red",
+      "description": "A charming period picnic basket with a plaid lining."
+    },
+    {
+      "id": "prop_bed",
+      "name": "Bed",
+      "owner_character": "char_grandmother",
+      "description": "A old wooden bed with a tall bedstead."
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene_1",
+      "title": "The Assignment",
+      "label": "The Assignment",
+      "location": "loc_village",
+      "characters": ["char_red", "char_grandmother"],
+      "props": ["prop_basket", "prop_cloak"],
+      "summary": "Red prepares to visit Grandmother.",
+      "dialogue": [
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "I am taking this basket of treats to my Grandmother's house."
+        }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "title": "The Encounter",
+      "label": "The Encounter",
+      "location": "loc_forest",
+      "characters": ["char_red", "char_wolf"],
+      "props": ["prop_basket"],
+      "summary": "Red meets Wolf on the forest path.",
+      "dialogue": [
+        {
+          "speaker": "Wolf",
+          "text": "Hello little girl, where are you going today?"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "I am visiting my grandmother to deliver this basket of treats."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "How interesting.",
+          "description": "Wolf licks his lips"
+        }
+      ]
+    },
+    {
+      "id": "scene_3",
+      "title": "The Reveal",
+      "label": "The Reveal",
+      "location": "loc_grandmother_house",
+      "characters": ["char_red", "char_grandmother", "char_wolf"],
+      "props": ["prop_bed"],
+      "summary": "The wolf has disguised himself as Grandmother and is in her bed. Through  an investigation, Red discovers Wolf's deception and reunites with Grandmother.",
+      "dialogue": [
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "Something seems different."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "Come closer.",
+          "description": "Wolf is disguised as Grandmother"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "My Grandmother. What big eyes you have."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "The better to see you with my dear, do come closer.",
+          "description": "Wolf is disguised as Grandmother"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "My Grandmother. What big ears you have."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "The better to hear you with my dear.",
+          "description": "Wolf is disguised as Grandmother"
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "Oh Grandmother. What big teeth you have."
+        },
+        {
+          "speaker": "Wolf",
+          "text": "The better to EAT you with!",
+          "description": "Wolf throws off disguise and leaps at Red."
+        },
+        {
+          "speaker": "Little Red Riding Hood",
+          "text": "You are not Grandmother!"
+        }
+      ]
+    }
+  ],
+  "shots": [
+    {"id": "shot_1", "scene": "scene_1", "title": "Village Cottage Exterior", "label": "Village Cottage Exterior", "type": "wide", "description": "Village cottage exterior."},
+    {"id": "shot_2", "scene": "scene_1", "title": "Basket Handoff", "label": "Basket Handoff", "type": "medium", "description": "Basket handoff."},
+    {"id": "shot_3", "scene": "scene_1", "title": "Red Accepts Responsibility", "label": "Red Accepts Responsibility", "type": "closeup", "description": "Red accepts responsibility."},
+    {"id": "shot_4", "scene": "scene_2", "title": "Forest Path Establishing Shot", "label": "Forest Path Establishing Shot", "type": "wide", "description": "Forest path establishing shot."},
+    {"id": "shot_5", "scene": "scene_2", "title": "Wolf Approaches", "label": "Wolf Approaches", "type": "medium", "description": "Wolf approaches."},
+    {"id": "shot_6", "scene": "scene_2", "title": "Red and Wolf Converse", "label": "Red and Wolf Converse", "type": "closeup", "description": "Conversation between Red and Wolf."},
+    {"id": "shot_7", "scene": "scene_3", "title": "Grandmother's Cottage Interior", "label": "Grandmother's Cottage Interior", "type": "wide", "description": "Grandmother's cottage interior."},
+    {"id": "shot_8", "scene": "scene_3", "title": "Something Seems Different", "label": "Something Seems Different", "type": "medium", "description": "Red notices something strange."},
+    {"id": "shot_9", "scene": "scene_3", "title": "Final Reveal", "label": "Final Reveal", "type": "closeup", "description": "Final reveal."}
+  ],
+  "sounds": [
+    {
+      "id": "sound_opening_narration",
+      "title": "Opening Narration",
+      "type": "narration",
+      "description": "A warm storybook introduction over the village cottage.",
+      "spoken_text": "Once upon a time, a girl in a red cloak set out to visit her grandmother.",
+      "start_timecode": "00:00:00:00",
+      "duration": "PT8S",
+      "diegetic": "non_diegetic",
+      "production_notes": "Intimate, reassuring delivery with a hint of coming danger.",
+      "scene": "scene_1",
+      "shot": "shot_1"
+    },
+    {
+      "id": "sound_red_voiceover",
+      "title": "Red Remembers Her Promise",
+      "type": "voiceover",
+      "spoken_text": "Stay on the path and keep the basket safe. Grandmother is waiting.",
+      "start_timecode": "00:00:02:00",
+      "duration": "PT5S",
+      "diegetic": "internal",
+      "scene": "scene_2",
+      "shot": "shot_4",
+      "character": "char_red"
+    },
+    {
+      "id": "sound_forest_song",
+      "title": "Stay to the Path",
+      "type": "music",
+      "description": "A cautious traveling theme that becomes less secure as Red enters the forest.",
+      "lyrics": "Stay to the path through shadow and pine.\nCarry the basket and all will be fine.",
+      "start_timecode": "00:00:00:00",
+      "duration": "PT18S",
+      "diegetic": "non_diegetic",
+      "production_notes": "Sparse strings and celesta; leave room for the existing scene dialogue.",
+      "scene": "scene_2",
+      "shot": "shot_4"
+    },
+    {
+      "id": "sound_forest_ambience",
+      "title": "Forest Path Ambience",
+      "type": "ambience",
+      "description": "Wind in old trees, distant birds, and subtle branch movement.",
+      "duration": "PT45S",
+      "diegetic": "diegetic",
+      "scene": "scene_2"
+    },
+    {
+      "id": "sound_wolf_footfalls",
+      "title": "Wolf Approaches Through Leaves",
+      "type": "foley",
+      "description": "Measured paw falls and leaf crunches synchronized to the Wolf's approach.",
+      "start_timecode": "00:00:01:12",
+      "duration": "PT6S",
+      "diegetic": "diegetic",
+      "scene": "scene_2",
+      "shot": "shot_5"
+    },
+    {
+      "id": "sound_reveal_sting",
+      "title": "Wolf Reveal Sting",
+      "type": "sound-effect",
+      "description": "A sharp designed impact as the Wolf throws off the disguise.",
+      "start_timecode": "00:00:07:00",
+      "duration": "PT2S",
+      "diegetic": "non_diegetic",
+      "scene": "scene_3",
+      "shot": "shot_9"
+    },
+    {
+      "id": "sound_pre_reveal_silence",
+      "title": "Silence Before the Reveal",
+      "type": "silence",
+      "description": "Drop the room tone briefly to hold Red's realization.",
+      "start_timecode": "00:00:05:00",
+      "duration": "PT2S",
+      "diegetic": "unspecified",
+      "scene": "scene_3",
+      "shot": "shot_8"
+    }
+  ],
+  "storyboards": [
+    {"id": "sb_1", "shot": "shot_1", "description": "Village cottage at sunrise."},
+    {"id": "sb_2", "shot": "shot_2", "description": "Basket exchange."},
+    {"id": "sb_3", "shot": "shot_3", "description": "Red prepares to leave."},
+    {"id": "sb_4", "shot": "shot_4", "description": "Forest path establishing frame."},
+    {"id": "sb_5", "shot": "shot_5", "description": "Wolf enters frame."},
+    {"id": "sb_6", "shot": "shot_6", "description": "Conversation coverage."},
+    {"id": "sb_7", "shot": "shot_7", "description": "Grandmother's room."},
+    {"id": "sb_8", "shot": "shot_8", "description": "Red investigates."},
+    {"id": "sb_9", "shot": "shot_9", "description": "Reveal and resolution."}
+  ],
+  "sequence": {
+    "id": "sequence_1",
+    "title": "Little Red Riding Hood Sequence",
+    "order": ["scene_1", "scene_2", "scene_3"]
+  }
+}

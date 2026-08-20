@@ -1,4 +1,4 @@
-name: storyos
+name: worldgraph
 
 recipe: lamp
 config:
@@ -28,9 +28,9 @@ services:
       WORDPRESS_TABLE_PREFIX: wp_
       WP_USERNAME: ${WP_USERNAME:-admin}
       WP_APP_PASSWORD: ${WP_APP_PASSWORD:-admin}
-      STORYOS_COMFY_API_KEY: ${STORYOS_COMFY_API_KEY:-}
-      STORYOS_AI_API_KEY: ${STORYOS_AI_API_KEY:-}
-      STORYOS_AI_FALLBACK_API_KEY: ${STORYOS_AI_FALLBACK_API_KEY:-}
+      WORLDGRAPH_COMFY_API_KEY: ${WORLDGRAPH_COMFY_API_KEY:-}
+      WORLDGRAPH_AI_API_KEY: ${WORLDGRAPH_AI_API_KEY:-}
+      WORLDGRAPH_AI_FALLBACK_API_KEY: ${WORLDGRAPH_AI_FALLBACK_API_KEY:-}
   database:
     type: mariadb:10.6
     portforward: true

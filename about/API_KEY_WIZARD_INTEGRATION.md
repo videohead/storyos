@@ -1,8 +1,8 @@
-# StoryOS API Key Configuration in Setup Wizard - Summary
+# World Graph Studio API Key Configuration in Setup Wizard - Summary
 
 ## ✅ Task Completed
 
-All API keys for the StoryOS plugin can be configured through the initial setup wizard. The wizard stores the configuration directly in WordPress options.
+All API keys for the World Graph Studio plugin can be configured through the initial setup wizard. The wizard stores the configuration directly in WordPress options.
 
 ## What Was Implemented
 
@@ -29,18 +29,18 @@ The wizard (`includes/admin/setup-wizard.php`) has been updated to include compr
 - **Base URL:** Endpoint for API-compatible services
 - **Model Name:** Model identifier to use
 - **API Key:** Authentication credentials
-- **Stored as:** `storyos_ai_*` options
+- **Stored as:** `worldgraph_ai_*` options
 
 **Advanced LLM Settings (Optional)**
 - **Max Tokens:** Response length limit (default: 2048)
 - **Temperature:** Creativity level 0.0-1.0 (default: 0.7)
-- **Stored as:** `storyos_ai_max_tokens`, `storyos_ai_temperature`
+- **Stored as:** `worldgraph_ai_max_tokens`, `worldgraph_ai_temperature`
 
 **Fallback LLM (Optional)**
 - **Provider:** OpenAI or Anthropic
 - **API Key:** Backup provider credentials
 - **Purpose:** Automatic failover if primary LLM unavailable
-- **Stored as:** `storyos_ai_fallback_*` options
+- **Stored as:** `worldgraph_ai_fallback_*` options
 
 ## File Changes
 
@@ -84,7 +84,7 @@ All API keys are configured in one place during plugin activation and stored as 
 
 ### 3. **Automatic Redirect**
 - Plugin redirects to wizard after activation
-- Setup state tracked via `storyos_setup_complete` option
+- Setup state tracked via `worldgraph_setup_complete` option
 - Can be reset to re-run wizard
 
 ### 4. **Validation & Sanitization**
@@ -102,7 +102,7 @@ Plugin Activation
         ↓
 Auto-redirect to Setup Wizard
         ↓
-"Set Up StoryOS" Page
+"Set Up World Graph Studio" Page
   1. WordPress Runtime (read-only status)
   2. Generation Connection (optional)
   3. LLM Connection (primary + fallback)
@@ -124,17 +124,17 @@ Setup complete - Wizard no longer blocks access
 ### WordPress Options
 All settings persisted to WordPress options table:
 ```
-storyos_comfy_connection_mode
-storyos_generation_connection_mode
-storyos_ai_backend
-storyos_ai_url
-storyos_ai_model
-storyos_ai_api_key
-storyos_ai_max_tokens
-storyos_ai_temperature
-storyos_ai_fallback_backend
-storyos_ai_fallback_api_key
-storyos_setup_complete
+worldgraph_comfy_connection_mode
+worldgraph_gen_connection_mode
+worldgraph_ai_backend
+worldgraph_ai_url
+worldgraph_ai_model
+worldgraph_ai_api_key
+worldgraph_ai_max_tokens
+worldgraph_ai_temperature
+worldgraph_ai_fallback_backend
+worldgraph_ai_fallback_api_key
+worldgraph_setup_complete
 ```
 
 ### Database Security
@@ -143,8 +143,8 @@ storyos_setup_complete
 - Never expose API keys in code repositories
 - Treat database backups as sensitive because they may contain saved API keys
 
-`storyos_generation_connection_mode` is the current preferred-Connection
-option. `storyos_comfy_connection_mode` is mirrored as a compatibility option
+`worldgraph_gen_connection_mode` is the current preferred-Connection
+option. `worldgraph_comfy_connection_mode` is mirrored as a compatibility option
 for existing installations and extensions.
 
 ## Developer Integration
@@ -153,40 +153,40 @@ for existing installations and extensions.
 ```php
 // Get the managed Generation Connection credential
 $generation_key = get_post_meta( $generation_connection_id, 'credential_reference', true );
-$llm_key = get_option( 'storyos_ai_api_key' );
-$fallback_key = get_option( 'storyos_ai_fallback_api_key' );
+$llm_key = get_option( 'worldgraph_ai_api_key' );
+$fallback_key = get_option( 'worldgraph_ai_fallback_api_key' );
 
 // Get LLM configuration
-$backend = get_option( 'storyos_ai_backend' );
-$url = get_option( 'storyos_ai_url' );
-$model = get_option( 'storyos_ai_model' );
+$backend = get_option( 'worldgraph_ai_backend' );
+$url = get_option( 'worldgraph_ai_url' );
+$model = get_option( 'worldgraph_ai_model' );
 ```
 
 ### Programmatic Configuration
 ```php
 // Configure a fal Generation Connection programmatically
-\StoryOS\CPT\Connection::upsert_managed( 'generation', 'fal', [
+\WorldGraph\CPT\Connection::upsert_managed( 'generation', 'fal', [
 	'provider_type'        => 'fal',
 	'environment'          => 'production',
-	'endpoint_url'         => \StoryOS\Utils\Fal_MCP::ENDPOINT,
-	'mcp_endpoint_url'     => \StoryOS\Utils\Fal_MCP::ENDPOINT,
+	'endpoint_url'         => \WorldGraph\Utils\Fal_MCP::ENDPOINT,
+	'mcp_endpoint_url'     => \WorldGraph\Utils\Fal_MCP::ENDPOINT,
 	'credential_reference' => 'env://FAL_KEY',
 ] );
 
 // Configure an ElevenLabs generative-audio Connection programmatically.
-\StoryOS\CPT\Connection::upsert_managed( 'generation', 'ElevenLabs', [
+\WorldGraph\CPT\Connection::upsert_managed( 'generation', 'ElevenLabs', [
 	'provider_type'        => 'elevenlabs',
 	'environment'          => 'production',
 	'endpoint_url'         => 'https://api.elevenlabs.io/v1',
 	'credential_reference' => 'env://ELEVENLABS_API_KEY',
 	'model'                => 'eleven_multilingual_v2',
 ] );
-update_option( 'storyos_ai_backend', 'openai' );
-update_option( 'storyos_ai_model', 'gpt-4' );
-update_option( 'storyos_ai_api_key', 'sk-xxx...' );
-update_option( 'storyos_ai_fallback_backend', 'anthropic' );
-update_option( 'storyos_ai_fallback_api_key', 'sk-xxx...' );
-update_option( 'storyos_setup_complete', true );
+update_option( 'worldgraph_ai_backend', 'openai' );
+update_option( 'worldgraph_ai_model', 'gpt-4' );
+update_option( 'worldgraph_ai_api_key', 'sk-xxx...' );
+update_option( 'worldgraph_ai_fallback_backend', 'anthropic' );
+update_option( 'worldgraph_ai_fallback_api_key', 'sk-xxx...' );
+update_option( 'worldgraph_setup_complete', true );
 ```
 
 ## Testing Checklist

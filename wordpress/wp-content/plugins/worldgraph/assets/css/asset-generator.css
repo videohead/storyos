@@ -1,0 +1,25 @@
+.worldgraph-generate-asset h4 {
+	margin: 0 0 4px;
+}
+
+.worldgraph-generate-asset__options {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+}
+
+.worldgraph-generate-asset__status {
+	min-height: 20px;
+	color: #50575e;
+}
+
+.worldgraph-generate-asset__status.is-error {
+	color: #d63638;
+}
+
+.worldgraph-generate-asset__result img {
+	height: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 2px;
+}

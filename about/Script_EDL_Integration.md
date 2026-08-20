@@ -1,10 +1,10 @@
-# StoryOS Script & EDL Integration Specification v1.0
+# World Graph Studio Script & EDL Integration Specification v1.0
 
 > Build Your Story Once. Create Everywhere.
 
 ## Purpose
 
-This document defines how StoryOS integrates with screenwriting software, production workflows, and editorial systems.
+This document defines how World Graph Studio integrates with screenwriting software, production workflows, and editorial systems.
 
 The goal is to allow story information stored within the Story Graph to flow seamlessly between writing, storyboarding, production planning, asset generation, and editing.
 
@@ -18,7 +18,7 @@ Story development occurs in one application.
 Production planning occurs in another.
 Editorial planning occurs elsewhere.
 
-StoryOS positions the Story Graph as the canonical source of truth.
+World Graph Studio positions the Story Graph as the canonical source of truth.
 
 ```text
 Story Graph
@@ -44,11 +44,11 @@ Every downstream artifact can be regenerated from structured story data.
 
 ## Import Existing Projects
 
-Creators should be able to migrate existing projects into StoryOS.
+Creators should be able to migrate existing projects into World Graph Studio.
 
 ## Export Professional Deliverables
 
-StoryOS should support traditional filmmaking workflows.
+World Graph Studio should support traditional filmmaking workflows.
 
 ## Preserve Relationships
 
@@ -62,19 +62,19 @@ Imported content should create Story Graph entities automatically.
 
 Full bi-directional synchronization with Celtx via the Celtx GEM API:
 
-- **CPT Synchronization**: Projects, Characters, Locations, Scenes, Shots sync between StoryOS and Celtx
+- **CPT Synchronization**: Projects, Characters, Locations, Scenes, Shots sync between World Graph Studio and Celtx
 - **Bidirectional Sync**: Changes in either platform propagate to the other
-- **Element Mapping**: Persistent StoryOS ↔ Celtx ID mapping stored in post meta
+- **Element Mapping**: Persistent World Graph Studio ↔ Celtx ID mapping stored in post meta
 - **API Authentication**: API key, Basic Auth, and Cookie Auth support
-- **WordPress Plugin**: `storyos-celtx` plugin handles all Celtx communication
-- **REST API**: Sync endpoints via `wp-json/storyos-celtx/v1/*`
+- **WordPress Plugin**: `worldgraph-celtx` plugin handles all Celtx communication
+- **REST API**: Sync endpoints via `wp-json/worldgraph-celtx/v1/*`
 
 ### Celtx Sync Architecture
 
 ```
-StoryOS (WordPress)
+World Graph Studio (WordPress)
     ↓
-storyos-celtx Plugin
+worldgraph-celtx Plugin
     ├── API Client (class-celtx-api.php)
     ├── Sync Service (class-celtx-sync.php)
     └── Settings (class-celtx-settings.php)
@@ -114,7 +114,7 @@ Celtx GEM API (games-api.celtx.com/api)
 ## Celtx Bi-Directional Sync (Complete)
 
 ```text
-StoryOS CPTs
+World Graph Studio CPTs
     ↓
 Sync Service
     ↓
@@ -130,7 +130,7 @@ Celtx GEM API
     ↓
 Sync Service
     ↓
-StoryOS CPTs
+World Graph Studio CPTs
 ```
 
 Changes in either platform propagate to the other via persistent ID mapping.
@@ -232,7 +232,7 @@ Each storyboard frame remains connected to its source entities.
 
 # Shot List Generation
 
-StoryOS should generate structured shot lists.
+World Graph Studio should generate structured shot lists.
 
 Example:
 
@@ -272,7 +272,7 @@ All data originates from Story Graph entities.
 
 ## Purpose
 
-Provide editorial systems with structured timeline information from StoryOS projects and episodes. Enables bidirectional workflow between StoryOS shot planning and professional NLEs (Non-Linear Editors).
+Provide editorial systems with structured timeline information from World Graph Studio projects and episodes. Enables bidirectional workflow between World Graph Studio shot planning and professional NLEs (Non-Linear Editors).
 
 **Status**: ✅ Implemented — CMX 3600 ASCII and SMPTE 436m XML export/import
 
@@ -313,7 +313,7 @@ Fully compatible with:
 
 ## Unreal Engine Sequencer Workflow
 
-1. **Export from StoryOS** → Shot timeline as EDL with pre-roll/post-roll handles
+1. **Export from World Graph Studio** → Shot timeline as EDL with pre-roll/post-roll handles
 2. **Render in Unreal Engine** → Sequencer exports video clips + EDL
 3. **Edit in NLE** → Import EDL into Premiere Pro/DaVinci Resolve, link media, make edits
 4. **Re-import to UE** → Export edited EDL from NLE, import back into Unreal Engine Sequencer
@@ -429,7 +429,7 @@ Detect inconsistencies across script, assets, storyboards, and editorial outputs
 
 # Success Criteria
 
-StoryOS can:
+World Graph Studio can:
 
 1. Import screenplay formats.
 2. Populate the Story Graph automatically.

@@ -1,4 +1,4 @@
-# StoryOS REST API Specification v1.0
+# World Graph Studio REST API Specification v1.0
 
 > Build Your Story Once. Create Everywhere.
 
@@ -6,7 +6,7 @@
 
 >  see [Deployment and Connections](Deployment_and_Connections.md).
 
-The StoryOS REST API provides a unified integration layer between:
+The World Graph Studio REST API provides a unified integration layer between:
 
 - WordPress
 - Story Graph
@@ -44,7 +44,7 @@ All modifications should support activity tracking and version history.
 # Base URL
 
 ```text
-/api/storyos/v1
+/api/worldgraph/v1
 ```
 
 ---
@@ -117,7 +117,7 @@ Expected response snippet:
 [
   {
     "id": 412,
-    "type": "storyos_character",
+    "type": "worldgraph_character",
     "title": "Mara Quinn",
     "meta": {
       "character_roles": [
@@ -125,10 +125,10 @@ Expected response snippet:
       ]
     },
     "taxonomies": {
-      "storyos_character_role": [
+      "worldgraph_character_role": [
         { "id": 12, "name": "Protagonist", "slug": "protagonist" }
       ],
-      "storyos_status": [
+      "worldgraph_status": [
         { "id": 7, "name": "Approved", "slug": "approved" }
       ]
     }
@@ -138,8 +138,8 @@ Expected response snippet:
 
 Character responses include taxonomy metadata such as:
 
-- `storyos_character_relation`
-- `storyos_character_role`
+- `worldgraph_character_relation`
+- `worldgraph_character_role`
 
 ## Locations
 
@@ -181,7 +181,7 @@ Expected response snippet:
 [
   {
     "id": 827,
-    "type": "storyos_scene",
+    "type": "worldgraph_scene",
     "title": "Bridge Confrontation",
     "meta": {
       "sequences": [
@@ -190,10 +190,10 @@ Expected response snippet:
       "shot_count": 11
     },
     "taxonomies": {
-      "storyos_sequence": [
+      "worldgraph_sequence": [
         { "id": 24, "name": "Climax", "slug": "climax" }
       ],
-      "storyos_status": [
+      "worldgraph_status": [
         { "id": 7, "name": "Approved", "slug": "approved" }
       ]
     }
@@ -203,8 +203,8 @@ Expected response snippet:
 
 Scene responses include taxonomy metadata such as:
 
-- `storyos_scene_tag`
-- `storyos_sequence`
+- `worldgraph_scene_tag`
+- `worldgraph_sequence`
 
 ## Shots
 
@@ -239,7 +239,7 @@ List filters:
 - `scene` (post ID)
 - `shot` (post ID)
 - `sound_type` (slug or comma-separated slugs)
-- `production_status` (`storyos_status` taxonomy slug or comma-separated slugs)
+- `production_status` (`worldgraph_status` taxonomy slug or comma-separated slugs)
 - `status` (WordPress lifecycle: `draft`, `pending`, `publish`, or `private`)
 
 Creation requires a non-empty `title`, exactly one `meta.sound_type`, and
@@ -267,7 +267,7 @@ Asset.
 ```
 
 Seed terms are `narration`, `voiceover`, `music`, `sound-effect`, `ambience`,
-`foley`, `silence`, and `adr`; `storyos_sound_type` remains extensible.
+`foley`, `silence`, and `adr`; `worldgraph_sound_type` remains extensible.
 Custom terms must be created through the taxonomy API or admin before REST use.
 The `dialogue` slug is reserved and cannot be created or assigned.
 `spoken_text` is reserved for narration, voice-over, or ADR. Existing Scene
@@ -301,7 +301,7 @@ Response includes:
 
 ## Relationship Semantics
 
-StoryOS distinguishes two link intents in API/UI wording:
+World Graph Studio distinguishes two link intents in API/UI wording:
 
 - Source: provenance link where an output is derived from an origin entity.
 - Linked: associative link where entities are related but not necessarily derived.
@@ -321,7 +321,7 @@ API payloads and docs follow these shared term meanings:
 
 - Shot: continuous footage between two edits.
 - Take: one recorded attempt of a shot; modeled as shot production metadata.
-- Sequence: one or more scenes grouped by dramatic progression (`storyos_sequence`).
+- Sequence: one or more scenes grouped by dramatic progression (`worldgraph_sequence`).
 - Continuity: consistency across adjacent shots/scenes and linked entities.
 - EDL: editorial decision output represented as an Editorial Artifact.
 - ADR: post-production dialogue replacement metadata when present.
@@ -354,25 +354,25 @@ Example:
 
 ## ✅ Celtx Integration (COMPLETE — Phase E)
 
-The `storyos-celtx` WordPress plugin provides bi-directional sync with Celtx via the Celtx GEM API.
+The `worldgraph-celtx` WordPress plugin provides bi-directional sync with Celtx via the Celtx GEM API.
 
 ### Sync Endpoints
 
 ```http
-GET  /wp-json/storyos-celtx/v1/sync/status
-POST /wp-json/storyos-celtx/v1/sync/characters
-POST /wp-json/storyos-celtx/v1/sync/locations
-POST /wp-json/storyos-celtx/v1/sync/scenes
-POST /wp-json/storyos-celtx/v1/sync/shots
-POST /wp-json/storyos-celtx/v1/sync/projects
-POST /wp-json/storyos-celtx/v1/sync/full
+GET  /wp-json/worldgraph-celtx/v1/sync/status
+POST /wp-json/worldgraph-celtx/v1/sync/characters
+POST /wp-json/worldgraph-celtx/v1/sync/locations
+POST /wp-json/worldgraph-celtx/v1/sync/scenes
+POST /wp-json/worldgraph-celtx/v1/sync/shots
+POST /wp-json/worldgraph-celtx/v1/sync/projects
+POST /wp-json/worldgraph-celtx/v1/sync/full
 ```
 
 ### Settings Endpoints
 
 ```http
-GET  /wp-json/storyos-celtx/v1/settings
-POST /wp-json/storyos-celtx/v1/settings
+GET  /wp-json/worldgraph-celtx/v1/settings
+POST /wp-json/worldgraph-celtx/v1/settings
 ```
 
 ### Authentication
@@ -553,7 +553,7 @@ Future enhancement using vector search.
 
 # Events
 
-StoryOS should support event-driven workflows.
+World Graph Studio should support event-driven workflows.
 
 Example events:
 
@@ -573,8 +573,8 @@ EDLGenerated
 API versioning format:
 
 ```text
-/api/storyos/v1
-/api/storyos/v2
+/api/worldgraph/v1
+/api/worldgraph/v2
 ```
 
 Backward compatibility should be maintained whenever possible.
@@ -595,4 +595,4 @@ Backward compatibility should be maintained whenever possible.
 
 # Long-Term Objective
 
-The StoryOS API becomes the integration backbone connecting storytelling, generation, production, and editorial systems through a common Story Graph platform.
+The World Graph Studio API becomes the integration backbone connecting storytelling, generation, production, and editorial systems through a common Story Graph platform.

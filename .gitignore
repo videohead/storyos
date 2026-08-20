@@ -11,8 +11,8 @@ wordpress/wp-includes/
 wordpress/*.php
 wordpress/wp-content/uploads/
 wordpress/wp-content/themes/
-!wordpress/wp-content/plugins/storyos/
-!wordpress/wp-content/plugins/storyos/plugins/comfy-generate/
+!wordpress/wp-content/plugins/worldgraph/
+!wordpress/wp-content/plugins/worldgraph/plugins/comfy-generate/
 
 # SCF 
 wordpress/wp-content/plugins/secure-custom-fields/
@@ -70,6 +70,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
+wordpress/wp-content/plugins/worldgraph/tests/.phpunit.result.cache
 htmlcov/
 .tox/
 .nox/

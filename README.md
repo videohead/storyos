@@ -1,4 +1,4 @@
-# StoryOS
+# World Graph Studio
 
 > Build Your Story Once. Create Everywhere.
 >
@@ -6,10 +6,10 @@
 
 ## Table of Contents
 
-### About StoryOS
+### About World Graph Studio
 - [Deployment and Connections](about/Deployment_and_Connections.md) — Comfy Cloud, local Comfy MCP, LLM, and BYOK setup
 - [Web GenAI Platform Support](about/WEB_GENAI.md) — current support matrix and paths for external web generators
-- [StoryOS Architecture](about/StoryOS_Architecture.md) — System overview and component design
+- [World Graph Studio Architecture](about/World_Graph_Studio_Architecture.md) — System overview and component design
 - [Content Model Specification](about/Content_Model_Specification.md) — Data model for stories, characters, scenes, and assets
 - [Story Graph Specification](about/Story_Graph_Specification.md) — Connected story data structure
 - [CPT and SCF Schema](about/CPT_and_SCF_Schema.md) — Custom Post Type and Structured Content Field definitions
@@ -24,27 +24,27 @@
 - [Agents Copy](about/AGENTS\ copy.md) — Additional agent reference documentation
 
 ### Product & Planning
-- [StoryOD PRD](about/StoryOD_PRD.md) — Product Requirements Document
-- [Roadmap](about/ROADMAP_StoryOS.md) — Project timeline and milestones
+- [World Graph Studio PRD](about/World_Graph_Studio_PRD.md) — Product Requirements Document
+- [Roadmap](about/ROADMAP_World_Graph_Studio.md) — Project timeline and milestones
 
 ### Governance & Community
-- [Contributing Guide](about/CONTRIBUTING_StoryOS.md) — How to contribute to StoryOS
-- [Governance](about/GOVERNANCE_StoryOS.md) — Project governance model
-- [Code of Conduct](about/CODE_OF_CONDUCT_StoryOS.md) — Community guidelines
+- [Contributing Guide](about/CONTRIBUTING_World_Graph_Studio.md) — How to contribute to World Graph Studio
+- [Governance](about/GOVERNANCE_World_Graph_Studio.md) — Project governance model
+- [Code of Conduct](about/CODE_OF_CONDUCT_World_Graph_Studio.md) — Community guidelines
 
 ### Marketing
-- [Brand Guide](about/marketing/StoryOS_Brand_Guide.md) — Brand identity and usage guidelines
-- [Pitch Deck](about/marketing/StoryOS-PitchDeck.png) — Visual pitch deck
+- [Brand Guide](about/marketing/World_Graph_Studio_Brand_Guide.md) — Brand identity and usage guidelines
+- [Pitch Deck](about/marketing/World-Graph-Studio-PitchDeck.png) — Visual pitch deck
 
 ---
 
-## What is StoryOS?
+## What is World Graph Studio?
 
-StoryOS is an open-source platform that combines structured story development, AI-assisted creation, production planning, asset generation, and editorial workflows into a unified storytelling environment.
+World Graph Studio is an open-source platform that combines structured story development, AI-assisted creation, production planning, asset generation, and editorial workflows into a unified storytelling environment.
 
-Unlike AI tools that focus only on image or video generation, StoryOS focuses on preserving story context throughout the entire creative lifecycle.
+Unlike AI tools that focus only on image or video generation, World Graph Studio focuses on preserving story context throughout the entire creative lifecycle.
 
-StoryOS treats stories as structured, connected data.
+World Graph Studio treats stories as structured, connected data.
 
 Characters, locations, props, scenes, storyboards, scripts, shots, generated assets, production plans, and editorial artifacts all become part of a shared Story Graph that serves as the source of truth for the project.
 
@@ -91,7 +91,7 @@ Create an open platform where creators can manage story worlds, develop scripts,
 ### Comfy Cloud MCP
 - GPU-accelerated image, video, audio, and 3D workflows
 - Template discovery and execution through the first-party MCP endpoint
-- API key supplied with `STORYOS_COMFY_API_KEY` or the StoryOS option
+- API key supplied with `WORLDGRAPH_COMFY_API_KEY` or the World Graph Studio option
 
 ### AI Advisors
 - 50 specialized advisors from film industry archetypes
@@ -137,7 +137,7 @@ in [about/example-workflow/](about/example-workflow/).
 ### ✅ Phase E: Script Ecosystem (COMPLETE)
 - **Celtx Integration** — Full bi-directional sync via Celtx GEM API
   - CPT synchronization (Projects, Characters, Locations, Scenes, Shots)
-  - Persistent StoryOS ↔ Celtx ID mapping
+  - Persistent World Graph Studio ↔ Celtx ID mapping
   - WordPress plugin with REST API endpoints
   - API key, Basic Auth, and Cookie Auth support
 - **File-Based Import** (Planned)
@@ -169,7 +169,7 @@ in [about/example-workflow/](about/example-workflow/).
 ## Quick Start
 
 ### 1. Install the prerequisites
-Before starting StoryOS, make sure you have the following installed and running:
+Before starting World Graph Studio, make sure you have the following installed and running:
 - Docker Desktop or Docker Engine
 - Git
 - Lando
@@ -179,7 +179,7 @@ Before starting StoryOS, make sure you have the following installed and running:
 Comfy Cloud MCP or local ComfyUI via an MCP client is optional for generation. Browser-only ChatGPT, Claude, and Claude Code subscriptions are not supported by the WordPress integration without an API credential.
 
 ### 2. Install Lando
-Lando is the recommended way to run StoryOS locally.
+Lando is the recommended way to run World Graph Studio locally.
 
 Get the installer from the official Lando documentation:
 https://docs.lando.dev/getting-started/installation.html
@@ -199,7 +199,7 @@ lando version
 
 ```bash
 git clone <repo-url>
-cd storyos
+cd worldgraph
 lando start
 ```
 
@@ -230,15 +230,15 @@ lando db-import --check
 ```
 
 ### 4. Connect Generation and AI
-Open **StoryOS > Setup** in WordPress to configure Comfy Cloud MCP and an API-connected LLM. Configure local Comfy MCP in an MCP-capable agent client. See [Deployment and Connections](about/Deployment_and_Connections.md) for the required credentials and supported local endpoints.
+Open **World Graph Studio > Setup** in WordPress to configure Comfy Cloud MCP and an API-connected LLM. Configure local Comfy MCP in an MCP-capable agent client. See [Deployment and Connections](about/Deployment_and_Connections.md) for the required credentials and supported local endpoints.
 
 ### Useful commands
 
 ```bash
 lando info
 lando wp
-lando wp option update siteurl https://storyos.lndo.site
-lando wp option update home https://storyos.lndo.site
+lando wp option update siteurl https://worldgraph.lndo.site
+lando wp option update home https://worldgraph.lndo.site
 lando phpunit
 lando playwright
 lando wp-cron
@@ -253,17 +253,17 @@ lando pma
 ### API Endpoints
 
 #### WordPress REST
-- `POST /wp-json/storyos/v1/generation` — Queue a Comfy Cloud MCP generation
-- `GET /wp-json/storyos/v1/generation/{id}` — Read persisted job state
-- `POST /wp-json/storyos/v1/generation/{id}/cancel` — Cancel a queued WordPress job
-- `GET /wp-json/storyos/v1/ai/agents` — List plugin-owned filmmaking agents
+- `POST /wp-json/worldgraph/v1/generation` — Queue a Comfy Cloud MCP generation
+- `GET /wp-json/worldgraph/v1/generation/{id}` — Read persisted job state
+- `POST /wp-json/worldgraph/v1/generation/{id}/cancel` — Cancel a queued WordPress job
+- `GET /wp-json/worldgraph/v1/ai/agents` — List plugin-owned filmmaking agents
 
 ## Project Structure
 
 ```
-storyos/
-├── wordpress/                 # WordPress core and StoryOS plugin
-│   └── wp-content/plugins/storyos/
+worldgraph/
+├── wordpress/                 # WordPress core and World Graph Studio plugin
+│   └── wp-content/plugins/worldgraph/
 │       ├── includes/ai-editor/ # WordPress Abilities and filmmaker agents
 │       └── includes/utils/     # Comfy Cloud MCP client and WP-Cron batches
 ├── .lando.yml                 # PHP, MariaDB, and phpMyAdmin development stack
@@ -276,7 +276,7 @@ We welcome contributions from storytellers, filmmakers, artists, WordPress devel
 
 ## Long-Term Goal
 
-StoryOS is an open storytelling infrastructure project that supports every stage of the creative lifecycle from concept through production and editorial delivery.
+World Graph Studio is an open storytelling infrastructure project that supports every stage of the creative lifecycle from concept through production and editorial delivery.
 
 **The future of storytelling is structured.**
 

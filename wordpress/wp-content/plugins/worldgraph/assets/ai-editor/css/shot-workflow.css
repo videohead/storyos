@@ -1,0 +1,82 @@
+/* World Graph Studio filmmaking agent chat for classic Story Graph editors. */
+.worldgraph-ai-workflow {
+	max-width: 880px;
+}
+
+.worldgraph-ai-workflow label {
+	display: block;
+	font-weight: 600;
+	margin: 12px 0 6px;
+}
+
+.worldgraph-ai-workflow__controls {
+	max-width: 520px;
+}
+
+.worldgraph-ai-workflow__agent {
+	max-width: 100%;
+	width: 100%;
+}
+
+.worldgraph-ai-workflow__messages {
+	background: #f6f7f7;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 14px;
+	max-height: 420px;
+	min-height: 120px;
+	overflow-y: auto;
+	padding: 12px;
+}
+
+.worldgraph-ai-workflow__empty {
+	align-self: center;
+	color: #646970;
+	margin: auto;
+}
+
+.worldgraph-ai-workflow__message {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	max-width: 82%;
+	padding: 9px 11px;
+}
+
+.worldgraph-ai-workflow__message--user {
+	align-self: flex-end;
+	background: #e9f3ff;
+	border-color: #72aee6;
+}
+
+.worldgraph-ai-workflow__message--assistant,
+.worldgraph-ai-workflow__message--error {
+	align-self: flex-start;
+}
+
+.worldgraph-ai-workflow__message--error {
+	background: #fcf0f1;
+	border-color: #d63638;
+	color: #8a2424;
+}
+
+.worldgraph-ai-workflow__message-content {
+	margin-top: 4px;
+	white-space: pre-wrap;
+}
+
+.worldgraph-ai-workflow__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.worldgraph-ai-workflow__status {
+	color: #50575e;
+	margin-top: 12px;
+	min-height: 20px;
+}

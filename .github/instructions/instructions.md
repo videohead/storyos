@@ -1,8 +1,8 @@
-# StoryOS Build Instructions
+# World Graph Studio Build Instructions
 
 > Build Your Story Once. Create Everywhere.
 
-This file defines the active development conventions for StoryOS. StoryOS is a
+This file defines the active development conventions for World Graph Studio. World Graph Studio is a
 WordPress application whose canonical data model is the Story Graph. ComfyUI is
 an optional external generation service used by the relevant plugin.
 
@@ -11,7 +11,7 @@ an optional external generation service used by the relevant plugin.
 When Lando and docker containers are already running, use these service entry points for local
 validation:
 
-- WordPress app: http://storyos.lndo.site/ or https://storyos.lndo.site/
+- WordPress app: http://worldgraph.lndo.site/ or https://worldgraph.lndo.site/
 - ComfyUI service: http://localhost:8188
 - ComfyUI MCP: http://localhost:8188
 - Local LLM: http://localhost:11434
@@ -65,10 +65,10 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
 
 ## Project Scope
 
-- WordPress core and the StoryOS plugin live under `wordpress/`.
-- StoryOS custom post types, Structured Content Fields, REST endpoints, and
-  integrations live under `wordpress/wp-content/plugins/storyos/`.
-- ComfyUI integration lives in the relevant StoryOS plugin and should fail
+- WordPress core and the World Graph Studio plugin live under `wordpress/`.
+- World Graph Studio custom post types, Structured Content Fields, REST endpoints, and
+  integrations live under `wordpress/wp-content/plugins/worldgraph/`.
+- ComfyUI integration lives in the relevant World Graph Studio plugin and should fail
   clearly when the optional service is unavailable.
 - ComfyUI MCP is the authority on what ComfyUI can do, WordPress and PHP should be aligned as closely with the MCP as possible.
 - The Story Graph is the canonical model for projects, story worlds,
@@ -86,7 +86,7 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
 - `about/` - Comprehensive documentation, specifications, and roadmap
 - `scripts/` - Setup and utility scripts (database, initialization, etc.)
 - `wordpress/` - WordPress core and plugins
-  - `wp-content/plugins/storyos/` - Main StoryOS plugin with expanded structure:
+  - `wp-content/plugins/worldgraph/` - Main World Graph Studio plugin with expanded structure:
     - `includes/admin/` - WordPress admin functionality
     - `includes/agents/` - Agent-related code and integrations
     - `includes/ai-editor/` - AI Editor implementation
@@ -115,8 +115,8 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
 - Import from JSON and export scripts to Markdown
 - Planned file-based import and export for FDX, Fade In, Highland,
   Markdown, screenplay, and shooting-script formats.
-- Persistent StoryOS to Celtx ID mapping in post meta.
-- Celtx GEM API bi-directional sync through the `storyos-celtx` plugin.
+- Persistent World Graph Studio to Celtx ID mapping in post meta.
+- Celtx GEM API bi-directional sync through the `worldgraph-celtx` plugin.
 - WordPress REST API endpoints and settings UI for Celtx credentials.
 
 ### Editorial Ecosystem
@@ -162,16 +162,16 @@ The full feature specification is in `about/Phase_8_AI_Editor.md`.
 ### WordPress
 
 - Use WordPress Coding Standards (WPCS).
-- Register custom post types in the StoryOS plugin's established registration
+- Register custom post types in the World Graph Studio plugin's established registration
   surface.
 - Use Structured Content Fields via SCF in
   `wordpress/wp-content/plugins/secure-custom-fields`.
-- Register REST endpoints under the `/api/storyos/v1/` namespace used by the
+- Register REST endpoints under the `/api/worldgraph/v1/` namespace used by the
   existing plugin.
-- All StoryOS custom post types must support the REST API.
+- All World Graph Studio custom post types must support the REST API.
 - Use WordPress nonces for form submissions.
 - Sanitize input and escape output.
-- Keep sub-plugins under `storyos/plugins/`.
+- Keep sub-plugins under `worldgraph/plugins/`.
 
 ### WordPress REST Controllers: Static Method Pitfall
 
@@ -244,7 +244,7 @@ version.
 
 ### WordPress: Duplicate Function Declarations
 
-Multiple utility files in the `StoryOS\\Utils` namespace may be loaded by the
+Multiple utility files in the `WorldGraph\\Utils` namespace may be loaded by the
 plugin. Before adding a shared helper in `includes/utils/`, check for an
 existing definition and guard duplicates with the established
 `function_exists()` pattern.
@@ -278,7 +278,7 @@ See `AGENTS.md` in the project root for agent instructions and usage guidance.
 ## Testing and Quality Assurance
 
 Testing documentation and utilities are maintained in `.github/testing/`. The
-StoryOS plugin includes a `tests/` directory for unit and integration tests.
+World Graph Studio plugin includes a `tests/` directory for unit and integration tests.
 
 Key testing principles:
 - Run tests locally via Lando to ensure environment consistency
@@ -291,7 +291,7 @@ Key testing principles:
 - Story Graph: `about/Story_Graph_Specification.md`
 - Content model: `about/Content_Model_Specification.md`
 - REST API: `about/REST_API_Specification.md`
-- Roadmap: `about/ROADMAP_StoryOS.md`
+- Roadmap: `about/ROADMAP_World_Graph_Studio.md`
 - AI Editor: `about/Phase_8_AI_Editor.md`
 - Story Graph Intelligence: `about/Phase_7_Story_Graph_Intelligence.md`
 - Script EDL Integration: `about/Script_EDL_Integration.md`

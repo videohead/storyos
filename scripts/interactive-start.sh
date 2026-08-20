@@ -42,5 +42,5 @@ if [[ "$ENABLE_COMFYUI" == true ]]; then
   COMPOSE_ARGS+=( comfyui )
 fi
 
-echo "Starting StoryOS with optional services: vLLM=$ENABLE_VLLM, ComfyUI=$ENABLE_COMFYUI"
+echo "Starting World Graph Studio with optional services: vLLM=$ENABLE_VLLM, ComfyUI=$ENABLE_COMFYUI"
 docker compose "${COMPOSE_ARGS[@]}"
