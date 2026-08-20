@@ -205,7 +205,23 @@ class Scenes_Controller extends Base_Controller {
 	 * @return int
 	 */
 	private static function count_related( int $post_id, string $related_cpt, string $from_cpt ): int {
-		$rels = \StoryOS\Utils\get_relationships( $post_id, $from_cpt, 'outgoing' );
-		return count( array_filter( $rels, fn( $r ) => $r['to_type'] === $related_cpt ) );
+		$related_ids = [];
+
+		// Support legacy parent-owned edges as well as the canonical child-owned
+		// Shot.scene relationship without double-counting reciprocal records.
+		foreach ( \StoryOS\Utils\get_relationships( $post_id, $from_cpt, 'outgoing' ) as $relationship ) {
+			if ( $related_cpt === (string) ( $relationship['to_type'] ?? '' ) ) {
+				$related_ids[ (int) ( $relationship['to_id'] ?? 0 ) ] = true;
+			}
+		}
+
+		foreach ( \StoryOS\Utils\get_relationships( $post_id, $from_cpt, 'incoming' ) as $relationship ) {
+			if ( $related_cpt === (string) ( $relationship['from_type'] ?? '' ) ) {
+				$related_ids[ (int) ( $relationship['from_id'] ?? 0 ) ] = true;
+			}
+		}
+
+		unset( $related_ids[0] );
+		return count( $related_ids );
 	}
 }

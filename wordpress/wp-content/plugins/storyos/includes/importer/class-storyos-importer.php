@@ -1033,7 +1033,8 @@ class StoryOS_Importer {
 			}
 		}
 
-		// Shot → Scene.
+		// Shot → Scene. The required scalar field owns this edge; graph traversal
+		// can discover the Shot from the Scene through the incoming relationship.
 		foreach ( $this->document['shots'] as $shot ) {
 			$shot_id = $this->id_map[ $shot['id'] ] ?? 0;
 			if ( ! $shot_id ) {
@@ -1042,7 +1043,20 @@ class StoryOS_Importer {
 
 			$scene_id = $this->id_map[ $shot['scene'] ] ?? 0;
 			if ( $scene_id ) {
-				\StoryOS\Utils\add_relationship( $scene_id, 'storyos_scene', $shot_id, 'storyos_shot', 'contains' );
+				$relationship = \StoryOS\Utils\set_relationship(
+					$shot_id,
+					'storyos_shot',
+					$scene_id,
+					'storyos_scene',
+					'belongs_to',
+					[ 'field' => 'scene' ]
+				);
+
+				// Clean up the inverse edge written by importer versions that stored
+				// Scene → Shot instead of the required Shot.scene scalar edge.
+				if ( ! is_wp_error( $relationship ) ) {
+					\StoryOS\Utils\remove_relationship( $scene_id, $shot_id, 'storyos_scene', 'storyos_shot' );
+				}
 			}
 		}
 
@@ -1120,32 +1134,112 @@ class StoryOS_Importer {
 	 * Verify the import against expected totals.
 	 */
 	private function verify_import(): void {
-		// Map CPT slugs to the label prefix used in report['created'] entries.
-		$label_prefixes = [
-			'storyos_project'          => 'Project ',
-			'storyos_story_world'      => 'World ',
-			'storyos_character'        => 'Character ',
-			'storyos_location'         => 'Location ',
-			'storyos_prop'             => 'Prop ',
-			'storyos_scene'            => 'Scene ',
-			'storyos_shot'             => 'Shot ',
-			'storyos_sound'            => 'Sound ',
-			'storyos_storyboard_frame' => 'Storyboard frame ',
+		$entity_sets = [
+			'storyos_project'          => [ (string) $this->document['project']['id'] ],
+			'storyos_story_world'      => [ (string) $this->document['world']['id'] ],
+			'storyos_character'        => array_map( 'strval', array_column( $this->document['characters'], 'id' ) ),
+			'storyos_location'         => array_map( 'strval', array_column( $this->document['locations'], 'id' ) ),
+			'storyos_prop'             => array_map( 'strval', array_column( $this->document['props'], 'id' ) ),
+			'storyos_scene'            => array_map( 'strval', array_column( $this->document['scenes'], 'id' ) ),
+			'storyos_shot'             => array_map( 'strval', array_column( $this->document['shots'], 'id' ) ),
+			'storyos_sound'            => array_map( 'strval', array_column( $this->document['sounds'], 'id' ) ),
+			'storyos_storyboard_frame' => array_map( 'strval', array_column( $this->document['storyboards'], 'id' ) ),
 		];
 
-		$totals = [];
-		foreach ( $label_prefixes as $cpt => $prefix ) {
-			$created = 0;
-			foreach ( $this->report['created'] as $entry ) {
-				if ( strpos( $entry, $prefix ) === 0 ) {
-					$created++;
+		$totals   = [];
+		$expected = [];
+		foreach ( $entity_sets as $cpt => $external_ids ) {
+			$expected[ $cpt ] = count( $external_ids );
+			$totals[ $cpt ]   = 0;
+			foreach ( $external_ids as $external_id ) {
+				$post_id = (int) ( $this->id_map[ $external_id ] ?? 0 );
+				if ( $post_id && $cpt === get_post_type( $post_id ) ) {
+					$totals[ $cpt ]++;
 				}
 			}
-			$totals[ $cpt ] = $created;
+
+			if ( $totals[ $cpt ] !== $expected[ $cpt ] ) {
+				$this->report['errors'][] = sprintf( 'Verification failed for %s: expected %d, resolved %d.', $cpt, $expected[ $cpt ], $totals[ $cpt ] );
+			}
 		}
 
-		$this->report['totals'] = $totals;
-		$this->report['verified'] = empty( $this->report['errors'] );
+		$sequence_term_id            = (int) ( $this->report['sequence']['term_id'] ?? 0 );
+		$sequence_term               = $sequence_term_id ? get_term( $sequence_term_id, 'storyos_sequence' ) : null;
+		$expected['storyos_sequence'] = 1;
+		$totals['storyos_sequence']   = ( $sequence_term && ! is_wp_error( $sequence_term ) ) ? 1 : 0;
+		if ( 1 !== $totals['storyos_sequence'] ) {
+			$this->report['errors'][] = 'Verification failed for storyos_sequence: expected 1, resolved 0.';
+		}
+
+		foreach ( $this->document['shots'] as $shot ) {
+			$shot_id  = (int) ( $this->id_map[ (string) $shot['id'] ] ?? 0 );
+			$scene_id = (int) ( $this->id_map[ (string) $shot['scene'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $shot_id, 'storyos_shot', 'scene', $scene_id, 'storyos_scene' ) ) {
+				$this->report['errors'][] = sprintf( 'Shot %s did not retain its required Scene relationship.', $shot['id'] );
+			}
+		}
+
+		foreach ( $this->document['sounds'] as $sound ) {
+			$sound_id = (int) ( $this->id_map[ (string) $sound['id'] ] ?? 0 );
+			$scene_id = (int) ( $this->id_map[ (string) $sound['scene'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $sound_id, 'storyos_sound', 'scene', $scene_id, 'storyos_scene' ) ) {
+				$this->report['errors'][] = sprintf( 'Sound %s did not retain its required Scene relationship.', $sound['id'] );
+			}
+
+			if ( ! empty( $sound['shot'] ) ) {
+				$shot_id = (int) ( $this->id_map[ (string) $sound['shot'] ] ?? 0 );
+				if ( ! $this->relationship_slot_matches( $sound_id, 'storyos_sound', 'shot', $shot_id, 'storyos_shot' ) ) {
+					$this->report['errors'][] = sprintf( 'Sound %s did not retain its Shot relationship.', $sound['id'] );
+				}
+			}
+		}
+
+		foreach ( $this->document['scenes'] as $scene ) {
+			$scene_id          = (int) ( $this->id_map[ (string) $scene['id'] ] ?? 0 );
+			$stored_dialogue   = get_post_meta( $scene_id, 'dialogue', true );
+			$expected_dialogue = count( (array) ( $scene['dialogue'] ?? [] ) );
+			if ( $expected_dialogue !== count( is_array( $stored_dialogue ) ? $stored_dialogue : [] ) ) {
+				$this->report['errors'][] = sprintf( 'Scene %s dialogue verification failed.', $scene['id'] );
+			}
+		}
+
+		$this->report['totals']          = $totals;
+		$this->report['expected_totals'] = $expected;
+		$this->report['verified']        = empty( $this->report['errors'] );
+	}
+
+	/**
+	 * Check one scalar relationship slot during import verification.
+	 *
+	 * @param int    $from_id   Source post ID.
+	 * @param string $from_type Expected source CPT.
+	 * @param string $field     Relationship field slot.
+	 * @param int    $target_id Expected target post ID.
+	 * @param string $to_type   Expected target CPT.
+	 * @return bool
+	 */
+	private function relationship_slot_matches(
+		int $from_id,
+		string $from_type,
+		string $field,
+		int $target_id,
+		string $to_type
+	): bool {
+		if ( ! $from_id || ! $target_id ) {
+			return false;
+		}
+
+		foreach ( \StoryOS\Utils\get_relationships( $from_id, $from_type, 'outgoing' ) as $relationship ) {
+			if (
+				$target_id === (int) ( $relationship['to_id'] ?? 0 ) &&
+				$to_type === (string) ( $relationship['to_type'] ?? '' ) &&
+				$field === (string) ( $relationship['metadata']['field'] ?? '' )
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

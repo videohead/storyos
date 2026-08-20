@@ -251,9 +251,9 @@ Asset.
 {
   "title": "Forest Path Song",
   "content": "A cautious traveling theme.",
-	"meta": {
-		"sound_type": "music",
-		"production_status": "in-development",
+  "meta": {
+    "sound_type": "music",
+    "production_status": "in-development",
     "lyrics": "Stay to the path through shadow and pine.",
     "start_timecode": "00:00:00:00",
     "duration": "PT18S",

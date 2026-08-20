@@ -178,7 +178,7 @@ class Import {
 		?>
 		<h2><?php esc_html_e( 'Import Report', 'storyos' ); ?></h2>
 
-		<h3><?php esc_html_e( 'Created Entities', 'storyos' ); ?></h3>
+		<h3><?php esc_html_e( 'Resolved Import Entities', 'storyos' ); ?></h3>
 		<table class="widefat striped" style="max-width:600px;">
 			<thead>
 				<tr>

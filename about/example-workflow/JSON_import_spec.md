@@ -260,13 +260,14 @@ storyos_shot
 | JSON Field | CPT Field |
 |------------|------------|
 | id | external_id |
+| scene | scene (required relationship; external Scene ID) |
 | type | shot_type |
 | description | shot_description |
 
 ### Relationships
 
 ```text
-Scene → Shot
+Shot → Scene (belongs_to, required `scene` field)
 ```
 
 ### Expected Count
@@ -336,8 +337,8 @@ Project membership is derived through the required Scene relationship; Sound
 does not store a second direct Project edge.
 
 When `shot` is present, it must belong to the referenced `scene`. An `asset`
-external ID must already resolve to an audio-typed `storyos_asset`; the sample does not
-include one because the current JSON format has no top-level asset import.
+external ID must already resolve to an audio-typed `storyos_asset`; the sample
+does not include one because the current JSON format has no top-level asset import.
 
 ### Expected Count
 

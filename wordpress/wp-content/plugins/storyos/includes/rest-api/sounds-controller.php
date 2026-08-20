@@ -463,7 +463,10 @@ class Sounds_Controller extends Base_Controller {
 			}
 		}
 
-		if ( ! empty( $meta['lyrics'] ) && ( ! $sound_type_term || 'music' !== $sound_type_term->slug ) ) {
+		$lyrics = array_key_exists( 'lyrics', $meta )
+			? (string) $meta['lyrics']
+			: ( $creating ? '' : (string) get_post_meta( absint( $request->get_param( 'id' ) ), 'lyrics', true ) );
+		if ( '' !== trim( $lyrics ) && ( ! $sound_type_term || 'music' !== $sound_type_term->slug ) ) {
 			return new \WP_Error( 'storyos_sound_lyrics_music_only', 'Lyrics may only be stored on a Music Sound.', [ 'status' => 400 ] );
 		}
 

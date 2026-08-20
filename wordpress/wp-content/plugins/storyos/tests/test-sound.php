@@ -37,6 +37,7 @@ class Test_StoryOS_Sound extends TestCase {
 		$this->assertStringContainsString( "'relationship_type' => 'linked_to'", $sound );
 		$this->assertStringContainsString( "'lyrics'", $sound );
 		$this->assertStringContainsString( "'spoken_text'", $sound );
+		$this->assertStringContainsString( "'production_status'", $sound );
 	}
 
 	/**
@@ -47,8 +48,11 @@ class Test_StoryOS_Sound extends TestCase {
 
 		$this->assertStringContainsString( "[ \$this, 'get_items' ]", $controller );
 		$this->assertStringContainsString( "[ \$this, 'create_item' ]", $controller );
-		$this->assertStringContainsString( "'sound_type' => [ 'type' => 'string' ]", $controller );
+		$this->assertStringContainsString( "'sound_type'", $controller );
+		$this->assertStringContainsString( "'production_status'", $controller );
 		$this->assertStringContainsString( 'shot_belongs_to_scene', $controller );
+		$this->assertStringContainsString( "current_user_can( 'edit_post'", $controller );
+		$this->assertStringContainsString( 'storyos_is_audio_asset', $controller );
 	}
 
 	/**

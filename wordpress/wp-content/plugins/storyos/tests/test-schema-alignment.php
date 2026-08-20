@@ -103,5 +103,9 @@ class Test_StoryOS_Schema_Alignment extends TestCase {
 		$this->assertSame( 'MusicComposition', $sound_music );
 		$this->assertSame( 'CreativeWork', \StoryOS\Utils\storyos_schema_type_for_entity( 'storyos_sound' ) );
 		$this->assertSame( 'encoding', \StoryOS\Utils\storyos_schema_property_for_relationship( 'linked_to', 'storyos_sound', 'storyos_asset' ) );
+
+		$sound_hints = \StoryOS\Utils\storyos_schema_hints_from_meta( 'storyos_sound', [ 'lyrics' => "First line\nSecond line" ] );
+		$this->assertSame( 'CreativeWork', $sound_hints['lyrics']['@type'] );
+		$this->assertSame( "First line\nSecond line", $sound_hints['lyrics']['text'] );
 	}
 }

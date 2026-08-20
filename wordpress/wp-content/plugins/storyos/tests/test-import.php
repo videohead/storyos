@@ -60,6 +60,20 @@ class Test_StoryOS_Import extends TestCase {
 		}
 
 		$shot_scenes = array_column( $document['shots'], 'scene', 'id' );
+		$this->assertSame(
+			[
+				'shot_1' => 'scene_1',
+				'shot_2' => 'scene_1',
+				'shot_3' => 'scene_1',
+				'shot_4' => 'scene_2',
+				'shot_5' => 'scene_2',
+				'shot_6' => 'scene_2',
+				'shot_7' => 'scene_3',
+				'shot_8' => 'scene_3',
+				'shot_9' => 'scene_3',
+			],
+			$shot_scenes
+		);
 		foreach ( $document['sounds'] as $sound ) {
 			$this->assertContains( $sound['scene'], $ids['scenes'] );
 			if ( ! empty( $sound['shot'] ) ) {
@@ -94,6 +108,29 @@ class Test_StoryOS_Import extends TestCase {
 	}
 
 	/**
+	 * Imported shots should retain their required scalar Scene link.
+	 */
+	public function test_importer_persists_shot_scene_relationships() {
+		$path   = dirname( __DIR__ ) . '/includes/importer/class-storyos-importer.php';
+		$source = file_get_contents( $path );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString(
+			"\$shot_id,\n\t\t\t\t\t'storyos_shot',\n\t\t\t\t\t\$scene_id,\n\t\t\t\t\t'storyos_scene',\n\t\t\t\t\t'belongs_to',\n\t\t\t\t\t[ 'field' => 'scene' ]",
+			$source
+		);
+		$this->assertStringContainsString(
+			"remove_relationship( \$scene_id, \$shot_id, 'storyos_scene', 'storyos_shot' )",
+			$source
+		);
+		$this->assertStringContainsString( 'Shot %s did not retain its required Scene relationship.', $source );
+
+		$scenes_controller = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/scenes-controller.php' );
+		$this->assertNotFalse( $scenes_controller );
+		$this->assertStringContainsString( "get_relationships( \$post_id, \$from_cpt, 'incoming' )", $scenes_controller );
+	}
+
+	/**
 	 * The 1.1 example and importer preserve Sound cues without duplicating dialogue.
 	 */
 	public function test_sound_import_contract() {
@@ -102,7 +139,7 @@ class Test_StoryOS_Import extends TestCase {
 		$types        = array_column( $document['sounds'], 'type' );
 
 		$this->assertSame( '1.1', $document['storyos_version'] );
-		$this->assertNotEmpty( $document['sounds'] );
+		$this->assertCount( 7, $document['sounds'] );
 		$this->assertNotContains( 'dialogue', $types );
 		$this->assertContains( 'narration', $types );
 		$this->assertContains( 'voiceover', $types );
@@ -111,11 +148,27 @@ class Test_StoryOS_Import extends TestCase {
 		$music = current( array_filter( $document['sounds'], static fn( array $sound ): bool => 'music' === $sound['type'] ) );
 		$this->assertIsArray( $music );
 		$this->assertNotEmpty( $music['lyrics'] );
+		$this->assertStringContainsString( "\n", $music['lyrics'] );
+
+		$dialogue = [];
+		foreach ( $document['scenes'] as $scene ) {
+			$dialogue = array_merge( $dialogue, (array) ( $scene['dialogue'] ?? [] ) );
+		}
+		$this->assertCount( 13, $dialogue );
+		$this->assertEmpty(
+			array_intersect(
+				array_filter( array_column( $document['sounds'], 'spoken_text' ) ),
+				array_column( $dialogue, 'text' )
+			)
+		);
 
 		$importer = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-storyos-importer.php' );
 		$this->assertStringContainsString( 'private function import_sounds()', $importer );
 		$this->assertStringContainsString( "'storyos_sound_type'", $importer );
 		$this->assertStringContainsString( "[ 'field' => 'scene' ]", $importer );
 		$this->assertStringContainsString( 'Ordinary dialogue remains', $importer );
+		$this->assertStringContainsString( "! empty( \$options['dry_run'] )", $importer );
+		$this->assertStringContainsString( 'storyos_is_reserved_sound_type', $importer );
+		$this->assertStringContainsString( 'storyos_is_audio_asset', $importer );
 	}
 }

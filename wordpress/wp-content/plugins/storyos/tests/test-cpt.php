@@ -110,9 +110,16 @@ class Test_StoryOS_CPT extends TestCase {
 
 		$fields = \StoryOS\Utils\storyos_expected_fields_for_cpt( 'storyos_sound' );
 		$this->assertSame(
-			[ 'sound_type', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
+			[ 'sound_type', 'production_status', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
 			$fields
 		);
+	}
+
+	/**
+	 * Existing structured Scene dialogue is declared independently of Sounds.
+	 */
+	public function test_scene_contract_declares_structured_dialogue() {
+		$this->assertContains( 'dialogue', \StoryOS\Utils\storyos_expected_fields_for_cpt( 'storyos_scene' ) );
 	}
 
 	/**
@@ -121,7 +128,7 @@ class Test_StoryOS_CPT extends TestCase {
 	public function test_sound_type_vocabulary_does_not_duplicate_dialogue() {
 		$types = \StoryOS\Utils\storyos_sound_types();
 
-		foreach ( [ 'narration', 'voiceover', 'music', 'sound-effect', 'ambience', 'foley', 'silence' ] as $required_type ) {
+		foreach ( [ 'narration', 'voiceover', 'music', 'sound-effect', 'ambience', 'foley', 'silence', 'adr' ] as $required_type ) {
 			$this->assertArrayHasKey( $required_type, $types );
 		}
 
