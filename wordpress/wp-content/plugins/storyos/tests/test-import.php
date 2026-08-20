@@ -103,7 +103,8 @@ class Test_StoryOS_Import extends TestCase {
 
 		$this->assertNotFalse( $source );
 		$this->assertStringContainsString( "\$prop['owner_character']", $source );
-		$this->assertStringContainsString( "'storyos_prop', \$char_id, 'storyos_character', 'linked_to'", $source );
+		$this->assertStringContainsString( "storyos_update_field_value( \$prop_id, 'owner_character', \$char_id )", $source );
+		$this->assertStringContainsString( "relationship_slot_matches( \$prop_id, 'storyos_prop', 'owner_character'", $source );
 		$this->assertStringContainsString( 'validate_references', $source );
 	}
 
@@ -115,10 +116,8 @@ class Test_StoryOS_Import extends TestCase {
 		$source = file_get_contents( $path );
 
 		$this->assertNotFalse( $source );
-		$this->assertStringContainsString(
-			"\$shot_id,\n\t\t\t\t\t'storyos_shot',\n\t\t\t\t\t\$scene_id,\n\t\t\t\t\t'storyos_scene',\n\t\t\t\t\t'belongs_to',\n\t\t\t\t\t[ 'field' => 'scene' ]",
-			$source
-		);
+		$this->assertStringContainsString( "storyos_update_field_value( \$shot_id, 'scene', \$scene_id )", $source );
+		$this->assertStringContainsString( "relationship_slot_matches( \$shot_id, 'storyos_shot', 'scene'", $source );
 		$this->assertStringContainsString(
 			"remove_relationship( \$scene_id, \$shot_id, 'storyos_scene', 'storyos_shot' )",
 			$source
@@ -165,7 +164,8 @@ class Test_StoryOS_Import extends TestCase {
 		$importer = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-storyos-importer.php' );
 		$this->assertStringContainsString( 'private function import_sounds()', $importer );
 		$this->assertStringContainsString( "'storyos_sound_type'", $importer );
-		$this->assertStringContainsString( "[ 'field' => 'scene' ]", $importer );
+		$this->assertStringContainsString( "storyos_update_field_value( \$sound_id, 'scene', \$scene_id )", $importer );
+		$this->assertStringContainsString( "relationship_slot_matches( \$sound_id, 'storyos_sound', 'scene'", $importer );
 		$this->assertStringContainsString( 'Ordinary dialogue remains', $importer );
 		$this->assertStringContainsString( "! empty( \$options['dry_run'] )", $importer );
 		$this->assertStringContainsString( 'storyos_is_reserved_sound_type', $importer );

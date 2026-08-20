@@ -117,13 +117,21 @@ Manages API connections to providers like Comfy Cloud MCP.
 ### Secure Custom Fields Schema
 
 StoryOS commits its SCF Local JSON field groups under `acf-json/`. The plugin
-adds that directory to SCF's load path, imports missing groups and newer
-archives into the WordPress database so they can be managed in the SCF Field
-Groups admin, and routes saves for StoryOS-owned `group_storyos_*` groups back
-to the archive. A newer database copy is not overwritten during boot.
-SCF groups are the runtime field-schema authority; committed core field keys
-remain stable and include their CPT key, for example
-`field_storyos_project_status`.
+uses those files as a portable, versioned seed/archive rather than an always-on
+SCF load path. Editable database groups are the runtime authority. On a
+privileged admin or WP-CLI request, a changed archive is validated and merged
+into the database while preserving SCF-managed presentation settings and
+site-added extension fields; failures are reported without destructive import.
+Group and standalone-field saves refresh the owning archive when it is
+writable, otherwise database edits continue with a non-portable-change warning.
+The plugin-directory archive is a source-controlled deployment artifact and
+must be exported/committed before plugin replacement or upgrade; multisite
+installations share that archive while retaining per-site runtime DB groups.
+Canonical location, activation/REST exposure, field key/name/type/parent, and
+storage settings are protected; labels, instructions, layout, choices, order,
+and extension fields remain manageable in SCF. Relationship extension names
+remain stable because they identify Story Graph slots. Core field keys include their
+CPT key, for example `field_storyos_project_status`.
 
 ## REST API Endpoints
 

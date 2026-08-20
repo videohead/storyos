@@ -30,21 +30,6 @@ define( 'STORYOS_PLUGIN_BASE', plugin_basename( __FILE__ ) );
 define( 'STORYOS_API_NAMESPACE', 'storyos/v1' );
 define( 'STORYOS_CPT_PREFIX', 'storyos_' );
 
-/**
- * Add StoryOS's versioned SCF Local JSON archive to SCF's load paths.
- *
- * @param array<int, string> $paths Existing SCF JSON paths.
- * @return array<int, string>
- */
-function storyos_scf_json_load_paths( array $paths ): array {
-	$path = STORYOS_PLUGIN_DIR . 'acf-json';
-	if ( ! in_array( $path, $paths, true ) ) {
-		$paths[] = $path;
-	}
-
-	return $paths;
-}
-
 /** Stable SCF groups owned by the StoryOS Local JSON archive. */
 function storyos_scf_group_keys(): array {
 	return [
@@ -69,7 +54,18 @@ function storyos_scf_group_keys(): array {
 /** Whether the current administrator can persist StoryOS Local JSON edits. */
 function storyos_scf_archive_is_writable(): bool {
 	$path = STORYOS_PLUGIN_DIR . 'acf-json';
-	return is_dir( $path ) && is_writable( $path ) && ( ! is_multisite() || is_super_admin() );
+	if ( ! is_dir( $path ) || ! is_writable( $path ) || ( is_multisite() && ! is_super_admin() ) ) {
+		return false;
+	}
+
+	foreach ( storyos_scf_group_keys() as $key ) {
+		$file = $path . '/' . $key . '.json';
+		if ( file_exists( $file ) && ! is_writable( $file ) ) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /**
@@ -89,41 +85,18 @@ function storyos_scf_json_save_paths( array $paths, array $post ): array {
 	return $paths;
 }
 
-/**
- * Prevent a database-only SCF edit when the JSON authority cannot be updated.
- *
- * @param int                  $post_id Field-group post ID.
- * @param array<string, mixed> $data    Pending WordPress post data.
- */
-function storyos_guard_unwritable_scf_archive( int $post_id, array $data ): void {
-	if ( empty( $_POST['acf_field_group']['key'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- this only blocks an unsafe write; SCF verifies the save.
-		return;
-	}
-
-	$key = sanitize_key( wp_unslash( $_POST['acf_field_group']['key'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- see above.
-	if ( in_array( $key, storyos_scf_group_keys(), true ) && ! storyos_scf_archive_is_writable() ) {
-		wp_die(
-			esc_html__( 'StoryOS field groups are JSON-authoritative. Make the StoryOS acf-json directory writable (and use a multisite super administrator) before editing this group.', 'storyos' ),
-			esc_html__( 'StoryOS SCF archive is read-only', 'storyos' ),
-			[ 'response' => 409, 'back_link' => true ]
-		);
-	}
-}
-
-/** Warn administrators when StoryOS SCF groups are intentionally read-only. */
+/** Warn administrators when StoryOS SCF changes cannot be archived. */
 function storyos_scf_archive_notice(): void {
 	if ( storyos_scf_archive_is_writable() || ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
 
 	echo '<div class="notice notice-warning"><p>'
-		. esc_html__( 'StoryOS SCF fields are loaded from the plugin Local JSON archive. The acf-json directory is not writable for this account, so StoryOS field-group edits are read-only until that is corrected.', 'storyos' )
+		. esc_html__( 'StoryOS SCF fields remain editable in the database, but this account cannot update the plugin acf-json archive. Make that directory and its group files writable (and use a multisite super administrator) before editing if the changes must be portable.', 'storyos' )
 		. '</p></div>';
 }
 
-add_filter( 'acf/json/load_paths', __NAMESPACE__ . '\\storyos_scf_json_load_paths' );
 add_filter( 'acf/json/save_paths', __NAMESPACE__ . '\\storyos_scf_json_save_paths', 10, 2 );
-add_action( 'pre_post_update', __NAMESPACE__ . '\\storyos_guard_unwritable_scf_archive', 1, 2 );
 add_action( 'admin_notices', __NAMESPACE__ . '\\storyos_scf_archive_notice' );
 
 /**
@@ -315,8 +288,8 @@ function init(): void {
 	Taxonomies\SoundType::init();
 	Taxonomies\TemplateCategory::init();
 
-	// SCF Local JSON is the portable schema archive; persisted copies allow
-	// administrators to edit those groups in Secure Custom Fields.
+	// SCF JSON archives seed editable persisted groups; the database copies are
+	// runtime-authoritative and managed in Secure Custom Fields.
 	Utils\SCF_Fields::boot( Utils\storyos_get_all_field_defaults() );
 
 	// Register REST API routes.

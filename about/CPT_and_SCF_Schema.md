@@ -38,32 +38,43 @@ The Story Graph is the canonical source of truth.
 # SCF Persistence and Runtime Contract
 
 StoryOS archives one SCF field group per CPT under
-`wordpress/wp-content/plugins/storyos/acf-json/`. These Local JSON files are
-committed with the plugin and are the portable field-schema baseline. StoryOS
-adds that directory to SCF's JSON load paths and routes saves for
-`group_storyos_*` groups back to the same directory; unrelated SCF groups keep
-their configured save paths.
+`wordpress/wp-content/plugins/storyos/acf-json/`. These JSON files are committed
+with the plugin and provide the portable, versioned seed for each field schema.
+They are deliberately not registered as an always-on SCF load path: the
+editable database group is the runtime authority, so a failed filesystem write
+cannot hide a newer administrator change.
 
 Content groups are exposed through SCF's native REST integration. The
 Connection group is deliberately excluded because it contains private
 control-plane configuration; Connections remain available only through the
 authenticated StoryOS API.
 
-At plugin initialization, StoryOS imports any missing archived group into the
-WordPress database and synchronizes an archive that is newer than its database
-copy. The database copy makes the group available in SCF's Field Groups admin
-screen, where administrators can add, update, and manage custom fields. A newer
-database copy is never overwritten during boot. Saving a StoryOS-owned group in
-SCF refreshes its Local JSON archive, which should be reviewed and committed
-like any other schema change.
+On a privileged administration or WP-CLI request, StoryOS validates a changed
+archive and merges it into the corresponding database group. Canonical fields
+receive required storage updates, while database-managed labels, instructions,
+layouts, choices, order, and site-added extension fields (including nested
+fields) are preserved. The synchronizer is versioned, locked, verified after
+import, and reports a retryable administrator notice instead of replacing an
+invalid or ambiguous schema.
 
-SCF field groups are the runtime authority for the StoryOS field schema.
-StoryOS's PHP field definitions seed the persisted groups, provide a fallback
-when SCF is unavailable, and retain StoryOS-only semantics that SCF cannot
-express. Runtime consumers use `storyos_get_fields()`, and value reads, writes,
-and deletes use SCF's field APIs when a declared field exists. Compatibility
-hooks also maintain SCF's hidden field-key reference when legacy code writes
-named post meta directly.
+Saving a StoryOS group—or using SCF's standalone field tools—routes the owning
+`group_storyos_*` definition back to the plugin archive. Unrelated SCF groups
+retain their configured save paths. When the plugin directory or an existing
+JSON file is not writable, the database definition remains editable and
+runtime-authoritative, but StoryOS warns that the edit is not portable. Archive
+changes intended for deployment should be reviewed and committed like code.
+The plugin-directory archive is a source-controlled deployment artifact, not
+durable per-site storage: export and commit intended changes before replacing
+or upgrading the plugin. On multisite, the archive is shared by the network,
+while each site's database groups remain its runtime definitions.
+
+SCF database field groups are the runtime authority for the StoryOS field
+schema. StoryOS's PHP definitions validate the canonical contract, provide a
+fallback, and retain StoryOS-only semantics that SCF cannot express. Runtime
+consumers use `storyos_get_fields()`, and value reads, writes, and deletes use
+SCF's field APIs when a declared field exists. Compatibility hooks also
+maintain SCF's hidden field-key reference when legacy code writes named post
+meta directly.
 
 Committed core fields use deterministic, per-CPT keys so common field names
 remain globally unique:
@@ -75,6 +86,12 @@ remain globally unique:
 Keep these keys stable when changing labels or other field settings. Additions
 to the committed core contract use the same per-CPT convention; extension
 fields created in SCF retain the stable key generated for them by SCF.
+Canonical group location, activation/REST exposure, and each canonical field's
+key, name, type, parent, required state, and storage-sensitive settings are
+protected. Labels, instructions, presentation settings, extra choices, field
+order, and extension fields remain manageable in SCF.
+Relationship extension field names are also stable Story Graph slot identifiers;
+change their labels rather than renaming the field name after values exist.
 
 SCF complex fields participate in the wider WordPress and StoryOS models:
 
@@ -83,7 +100,8 @@ SCF complex fields participate in the wider WordPress and StoryOS models:
 - SCF post-object and relationship fields are bridged to named Story Graph
   slots. Saving a control replaces the slot's graph edges, and loading it reads
   the current targets from the Story Graph. Legacy named relationship meta is
-  only a fallback until graph relationship metadata exists.
+  only a fallback until graph relationship metadata exists; matching legacy
+  edges are adopted when that SCF control is explicitly saved.
 - Scene `dialogue` is an importer-managed SCF repeater with speaker, line,
   description, and sequence values. Its value is read-only in the content edit
   form so manual edits cannot diverge from the imported screenplay structure.
