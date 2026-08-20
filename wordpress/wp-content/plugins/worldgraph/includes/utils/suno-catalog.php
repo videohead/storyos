@@ -47,10 +47,9 @@ class Suno_Catalog {
 	/**
 	 * Create or update three Templates for every explicitly configured transport.
 	 *
-	 * The REST API uses the primary credential_reference. MCP is enabled only
-	 * when mcp_credential_reference is explicitly configured; the MCP client's
-	 * primary-reference fallback remains a runtime compatibility measure and
-	 * does not make an API-only Connection advertise MCP Templates.
+	 * The REST API uses credential_reference. MCP is enabled only when the
+	 * independent mcp_credential_reference is explicitly configured, ensuring
+	 * credentials are never sent to the other service's endpoint.
 	 *
 	 * @param int $connection_id Connection post ID.
 	 * @return array|WP_Error
