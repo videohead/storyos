@@ -52,10 +52,11 @@ class Scene {
 			'description' => 'Importer-managed dialogue entries with speaker, line, description, and sequence fields.',
 		],
 		'location'        => [
-			'type'        => 'relationship',
-			'label'       => 'Location',
-			'required'    => false,
-			'related_cpt' => 'storyos_location',
+			'type'              => 'relationship',
+			'label'             => 'Location',
+			'required'          => false,
+			'related_cpt'       => 'storyos_location',
+			'relationship_type' => 'located_in',
 		],
 		'time_of_day'     => [
 			'type'        => 'select',

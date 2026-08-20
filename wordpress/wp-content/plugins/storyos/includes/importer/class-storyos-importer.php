@@ -962,6 +962,7 @@ class StoryOS_Importer {
 		// Project → World.
 		if ( $project_id && $world_id ) {
 			\StoryOS\Utils\add_relationship( $project_id, 'storyos_project', $world_id, 'storyos_story_world', 'contains' );
+			\StoryOS\Utils\storyos_update_field_value( $world_id, 'project', $project_id );
 		}
 
 		// World → Characters, Locations, Props.
@@ -970,6 +971,7 @@ class StoryOS_Importer {
 				$char_id = $this->id_map[ $character['id'] ] ?? 0;
 				if ( $char_id ) {
 					\StoryOS\Utils\add_relationship( $world_id, 'storyos_story_world', $char_id, 'storyos_character', 'contains' );
+					\StoryOS\Utils\storyos_update_field_value( $char_id, 'story_world', $world_id );
 				}
 			}
 
@@ -977,6 +979,7 @@ class StoryOS_Importer {
 				$loc_id = $this->id_map[ $location['id'] ] ?? 0;
 				if ( $loc_id ) {
 					\StoryOS\Utils\add_relationship( $world_id, 'storyos_story_world', $loc_id, 'storyos_location', 'contains' );
+					\StoryOS\Utils\storyos_update_field_value( $loc_id, 'story_world', $world_id );
 				}
 			}
 
@@ -993,7 +996,7 @@ class StoryOS_Importer {
 			$prop_id = $this->id_map[ $prop['id'] ] ?? 0;
 			$char_id = $this->id_map[ $prop['owner_character'] ?? '' ] ?? 0;
 			if ( $prop_id && $char_id ) {
-				\StoryOS\Utils\add_relationship( $prop_id, 'storyos_prop', $char_id, 'storyos_character', 'linked_to' );
+				\StoryOS\Utils\storyos_update_field_value( $prop_id, 'owner_character', $char_id );
 			}
 		}
 
@@ -1008,7 +1011,7 @@ class StoryOS_Importer {
 			if ( ! empty( $scene['location'] ) ) {
 				$loc_id = $this->id_map[ $scene['location'] ] ?? 0;
 				if ( $loc_id ) {
-					\StoryOS\Utils\add_relationship( $scene_id, 'storyos_scene', $loc_id, 'storyos_location', 'located_in' );
+					\StoryOS\Utils\storyos_update_field_value( $scene_id, 'location', $loc_id );
 				}
 			}
 
@@ -1043,18 +1046,11 @@ class StoryOS_Importer {
 
 			$scene_id = $this->id_map[ $shot['scene'] ] ?? 0;
 			if ( $scene_id ) {
-				$relationship = \StoryOS\Utils\set_relationship(
-					$shot_id,
-					'storyos_shot',
-					$scene_id,
-					'storyos_scene',
-					'belongs_to',
-					[ 'field' => 'scene' ]
-				);
+				\StoryOS\Utils\storyos_update_field_value( $shot_id, 'scene', $scene_id );
 
 				// Clean up the inverse edge written by importer versions that stored
-				// Scene → Shot instead of the required Shot.scene scalar edge.
-				if ( ! is_wp_error( $relationship ) ) {
+				// Scene → Shot only after the required Shot.scene edge is verified.
+				if ( $this->relationship_slot_matches( $shot_id, 'storyos_shot', 'scene', $scene_id, 'storyos_scene' ) ) {
 					\StoryOS\Utils\remove_relationship( $scene_id, $shot_id, 'storyos_scene', 'storyos_shot' );
 				}
 			}
@@ -1073,47 +1069,19 @@ class StoryOS_Importer {
 			}
 
 			$scene_id = $this->id_map[ $sound['scene'] ?? '' ] ?? 0;
-			\StoryOS\Utils\set_relationship(
-				$sound_id,
-				'storyos_sound',
-				$scene_id,
-				'storyos_scene',
-				'belongs_to',
-				[ 'field' => 'scene' ]
-			);
+			\StoryOS\Utils\storyos_update_field_value( $sound_id, 'scene', $scene_id );
 
 			$shot_id = $this->id_map[ $sound['shot'] ?? '' ] ?? 0;
-			\StoryOS\Utils\set_relationship(
-				$sound_id,
-				'storyos_sound',
-				$shot_id,
-				'storyos_shot',
-				'belongs_to',
-				[ 'field' => 'shot' ]
-			);
+			\StoryOS\Utils\storyos_update_field_value( $sound_id, 'shot', $shot_id );
 
 			$character_id = $this->id_map[ $sound['character'] ?? '' ] ?? 0;
-			\StoryOS\Utils\set_relationship(
-				$sound_id,
-				'storyos_sound',
-				$character_id,
-				'storyos_character',
-				'linked_to',
-				[ 'field' => 'character' ]
-			);
+			\StoryOS\Utils\storyos_update_field_value( $sound_id, 'character', $character_id );
 
 			$asset_id = 0;
 			if ( ! empty( $sound['asset'] ) ) {
 				$asset_id = $this->find_existing( 'storyos_asset', sanitize_text_field( (string) $sound['asset'] ) );
 			}
-			\StoryOS\Utils\set_relationship(
-				$sound_id,
-				'storyos_sound',
-				$asset_id,
-				'storyos_asset',
-				'linked_to',
-				[ 'field' => 'asset' ]
-			);
+			\StoryOS\Utils\storyos_update_field_value( $sound_id, 'asset', $asset_id );
 		}
 
 		// Storyboard Frame → Shot.
@@ -1126,6 +1094,7 @@ class StoryOS_Importer {
 			$shot_id = $this->id_map[ $frame['shot'] ] ?? 0;
 			if ( $shot_id ) {
 				\StoryOS\Utils\add_relationship( $shot_id, 'storyos_shot', $frame_id, 'storyos_storyboard', 'contains' );
+				\StoryOS\Utils\storyos_update_field_value( $frame_id, 'shot', $shot_id );
 			}
 		}
 	}
@@ -1171,6 +1140,50 @@ class StoryOS_Importer {
 			$this->report['errors'][] = 'Verification failed for storyos_sequence: expected 1, resolved 0.';
 		}
 
+		$project_id = (int) ( $this->id_map[ (string) $this->document['project']['id'] ] ?? 0 );
+		$world_id   = (int) ( $this->id_map[ (string) $this->document['world']['id'] ] ?? 0 );
+		if ( ! $this->relationship_slot_matches( $world_id, 'storyos_story_world', 'project', $project_id, 'storyos_project' ) ) {
+			$this->report['errors'][] = 'Story World did not retain its Project relationship.';
+		}
+
+		foreach ( $this->document['characters'] as $character ) {
+			$character_id = (int) ( $this->id_map[ (string) $character['id'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $character_id, 'storyos_character', 'story_world', $world_id, 'storyos_story_world' ) ) {
+				$this->report['errors'][] = sprintf( 'Character %s did not retain its Story World relationship.', $character['id'] );
+			}
+		}
+
+		foreach ( $this->document['locations'] as $location ) {
+			$location_id = (int) ( $this->id_map[ (string) $location['id'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $location_id, 'storyos_location', 'story_world', $world_id, 'storyos_story_world' ) ) {
+				$this->report['errors'][] = sprintf( 'Location %s did not retain its Story World relationship.', $location['id'] );
+			}
+		}
+
+		foreach ( $this->document['props'] as $prop ) {
+			if ( empty( $prop['owner_character'] ) ) {
+				continue;
+			}
+
+			$prop_id      = (int) ( $this->id_map[ (string) $prop['id'] ] ?? 0 );
+			$character_id = (int) ( $this->id_map[ (string) $prop['owner_character'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $prop_id, 'storyos_prop', 'owner_character', $character_id, 'storyos_character' ) ) {
+				$this->report['errors'][] = sprintf( 'Prop %s did not retain its owner Character relationship.', $prop['id'] );
+			}
+		}
+
+		foreach ( $this->document['scenes'] as $scene ) {
+			if ( empty( $scene['location'] ) ) {
+				continue;
+			}
+
+			$scene_id    = (int) ( $this->id_map[ (string) $scene['id'] ] ?? 0 );
+			$location_id = (int) ( $this->id_map[ (string) $scene['location'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $scene_id, 'storyos_scene', 'location', $location_id, 'storyos_location' ) ) {
+				$this->report['errors'][] = sprintf( 'Scene %s did not retain its Location relationship.', $scene['id'] );
+			}
+		}
+
 		foreach ( $this->document['shots'] as $shot ) {
 			$shot_id  = (int) ( $this->id_map[ (string) $shot['id'] ] ?? 0 );
 			$scene_id = (int) ( $this->id_map[ (string) $shot['scene'] ] ?? 0 );
@@ -1200,6 +1213,14 @@ class StoryOS_Importer {
 			$expected_dialogue = count( (array) ( $scene['dialogue'] ?? [] ) );
 			if ( $expected_dialogue !== count( is_array( $stored_dialogue ) ? $stored_dialogue : [] ) ) {
 				$this->report['errors'][] = sprintf( 'Scene %s dialogue verification failed.', $scene['id'] );
+			}
+		}
+
+		foreach ( $this->document['storyboards'] as $frame ) {
+			$frame_id = (int) ( $this->id_map[ (string) $frame['id'] ] ?? 0 );
+			$shot_id  = (int) ( $this->id_map[ (string) $frame['shot'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $frame_id, 'storyos_storyboard', 'shot', $shot_id, 'storyos_shot' ) ) {
+				$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Shot relationship.', $frame['id'] );
 			}
 		}
 

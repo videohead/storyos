@@ -269,14 +269,18 @@ class Production_Controller extends Base_Controller {
 	 */
 	public static function update_stage( WP_REST_Request $request ) {
 		$project_id = absint( $request->get_param( 'project_id' ) );
-		$stage = $request->get_param( 'stage' );
+		$stage      = sanitize_key( (string) $request->get_param( 'stage' ) );
+		if ( 'storyos_project' !== get_post_type( $project_id ) ) {
+			return new WP_Error( 'project_not_found', 'Project not found.', [ 'status' => 404 ] );
+		}
 
-		$valid_stages = [ 'draft', 'pre_production', 'production', 'post_production', 'review', 'final' ];
+		$fields       = \StoryOS\Utils\storyos_get_fields( 'storyos_project' );
+		$valid_stages = array_keys( (array) ( $fields['production_stage']['options'] ?? [] ) );
 		if ( ! in_array( $stage, $valid_stages, true ) ) {
 			return new WP_Error( 'invalid_stage', 'Invalid production stage.', [ 'status' => 400 ] );
 		}
 
-		update_post_meta( $project_id, 'production_stage', $stage );
+		\StoryOS\Utils\storyos_update_field_value( $project_id, 'production_stage', $stage );
 
 		return rest_ensure_response( [
 			'message' => 'Production stage updated.',

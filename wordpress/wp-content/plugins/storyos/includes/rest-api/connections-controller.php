@@ -117,6 +117,44 @@ class Connections_Controller extends Base_Controller {
 		] );
 	}
 
+	/** Only administrators may read Connection control-plane records. */
+	public function check_read_permission( \WP_REST_Request $request ) {
+		return current_user_can( 'manage_options' )
+			? true
+			: new \WP_Error( 'rest_forbidden', 'You do not have permission to manage StoryOS Connections.', [ 'status' => is_user_logged_in() ? 403 : 401 ] );
+	}
+
+	/** Only administrators may create Connection records. */
+	public function check_create_permission( \WP_REST_Request $request ) {
+		return $this->check_read_permission( $request );
+	}
+
+	/** Only administrators with access to the object may update it. */
+	public function check_update_permission( \WP_REST_Request $request ) {
+		$permission = $this->check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		$post_id = absint( $request->get_param( 'id' ) );
+		return ! $post_id || current_user_can( 'edit_post', $post_id )
+			? true
+			: new \WP_Error( 'rest_forbidden', 'You cannot edit this StoryOS Connection.', [ 'status' => 403 ] );
+	}
+
+	/** Only administrators with access to the object may delete it. */
+	public function check_delete_permission( \WP_REST_Request $request ) {
+		$permission = $this->check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		$post_id = absint( $request->get_param( 'id' ) );
+		return $post_id && current_user_can( 'delete_post', $post_id )
+			? true
+			: new \WP_Error( 'rest_forbidden', 'You cannot delete this StoryOS Connection.', [ 'status' => 403 ] );
+	}
+
 	/**
 	 * List connections, filtered by provider type, environment, or status.
 	 *
@@ -128,8 +166,9 @@ class Connections_Controller extends Base_Controller {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function get_items( $request ) {
-		if ( ! $this->check_read_permission( $request ) ) {
-			return new \WP_Error( 'rest_forbidden', 'Unauthorized.', [ 'status' => 401 ] );
+		$permission = $this->check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
 		}
 
 		$filters = [];

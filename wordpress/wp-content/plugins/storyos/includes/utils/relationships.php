@@ -136,21 +136,26 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 	$existing   = get_post_meta( $from_id, $meta_key, true );
 	$existing   = is_array( $existing ) ? $existing : [];
 	$field_name = sanitize_key( (string) ( $metadata['field'] ?? '' ) );
+	$has_marker = '' !== $field_name && metadata_exists( 'post', $from_id, relationship_field_marker_key( $field_name ) );
 
 	$existing = array_values(
 		array_filter(
 			$existing,
-			static function( array $relationship ) use ( $to_type, $type, $field_name ): bool {
-				if ( $to_type !== (string) ( $relationship['to_type'] ?? '' ) || $type !== (string) ( $relationship['type'] ?? '' ) ) {
-					return true;
-				}
-
+			static function( array $relationship ) use ( $to_type, $type, $field_name, $has_marker ): bool {
 				if ( '' === $field_name ) {
-					return false;
+					return $to_type !== (string) ( $relationship['to_type'] ?? '' ) || $type !== (string) ( $relationship['type'] ?? '' );
 				}
 
 				$existing_field = sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) );
-				return '' !== $existing_field && $field_name !== $existing_field;
+				if ( '' !== $existing_field ) {
+					return $field_name !== $existing_field;
+				}
+
+				if ( $has_marker ) {
+					return true;
+				}
+
+				return $to_type !== (string) ( $relationship['to_type'] ?? '' ) || $type !== (string) ( $relationship['type'] ?? '' );
 			}
 		)
 	);
@@ -215,17 +220,22 @@ function set_relationships_for_field( int $from_id, string $from_type, array $ta
 	$meta_key   = STORYOS_CPT_PREFIX . 'relationships';
 	$existing   = get_post_meta( $from_id, $meta_key, true );
 	$existing   = is_array( $existing ) ? $existing : [];
+	$has_marker = metadata_exists( 'post', $from_id, relationship_field_marker_key( $field_name ) );
 	$existing   = array_values(
 		array_filter(
 			$existing,
-			static function( array $relationship ) use ( $to_type, $type, $field_name ): bool {
+			static function( array $relationship ) use ( $to_type, $type, $field_name, $has_marker ): bool {
 				$existing_field = sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) );
 				if ( '' !== $existing_field ) {
 					return $field_name !== $existing_field;
 				}
 
-				// Legacy edges did not identify their source control. Remove only
-				// those that match this field's configured target and verb.
+				if ( $has_marker ) {
+					return true;
+				}
+
+				// Adopt only the exact legacy edge represented by this field. Other
+				// untagged Story Graph edges remain independent.
 				return $to_type !== (string) ( $relationship['to_type'] ?? '' ) || $type !== (string) ( $relationship['type'] ?? '' );
 			}
 		)

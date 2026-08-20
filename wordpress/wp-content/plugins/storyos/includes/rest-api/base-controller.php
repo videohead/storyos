@@ -317,7 +317,10 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$this->save_meta_fields( $post_id, $request );
 
 		// Save relationships.
-		$this->save_relationships( $post_id, $request );
+		$relationship_result = $this->save_relationships( $post_id, $request );
+		if ( is_wp_error( $relationship_result ) ) {
+			return $relationship_result;
+		}
 		do_action( 'storyos_after_rest_entity_save', $post_id, $this->cpt, $request );
 
 		$post = get_post( $post_id );
@@ -381,8 +384,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 *
 	 * @param int            $post_id
 	 * @param \WP_REST_Request $request
+	 * @return true|\WP_Error
 	 */
-	protected function save_relationships( int $post_id, \WP_REST_Request $request ): void {
+	protected function save_relationships( int $post_id, \WP_REST_Request $request ) {
 		$fields = \StoryOS\Utils\storyos_get_fields( $this->cpt );
 		$meta   = $request->get_param( 'meta' );
 		$meta   = is_array( $meta ) ? $meta : [];
@@ -391,7 +395,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 			if ( 'relationship' === $field['type'] && array_key_exists( $key, $meta ) ) {
 				$target_ids = is_array( $meta[ $key ] ) ? $meta[ $key ] : [ $meta[ $key ] ];
 				$target_ids = array_values( array_filter( array_map( 'absint', $target_ids ) ) );
-				\StoryOS\Utils\set_relationships_for_field(
+				$result = \StoryOS\Utils\set_relationships_for_field(
 					$post_id,
 					$this->cpt,
 					$target_ids,
@@ -399,6 +403,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 					(string) ( $field['relationship_type'] ?? 'belongs_to' ),
 					$key
 				);
+				if ( is_wp_error( $result ) ) {
+					return $result;
+				}
 
 				\StoryOS\Utils\storyos_update_field_value(
 					$post_id,
@@ -407,6 +414,8 @@ abstract class Base_Controller extends WP_REST_Controller {
 				);
 			}
 		}
+
+		return true;
 	}
 
 	/**
@@ -565,7 +574,10 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$this->save_meta_fields( $post_id, $request );
 
 		// Update relationships.
-		$this->save_relationships( $post_id, $request );
+		$relationship_result = $this->save_relationships( $post_id, $request );
+		if ( is_wp_error( $relationship_result ) ) {
+			return $relationship_result;
+		}
 		do_action( 'storyos_after_rest_entity_save', $post_id, $this->cpt, $request );
 
 		$post = get_post( $post_id );

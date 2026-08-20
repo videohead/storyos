@@ -972,11 +972,21 @@ class Asset_Generator {
 		if ( 0 !== strpos( $mime, 'audio/' ) ) {
 			set_post_thumbnail( $asset_id, $attachment_id );
 		}
-		update_post_meta( $asset_id, 'asset_title', $title );
+		storyos_update_field_value( $asset_id, 'asset_title', $title );
 		update_post_meta( $asset_id, self::SOURCE_META, $post->ID );
 
+		$asset_type = 0 === strpos( $mime, 'video/' ) ? 'video' : ( 0 === strpos( $mime, 'audio/' ) ? 'audio' : 'image' );
+		$term       = term_exists( $asset_type, 'storyos_asset_type' );
+		if ( ! $term ) {
+			$term = wp_insert_term( ucfirst( $asset_type ), 'storyos_asset_type' );
+		}
+		if ( ! is_wp_error( $term ) ) {
+			$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+			wp_set_object_terms( $asset_id, [ $term_id ], 'storyos_asset_type', false );
+		}
+
 		if ( isset( self::ASSET_RELATIONSHIP_FIELDS[ $post->post_type ] ) ) {
-			update_post_meta( $asset_id, self::ASSET_RELATIONSHIP_FIELDS[ $post->post_type ], $post->ID );
+			storyos_update_field_value( $asset_id, self::ASSET_RELATIONSHIP_FIELDS[ $post->post_type ], $post->ID );
 		}
 
 		self::store_asset_fields( $asset_id, $attachment_id, $prompt, $image );
@@ -993,12 +1003,12 @@ class Asset_Generator {
 	 * @param array  $image         Image payload.
 	 */
 	private static function store_asset_fields( int $asset_id, int $attachment_id, string $prompt, array $image ): void {
-		update_post_meta( $asset_id, 'workflow_name', (string) ( $image['workflow'] ?? '' ) ?: 'text-to-image' );
-		update_post_meta( $asset_id, 'prompt', $prompt );
-		update_post_meta( $asset_id, 'model_name', (string) ( $image['model'] ?? '' ) );
-		update_post_meta( $asset_id, 'status', 'done' );
-		update_post_meta( $asset_id, 'storage_uri', (string) wp_get_attachment_url( $attachment_id ) );
-		update_post_meta( $asset_id, 'generation_parameters', (string) wp_json_encode( [
+		storyos_update_field_value( $asset_id, 'workflow_name', (string) ( $image['workflow'] ?? '' ) ?: 'text-to-image' );
+		storyos_update_field_value( $asset_id, 'prompt', $prompt );
+		storyos_update_field_value( $asset_id, 'model_name', (string) ( $image['model'] ?? '' ) );
+		storyos_update_field_value( $asset_id, 'status', 'done' );
+		storyos_update_field_value( $asset_id, 'storage_uri', (string) wp_get_attachment_url( $attachment_id ) );
+		storyos_update_field_value( $asset_id, 'generation_parameters', (string) wp_json_encode( [
 			'size'           => (string) ( $image['size'] ?? '' ),
 			'mime'           => (string) ( $image['mime'] ?? '' ),
 			'width'          => (int) ( $image['width'] ?? 0 ),

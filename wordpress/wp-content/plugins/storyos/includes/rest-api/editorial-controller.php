@@ -262,9 +262,9 @@ class Editorial_Controller extends Base_Controller {
 			foreach ( $query->posts as $post ) {
 				$artifacts[] = [
 					'id'           => $post->ID,
-					'type'         => get_post_meta( $post->ID, 'artifact_type', true ),
-					'format'       => get_post_meta( $post->ID, 'export_format', true ),
-					'created_date' => get_post_meta( $post->ID, 'generated_date', true ),
+					'type'         => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'artifact_type' ),
+					'format'       => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'export_format' ),
+					'created_date' => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'generated_date' ),
 					'title'        => $post->post_title,
 				];
 			}
@@ -306,10 +306,10 @@ class Editorial_Controller extends Base_Controller {
 		}
 
 		// Save artifact metadata.
-		update_post_meta( $post_id, 'artifact_type', $type );
-		update_post_meta( $post_id, 'export_format', $format );
-		update_post_meta( $post_id, 'generated_date', current_time( 'mysql' ) );
-		update_post_meta( $post_id, 'project', $project_id );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'artifact_type', $type );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'export_format', $format );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'generated_date', current_time( 'Y-m-d' ) );
+		\StoryOS\Utils\storyos_update_field_value( $post_id, 'project', $project_id );
 
 		return rest_ensure_response( [
 			'id'         => $post_id,
@@ -501,10 +501,10 @@ class Editorial_Controller extends Base_Controller {
 			foreach ( $query->posts as $post ) {
 				$frames[] = [
 					'id'             => $post->ID,
-					'frame_number'   => get_post_meta( $post->ID, 'frame_number', true ),
-					'description'    => get_post_meta( $post->ID, 'frame_description', true ),
-					'image_asset'    => get_post_meta( $post->ID, 'image_asset', true ),
-					'prompt_text'    => get_post_meta( $post->ID, 'prompt_text', true ),
+					'frame_number'   => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'frame_number' ),
+					'description'    => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'frame_description' ),
+					'image_asset'    => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'image_asset' ),
+					'prompt_text'    => \StoryOS\Utils\storyos_get_field_value( $post->ID, 'prompt_text' ),
 				];
 			}
 			wp_reset_postdata();

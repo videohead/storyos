@@ -181,6 +181,7 @@ class Template {
 			],
 			'workflow_json'       => [
 				'type'        => 'textarea',
+				'format'      => 'json',
 				'label'       => 'ComfyUI API Workflow (optional)',
 				'required'    => false,
 				'description' => 'Leave blank to use the built-in text-to-image workflow with the checkpoint above. To use a custom graph, export it with ComfyUI\'s “Save (API Format)”, then replace prompt values with placeholders such as {{prompt}} and {{negative_prompt}}.',
@@ -193,24 +194,28 @@ class Template {
 			],
 			'configuration_json'  => [
 				'type'        => 'textarea',
+				'format'      => 'json',
 				'label'       => 'Configuration JSON',
 				'required'    => true,
 				'description' => 'Provider-neutral JSON for optional parameter overrides, references, and SCF field mappings. Provider inputs live under {"input": {...}}; StoryOS adds the prompt and resolved bindings at runtime.',
 			],
 			'input_bindings'      => [
 				'type'        => 'textarea',
+				'format'      => 'json',
 				'label'       => 'Input Bindings JSON',
 				'required'    => false,
 				'description' => 'Optional JSON mapping prompt-related fields to Story Graph sources for the text-to-image workflow.',
 			],
 			'model_requirements'  => [
 				'type'        => 'textarea',
+				'format'      => 'json',
 				'label'       => 'Model Requirements JSON',
 				'required'    => false,
 				'description' => 'Optional JSON array of download sources for the models this Template loads: [{"filename":"ltx-2.3.safetensors","folder":"checkpoints","url":"https://…"}]. Used by the requirement check to offer a one-click install.',
 			],
 			'default_values'     => [
 				'type'        => 'textarea',
+				'format'      => 'json',
 				'label'       => 'Default Values',
 				'required'    => false,
 			],

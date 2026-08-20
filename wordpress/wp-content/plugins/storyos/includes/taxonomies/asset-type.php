@@ -32,6 +32,7 @@ class AssetType {
 
 		// Default asset type terms.
 		$default_types = [
+			'Image',
 			'Character',
 			'Environment',
 			'Prop',

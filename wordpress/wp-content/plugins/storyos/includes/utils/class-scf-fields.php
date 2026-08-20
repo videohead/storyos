@@ -13,6 +13,24 @@ namespace StoryOS\Utils;
  */
 final class SCF_Fields {
 
+	/** Current one-time value migration version. */
+	private const VALUE_MIGRATION_VERSION = 1;
+
+	/** Option recording the completed value migration version. */
+	private const VALUE_MIGRATION_OPTION = 'storyos_scf_value_migration_version';
+
+	/** Atomic lock protecting serialized Story Graph writes during migration. */
+	private const VALUE_MIGRATION_LOCK_OPTION = 'storyos_scf_value_migration_lock';
+
+	/** Cursor for bounded legacy-value migration batches. */
+	private const VALUE_MIGRATION_STATE_OPTION = 'storyos_scf_value_migration_state';
+
+	/** Background hook used to continue a partially completed migration. */
+	private const VALUE_MIGRATION_HOOK = 'storyos_scf_migrate_value_batch';
+
+	/** Maximum number of StoryOS posts migrated in one request. */
+	private const VALUE_MIGRATION_BATCH_SIZE = 100;
+
 	/**
 	 * Whether runtime hooks have been registered.
 	 *
@@ -33,6 +51,9 @@ final class SCF_Fields {
 	 * @var array<string, array<int, string>>
 	 */
 	private static $owned_field_keys = [];
+
+	/** Whether an update originated from StoryOS's trusted field helper. */
+	private static $internal_update = false;
 
 	/**
 	 * Initialize persisted groups and value synchronization.
@@ -56,12 +77,21 @@ final class SCF_Fields {
 		}
 
 		self::$booted = true;
+		add_filter( 'acf/pre_update_value', [ __CLASS__, 'protect_read_only_value' ], 20, 4 );
+		add_filter( 'acf/pre_update_value', [ __CLASS__, 'protect_json_value' ], 30, 4 );
 		add_filter( 'acf/update_value', [ __CLASS__, 'filter_update_value' ], 20, 4 );
 		add_filter( 'acf/load_value', [ __CLASS__, 'filter_load_value' ], 20, 3 );
 		add_filter( 'acf/prepare_field', [ __CLASS__, 'prepare_field' ] );
+		add_filter( 'acf/validate_rest_value/type=textarea', [ __CLASS__, 'validate_rest_json_value' ], 20, 3 );
 		add_action( 'added_post_meta', [ __CLASS__, 'sync_reference_meta' ], 10, 4 );
 		add_action( 'updated_post_meta', [ __CLASS__, 'sync_reference_meta' ], 10, 4 );
 		add_action( 'deleted_post_meta', [ __CLASS__, 'delete_reference_meta' ], 10, 4 );
+		add_action( 'admin_init', [ __CLASS__, 'maybe_migrate_legacy_values' ], 20 );
+		add_action( self::VALUE_MIGRATION_HOOK, [ __CLASS__, 'maybe_migrate_legacy_values' ] );
+
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			self::maybe_migrate_legacy_values();
+		}
 	}
 
 	/**
@@ -126,12 +156,33 @@ final class SCF_Fields {
 				$group = self::build_group( $cpt, $fields );
 			}
 
+			// SCF extracts Local JSON fields into its local-field store before it
+			// stores the group object. Rehydrate them before passing the group to
+			// the importer; otherwise an import of the bare group deletes every
+			// editable database field that is not present in `fields`.
+			if ( empty( $group['fields'] ) ) {
+				$group['fields'] = acf_get_fields( $group );
+			}
+
+			$archive_names = array_filter( array_column( (array) $group['fields'], 'name' ) );
+			$missing_names = array_diff( array_keys( $fields ), $archive_names );
+			if ( ! empty( $missing_names ) ) {
+				storyos_log(
+					sprintf(
+						'SCF archive group %s was not imported because it is missing canonical fields: %s',
+						self::group_key( $cpt ),
+						implode( ', ', $missing_names )
+					)
+				);
+				continue;
+			}
+
 			// acf_get_raw_field_group() bypasses Local JSON and checks the
 			// database. Import a missing or older editable copy.
 			$db_group = function_exists( 'acf_get_raw_field_group' )
 				? acf_get_raw_field_group( self::group_key( $cpt ) )
 				: false;
-			if ( ! $db_group || self::archive_is_newer( $group, $db_group ) ) {
+			if ( ! $db_group || self::archive_is_newer( $group, $db_group ) || self::database_group_is_incomplete( $db_group, $fields ) ) {
 				$import = $group;
 				unset( $import['local'], $import['local_file'] );
 				$import['ID'] = $db_group ? (int) $db_group['ID'] : 0;
@@ -155,6 +206,24 @@ final class SCF_Fields {
 
 		self::$field_cache      = [];
 		self::$owned_field_keys = [];
+	}
+
+	/**
+	 * Whether an editable database group is missing canonical StoryOS fields.
+	 *
+	 * This also repairs database copies created by older StoryOS synchronizers
+	 * that imported the field-less Local JSON group object.
+	 *
+	 * @param array<string, mixed>                    $db_group   Raw database group.
+	 * @param array<string, array<string, mixed>>     $definitions Canonical fields.
+	 */
+	private static function database_group_is_incomplete( array $db_group, array $definitions ): bool {
+		if ( empty( $db_group['ID'] ) || ! function_exists( 'acf_get_raw_fields' ) ) {
+			return false;
+		}
+
+		$db_names = array_filter( array_column( (array) acf_get_raw_fields( (int) $db_group['ID'] ), 'name' ) );
+		return ! empty( array_diff( array_keys( $definitions ), $db_names ) );
 	}
 
 	/**
@@ -545,7 +614,13 @@ final class SCF_Fields {
 		$cpt   = (string) get_post_type( $post_id );
 		$field = self::get_field_object( $cpt, $field_name );
 		if ( $field && function_exists( 'update_field' ) ) {
-			$result = update_field( (string) $field['key'], $value, $post_id );
+			$previous_internal_update = self::$internal_update;
+			self::$internal_update = true;
+			try {
+				$result = update_field( (string) $field['key'], $value, $post_id );
+			} finally {
+				self::$internal_update = $previous_internal_update;
+			}
 			return false !== $result;
 		}
 
@@ -579,6 +654,112 @@ final class SCF_Fields {
 		}
 
 		return delete_post_meta( $post_id, $field_name );
+	}
+
+	/**
+	 * Prevent UI, native REST, and datastore writes to importer-managed fields.
+	 * StoryOS's internal helper temporarily opts in for trusted import/migration
+	 * writes.
+	 *
+	 * @param mixed                $check   Short-circuit value.
+	 * @param mixed                $value   Proposed value.
+	 * @param int|string           $post_id SCF object ID.
+	 * @param array<string, mixed> $field   SCF field.
+	 * @return mixed
+	 */
+	public static function protect_read_only_value( $check, $value, $post_id, array $field ) {
+		if ( self::$internal_update || ! is_numeric( $post_id ) ) {
+			return $check;
+		}
+
+		$cpt = (string) get_post_type( (int) $post_id );
+		if ( ! isset( storyos_get_all_cpts()[ $cpt ] ) || ! self::is_owned_field( $cpt, $field ) ) {
+			return $check;
+		}
+
+		$defaults = storyos_get_field_defaults( $cpt );
+		return ! empty( $defaults[ $field['name'] ]['read_only'] ) ? false : $check;
+	}
+
+	/**
+	 * Prevent invalid JSON from reaching any SCF write path.
+	 *
+	 * SCF's standard form validator does not run for every REST/datastore save,
+	 * so the pre-update guard is the final integrity boundary.
+	 *
+	 * @param mixed                $check   Existing short-circuit value.
+	 * @param mixed                $value   Proposed value.
+	 * @param int|string           $post_id SCF object ID.
+	 * @param array<string, mixed> $field   SCF field.
+	 * @return mixed
+	 */
+	public static function protect_json_value( $check, $value, $post_id, array $field ) {
+		if ( null !== $check || ! is_numeric( $post_id ) ) {
+			return $check;
+		}
+
+		$cpt = (string) get_post_type( (int) $post_id );
+		if ( ! self::is_json_field( $cpt, $field ) ) {
+			return $check;
+		}
+
+		return self::is_valid_json_value( $value ) ? $check : false;
+	}
+
+	/**
+	 * Return a useful native REST error for invalid StoryOS JSON textareas.
+	 *
+	 * @param bool|\WP_Error       $valid Current validation result.
+	 * @param mixed                $value Submitted value.
+	 * @param array<string, mixed> $field SCF field.
+	 * @return bool|\WP_Error
+	 */
+	public static function validate_rest_json_value( $valid, $value, array $field ) {
+		if ( true !== $valid ) {
+			return $valid;
+		}
+
+		$cpt = self::cpt_from_field_key( (string) ( $field['key'] ?? '' ) );
+		if ( '' === $cpt || ! self::is_json_field( $cpt, $field ) || self::is_valid_json_value( $value ) ) {
+			return $valid;
+		}
+
+		return new \WP_Error(
+			'rest_invalid_param',
+			__( 'Enter a valid JSON array or object.', 'storyos' ),
+			[ 'status' => 400 ]
+		);
+	}
+
+	/**
+	 * Whether a field uses StoryOS's explicit JSON storage contract.
+	 *
+	 * @param string               $cpt   StoryOS CPT.
+	 * @param array<string, mixed> $field SCF field.
+	 */
+	private static function is_json_field( string $cpt, array $field ): bool {
+		if ( '' === $cpt || ! isset( storyos_get_all_cpts()[ $cpt ] ) || ! self::is_owned_field( $cpt, $field ) ) {
+			return false;
+		}
+
+		$defaults = storyos_get_field_defaults( $cpt );
+		$name     = (string) ( $field['name'] ?? '' );
+		return 'json' === (string) ( $defaults[ $name ]['format'] ?? '' );
+	}
+
+	/** Whether a JSON textarea is blank or contains an array/object document. */
+	private static function is_valid_json_value( $value ): bool {
+		if ( ! is_scalar( $value ) && null !== $value ) {
+			return false;
+		}
+
+		$value = trim( (string) $value );
+		if ( '' === $value ) {
+			return true;
+		}
+
+		$decoded = json_decode( $value, true );
+		return JSON_ERROR_NONE === json_last_error() && is_array( $decoded );
 	}
 
 	/**
@@ -628,6 +809,21 @@ final class SCF_Fields {
 		if ( in_array( (string) $config['type'], [ 'taxonomy', 'structured', 'user' ], true ) || is_array( $value ) || is_object( $value ) ) {
 			return $value;
 		}
+		if ( 'date' === (string) $config['type'] ) {
+			$value = trim( (string) $value );
+			if ( '' === $value || preg_match( '/^\d{8}$/', $value ) ) {
+				return $value;
+			}
+
+			$timestamp = strtotime( $value );
+			return false === $timestamp ? get_post_meta( $post_id, (string) $field['name'], true ) : gmdate( 'Ymd', $timestamp );
+		}
+		if ( 'json' === (string) ( $config['format'] ?? '' ) ) {
+			// Template/Connection filters normalize this untouched value later in
+			// the update pipeline. Generic textarea sanitization would strip valid
+			// tokens such as <lora:...> from JSON string values.
+			return (string) $value;
+		}
 
 		return storyos_sanitize_field_value( $value, $config );
 	}
@@ -658,7 +854,10 @@ final class SCF_Fields {
 			return $value;
 		}
 
-		$matches = [];
+		$matches       = [];
+		$expected_type = (string) ( $config['relationship_type'] ?? 'belongs_to' );
+		$has_marker    = function_exists( __NAMESPACE__ . '\\relationship_field_marker_key' )
+			&& metadata_exists( 'post', $post_id, relationship_field_marker_key( (string) $field['name'] ) );
 		foreach ( get_relationships( $post_id, $cpt, 'outgoing' ) as $relationship ) {
 			if ( $to_type !== (string) ( $relationship['to_type'] ?? '' ) ) {
 				continue;
@@ -666,6 +865,9 @@ final class SCF_Fields {
 
 			$relationship_field = (string) ( $relationship['metadata']['field'] ?? '' );
 			if ( '' !== $relationship_field && (string) $field['name'] !== $relationship_field ) {
+				continue;
+			}
+			if ( '' === $relationship_field && ( $has_marker || $expected_type !== (string) ( $relationship['type'] ?? '' ) ) ) {
 				continue;
 			}
 
@@ -678,11 +880,304 @@ final class SCF_Fields {
 
 		// A per-field marker distinguishes an intentionally empty graph slot from
 		// legacy named relationship meta that has not been migrated yet.
-		if ( function_exists( __NAMESPACE__ . '\\relationship_field_marker_key' ) && metadata_exists( 'post', $post_id, relationship_field_marker_key( (string) $field['name'] ) ) ) {
+		if ( $has_marker ) {
 			return 'relationship' === (string) $field['type'] || ! empty( $field['multiple'] ) ? [] : '';
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Run the legacy migration only from a privileged administration request,
+	 * WP-CLI, or its continuation cron, serialized by an atomic option lock.
+	 */
+	public static function maybe_migrate_legacy_values(): void {
+		if ( (int) get_option( self::VALUE_MIGRATION_OPTION, 0 ) >= self::VALUE_MIGRATION_VERSION ) {
+			return;
+		}
+
+		$is_cli  = defined( 'WP_CLI' ) && WP_CLI;
+		$is_cron = function_exists( 'wp_doing_cron' ) && wp_doing_cron();
+		if ( ! $is_cli && ! $is_cron && ( ! is_admin() || ! current_user_can( 'manage_options' ) || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) ) {
+			return;
+		}
+
+		$token = wp_generate_uuid4();
+		$lock  = [ 'token' => $token, 'created' => time() ];
+		if ( ! add_option( self::VALUE_MIGRATION_LOCK_OPTION, $lock, '', false ) ) {
+			$current_lock = get_option( self::VALUE_MIGRATION_LOCK_OPTION, [] );
+			if ( is_array( $current_lock ) && time() - (int) ( $current_lock['created'] ?? 0 ) <= 15 * MINUTE_IN_SECONDS ) {
+				return;
+			}
+
+			delete_option( self::VALUE_MIGRATION_LOCK_OPTION );
+			if ( ! add_option( self::VALUE_MIGRATION_LOCK_OPTION, $lock, '', false ) ) {
+				return;
+			}
+		}
+
+		try {
+			self::migrate_legacy_values();
+		} finally {
+			$current_lock = get_option( self::VALUE_MIGRATION_LOCK_OPTION, [] );
+			if ( is_array( $current_lock ) && $token === (string) ( $current_lock['token'] ?? '' ) ) {
+				delete_option( self::VALUE_MIGRATION_LOCK_OPTION );
+			}
+		}
+	}
+
+	/**
+	 * Convert legacy values into SCF's storage contracts once per site.
+	 *
+	 * This migrates serialized dialogue arrays to repeater rows, normalizes date
+	 * storage, backfills SCF name-to-key references, and adopts unambiguous
+	 * legacy graph edges into named relationship-field slots.
+	 */
+	private static function migrate_legacy_values(): void {
+		global $wpdb;
+
+		$state        = get_option( self::VALUE_MIGRATION_STATE_OPTION, [] );
+		$last_id      = is_array( $state ) ? absint( $state['last_id'] ?? 0 ) : 0;
+		$cpts         = array_keys( storyos_get_all_cpts() );
+		$placeholders = implode( ', ', array_fill( 0, count( $cpts ), '%s' ) );
+		$query_args   = array_merge( [ $last_id ], $cpts, [ self::VALUE_MIGRATION_BATCH_SIZE ] );
+		$sql          = $wpdb->prepare( // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders are generated from the canonical CPT count.
+			"SELECT ID FROM {$wpdb->posts} WHERE ID > %d AND post_type IN ({$placeholders}) ORDER BY ID ASC LIMIT %d",
+			$query_args
+		);
+		$batch_ids    = array_map( 'absint', (array) $wpdb->get_col( $sql ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- prepared above.
+		if ( '' !== (string) $wpdb->last_error ) {
+			storyos_log( 'SCF legacy value migration could not read its next post batch.' );
+			return;
+		}
+
+		$posts_by_cpt = [];
+		foreach ( array_keys( storyos_get_all_cpts() ) as $cpt ) {
+			$posts_by_cpt[ $cpt ] = array_map(
+				'absint',
+				get_posts(
+					[
+						'post_type'              => $cpt,
+						'post__in'               => empty( $batch_ids ) ? [ 0 ] : $batch_ids,
+						'post_status'            => 'any',
+						'posts_per_page'         => -1,
+						'fields'                 => 'ids',
+						'no_found_rows'          => true,
+						'update_post_meta_cache' => false,
+						'update_post_term_cache' => false,
+					]
+				)
+			);
+		}
+
+		$success = self::migrate_legacy_dialogue( $posts_by_cpt['storyos_scene'] ?? [] );
+
+		// Build a small inverse index for legacy parent -> child containment
+		// edges. Child-side SCF relationship fields can then adopt their parent.
+		$incoming_contains = [];
+		foreach ( $posts_by_cpt as $from_type => $post_ids ) {
+			foreach ( $post_ids as $from_id ) {
+				foreach ( (array) get_post_meta( $from_id, STORYOS_CPT_PREFIX . 'relationships', true ) as $relationship ) {
+					if ( 'contains' !== (string) ( $relationship['type'] ?? '' ) ) {
+						continue;
+					}
+
+					$to_type = (string) ( $relationship['to_type'] ?? '' );
+					$to_id   = absint( $relationship['to_id'] ?? 0 );
+					if ( $to_id ) {
+						$incoming_contains[ $to_type ][ $to_id ][ $from_type ][] = $from_id;
+					}
+				}
+			}
+		}
+
+		foreach ( $posts_by_cpt as $cpt => $post_ids ) {
+			$defaults = storyos_get_field_defaults( $cpt );
+			foreach ( $post_ids as $post_id ) {
+				foreach ( $defaults as $field_name => $config ) {
+					$field = self::get_field_object( $cpt, $field_name );
+					if ( ! $field ) {
+						// An administrator may deliberately remove a field. The alignment
+						// report flags canonical omissions without retrying this migration
+						// forever on every subsequent administration request.
+						continue;
+					}
+
+					if ( metadata_exists( 'post', $post_id, $field_name ) ) {
+						update_post_meta( $post_id, '_' . $field_name, (string) $field['key'] );
+					}
+
+					if ( 'date' === (string) ( $config['type'] ?? '' ) ) {
+						$raw_date = (string) get_post_meta( $post_id, $field_name, true );
+						if ( '' !== $raw_date && ! preg_match( '/^\d{8}$/', $raw_date ) ) {
+							$timestamp = strtotime( $raw_date );
+							if ( false !== $timestamp ) {
+								storyos_update_field_value( $post_id, $field_name, gmdate( 'Ymd', $timestamp ) );
+							}
+						}
+					}
+
+					if ( 'relationship' !== (string) ( $config['type'] ?? '' ) ) {
+						continue;
+					}
+
+					$marker_key = relationship_field_marker_key( $field_name );
+					if ( metadata_exists( 'post', $post_id, $marker_key ) ) {
+						continue;
+					}
+
+					$to_type    = (string) ( $config['related_cpt'] ?? '' );
+					$target_ids = self::legacy_relationship_targets( $post_id, $cpt, $field_name, $to_type, $config, $incoming_contains );
+					if ( empty( $target_ids ) ) {
+						continue;
+					}
+
+					$value = ! empty( $config['multiple'] ) ? $target_ids : $target_ids[0];
+					storyos_update_field_value( $post_id, $field_name, $value );
+					if ( ! metadata_exists( 'post', $post_id, $marker_key ) ) {
+						$success = false;
+						storyos_log( "SCF relationship migration failed for {$cpt} {$post_id}, field {$field_name}." );
+					}
+				}
+			}
+		}
+
+		if ( ! $success ) {
+			storyos_log( 'SCF legacy value migration completed with one or more values that require manual review.' );
+		}
+
+		if ( count( $batch_ids ) < self::VALUE_MIGRATION_BATCH_SIZE ) {
+			update_option( self::VALUE_MIGRATION_OPTION, self::VALUE_MIGRATION_VERSION, false );
+			delete_option( self::VALUE_MIGRATION_STATE_OPTION );
+			return;
+		}
+
+		update_option( self::VALUE_MIGRATION_STATE_OPTION, [ 'last_id' => (int) end( $batch_ids ) ], false );
+		if ( ! wp_next_scheduled( self::VALUE_MIGRATION_HOOK ) ) {
+			wp_schedule_single_event( time() + 5, self::VALUE_MIGRATION_HOOK );
+		}
+	}
+
+	/**
+	 * Convert legacy serialized Scene dialogue arrays to SCF repeater rows.
+	 *
+	 * @param array<int, int> $scene_ids Scene post IDs.
+	 * @return bool
+	 */
+	private static function migrate_legacy_dialogue( array $scene_ids ): bool {
+		$success = true;
+		foreach ( $scene_ids as $scene_id ) {
+			$raw = get_post_meta( $scene_id, 'dialogue', true );
+			if ( ! is_array( $raw ) ) {
+				continue;
+			}
+
+			$rows = [];
+			foreach ( $raw as $row ) {
+				if ( ! is_array( $row ) ) {
+					continue;
+				}
+
+				$rows[] = [
+					'speaker'     => (string) ( $row['speaker'] ?? '' ),
+					'line'        => (string) ( $row['line'] ?? '' ),
+					'description' => (string) ( $row['description'] ?? '' ),
+					'sequence'    => isset( $row['sequence'] ) && is_numeric( $row['sequence'] ) ? 0 + $row['sequence'] : '',
+				];
+			}
+
+			storyos_update_field_value( $scene_id, 'dialogue', $rows );
+			if ( is_array( get_post_meta( $scene_id, 'dialogue', true ) ) ) {
+				$success = false;
+			}
+		}
+
+		return $success;
+	}
+
+	/**
+	 * Find targets for one unmigrated relationship field.
+	 *
+	 * @param int                            $post_id           Source post ID.
+	 * @param string                         $cpt               Source CPT.
+	 * @param string                         $field_name        Field name.
+	 * @param string                         $to_type           Target CPT.
+	 * @param array<string, mixed>           $config            Field config.
+	 * @param array<string, mixed>           $incoming_contains Inverse containment index.
+	 * @return array<int, int>
+	 */
+	private static function legacy_relationship_targets( int $post_id, string $cpt, string $field_name, string $to_type, array $config, array $incoming_contains ): array {
+		$target_ids = [];
+		$raw        = get_post_meta( $post_id, $field_name, true );
+		foreach ( (array) $raw as $target_id ) {
+			$target_id = is_object( $target_id ) && isset( $target_id->ID ) ? (int) $target_id->ID : absint( $target_id );
+			if ( $target_id && $to_type === get_post_type( $target_id ) ) {
+				$target_ids[] = $target_id;
+			}
+		}
+
+		$expected_type = (string) ( $config['relationship_type'] ?? 'belongs_to' );
+		if ( empty( $target_ids ) ) {
+			foreach ( get_relationships( $post_id, $cpt, 'outgoing' ) as $relationship ) {
+				$relationship_field = (string) ( $relationship['metadata']['field'] ?? '' );
+				if (
+					$to_type === (string) ( $relationship['to_type'] ?? '' )
+					&& $expected_type === (string) ( $relationship['type'] ?? '' )
+					&& ( '' === $relationship_field || $field_name === $relationship_field )
+				) {
+					$target_ids[] = absint( $relationship['to_id'] ?? 0 );
+				}
+			}
+		}
+
+		if ( empty( $target_ids ) ) {
+			$target_ids = (array) ( $incoming_contains[ $cpt ][ $post_id ][ $to_type ] ?? [] );
+		}
+		if ( empty( $target_ids ) ) {
+			$target_ids = self::legacy_incoming_contains_targets( $post_id, $cpt, $to_type );
+		}
+
+		$target_ids = array_values( array_unique( array_filter( array_map( 'absint', $target_ids ) ) ) );
+		return ! empty( $config['multiple'] ) ? $target_ids : array_slice( $target_ids, 0, 1 );
+	}
+
+	/**
+	 * Find legacy parent-to-child containment edges for one child without a
+	 * site-wide in-memory graph scan.
+	 *
+	 * @return array<int, int> Parent IDs matching the requested CPT.
+	 */
+	private static function legacy_incoming_contains_targets( int $post_id, string $cpt, string $parent_type ): array {
+		global $wpdb;
+
+		$serialized_id = 's:5:"to_id";i:' . $post_id . ';';
+		$parent_ids    = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s",
+				STORYOS_CPT_PREFIX . 'relationships',
+				'%' . $wpdb->esc_like( $serialized_id ) . '%'
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- one-time, indexed migration lookup.
+
+		$matches = [];
+		foreach ( array_map( 'absint', (array) $parent_ids ) as $parent_id ) {
+			if ( $parent_type !== get_post_type( $parent_id ) ) {
+				continue;
+			}
+
+			foreach ( (array) get_post_meta( $parent_id, STORYOS_CPT_PREFIX . 'relationships', true ) as $relationship ) {
+				if (
+					'contains' === (string) ( $relationship['type'] ?? '' )
+					&& $post_id === absint( $relationship['to_id'] ?? 0 )
+					&& $cpt === (string) ( $relationship['to_type'] ?? '' )
+				) {
+					$matches[] = $parent_id;
+					break;
+				}
+			}
+		}
+
+		return array_values( array_unique( $matches ) );
 	}
 
 	/**
@@ -750,6 +1245,9 @@ final class SCF_Fields {
 		if ( (string) get_post_meta( $post_id, $reference_key, true ) !== (string) $field['key'] ) {
 			update_post_meta( $post_id, $reference_key, (string) $field['key'] );
 		}
+		if ( function_exists( 'acf_flush_value_cache' ) ) {
+			acf_flush_value_cache( $post_id, $meta_key );
+		}
 	}
 
 	/**
@@ -768,6 +1266,9 @@ final class SCF_Fields {
 		$cpt = (string) get_post_type( $post_id );
 		if ( self::get_field_object( $cpt, $meta_key ) ) {
 			delete_post_meta( $post_id, '_' . $meta_key );
+			if ( function_exists( 'acf_flush_value_cache' ) ) {
+				acf_flush_value_cache( $post_id, $meta_key );
+			}
 		}
 	}
 }
