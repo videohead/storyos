@@ -1,0 +1,166 @@
+/*
+Theme Name: World Graph Default Theme
+Description: World Graph Studio child theme for the Frost block theme.
+Author: World Graph Studio
+Template: frost
+Version: 1.0.0
+Requires at least: 6.9
+Requires PHP: 7.2
+License: GNU General Public License v3 or later
+License URI: https://www.gnu.org/licenses/gpl-3.0.html
+Text Domain: worldgraph-child
+*/
+
+:root {
+	--worldgraph-ink: #10100e;
+	--worldgraph-panel: #1b1a16;
+	--worldgraph-panel-raised: #27231a;
+	--worldgraph-paper: #f1e4ca;
+	--worldgraph-muted: #b7a98d;
+	--worldgraph-gold: #e4a91a;
+	--worldgraph-gold-bright: #ffd34e;
+	--worldgraph-cyan: #42c7d4;
+	--worldgraph-line: rgba(228, 169, 26, 0.32);
+}
+
+body {
+	background-color: var(--worldgraph-ink);
+	background-image: linear-gradient(135deg, rgba(228, 169, 26, 0.06), transparent 38%);
+	color: var(--worldgraph-paper);
+}
+
+a,
+a:visited {
+	color: var(--worldgraph-gold-bright);
+}
+
+a:hover,
+a:focus-visible {
+	color: var(--worldgraph-cyan);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	color: var(--worldgraph-paper);
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+
+h1,
+h2 {
+	text-wrap: balance;
+}
+
+.wp-block-site-title a,
+.wp-block-post-title,
+.wp-block-query-title {
+	color: var(--worldgraph-gold-bright);
+}
+
+.wp-block-navigation a {
+	color: var(--worldgraph-paper);
+	font-size: 0.9em;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.wp-block-navigation a:hover,
+.wp-block-navigation a:focus-visible,
+.wp-block-navigation .current-menu-item > a {
+	color: var(--worldgraph-gold-bright);
+}
+
+.wp-block-button__link,
+.wp-element-button {
+	background: var(--worldgraph-gold);
+	border: 1px solid var(--worldgraph-gold);
+	border-radius: 2px;
+	box-shadow: 0 5px 0 rgba(0, 0, 0, 0.28);
+	color: var(--worldgraph-ink);
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.wp-block-button__link:hover,
+.wp-block-button__link:focus-visible,
+.wp-element-button:hover,
+.wp-element-button:focus-visible {
+	background: var(--worldgraph-gold-bright);
+	border-color: var(--worldgraph-gold-bright);
+	box-shadow: 0 2px 0 rgba(0, 0, 0, 0.28);
+	color: var(--worldgraph-ink);
+	transform: translateY(3px);
+}
+
+.is-style-outline > .wp-block-button__link,
+.is-style-outline.wp-block-button__link {
+	background: transparent;
+	border-color: var(--worldgraph-gold);
+	color: var(--worldgraph-gold-bright);
+}
+
+input,
+select,
+textarea {
+	background: var(--worldgraph-panel);
+	border-color: var(--worldgraph-line);
+	color: var(--worldgraph-paper);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+	border-color: var(--worldgraph-cyan);
+	box-shadow: 0 0 0 2px rgba(66, 199, 212, 0.18);
+}
+
+::placeholder {
+	color: var(--worldgraph-muted);
+}
+
+.wp-block-group.has-background,
+.wp-block-column.has-background,
+.wp-block-cover,
+.wp-block-media-text {
+	border: 1px solid var(--worldgraph-line);
+}
+
+.wp-block-quote {
+	border-left-color: var(--worldgraph-gold);
+	color: var(--worldgraph-paper);
+}
+
+.wp-block-separator {
+	border-color: var(--worldgraph-line);
+}
+
+.wp-block-table thead {
+	border-bottom-color: var(--worldgraph-gold);
+}
+
+.wp-block-table td,
+.wp-block-table th {
+	border-color: var(--worldgraph-line);
+}
+
+.wp-block-post-excerpt__more-link {
+	color: var(--worldgraph-gold-bright);
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.wp-block-navigation__responsive-container.is-menu-open {
+	background: var(--worldgraph-panel);
+	color: var(--worldgraph-paper);
+}
+
+.wp-block-navigation:not(.has-background) .wp-block-navigation__submenu-container {
+	background: var(--worldgraph-panel-raised);
+	border-color: var(--worldgraph-line);
+}

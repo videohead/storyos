@@ -10,7 +10,11 @@ wordpress/wp-admin/
 wordpress/wp-includes/
 wordpress/*.php
 wordpress/wp-content/uploads/
-wordpress/wp-content/themes/
+wordpress/wp-content/themes/frost/
+wordpress/wp-content/themes/twentytwentyfive/
+wordpress/wp-content/themes/twentytwentyfour/
+wordpress/wp-content/themes/twentytwentythree/
+!wordpress/wp-content/themes/worldgraph-child
 !wordpress/wp-content/plugins/worldgraph/
 !wordpress/wp-content/plugins/worldgraph/plugins/comfy-generate/
 
