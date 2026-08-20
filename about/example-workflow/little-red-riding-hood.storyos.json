@@ -1,5 +1,5 @@
 {
-  "storyos_version": "1.0",
+  "storyos_version": "1.1",
   "project": {
     "id": "project_lrrh",
     "title": "Little Red Riding Hood",
@@ -169,6 +169,88 @@
     {"id": "shot_7", "scene": "scene_3", "title": "Grandmother's Cottage Interior", "label": "Grandmother's Cottage Interior", "type": "wide", "description": "Grandmother's cottage interior."},
     {"id": "shot_8", "scene": "scene_3", "title": "Something Seems Different", "label": "Something Seems Different", "type": "medium", "description": "Red notices something strange."},
     {"id": "shot_9", "scene": "scene_3", "title": "Final Reveal", "label": "Final Reveal", "type": "closeup", "description": "Final reveal."}
+  ],
+  "sounds": [
+    {
+      "id": "sound_opening_narration",
+      "title": "Opening Narration",
+      "type": "narration",
+      "description": "A warm storybook introduction over the village cottage.",
+      "spoken_text": "Once upon a time, a girl in a red cloak set out to visit her grandmother.",
+      "start_timecode": "00:00:00:00",
+      "duration": "PT8S",
+      "diegetic": "non_diegetic",
+      "production_notes": "Intimate, reassuring delivery with a hint of coming danger.",
+      "scene": "scene_1",
+      "shot": "shot_1"
+    },
+    {
+      "id": "sound_red_voiceover",
+      "title": "Red Remembers Her Promise",
+      "type": "voiceover",
+      "spoken_text": "Stay on the path and keep the basket safe. Grandmother is waiting.",
+      "start_timecode": "00:00:02:00",
+      "duration": "PT5S",
+      "diegetic": "internal",
+      "scene": "scene_2",
+      "shot": "shot_4",
+      "character": "char_red"
+    },
+    {
+      "id": "sound_forest_song",
+      "title": "Stay to the Path",
+      "type": "music",
+      "description": "A cautious traveling theme that becomes less secure as Red enters the forest.",
+      "lyrics": "Stay to the path through shadow and pine.\nCarry the basket and all will be fine.",
+      "start_timecode": "00:00:00:00",
+      "duration": "PT18S",
+      "diegetic": "non_diegetic",
+      "production_notes": "Sparse strings and celesta; leave room for the existing scene dialogue.",
+      "scene": "scene_2",
+      "shot": "shot_4"
+    },
+    {
+      "id": "sound_forest_ambience",
+      "title": "Forest Path Ambience",
+      "type": "ambience",
+      "description": "Wind in old trees, distant birds, and subtle branch movement.",
+      "duration": "PT45S",
+      "diegetic": "diegetic",
+      "scene": "scene_2"
+    },
+    {
+      "id": "sound_wolf_footfalls",
+      "title": "Wolf Approaches Through Leaves",
+      "type": "foley",
+      "description": "Measured paw falls and leaf crunches synchronized to the Wolf's approach.",
+      "start_timecode": "00:00:01:12",
+      "duration": "PT6S",
+      "diegetic": "diegetic",
+      "scene": "scene_2",
+      "shot": "shot_5"
+    },
+    {
+      "id": "sound_reveal_sting",
+      "title": "Wolf Reveal Sting",
+      "type": "sound-effect",
+      "description": "A sharp designed impact as the Wolf throws off the disguise.",
+      "start_timecode": "00:00:07:00",
+      "duration": "PT2S",
+      "diegetic": "non_diegetic",
+      "scene": "scene_3",
+      "shot": "shot_9"
+    },
+    {
+      "id": "sound_pre_reveal_silence",
+      "title": "Silence Before the Reveal",
+      "type": "silence",
+      "description": "Drop the room tone briefly to hold Red's realization.",
+      "start_timecode": "00:00:05:00",
+      "duration": "PT2S",
+      "diegetic": "unspecified",
+      "scene": "scene_3",
+      "shot": "shot_8"
+    }
   ],
   "storyboards": [
     {"id": "sb_1", "shot": "shot_1", "description": "Village cottage at sunrise."},

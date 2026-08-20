@@ -54,6 +54,15 @@ class StoryOS_Importer {
 	private $overwrite = false;
 
 	/**
+	 * Sound external IDs skipped because overwrite was disabled.
+	 *
+	 * Skipped records must not have their existing graph edges replaced.
+	 *
+	 * @var array<string, bool>
+	 */
+	private $skipped_sounds = [];
+
+	/**
 	 * Import a StoryOS JSON document.
 	 *
 	 * @param string $json      Raw JSON string.
@@ -61,8 +70,9 @@ class StoryOS_Importer {
 	 * @return array|\WP_Error Import report or error.
 	 */
 	public function import( string $json, array $options = [] ) {
-		$this->overwrite = ! empty( $options['overwrite'] );
-		$this->report    = [
+		$this->overwrite      = ! empty( $options['overwrite'] );
+		$this->skipped_sounds = [];
+		$this->report         = [
 			'created' => [],
 			'updated' => [],
 			'skipped' => [],
@@ -77,6 +87,12 @@ class StoryOS_Importer {
 		}
 		$this->document = $validated;
 
+		// The validation endpoint must not create or update any WordPress data.
+		if ( ! empty( $options['dry_run'] ) ) {
+			$this->report['verified'] = true;
+			return $this->report;
+		}
+
 		// Step 2-4: CPT Creation + SCF Population.
 		$this->import_project();
 		$this->import_world();
@@ -85,6 +101,7 @@ class StoryOS_Importer {
 		$this->import_props();
 		$this->import_scenes();
 		$this->import_shots();
+		$this->import_sounds();
 		$this->import_storyboards();
 		$this->import_sequence();
 
@@ -120,6 +137,12 @@ class StoryOS_Importer {
 			return new \WP_Error( 'storyos_invalid_json', 'JSON must be an object.' );
 		}
 
+		// Sounds were added in StoryOS JSON 1.1. Treat the section as optional
+		// so existing 1.0 documents remain importable.
+		if ( ! isset( $data['sounds'] ) ) {
+			$data['sounds'] = [];
+		}
+
 		// Validate required top-level sections.
 		$required = [ 'project', 'world', 'characters', 'locations', 'props', 'scenes', 'shots', 'storyboards', 'sequence' ];
 		foreach ( $required as $section ) {
@@ -142,7 +165,7 @@ class StoryOS_Importer {
 		}
 
 		// Validate arrays.
-		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'storyboards' ] as $section ) {
+		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'sounds', 'storyboards' ] as $section ) {
 			if ( ! is_array( $data[ $section ] ) ) {
 				return new \WP_Error(
 					'storyos_invalid_section',
@@ -186,7 +209,7 @@ class StoryOS_Importer {
 			$all_ids[ $external_id ] = $section;
 		}
 
-		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'storyboards' ] as $section ) {
+		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'sounds', 'storyboards' ] as $section ) {
 			$id_sets[ $section ] = [];
 			foreach ( $data[ $section ] as $index => $entity ) {
 				if ( ! is_array( $entity ) || empty( $entity['id'] ) ) {
@@ -234,6 +257,44 @@ class StoryOS_Importer {
 
 		foreach ( $data['shots'] as $shot ) {
 			$this->validate_reference( $shot['scene'] ?? '', 'scenes', 'Shot ' . ( $shot['id'] ?? '(unknown)' ) . ' scene', $id_sets, $errors );
+		}
+
+		$shot_scenes = [];
+		foreach ( $data['shots'] as $shot ) {
+			if ( ! empty( $shot['id'] ) ) {
+				$shot_scenes[ (string) $shot['id'] ] = (string) ( $shot['scene'] ?? '' );
+			}
+		}
+
+		foreach ( $data['sounds'] as $sound ) {
+			$context = 'Sound ' . ( $sound['id'] ?? '(unknown)' );
+			if ( empty( $sound['title'] ) || empty( $sound['type'] ) ) {
+				$errors[] = $context . ' must have a title and type.';
+			}
+
+			if ( 'dialogue' === sanitize_title( (string) ( $sound['type'] ?? '' ) ) ) {
+				$errors[] = $context . ' cannot use the reserved dialogue type; ordinary dialogue belongs in scenes[].dialogue.';
+			}
+
+			$this->validate_reference( $sound['scene'] ?? '', 'scenes', $context . ' scene', $id_sets, $errors );
+
+			if ( ! empty( $sound['shot'] ) ) {
+				$this->validate_reference( $sound['shot'], 'shots', $context . ' shot', $id_sets, $errors );
+				if ( isset( $shot_scenes[ (string) $sound['shot'] ] ) && (string) ( $sound['scene'] ?? '' ) !== $shot_scenes[ (string) $sound['shot'] ] ) {
+					$errors[] = sprintf( '%s shot "%s" does not belong to scene "%s".', $context, $sound['shot'], $sound['scene'] ?? '' );
+				}
+			}
+
+			if ( ! empty( $sound['character'] ) ) {
+				$this->validate_reference( $sound['character'], 'characters', $context . ' character', $id_sets, $errors );
+			}
+
+			if ( ! empty( $sound['asset'] ) ) {
+				$asset_external_id = sanitize_text_field( (string) $sound['asset'] );
+				if ( $asset_external_id !== (string) $sound['asset'] || ! $this->find_existing( 'storyos_asset', $asset_external_id ) ) {
+					$errors[] = sprintf( '%s references unknown existing asset id "%s".', $context, $asset_external_id );
+				}
+			}
 		}
 
 		foreach ( $data['storyboards'] as $frame ) {
@@ -655,6 +716,90 @@ class StoryOS_Importer {
 	}
 
 	/**
+	 * Import planned soundtrack cues without duplicating Scene dialogue.
+	 */
+	private function import_sounds(): void {
+		$sound_index = 1;
+		foreach ( $this->document['sounds'] as $sound ) {
+			$external_id = sanitize_text_field( (string) $sound['id'] );
+			$post_id     = $this->find_existing( 'storyos_sound', $external_id );
+
+			if ( $post_id && ! $this->overwrite ) {
+				$this->report['skipped'][] = "Sound {$external_id} already exists.";
+				$this->id_map[ $external_id ]       = $post_id;
+				$this->skipped_sounds[ $external_id ] = true;
+				$sound_index++;
+				continue;
+			}
+
+			$post_data = [
+				'post_type'    => 'storyos_sound',
+				'post_title'   => sanitize_text_field( (string) $sound['title'] ),
+				'post_status'  => 'publish',
+				'post_content' => isset( $sound['description'] ) ? wp_kses_post( (string) $sound['description'] ) : '',
+				'menu_order'   => $sound_index,
+			];
+
+			if ( $post_id ) {
+				$post_data['ID'] = $post_id;
+				$post_id         = wp_update_post( $post_data, true );
+				$this->report['updated'][] = "Sound {$external_id}";
+			} else {
+				$post_id = wp_insert_post( $post_data, true );
+				$this->report['created'][] = "Sound {$external_id}";
+			}
+
+			if ( is_wp_error( $post_id ) ) {
+				$this->report['errors'][] = "Sound {$external_id}: " . $post_id->get_error_message();
+				$sound_index++;
+				continue;
+			}
+
+			$this->id_map[ $external_id ] = $post_id;
+			update_post_meta( $post_id, 'external_id', $external_id );
+
+			foreach ( [ 'spoken_text', 'lyrics', 'production_notes' ] as $rich_text_field ) {
+				if ( isset( $sound[ $rich_text_field ] ) ) {
+					update_post_meta( $post_id, $rich_text_field, wp_kses_post( (string) $sound[ $rich_text_field ] ) );
+				}
+			}
+
+			foreach ( [ 'start_timecode', 'duration' ] as $text_field ) {
+				if ( isset( $sound[ $text_field ] ) ) {
+					update_post_meta( $post_id, $text_field, sanitize_text_field( (string) $sound[ $text_field ] ) );
+				}
+			}
+
+			if ( isset( $sound['diegetic'] ) ) {
+				$diegetic = sanitize_key( (string) $sound['diegetic'] );
+				if ( in_array( $diegetic, [ 'unspecified', 'diegetic', 'non_diegetic', 'internal', 'mixed' ], true ) ) {
+					update_post_meta( $post_id, 'diegetic', $diegetic );
+				}
+			}
+
+			$sound_type = sanitize_title( (string) $sound['type'] );
+			$term       = get_term_by( 'slug', $sound_type, 'storyos_sound_type' );
+			if ( ! $term ) {
+				$seed_types = \StoryOS\Utils\storyos_sound_types();
+				$term       = wp_insert_term(
+					$seed_types[ $sound_type ] ?? sanitize_text_field( (string) $sound['type'] ),
+					'storyos_sound_type',
+					[ 'slug' => $sound_type ]
+				);
+			}
+
+			if ( is_wp_error( $term ) ) {
+				$this->report['errors'][] = "Sound {$external_id} type: " . $term->get_error_message();
+			} else {
+				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term->term_id;
+				wp_set_object_terms( $post_id, [ $term_id ], 'storyos_sound_type', false );
+			}
+
+			$sound_index++;
+		}
+	}
+
+	/**
 	 * Import all storyboard frames.
 	 */
 	private function import_storyboards(): void {
@@ -858,6 +1003,66 @@ class StoryOS_Importer {
 			}
 		}
 
+		// Sound cues keep their own placement edges. Ordinary dialogue remains
+		// structured Scene metadata and is intentionally not converted to Sounds.
+		foreach ( $this->document['sounds'] as $sound ) {
+			if ( isset( $this->skipped_sounds[ (string) $sound['id'] ] ) ) {
+				continue;
+			}
+
+			$sound_id = $this->id_map[ $sound['id'] ] ?? 0;
+			if ( ! $sound_id ) {
+				continue;
+			}
+
+			if ( $project_id ) {
+				\StoryOS\Utils\add_relationship( $project_id, 'storyos_project', $sound_id, 'storyos_sound', 'contains' );
+			}
+
+			$scene_id = $this->id_map[ $sound['scene'] ?? '' ] ?? 0;
+			\StoryOS\Utils\set_relationship(
+				$sound_id,
+				'storyos_sound',
+				$scene_id,
+				'storyos_scene',
+				'belongs_to',
+				[ 'field' => 'scene' ]
+			);
+
+			$shot_id = $this->id_map[ $sound['shot'] ?? '' ] ?? 0;
+			\StoryOS\Utils\set_relationship(
+				$sound_id,
+				'storyos_sound',
+				$shot_id,
+				'storyos_shot',
+				'belongs_to',
+				[ 'field' => 'shot' ]
+			);
+
+			$character_id = $this->id_map[ $sound['character'] ?? '' ] ?? 0;
+			\StoryOS\Utils\set_relationship(
+				$sound_id,
+				'storyos_sound',
+				$character_id,
+				'storyos_character',
+				'linked_to',
+				[ 'field' => 'character' ]
+			);
+
+			$asset_id = 0;
+			if ( ! empty( $sound['asset'] ) ) {
+				$asset_id = $this->find_existing( 'storyos_asset', sanitize_text_field( (string) $sound['asset'] ) );
+			}
+			\StoryOS\Utils\set_relationship(
+				$sound_id,
+				'storyos_sound',
+				$asset_id,
+				'storyos_asset',
+				'linked_to',
+				[ 'field' => 'asset' ]
+			);
+		}
+
 		// Storyboard Frame → Shot.
 		foreach ( $this->document['storyboards'] as $frame ) {
 			$frame_id = $this->id_map[ $frame['id'] ] ?? 0;
@@ -885,6 +1090,7 @@ class StoryOS_Importer {
 			'storyos_prop'             => 'Prop ',
 			'storyos_scene'            => 'Scene ',
 			'storyos_shot'             => 'Shot ',
+			'storyos_sound'            => 'Sound ',
 			'storyos_storyboard_frame' => 'Storyboard frame ',
 		];
 

@@ -50,14 +50,21 @@ class Export {
 		check_admin_referer( 'storyos_export_markdown' );
 
 		$project_id = isset( $_POST['storyos_project_id'] ) ? absint( $_POST['storyos_project_id'] ) : 0;
+		$format     = isset( $_POST['storyos_export_format'] ) ? sanitize_key( wp_unslash( $_POST['storyos_export_format'] ) ) : 'screenplay';
 		if ( ! $project_id ) {
 			wp_safe_redirect( add_query_arg( [ 'page' => 'storyos-export', 'error' => 'empty' ], admin_url( 'admin.php' ) ) );
 			exit;
 		}
 
 		$exporter = new \StoryOS\Exporter\StoryOS_Exporter();
-		$markdown = $exporter->export_project_markdown( $project_id );
-		$filename = sanitize_file_name( get_the_title( $project_id ) ?: 'storyos-export' ) . '.md';
+		if ( 'storyboard' === $format ) {
+			$markdown = $exporter->export_project_storyboard_markdown( $project_id );
+			$suffix   = '-storyboard';
+		} else {
+			$markdown = $exporter->export_project_markdown( $project_id );
+			$suffix   = '-screenplay';
+		}
+		$filename = sanitize_file_name( ( get_the_title( $project_id ) ?: 'storyos-export' ) . $suffix ) . '.md';
 
 		nocache_headers();
 		header( 'Content-Type: text/markdown; charset=UTF-8' );
@@ -90,7 +97,7 @@ class Export {
 			<?php endif; ?>
 
 			<p class="description">
-				<?php esc_html_e( 'Export the current StoryOS project as a Markdown screenplay file based on the live project data and scene records.', 'storyos' ); ?>
+				<?php esc_html_e( 'Export the current StoryOS project as a Markdown screenplay or storyboard file based on the live project data, scene records, shots, and storyboard frames.', 'storyos' ); ?>
 			</p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -109,9 +116,18 @@ class Export {
 							</select>
 						</td>
 					</tr>
+					<tr>
+						<th scope="row"><label for="storyos_export_format"><?php esc_html_e( 'Format', 'storyos' ); ?></label></th>
+						<td>
+							<select name="storyos_export_format" id="storyos_export_format" class="regular-text">
+								<option value="screenplay"><?php esc_html_e( 'Markdown Screenplay', 'storyos' ); ?></option>
+								<option value="storyboard"><?php esc_html_e( 'Markdown Storyboard', 'storyos' ); ?></option>
+							</select>
+						</td>
+					</tr>
 				</table>
 
-				<?php submit_button( __( 'Export Markdown Script', 'storyos' ) ); ?>
+				<?php submit_button( __( 'Export Markdown', 'storyos' ) ); ?>
 			</form>
 
 			<h2><?php esc_html_e( 'Example Output', 'storyos' ); ?></h2>

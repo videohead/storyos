@@ -220,6 +220,53 @@ Shot metadata includes:
 - `slate_id`
 - `shot_type` values including `establishing`, `insert`, `cutaway`, and `reaction`
 
+## Sounds
+
+```http
+GET    /sounds
+GET    /sounds/{id}
+POST   /sounds
+PUT    /sounds/{id}
+DELETE /sounds/{id}
+GET    /sounds/{id}/graph
+```
+
+Sounds are planned soundtrack cues, not audio file encodings. Rendered audio
+continues to use an audio-typed Asset or WordPress attachment.
+
+List filters:
+
+- `scene` (post ID)
+- `shot` (post ID)
+- `sound_type` (slug or comma-separated slugs)
+- `status` (taxonomy slug or comma-separated slugs)
+
+Creation requires `meta.sound_type` and `meta.scene`. If `meta.shot` is
+provided, the API validates that it belongs to the selected Scene.
+
+```json
+{
+  "title": "Forest Path Song",
+  "content": "A cautious traveling theme.",
+  "meta": {
+    "sound_type": "music",
+    "lyrics": "Stay to the path through shadow and pine.",
+    "start_timecode": "00:00:00:00",
+    "duration": "PT18S",
+    "diegetic": "non_diegetic",
+    "scene": 827,
+    "shot": 913,
+    "character": 0,
+    "asset": 0
+  }
+}
+```
+
+Seed terms are `narration`, `voiceover`, `music`, `sound-effect`, `ambience`,
+`foley`, `silence`, and `adr`; `storyos_sound_type` remains extensible.
+`spoken_text` is reserved for narration, voice-over, or ADR. Existing Scene
+dialogue remains canonical and is not duplicated into Sound resources.
+
 ## Assets
 
 ```http
@@ -258,6 +305,9 @@ Examples:
 - Asset -> Source Scene (provenance)
 - Asset -> Source Character (provenance)
 - Character -> Linked Asset (association)
+- Sound -> Scene/Shot (`belongs_to` placement)
+- Sound -> Character (optional voice/narrator association)
+- Sound -> Asset (optional rendered-audio encoding)
 
 ## Vocabulary Semantics
 

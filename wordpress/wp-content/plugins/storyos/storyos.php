@@ -191,6 +191,7 @@ function init(): void {
 	CPT\Episode::init();
 	CPT\Scene::init();
 	CPT\Shot::init();
+	CPT\Sound::init();
 	CPT\StoryboardFrame::init();
 	CPT\Asset::init();
 	CPT\EditorialArtifact::init();
@@ -206,6 +207,7 @@ function init(): void {
 	Taxonomies\CharacterRole::init();
 	Taxonomies\SceneTag::init();
 	Taxonomies\Sequence::init();
+	Taxonomies\SoundType::init();
 	Taxonomies\TemplateCategory::init();
 
 	// Register REST API routes.
@@ -218,6 +220,7 @@ function init(): void {
 	REST\Episodes_Controller::init();
 	REST\Scenes_Controller::init();
 	REST\Shots_Controller::init();
+	REST\Sounds_Controller::init();
 	REST\Sequences_Controller::init();
 	REST\StoryboardFrames_Controller::init();
 	REST\Assets_Controller::init();

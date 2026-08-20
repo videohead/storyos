@@ -22,6 +22,7 @@ define( 'STORYOS_CPT_PREFIX', 'storyos_' );
 // Load the StoryOS helper layer directly for unit tests.
 require_once dirname( __DIR__ ) . '/includes/utils/helpers.php';
 require_once dirname( __DIR__ ) . '/includes/utils/relationships.php';
+require_once dirname( __DIR__ ) . '/includes/utils/relationship-graph.php';
 require_once dirname( __DIR__ ) . '/includes/exporter/class-storyos-exporter.php';
 
 // Test files reference the global helper names used in older StoryOS tests.

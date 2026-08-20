@@ -100,4 +100,31 @@ class Test_StoryOS_CPT extends TestCase {
 		$this->assertFalse( \StoryOS\Utils\storyos_should_exclude_from_details( 'target_medium' ) );
 		$this->assertFalse( \StoryOS\Utils\storyos_should_exclude_from_details( 'story_world' ) );
 	}
+
+	/**
+	 * Sound is a first-class Story Graph entity with the planned-cue fields.
+	 */
+	public function test_sound_cpt_contract_is_registered_in_helpers() {
+		$cpts = \StoryOS\Utils\storyos_get_all_cpts();
+		$this->assertArrayHasKey( 'storyos_sound', $cpts );
+
+		$fields = \StoryOS\Utils\storyos_expected_fields_for_cpt( 'storyos_sound' );
+		$this->assertSame(
+			[ 'sound_type', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
+			$fields
+		);
+	}
+
+	/**
+	 * Scene dialogue remains separate from the Sound taxonomy.
+	 */
+	public function test_sound_type_vocabulary_does_not_duplicate_dialogue() {
+		$types = \StoryOS\Utils\storyos_sound_types();
+
+		foreach ( [ 'narration', 'voiceover', 'music', 'sound-effect', 'ambience', 'foley', 'silence' ] as $required_type ) {
+			$this->assertArrayHasKey( $required_type, $types );
+		}
+
+		$this->assertArrayNotHasKey( 'dialogue', $types );
+	}
 }

@@ -106,6 +106,7 @@ Manages API connections to providers like Comfy Cloud MCP.
 | `storyos_episode` | Episode/chapter structure |
 | `storyos_scene` | Scene content and metadata |
 | `storyos_shot` | Shot/sequence data |
+| `storyos_sound` | Planned soundtrack cues linked to scenes, shots, characters, and rendered audio assets |
 | `storyos_storyboard_frame` | Storyboard visual frames |
 | `storyos_asset` | Generated/managed assets |
 | `storyos_editorial_artifact` | Editorial notes, scripts, etc. |
@@ -136,6 +137,7 @@ All endpoints use namespace: `/wp-json/storyos/v1/`
 ### CRUD Endpoints
 All CPTs have standard REST endpoints:
 - `GET /projects`, `POST /projects`, `GET /projects/{id}`, `PUT /projects/{id}`, `DELETE /projects/{id}`
+- `GET /sounds`, `POST /sounds`, `GET /sounds/{id}`, `PUT /sounds/{id}`, `DELETE /sounds/{id}`
 - Similar for characters, locations, scenes, shots, etc.
 
 ## Admin Panels

@@ -13,6 +13,9 @@
 	class AnalyticsPanel {
 		constructor() {
 			this.bindEvents();
+			if (this.getProjectId()) {
+				this.fetchAnalytics();
+			}
 		}
 
 		/**
@@ -22,6 +25,33 @@
 			$('#fetch-analytics-btn').on('click', () => this.fetchAnalytics());
 			$('#fetch-network-btn').on('click', () => this.fetchNetwork());
 			$('#clear-cache-btn').on('click', () => this.clearCache());
+			$('#storyos-analytics-project').on('change', () => this.selectProject());
+		}
+
+		/**
+		 * Get the selected project ID.
+		 *
+		 * @returns {number} Project post ID.
+		 */
+		getProjectId() {
+			return Number.parseInt($('#storyos-analytics-project').val(), 10) || 0;
+		}
+
+		/**
+		 * Reset results and persist the selected project in the page URL.
+		 */
+		selectProject() {
+			const projectId = this.getProjectId();
+			const url = new URL(window.location.href);
+			$('#analytics-content, #network-section, #network-content, #analytics-error').hide();
+			$('#no-data-state').show();
+
+			if (projectId) {
+				url.searchParams.set('project_id', projectId);
+			} else {
+				url.searchParams.delete('project_id');
+			}
+			window.history.replaceState({}, '', url);
 		}
 
 		/**
@@ -29,12 +59,17 @@
 		 */
 		fetchAnalytics() {
 			const self = this;
+			const projectId = this.getProjectId();
 			const $btn = $('#fetch-analytics-btn');
 			const $loading = $('#analytics-loading');
 			const $error = $('#analytics-error');
 			const $content = $('#analytics-content');
 			const $noData = $('#no-data-state');
 			const $network = $('#network-section');
+			if (!projectId) {
+				this.showError('Select a project to analyze.');
+				return;
+			}
 
 			// Disable button, show loading.
 			$btn.prop('disabled', true).text('Loading...');
@@ -50,6 +85,7 @@
 				data: {
 					action: 'storyos_fetch_analytics',
 					nonce: storyosAnalytics.nonce,
+					project_id: projectId,
 				},
 				success(response) {
 					if (response.success) {
@@ -82,9 +118,14 @@
 		 */
 		fetchNetwork() {
 			const self = this;
+			const projectId = this.getProjectId();
 			const $btn = $('#fetch-network-btn');
 			const $loading = $('#network-loading');
 			const $content = $('#network-content');
+			if (!projectId) {
+				this.showError('Select a project to analyze.');
+				return;
+			}
 
 			$btn.prop('disabled', true).text('Loading...');
 			$loading.show();
@@ -96,6 +137,7 @@
 				data: {
 					action: 'storyos_fetch_network',
 					nonce: storyosAnalytics.nonce,
+					project_id: projectId,
 				},
 				success(response) {
 					if (response.success) {
@@ -124,7 +166,12 @@
 		 */
 		clearCache() {
 			const self = this;
+			const projectId = this.getProjectId();
 			const $btn = $('#clear-cache-btn');
+			if (!projectId) {
+				this.showError('Select a project first.');
+				return;
+			}
 
 			$btn.prop('disabled', true).text('Clearing...');
 
@@ -134,6 +181,7 @@
 				data: {
 					action: 'storyos_clear_cache',
 					nonce: storyosAnalytics.nonce,
+					project_id: projectId,
 				},
 				success(response) {
 					if (response.success) {
@@ -233,24 +281,7 @@
 		 * @param {Object} data The analytics data.
 		 */
 		renderRelationshipDistribution(data) {
-			const $container = $('#relationship-distribution');
-			$container.empty();
-
-			// Fetch graph data for distribution.
-			$.ajax({
-				url: storyosAnalytics.ajaxUrl,
-				type: 'POST',
-				data: {
-					action: 'storyos_fetch_graph',
-					nonce: storyosAnalytics.nonce,
-				},
-				success: (response) => {
-					if (response.success && response.data.edges) {
-						const distribution = this.computeDistribution(response.data.edges);
-						this.displayDistribution(distribution);
-					}
-				},
-			});
+			this.displayDistribution(data.relationship_distribution || {});
 		}
 
 		/**

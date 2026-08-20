@@ -57,6 +57,7 @@ Top-level container for all story assets.
 
 - has_many Story Worlds
 - has_many Episodes
+- has_many Sounds
 - has_many Assets
 
 ---
@@ -196,6 +197,7 @@ Top-level container for all story assets.
 
 - belongs_to Episode
 - contains Shots
+- contains Sounds
 - references Characters
 - references Assets
 - references Storyboards
@@ -229,6 +231,7 @@ When synced with Celtx, the following post meta fields are added:
 ## Relationships
 
 - belongs_to Scene
+- references Sounds
 - references Storyboard Frames
 - references Assets
 
@@ -248,6 +251,43 @@ When synced with Celtx, the following post meta fields are added:
 
 - belongs_to Scene
 - belongs_to Shot
+
+---
+
+# CPT: Sound
+
+Represents a planned soundtrack cue. Sound is authorial and production intent;
+the recorded or generated file remains a WordPress attachment or
+`storyos_asset` linked through the `asset` relationship.
+
+Ordinary screenplay dialogue remains structured Scene dialogue metadata and is
+not duplicated as Sound records.
+
+## Fields
+
+- sound_type (taxonomy)
+- spoken_text (textarea; narration, voice-over, or ADR only)
+- lyrics (textarea; music cues)
+- start_timecode (text)
+- duration (text; ISO 8601 preferred)
+- diegetic (select: unspecified, diegetic, non_diegetic, internal, mixed)
+- production_notes (textarea)
+
+The WordPress title and content are the canonical cue title and description.
+
+## Relationships
+
+- belongs_to Scene (required)
+- belongs_to Shot (optional)
+- linked_to Character (optional narrator or voice source)
+- linked_to Asset (optional rendered audio encoding)
+
+When a Shot is selected, it must belong to the selected Scene. One Sound record
+represents one cue occurrence; repeated cues may link to the same Asset.
+
+Schema.org alignment uses `CreativeWork` for a planned Sound and
+`MusicComposition` for a music cue. Audio-typed Assets remain `AudioObject`
+encodings.
 
 ---
 
@@ -271,6 +311,7 @@ When synced with Celtx, the following post meta fields are added:
 - linked_to Location
 - linked_to Scene
 - linked_to Storyboard
+- linked_to Sound
 
 ---
 
@@ -365,6 +406,17 @@ epic and are not yet represented as a completed CPT contract.
 - Video
 - Audio
 
+## Sound Type
+
+- Narration
+- Voice-over
+- Music
+- Sound Effect
+- Ambience
+- Foley
+- Intentional Silence
+- ADR
+
 ## Character Role
 
 - Protagonist
@@ -396,6 +448,11 @@ Project -> Story World
 Project -> Episode
 Episode -> Scene
 Scene -> Shot
+Project -> Sound
+Sound -> Scene
+Sound -> Shot
+Sound -> Character
+Sound -> Asset
 Scene -> Character
 Scene -> Location
 Shot -> Storyboard Frame
@@ -450,7 +507,7 @@ Implementation note:
 
 - Shot List: represented by ordered Shot entities per Scene
 - Coverage: represented by Shot variants (shot_type, angle, lens, duration)
-- Continuity: represented by graph relationships across Scene, Shot, Asset, Character, and Location
+- Continuity: represented by graph relationships across Scene, Shot, Sound, Asset, Character, and Location
 - Storyboard: represented by Storyboard Frame entities linked to Scene/Shot
 - EDL: represented as Editorial Artifact with links to source Scene/Shot
 
@@ -498,6 +555,7 @@ Required for initial release:
 - Location
 - Scene
 - Shot
+- Sound
 - Asset
 - Storyboard Frame
 

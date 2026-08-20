@@ -6,6 +6,10 @@ This document defines how `little-red-riding-hood.storyos.json` is imported into
 
 This specification is intended to make importer implementation deterministic and testable.
 
+The `sounds[]` section was added in StoryOS JSON 1.1. Writers should emit the
+section (using an empty array when there are no cues); readers treat a missing
+section as an empty array so version 1.0 documents remain compatible.
+
 ---
 
 # Import Workflow
@@ -222,6 +226,8 @@ Scene → Location
 ### Dialogue Import
 
 Each dialogue record should be imported into structured scene dialogue metadata.
+Ordinary dialogue remains canonical here and must not be duplicated as Sound
+records.
 
 Suggested schema:
 
@@ -265,6 +271,73 @@ Scene → Shot
 
 ```text
 9 Shots
+```
+
+---
+
+# Sounds
+
+### JSON
+
+```text
+sounds[]
+```
+
+### CPT
+
+```text
+storyos_sound
+```
+
+Each record is a planned soundtrack cue. A rendered or generated audio file
+remains a `storyos_asset` (or WordPress attachment) and may be linked to the
+cue; the Sound record itself is not the media encoding.
+
+### Required Fields
+
+- `id`
+- `title`
+- `type`
+- `scene`
+
+### Field Mapping
+
+| JSON Field | CPT Field |
+|------------|------------|
+| id | external_id |
+| title | post_title |
+| description | post_content |
+| type | storyos_sound_type taxonomy |
+| spoken_text | spoken_text |
+| lyrics | lyrics |
+| start_timecode | start_timecode |
+| duration | duration |
+| diegetic | diegetic |
+| production_notes | production_notes |
+
+Seeded `type` slugs are `narration`, `voiceover`, `music`, `sound-effect`,
+`ambience`, `foley`, `silence`, and `adr`. The taxonomy remains extensible.
+`spoken_text` is for narration, voice-over, or ADR; it does not replace
+`scenes[].dialogue`. Music cues may carry multiline `lyrics`.
+
+### Relationships
+
+```text
+Project → Sound (contains)
+Sound → Scene (belongs_to, required)
+Sound → Shot (belongs_to, optional)
+Sound → Character (linked_to, optional narrator/voice source)
+Sound → Asset (linked_to, optional rendered audio)
+```
+
+When `shot` is present, it must belong to the referenced `scene`. An `asset`
+external ID must already resolve to a `storyos_asset`; the sample does not
+include one because the current JSON format has no top-level asset import.
+
+### Expected Count
+
+```text
+7 Sounds
 ```
 
 ---
@@ -382,6 +455,18 @@ Forest Path → Scene 2
 Grandmother House → Scene 3
 ```
 
+## Sound Placement
+
+```text
+Opening Narration → Scene 1 / Shot 1
+Red Remembers Her Promise → Scene 2 / Shot 4 / Little Red
+Stay to the Path → Scene 2 / Shot 4
+Forest Path Ambience → Scene 2
+Wolf Approaches Through Leaves → Scene 2 / Shot 5
+Wolf Reveal Sting → Scene 3 / Shot 9
+Silence Before the Reveal → Scene 3 / Shot 8
+```
+
 ---
 
 # AI Analysis Tasks Triggered After Import
@@ -426,6 +511,7 @@ Locations:          3
 Props:              3
 Scenes:             3
 Shots:              9
+Sounds:             7
 Storyboard Frames:  9
 Sequences:          1
 ```
@@ -435,6 +521,8 @@ Sequences:          1
 - [ ] All CPTs created
 - [ ] All relationships created
 - [ ] Dialogue imported
+- [ ] Sound cues imported without duplicating Scene dialogue
+- [ ] Sound Scene/Shot references and music lyrics preserved
 - [ ] Sequence ordering preserved
 - [ ] Story Graph relationships generated
 - [ ] AI analysis tasks available

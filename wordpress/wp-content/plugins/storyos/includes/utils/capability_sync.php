@@ -2,9 +2,7 @@
 /**
  * Provider Capability Synchronization.
  *
- * Provides the fixed capability descriptor for the first-party Comfy Cloud
- * MCP integration. Provider discovery is intentionally retired because
- * StoryOS no longer runs a provider orchestration service.
+ * Provides the fixed capability descriptor for providers such as ComfyUI, Eleven Labs, etc.
  *
  * @package StoryOS
  */

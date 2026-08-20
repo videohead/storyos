@@ -291,16 +291,19 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function create_item( $request ) {
-		if ( ! $this->check_create_permission( $request ) ) {
-			return new WP_Error( 'rest_forbidden', 'Unauthorized.', [ 'status' => 403 ] );
+		$permission = $this->check_create_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
 		}
 
+		$meta = $request->get_param( 'meta' );
+		$meta = is_array( $meta ) ? $meta : [];
 		$post_data = [
 			'post_type'   => $this->cpt,
-			'post_title'  => $request->get_param( 'title' ) ?: $request->get_param( 'meta' )['display_name'] ?? 'Untitled',
+			'post_title'  => $request->get_param( 'title' ) ?: ( $meta['display_name'] ?? 'Untitled' ),
 			'post_status' => $request->get_param( 'status' ) ?: 'draft',
-			'post_excerpt'=> $request->get_param( 'excerpt' ),
-			'post_content'=> $request->get_param( 'content' ),
+			'post_excerpt'=> (string) ( $request->get_param( 'excerpt' ) ?? '' ),
+			'post_content'=> (string) ( $request->get_param( 'content' ) ?? '' ),
 			'menu_order'  => absint( $request->get_param( 'menu_order' ) ),
 		];
 
@@ -328,7 +331,8 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 */
 	protected function save_meta_fields( int $post_id, \WP_REST_Request $request ): void {
 		$fields = \StoryOS\Utils\storyos_get_fields( $this->cpt );
-		$meta = $request->get_param( 'meta' ) ?? [];
+		$meta   = $request->get_param( 'meta' );
+		$meta   = is_array( $meta ) ? $meta : [];
 
 		foreach ( $fields as $key => $field ) {
 			if ( 'relationship' === $field['type'] ) {
@@ -375,7 +379,8 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 */
 	protected function save_relationships( int $post_id, \WP_REST_Request $request ): void {
 		$fields = \StoryOS\Utils\storyos_get_fields( $this->cpt );
-		$meta = $request->get_param( 'meta' ) ?? [];
+		$meta   = $request->get_param( 'meta' );
+		$meta   = is_array( $meta ) ? $meta : [];
 
 		foreach ( $fields as $key => $field ) {
 			if ( 'relationship' === $field['type'] && array_key_exists( $key, $meta ) ) {
@@ -398,8 +403,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function get_item( $request ) {
-		if ( ! $this->check_read_permission( $request ) ) {
-			return new WP_Error( 'rest_forbidden', 'Unauthorized.', [ 'status' => 401 ] );
+		$permission = $this->check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
 		}
 
 		$post = get_post( absint( $request->get_param( 'id' ) ) );
@@ -418,8 +424,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function get_items( $request ) {
-		if ( ! $this->check_read_permission( $request ) ) {
-			return new WP_Error( 'rest_forbidden', 'Unauthorized.', [ 'status' => 401 ] );
+		$permission = $this->check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
 		}
 
 		$args = [
@@ -508,8 +515,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function update_item( $request ) {
-		if ( ! $this->check_update_permission( $request ) ) {
-			return new WP_Error( 'rest_forbidden', 'Unauthorized.', [ 'status' => 403 ] );
+		$permission = $this->check_update_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
 		}
 
 		$post_id = absint( $request->get_param( 'id' ) );
@@ -524,9 +532,15 @@ abstract class Base_Controller extends WP_REST_Controller {
 			'ID'         => $post_id,
 			'post_title' => $request->get_param( 'title' ) ?: $post->post_title,
 			'post_status'=> $request->get_param( 'status' ) ?: $post->post_status,
-			'post_excerpt'=> $request->get_param( 'excerpt' ),
-			'post_content'=> $request->get_param( 'content' ),
 		];
+
+		if ( null !== $request->get_param( 'excerpt' ) ) {
+			$post_data['post_excerpt'] = (string) $request->get_param( 'excerpt' );
+		}
+
+		if ( null !== $request->get_param( 'content' ) ) {
+			$post_data['post_content'] = (string) $request->get_param( 'content' );
+		}
 
 		if ( $request->get_param( 'menu_order' ) !== null ) {
 			$post_data['menu_order'] = absint( $request->get_param( 'menu_order' ) );
@@ -551,8 +565,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public function delete_item( $request ) {
-		if ( ! $this->check_delete_permission( $request ) ) {
-			return new WP_Error( 'rest_forbidden', 'Unauthorized.', [ 'status' => 403 ] );
+		$permission = $this->check_delete_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
 		}
 
 		$post_id = absint( $request->get_param( 'id' ) );

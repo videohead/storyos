@@ -65,9 +65,11 @@ Project
 │
 ├── Episodes
 │   └── Scenes
-│       └── Shots
+│       ├── Shots
+│       └── Sounds
 │
 ├── Storyboards
+├── Sounds
 ├── Assets
 └── Editorial Artifacts
 
@@ -82,6 +84,7 @@ Parent-child ownership.
 Examples:
 
 - Project contains Episodes
+- Project contains Sounds
 - Episode contains Scenes
 - Scene contains Shots
 
@@ -131,6 +134,7 @@ Character
 ├── Scenes
 ├── Assets
 ├── Dialogue
+├── Sounds
 ├── Storyboards
 └── Locations
 
@@ -146,11 +150,31 @@ Scene
 ├── Locations
 ├── Props
 ├── Shots
+├── Sounds
 ├── Storyboards
 ├── Assets
 └── Editorial References
 
 Scenes act as the primary narrative aggregation point.
+
+---
+
+# Sound Graph
+
+Sound
+│
+├── Sound Type
+├── Scene
+├── Shot (Optional)
+├── Narrator / Voice Character (Optional)
+├── Spoken Text or Lyrics
+├── Timing and Diegesis
+└── Rendered Audio Asset (Optional)
+
+A Sound is a planned cue, while an audio-typed Asset or WordPress attachment is
+the rendered encoding. Ordinary screenplay dialogue remains structured Scene
+metadata. This separation supports narration, music, effects, ambience, Foley,
+and intentional silence without duplicating dialogue or media files.
 
 ---
 
@@ -204,7 +228,7 @@ Agents retrieve context through graph traversal.
 
 Example Query:
 
-Character → Scenes → Storyboards → Assets
+Character → Scenes → Sounds / Storyboards → Assets
 
 This allows advisors to access relevant project knowledge without requiring full-project context.
 
@@ -222,6 +246,7 @@ Potential checks:
 - Relationship continuity
 - Story arc tracking
 - Asset consistency
+- Sound placement and cue consistency
 
 ---
 

@@ -102,6 +102,72 @@ class StoryOS_Exporter {
 	}
 
 	/**
+	 * Export a live StoryOS project to a storyboard Markdown document.
+	 *
+	 * @param int|array $project_id_or_data Project ID or project data array.
+	 * @param array     $project_data Optional fallback project data.
+	 * @return string Markdown document.
+	 */
+	public function export_project_storyboard_markdown( $project_id_or_data = 0, array $project_data = [] ): string {
+		$project = $this->resolve_project_data( $project_id_or_data, $project_data );
+		if ( empty( $project['title'] ) ) {
+			return "# StoryOS Storyboard Export\n\n_There is no project data to export._\n";
+		}
+
+		$project_title = $this->clean_text( $project['title'] );
+		$world_title   = $this->clean_text( $project['world'] ?? 'Story World' );
+		$scenes        = $this->get_project_scenes( $project_id_or_data );
+		$shot_count    = 0;
+		$frame_count   = 0;
+		$lines         = [];
+
+		$lines[] = '# ' . $project_title . ' Storyboard';
+		$lines[] = '';
+		$lines[] = '## Storyboard Export';
+		$lines[] = '';
+		$lines[] = 'Project: ' . $project_title;
+		$lines[] = 'World: ' . $world_title;
+		$lines[] = '';
+
+		if ( empty( $scenes ) ) {
+			$lines[] = '_No scenes found for this project yet._';
+			$lines[] = '';
+		} else {
+			foreach ( $scenes as $index => $scene ) {
+				$shots        = $this->get_scene_shots( $scene );
+				$scene_frames = $this->get_scene_storyboard_frames( $scene );
+				$shot_count += count( $shots );
+				$frame_count += count( $scene_frames );
+				foreach ( $shots as $shot ) {
+					$frame_count += count( $this->get_shot_storyboard_frames( $shot, (int) ( $scene['id'] ?? 0 ) ) );
+				}
+
+				$lines[] = $this->format_storyboard_scene_block( $scene, $index + 1, $shots, $scene_frames );
+				$lines[] = '';
+			}
+		}
+
+		$lines[] = '---';
+		$lines[] = '';
+		$lines[] = '## STORYOS EXPORT METADATA';
+		$lines[] = '';
+		$lines[] = '```yaml';
+		$lines[] = 'project: ' . $project_title;
+		$lines[] = 'world: ' . $world_title;
+		$lines[] = 'scenes: ' . count( $scenes );
+		$lines[] = 'shots: ' . $shot_count;
+		$lines[] = 'storyboard_frames: ' . $frame_count;
+		$lines[] = 'export_format:';
+		$lines[] = '  - markdown';
+		$lines[] = '  - storyboard';
+		$lines[] = '```';
+		$lines[] = '';
+		$lines[] = 'This storyboard export was generated from the live StoryOS project data and reflects the current scenes, shots, and storyboard frames in WordPress.';
+
+		return implode( "\n", $lines ) . "\n";
+	}
+
+	/**
 	 * Resolve project title and related data from project ID or direct data.
 	 *
 	 * @param int|array $project_id_or_data Project ID or project data.
@@ -307,7 +373,173 @@ class StoryOS_Exporter {
 	 * @return array
 	 */
 	private function get_scene_shot_list( int $scene_id ): array {
-		if ( ! function_exists( 'get_posts' ) ) {
+		$shot_lines = [];
+		foreach ( $this->get_live_scene_shots( $scene_id ) as $shot ) {
+			$shot_lines[] = '### ' . $this->format_shot_heading( $shot );
+		}
+
+		return $shot_lines;
+	}
+
+	/**
+	 * Build one storyboard scene block.
+	 *
+	 * @param array $scene Scene data.
+	 * @param int   $fallback_number Fallback scene number.
+	 * @param array $shots Shots linked to the scene.
+	 * @param array $scene_frames Storyboard frames linked directly to the scene.
+	 * @return string
+	 */
+	private function format_storyboard_scene_block( array $scene, int $fallback_number, array $shots, array $scene_frames ): string {
+		$scene_number = $scene['scene_number'] ?? $fallback_number;
+		$title        = $this->clean_text( $scene['title'] ?? 'Untitled Scene' );
+		$location     = $this->clean_text( $scene['location'] ?? 'Location' );
+		$time         = strtoupper( $this->clean_text( $scene['time_of_day'] ?? 'DAY' ) );
+		$summary      = $this->clean_text( $scene['summary'] ?? $scene['content'] ?? '' );
+		$lines        = [];
+
+		$lines[] = '## Scene ' . $scene_number . ': ' . $title;
+		$lines[] = '';
+		$lines[] = '**Location:** ' . $location;
+		$lines[] = '**Time of Day:** ' . $time;
+		if ( $summary ) {
+			$lines[] = '**Scene Summary:** ' . $summary;
+		}
+		$lines[] = '';
+
+		if ( ! empty( $scene_frames ) ) {
+			$lines[] = '### Scene Storyboard Frames';
+			foreach ( $scene_frames as $frame ) {
+				$lines[] = $this->format_storyboard_frame_line( $frame );
+			}
+			$lines[] = '';
+		}
+
+		if ( empty( $shots ) ) {
+			if ( ! empty( $scene_frames ) ) {
+				return rtrim( implode( "\n", $lines ) );
+			}
+			$lines[] = '_No shots found for this scene yet._';
+			return implode( "\n", $lines );
+		}
+
+		foreach ( $shots as $shot ) {
+			$lines[] = $this->format_storyboard_shot_block( $shot, (int) ( $scene['id'] ?? 0 ) );
+			$lines[] = '';
+		}
+
+		return rtrim( implode( "\n", $lines ) );
+	}
+
+	/**
+	 * Build one storyboard shot block.
+	 *
+	 * @param array $shot Shot data.
+	 * @param int   $scene_id Scene ID.
+	 * @return string
+	 */
+	private function format_storyboard_shot_block( array $shot, int $scene_id ): string {
+		$description = $this->clean_text( $shot['shot_description'] ?? $shot['description'] ?? $shot['content'] ?? '' );
+		$notes       = $this->clean_text( $shot['editorial_notes'] ?? '' );
+		$details     = [];
+		$lines       = [];
+
+		foreach ( [
+			'shot_type'    => 'Shot Type',
+			'camera_angle' => 'Camera Angle',
+			'lens'         => 'Lens',
+			'duration'     => 'Duration',
+			'slate_id'     => 'Slate',
+		] as $key => $label ) {
+			$value = $this->clean_text( $shot[ $key ] ?? '' );
+			if ( $value ) {
+				$details[] = $label . ': ' . $value;
+			}
+		}
+
+		$lines[] = '### ' . $this->format_shot_heading( $shot );
+		if ( ! empty( $details ) ) {
+			$lines[] = implode( ' | ', $details );
+		}
+		if ( $description ) {
+			$lines[] = '';
+			$lines[] = $description;
+		}
+		if ( $notes ) {
+			$lines[] = '';
+			$lines[] = '**Editorial Notes:** ' . $notes;
+		}
+
+		$frames = $this->get_shot_storyboard_frames( $shot, $scene_id );
+		if ( empty( $frames ) ) {
+			$lines[] = '';
+			$lines[] = '_No storyboard frames linked to this shot yet._';
+			return implode( "\n", $lines );
+		}
+
+		$lines[] = '';
+		$lines[] = '#### Storyboard Frames';
+		foreach ( $frames as $frame ) {
+			$lines[] = $this->format_storyboard_frame_line( $frame );
+		}
+
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * Retrieve shots for a scene from direct data or live StoryOS relationships.
+	 *
+	 * @param array $scene Scene data.
+	 * @return array
+	 */
+	private function get_scene_shots( array $scene ): array {
+		if ( ! empty( $scene['shots'] ) && is_array( $scene['shots'] ) ) {
+			$shots = $scene['shots'];
+		} else {
+			$shots = $this->get_live_scene_shots( (int) ( $scene['id'] ?? 0 ) );
+		}
+
+		usort( $shots, function ( array $a, array $b ): int {
+			$a_order = (int) ( $a['menu_order'] ?? $a['shot_number'] ?? 0 );
+			$b_order = (int) ( $b['menu_order'] ?? $b['shot_number'] ?? 0 );
+			return $a_order <=> $b_order;
+		} );
+
+		return $shots;
+	}
+
+	/**
+	 * Retrieve storyboard frames linked directly to a scene.
+	 *
+	 * @param array $scene Scene data.
+	 * @return array
+	 */
+	private function get_scene_storyboard_frames( array $scene ): array {
+		if ( ! empty( $scene['storyboard_frames'] ) && is_array( $scene['storyboard_frames'] ) ) {
+			$frames = $scene['storyboard_frames'];
+		} elseif ( ! empty( $scene['frames'] ) && is_array( $scene['frames'] ) ) {
+			$frames = $scene['frames'];
+		} else {
+			$frames = $this->get_live_scene_storyboard_frames( (int) ( $scene['id'] ?? 0 ) );
+		}
+
+		usort( $frames, function ( array $a, array $b ): int {
+			$a_order = (int) ( $a['frame_number'] ?? $a['menu_order'] ?? 0 );
+			$b_order = (int) ( $b['frame_number'] ?? $b['menu_order'] ?? 0 );
+			return $a_order <=> $b_order;
+		} );
+
+		return $frames;
+	}
+
+	/**
+	 * Retrieve live StoryOS shots linked to a scene.
+	 *
+	 * @param int $scene_id Scene ID.
+	 * @return array
+	 */
+	private function get_live_scene_shots( int $scene_id ): array {
+		if ( ! $scene_id || ! function_exists( 'get_posts' ) ) {
 			return [];
 		}
 
@@ -330,13 +562,235 @@ class StoryOS_Exporter {
 				}
 			}
 
-			if ( $relationship_found ) {
-				$shot_type = get_post_meta( $shot->ID, 'shot_type', true );
-				$scene_shots[] = '### ' . \StoryOS\Utils\storyos_get_shot_display_name( $shot->ID ) . ( $shot_type ? ' — ' . ucfirst( (string) $shot_type ) : '' );
+			if ( ! $relationship_found ) {
+				continue;
 			}
+
+			$scene_shots[] = [
+				'id'               => $shot->ID,
+				'title'            => \StoryOS\Utils\storyos_get_shot_display_name( $shot->ID ),
+				'shot_number'      => (int) get_post_meta( $shot->ID, 'shot_number', true ),
+				'shot_name'        => get_post_meta( $shot->ID, 'shot_name', true ),
+				'shot_type'        => get_post_meta( $shot->ID, 'shot_type', true ),
+				'camera_angle'     => get_post_meta( $shot->ID, 'camera_angle', true ),
+				'lens'             => get_post_meta( $shot->ID, 'lens', true ),
+				'duration'         => get_post_meta( $shot->ID, 'duration', true ),
+				'slate_id'         => get_post_meta( $shot->ID, 'slate_id', true ),
+				'shot_description' => get_post_meta( $shot->ID, 'shot_description', true ) ?: $shot->post_content,
+				'editorial_notes'  => get_post_meta( $shot->ID, 'editorial_notes', true ),
+				'menu_order'       => (int) $shot->menu_order,
+			];
 		}
 
 		return $scene_shots;
+	}
+
+	/**
+	 * Retrieve storyboard frames for a shot.
+	 *
+	 * @param array $shot Shot data.
+	 * @param int   $scene_id Scene ID.
+	 * @return array
+	 */
+	private function get_shot_storyboard_frames( array $shot, int $scene_id ): array {
+		if ( ! empty( $shot['storyboard_frames'] ) && is_array( $shot['storyboard_frames'] ) ) {
+			$frames = $shot['storyboard_frames'];
+		} elseif ( ! empty( $shot['frames'] ) && is_array( $shot['frames'] ) ) {
+			$frames = $shot['frames'];
+		} else {
+			$frames = $this->get_live_shot_storyboard_frames( (int) ( $shot['id'] ?? 0 ), $scene_id );
+		}
+
+		usort( $frames, function ( array $a, array $b ): int {
+			$a_order = (int) ( $a['frame_number'] ?? $a['menu_order'] ?? 0 );
+			$b_order = (int) ( $b['frame_number'] ?? $b['menu_order'] ?? 0 );
+			return $a_order <=> $b_order;
+		} );
+
+		return $frames;
+	}
+
+	/**
+	 * Retrieve live StoryOS storyboard frames linked to a shot or scene.
+	 *
+	 * @param int $shot_id Shot ID.
+	 * @param int $scene_id Scene ID.
+	 * @return array
+	 */
+	private function get_live_shot_storyboard_frames( int $shot_id, int $scene_id ): array {
+		if ( ! $shot_id || ! function_exists( 'get_posts' ) ) {
+			return [];
+		}
+
+		$frames = get_posts( [
+			'post_type'      => 'storyos_storyboard_frame',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'orderby'        => 'meta_value_num',
+			'meta_key'       => 'frame_number',
+			'order'          => 'ASC',
+		] );
+
+		$shot_frames = [];
+		foreach ( $frames as $frame ) {
+			$matches_shot = false;
+			$matches_scene = false;
+
+			foreach ( \StoryOS\Utils\get_relationships( $frame->ID, 'storyos_storyboard_frame', 'outgoing' ) as $rel ) {
+				$to_id = (int) ( $rel['to_id'] ?? 0 );
+				if ( $shot_id === $to_id && 'storyos_shot' === ( $rel['to_type'] ?? '' ) ) {
+					$matches_shot = true;
+				}
+				if ( $scene_id === $to_id && 'storyos_scene' === ( $rel['to_type'] ?? '' ) ) {
+					$matches_scene = true;
+				}
+			}
+
+			if ( ! $matches_shot && ! $matches_scene ) {
+				continue;
+			}
+
+			$shot_frames[] = [
+				'id'                => $frame->ID,
+				'title'             => $frame->post_title,
+				'frame_number'      => (int) get_post_meta( $frame->ID, 'frame_number', true ),
+				'frame_description' => get_post_meta( $frame->ID, 'frame_description', true ) ?: $frame->post_content,
+				'prompt_text'       => get_post_meta( $frame->ID, 'prompt_text', true ),
+				'camera_notes'      => get_post_meta( $frame->ID, 'camera_notes', true ),
+				'image_asset'       => $this->get_storyboard_frame_image_name( $frame->ID ),
+				'menu_order'        => (int) $frame->menu_order,
+			];
+		}
+
+		return $shot_frames;
+	}
+
+	/**
+	 * Retrieve live storyboard frames linked to a scene but not a specific shot.
+	 *
+	 * @param int $scene_id Scene ID.
+	 * @return array
+	 */
+	private function get_live_scene_storyboard_frames( int $scene_id ): array {
+		if ( ! $scene_id || ! function_exists( 'get_posts' ) ) {
+			return [];
+		}
+
+		$frames = get_posts( [
+			'post_type'      => 'storyos_storyboard_frame',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'orderby'        => 'meta_value_num',
+			'meta_key'       => 'frame_number',
+			'order'          => 'ASC',
+		] );
+
+		$scene_frames = [];
+		foreach ( $frames as $frame ) {
+			$matches_scene = false;
+			$matches_shot  = false;
+
+			foreach ( \StoryOS\Utils\get_relationships( $frame->ID, 'storyos_storyboard_frame', 'outgoing' ) as $rel ) {
+				$to_id = (int) ( $rel['to_id'] ?? 0 );
+				if ( $scene_id === $to_id && 'storyos_scene' === ( $rel['to_type'] ?? '' ) ) {
+					$matches_scene = true;
+				}
+				if ( 'storyos_shot' === ( $rel['to_type'] ?? '' ) ) {
+					$matches_shot = true;
+				}
+			}
+
+			if ( ! $matches_scene || $matches_shot ) {
+				continue;
+			}
+
+			$scene_frames[] = [
+				'id'                => $frame->ID,
+				'title'             => $frame->post_title,
+				'frame_number'      => (int) get_post_meta( $frame->ID, 'frame_number', true ),
+				'frame_description' => get_post_meta( $frame->ID, 'frame_description', true ) ?: $frame->post_content,
+				'prompt_text'       => get_post_meta( $frame->ID, 'prompt_text', true ),
+				'camera_notes'      => get_post_meta( $frame->ID, 'camera_notes', true ),
+				'image_asset'       => $this->get_storyboard_frame_image_name( $frame->ID ),
+				'menu_order'        => (int) $frame->menu_order,
+			];
+		}
+
+		return $scene_frames;
+	}
+
+	/**
+	 * Get image asset name linked to a storyboard frame.
+	 *
+	 * @param int $frame_id Storyboard frame ID.
+	 * @return string
+	 */
+	private function get_storyboard_frame_image_name( int $frame_id ): string {
+		if ( ! function_exists( 'get_post' ) ) {
+			return '';
+		}
+
+		foreach ( \StoryOS\Utils\get_relationships( $frame_id, 'storyos_storyboard_frame', 'outgoing' ) as $rel ) {
+			if ( 'storyos_asset' !== ( $rel['to_type'] ?? '' ) ) {
+				continue;
+			}
+
+			$post = get_post( (int) ( $rel['to_id'] ?? 0 ) );
+			if ( $post ) {
+				return $post->post_title;
+			}
+		}
+
+		return '';
+	}
+
+	/**
+	 * Format a shot heading for export.
+	 *
+	 * @param array $shot Shot data.
+	 * @return string
+	 */
+	private function format_shot_heading( array $shot ): string {
+		$title = $this->clean_text( $shot['title'] ?? $shot['shot_name'] ?? '' );
+		$type  = $this->clean_text( $shot['shot_type'] ?? '' );
+		$label = $title ?: 'Shot ' . ( $shot['shot_number'] ?? '' );
+
+		if ( $type ) {
+			$label .= ' - ' . ucwords( str_replace( '_', ' ', $type ) );
+		}
+
+		return trim( $label );
+	}
+
+	/**
+	 * Format one storyboard frame line.
+	 *
+	 * @param array $frame Storyboard frame data.
+	 * @return string
+	 */
+	private function format_storyboard_frame_line( array $frame ): string {
+		$frame_number = $frame['frame_number'] ?? '';
+		$description  = $this->clean_text( $frame['frame_description'] ?? $frame['description'] ?? $frame['content'] ?? '' );
+		$camera_notes = $this->clean_text( $frame['camera_notes'] ?? '' );
+		$prompt       = $this->clean_text( $frame['prompt_text'] ?? $frame['prompt'] ?? '' );
+		$image_asset  = $this->clean_text( $frame['image_asset'] ?? '' );
+		$parts        = [];
+
+		if ( $description ) {
+			$parts[] = $description;
+		}
+		if ( $camera_notes ) {
+			$parts[] = 'Camera: ' . $camera_notes;
+		}
+		if ( $image_asset ) {
+			$parts[] = 'Image: ' . $image_asset;
+		}
+		if ( $prompt ) {
+			$parts[] = 'Prompt: ' . $prompt;
+		}
+
+		$label = $frame_number ? 'Frame ' . $frame_number : 'Frame';
+		return '- **' . $label . ':** ' . ( $parts ? implode( ' | ', $parts ) : 'No frame description available.' );
 	}
 
 	/**

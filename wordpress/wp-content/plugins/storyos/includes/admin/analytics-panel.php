@@ -20,10 +20,33 @@ class Analytics_Panel {
 	public static function init(): void {
 		add_action( 'admin_menu', [ __CLASS__, 'add_menu' ] );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_scripts' ] );
+		add_filter( 'post_row_actions', [ __CLASS__, 'add_project_row_action' ], 10, 2 );
 		add_action( 'wp_ajax_storyos_fetch_analytics', [ __CLASS__, 'ajax_fetch_analytics' ] );
 		add_action( 'wp_ajax_storyos_fetch_network', [ __CLASS__, 'ajax_fetch_network' ] );
 		add_action( 'wp_ajax_storyos_fetch_graph', [ __CLASS__, 'ajax_fetch_graph' ] );
 		add_action( 'wp_ajax_storyos_clear_cache', [ __CLASS__, 'ajax_clear_cache' ] );
+	}
+
+	/**
+	 * Add a direct analytics link to each StoryOS project row.
+	 *
+	 * @param array    $actions Existing row actions.
+	 * @param \WP_Post $post    Current post.
+	 * @return array Row actions.
+	 */
+	public static function add_project_row_action( array $actions, \WP_Post $post ): array {
+		if ( 'storyos_project' === $post->post_type && current_user_can( 'manage_options' ) ) {
+			$url = add_query_arg(
+				[
+					'page'       => 'storyos-analytics',
+					'project_id' => $post->ID,
+				],
+				admin_url( 'tools.php' )
+			);
+			$actions['storyos_analyze'] = '<a href="' . esc_url( $url ) . '">Analyze</a>';
+		}
+
+		return $actions;
 	}
 
 	/**
@@ -90,6 +113,14 @@ class Analytics_Panel {
 	 * Render the analytics page.
 	 */
 	public static function render_page(): void {
+		$projects = get_posts( [
+			'post_type'      => 'storyos_project',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+		] );
+		$selected_project_id = isset( $_GET['project_id'] ) ? absint( $_GET['project_id'] ) : 0;
 		?>
 		<div class="wrap storyos-analytics-wrap">
 			<h1>Story Graph Analytics</h1>
@@ -99,6 +130,16 @@ class Analytics_Panel {
 			</p>
 
 			<div id="storyos-analytics-app">
+				<div class="storyos-actions">
+					<label for="storyos-analytics-project"><strong>Project</strong></label>
+					<select id="storyos-analytics-project">
+						<option value="">Select a project</option>
+						<?php foreach ( $projects as $project ) : ?>
+							<option value="<?php echo esc_attr( (string) $project->ID ); ?>" <?php selected( $selected_project_id, $project->ID ); ?>><?php echo esc_html( $project->post_title ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</div>
+
 				<!-- Summary Cards -->
 				<div class="storyos-summary-cards" id="summary-cards">
 					<div class="storyos-summary-card">
@@ -254,18 +295,17 @@ class Analytics_Panel {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'Permission denied' );
 		}
+		$project_id = self::requested_project_id();
 
 		// Check cache first.
-		$cached = \StoryOS\Utils\get_cached_graph_analytics();
-		if ( is_array( $cached ) ) {
-			wp_send_json_success( [
-				'data'   => $cached,
-				'cached' => true,
-			] );
+		$cached = \StoryOS\Utils\get_cached_graph_analytics( $project_id );
+		if ( is_array( $cached ) && isset( $cached['total_entities'], $cached['total_relationships'] ) ) {
+			$cached['cached'] = true;
+			wp_send_json_success( $cached );
 		}
 
 		// Fetch from local Story Graph.
-		$analytics = \StoryOS\Utils\fetch_graph_analytics();
+		$analytics = \StoryOS\Utils\fetch_graph_analytics( [ 'project_id' => $project_id ] );
 
 		if ( is_wp_error( $analytics ) ) {
 			wp_send_json_error( [
@@ -274,12 +314,10 @@ class Analytics_Panel {
 		}
 
 		// Cache the result.
-		\StoryOS\Utils\cache_graph_analytics( $analytics );
+		\StoryOS\Utils\cache_graph_analytics( $analytics, 3600, $project_id );
 
-		wp_send_json_success( [
-			'data'   => $analytics,
-			'cached' => false,
-		] );
+		$analytics['cached'] = false;
+		wp_send_json_success( $analytics );
 	}
 
 	/**
@@ -291,18 +329,17 @@ class Analytics_Panel {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'Permission denied' );
 		}
+		$project_id = self::requested_project_id();
 
 		// Check cache first.
-		$cached = \StoryOS\Utils\get_cached_character_network();
-		if ( is_array( $cached ) ) {
-			wp_send_json_success( [
-				'data'   => $cached,
-				'cached' => true,
-			] );
+		$cached = \StoryOS\Utils\get_cached_character_network( $project_id );
+		if ( is_array( $cached ) && isset( $cached['strongest_relationships'], $cached['character_scene_presence'] ) ) {
+			$cached['cached'] = true;
+			wp_send_json_success( $cached );
 		}
 
 		// Fetch from local Story Graph.
-		$network = \StoryOS\Utils\fetch_character_network();
+		$network = \StoryOS\Utils\fetch_character_network( [ 'project_id' => $project_id ] );
 
 		if ( is_wp_error( $network ) ) {
 			wp_send_json_error( [
@@ -311,12 +348,10 @@ class Analytics_Panel {
 		}
 
 		// Cache the result.
-		\StoryOS\Utils\cache_character_network( $network );
+		\StoryOS\Utils\cache_character_network( $network, 3600, $project_id );
 
-		wp_send_json_success( [
-			'data'   => $network,
-			'cached' => false,
-		] );
+		$network['cached'] = false;
+		wp_send_json_success( $network );
 	}
 
 	/**
@@ -328,11 +363,13 @@ class Analytics_Panel {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'Permission denied' );
 		}
+		$project_id = self::requested_project_id();
 
 		$scene_ids = isset( $_REQUEST['scene_ids'] ) ? array_map( 'absint', explode( ',', $_REQUEST['scene_ids'] ) ) : [];
 
 		$graph = \StoryOS\Utils\fetch_relationship_graph( [
-			'scene_ids' => $scene_ids,
+			'scene_ids'  => $scene_ids,
+			'project_id' => $project_id,
 		] );
 
 		if ( is_wp_error( $graph ) ) {
@@ -341,9 +378,7 @@ class Analytics_Panel {
 			] );
 		}
 
-		wp_send_json_success( [
-			'data' => $graph,
-		] );
+		wp_send_json_success( $graph );
 	}
 
 	/**
@@ -355,12 +390,30 @@ class Analytics_Panel {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'Permission denied' );
 		}
+		$project_id = self::requested_project_id();
 
-		\StoryOS\Utils\clear_cached_graph_analytics();
-		\StoryOS\Utils\clear_cached_character_network();
+		\StoryOS\Utils\clear_cached_graph_analytics( $project_id );
+		\StoryOS\Utils\clear_cached_character_network( $project_id );
 
 		wp_send_json_success( [
 			'message' => 'Cache cleared.',
 		] );
+	}
+
+	/**
+	 * Get and validate the project selected by the analytics request.
+	 *
+	 * @return int Project post ID.
+	 */
+	private static function requested_project_id(): int {
+		$project_id = isset( $_REQUEST['project_id'] ) ? absint( $_REQUEST['project_id'] ) : 0;
+		if ( ! $project_id || 'storyos_project' !== get_post_type( $project_id ) ) {
+			wp_send_json_error( [
+				'message' => 'Select a valid StoryOS project to analyze.',
+			], 400 );
+			return 0;
+		}
+
+		return $project_id;
 	}
 }

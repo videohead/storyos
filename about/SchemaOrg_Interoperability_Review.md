@@ -27,6 +27,7 @@ StoryOS should treat existing Schema.org classes and properties as the default s
 - `storyos_episode` -> `Episode`
 - `storyos_scene` -> `Clip` (preferred) or `CreativeWork` when clip semantics are not available
 - `storyos_shot` -> `Clip` (child clip or segment)
+- `storyos_sound` -> `CreativeWork` (planned cue), with `MusicComposition` inferred for music
 
 ### Narrative Entities
 
@@ -43,6 +44,11 @@ StoryOS should treat existing Schema.org classes and properties as the default s
   - audio assets -> `AudioObject`
 - `storyos_storyboard_frame` -> `ImageObject` or `CreativeWork` (depending on whether the frame is treated as media-first or annotation-first)
 - `storyos_editorial_artifact` -> `CreativeWork`
+
+Planned Sound cues and rendered media are intentionally distinct:
+
+- `storyos_sound` -> `CreativeWork` / `MusicComposition`
+- linked audio `storyos_asset` or attachment -> `AudioObject`
 
 ## Relationship Mapping (Story Graph -> Schema.org semantics)
 

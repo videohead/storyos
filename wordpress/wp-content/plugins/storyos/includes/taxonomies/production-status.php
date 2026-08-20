@@ -11,7 +11,7 @@ class ProductionStatus {
 	public static function init(): void {
 		register_taxonomy(
 			'storyos_status',
-			[ 'storyos_project', 'storyos_episode', 'storyos_asset' ],
+			[ 'storyos_project', 'storyos_episode', 'storyos_sound', 'storyos_asset' ],
 			[
 				'labels' => [
 					'name'          => 'Statuses',

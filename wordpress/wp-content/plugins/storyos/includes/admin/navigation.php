@@ -139,6 +139,7 @@ class Navigation {
 				[ 'title' => 'Episodes', 'description' => 'Organize the larger structure of your story.', 'icon' => 'dashicons-list-view', 'url' => admin_url( 'edit.php?post_type=storyos_episode' ) ],
 				[ 'title' => 'Scenes', 'description' => 'Develop the story beat by beat.', 'icon' => 'dashicons-format-video', 'url' => admin_url( 'edit.php?post_type=storyos_scene' ) ],
 				[ 'title' => 'Shots', 'description' => 'Plan the visual coverage of each scene.', 'icon' => 'dashicons-camera-alt', 'url' => admin_url( 'edit.php?post_type=storyos_shot' ) ],
+				[ 'title' => 'Sounds', 'description' => 'Plan narration, music, effects, ambience, Foley, and silence.', 'icon' => 'dashicons-format-audio', 'url' => admin_url( 'edit.php?post_type=storyos_sound' ) ],
 				[ 'title' => 'Assets', 'description' => 'Manage the media and files used by your story.', 'icon' => 'dashicons-media-default', 'url' => admin_url( 'edit.php?post_type=storyos_asset' ) ],
 				[ 'title' => 'Editorial Cut', 'description' => 'Review and shape the assembled cut.', 'icon' => 'dashicons-editor-video', 'url' => admin_url( 'admin.php?page=storyos-editorial-cut' ) ],
 			],

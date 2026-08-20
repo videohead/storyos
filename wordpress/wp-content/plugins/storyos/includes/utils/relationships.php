@@ -59,6 +59,17 @@ function add_relationship( int $from_id, string $from_type, int $to_id, string $
 		$existing = [];
 	}
 
+	foreach ( $existing as $relationship ) {
+		if (
+			$to_id === (int) ( $relationship['to_id'] ?? 0 ) &&
+			$to_type === (string) ( $relationship['to_type'] ?? '' ) &&
+			$type === (string) ( $relationship['type'] ?? '' ) &&
+			$metadata === (array) ( $relationship['metadata'] ?? [] )
+		) {
+			return count( $existing );
+		}
+	}
+
 	$relationship = [
 		'to_id'      => $to_id,
 		'to_type'    => $to_type,

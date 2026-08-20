@@ -79,5 +79,29 @@ class Test_StoryOS_Schema_Alignment extends TestCase {
 			]
 		);
 		$this->assertSame( 'VideoObject', $asset_video );
+
+		$asset_audio = \StoryOS\Utils\storyos_schema_type_for_entity(
+			'storyos_asset',
+			[],
+			[
+				'storyos_asset_type' => [
+					[ 'slug' => 'audio' ],
+				],
+			]
+		);
+		$this->assertSame( 'AudioObject', $asset_audio );
+
+		$sound_music = \StoryOS\Utils\storyos_schema_type_for_entity(
+			'storyos_sound',
+			[],
+			[
+				'storyos_sound_type' => [
+					[ 'slug' => 'music' ],
+				],
+			]
+		);
+		$this->assertSame( 'MusicComposition', $sound_music );
+		$this->assertSame( 'CreativeWork', \StoryOS\Utils\storyos_schema_type_for_entity( 'storyos_sound' ) );
+		$this->assertSame( 'encoding', \StoryOS\Utils\storyos_schema_property_for_relationship( 'linked_to', 'storyos_sound', 'storyos_asset' ) );
 	}
 }

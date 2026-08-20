@@ -50,6 +50,7 @@ Project
 ├── Scenes
 ├── Shots
 ├── Storyboards
+├── Sounds
 ├── Assets
 └── Editorial Artifacts
 
@@ -211,6 +212,7 @@ Represents a fictional universe.
 
 - Belongs To Episode
 - Contains Shots
+- Contains Sounds
 - References Assets
 - References Storyboards
 
@@ -230,6 +232,7 @@ Represents a fictional universe.
 ## Relationships
 
 - Belongs To Scene
+- References Sounds
 - References Storyboard Frames
 - References Assets
 
@@ -252,6 +255,40 @@ Represents a fictional universe.
 
 ---
 
+# CPT: Sound
+
+Represents one planned soundtrack cue in a Scene, optionally narrowed to a
+Shot. It stores sound intent independently from the recorded/generated file so
+the same audio Asset can be reused by multiple cues.
+
+## Fields
+
+- Sound Type
+- Spoken Text (Narration / Voice-over / ADR)
+- Lyrics (Music)
+- Start Timecode
+- Duration
+- Story-world Relation (Diegetic / Non-diegetic / Internal / Mixed)
+- Production Notes
+
+## Relationships
+
+- Belongs To Scene
+- Belongs To Shot (Optional)
+- Linked To Narrator / Voice Character (Optional)
+- Linked To Rendered Audio Asset (Optional)
+
+Ordinary dialogue continues to live in structured Scene dialogue metadata and
+is not mirrored into Sound records.
+
+## Schema.org Alignment
+
+- Planned Sound cue: `CreativeWork`
+- Music Sound cue: `MusicComposition`
+- Linked audio Asset or attachment: `AudioObject`
+
+---
+
 # CPT: Asset
 
 ## Fields
@@ -271,6 +308,7 @@ Represents a fictional universe.
 - Linked To Locations
 - Linked To Scenes
 - Linked To Storyboards
+- Linked From Sounds
 
 ---
 
@@ -311,6 +349,18 @@ Represents a fictional universe.
 - Environment
 - Storyboard
 - Video
+- Audio
+
+## Sound Type
+
+- Narration
+- Voice-over
+- Music
+- Sound Effect
+- Ambience
+- Foley
+- Intentional Silence
+- ADR
 
 ## Production Status
 
@@ -437,7 +487,7 @@ Current model coverage:
 
 - Coverage is captured through shot-level metadata (type, angle, lens, duration).
 - Shot List is a view derived from ordered Scene -> Shot relations.
-- Continuity is validated from linked entities across Character, Location, Prop, Scene, Shot, Storyboard, and Asset.
+- Continuity is validated from linked entities across Character, Location, Prop, Scene, Shot, Sound, Storyboard, and Asset.
 - Storyboard is represented through Storyboard Frame entities and links.
 - EDL is represented as an Editorial Artifact derived from Scene/Shot structure.
 
