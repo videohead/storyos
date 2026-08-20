@@ -1,16 +1,57 @@
 # World Graph Studio Deployment and Connections
 
-World Graph Studio keeps stories, Story Graph data, and helpful filmmaking agents in WordPress. Generative media workflows run through your favorite generative tools including ComfyUI. Neither a local GPU nor ComfyUI is required to use World Graph Studio for writing, planning, continuity, collaboration, or asset tracking, but the majority of the tools are organizaed around having both chat-based AI assistance AND generative AI.
+World Graph Studio keeps stories, Story Graph data, and specialist creative
+advisors in WordPress. Generative media workflows can run through configured
+tools including ComfyUI, fal, and ElevenLabs. Neither a GPU nor a generation
+connection is required for writing, planning, continuity, collaboration, asset
+tracking, JSON interchange, or Markdown export. AI-assisted and generated-media
+features require the corresponding configured service.
+
+The repository implementation is complete for the connections documented here.
+Credentials, reachable services, models, quotas, and provider accounts remain
+deployment concerns. See [Delivery Status](Delivery_Status.md).
 
 ## Before You Start
 
 Every World Graph Studio user needs:
 
 1. A WordPress.org-capable host, WP Local, or a local Docker/Lando deployment.
-2. A local ComfyUI installation operated through an MCP client, Comfy Cloud account with an API key, additional API keys for your favorite generative tools, or no connection while using World Graph Studio for story-only work (no agentic assistance or visual assets can be generated in this mode).
-3. An API-connected LLM: a local OpenAI-compatible server such as llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as OpenAI or Anthropic.
+2. Optionally, a local ComfyUI installation, Comfy Cloud account, fal account,
+   ElevenLabs account, or another manually managed asset source.
+3. Optionally, an API-connected LLM: a local OpenAI-compatible server such as
+   llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as
+   OpenAI or Anthropic.
 
 Browser-only subscriptions, including ChatGPT, Claude, and Claude Code subscriptions without an API credential, are not supported by the World Graph Studio server integration at this time. Hosted LLM providers require an API key; a local LLM must expose an OpenAI-compatible API endpoint and any credential it requires.
+
+## Upgrading a renamed installation
+
+Back up the WordPress database and uploads before upgrading from StoryOS. The
+old plugin basename is `storyos/storyos.php`; the new basename is
+`worldgraph/worldgraph.php`. Because WordPress cannot load a file after its
+directory has moved, explicitly activate `worldgraph` after restoring the
+database. Its activation path runs the serialization-aware compatibility
+migration for supported post types, taxonomies, options, metadata,
+relationships, SCF identities, capabilities, cron hooks, and plugin entries.
+
+The Lando app name changed from `storyos` to `worldgraph`. Named database
+volumes are scoped to the app identity and are not renamed automatically. With
+the old Landofile still active, export first:
+
+```bash
+lando db-export scripts/pre-worldgraph-upgrade.sql.gz
+```
+
+After switching to the renamed checkout and starting the new app, import and
+activate:
+
+```bash
+lando db-import scripts/pre-worldgraph-upgrade.sql.gz
+lando wp plugin activate secure-custom-fields worldgraph
+```
+
+Do not use a raw SQL search-and-replace for this rename; WordPress options,
+metadata, and SCF values can be serialized.
 
 ## Core Runtime
 
@@ -41,7 +82,9 @@ For reliable production scheduling, invoke `wp-cron.php` from the host scheduler
 
 ## ComfyUI MCP
 
-Local ComfyUI or Comfy Cloud both have a helpful MCP for discovering and using Templates.
+Comfy Cloud uses its MCP execution path. A local ComfyUI deployment can use its
+HTTP API for execution and a separate MCP server for template discovery and
+model downloads.
 
 ### Reaching a local ComfyUI from Lando
 
@@ -91,12 +134,14 @@ fal authenticates every MCP request with `Authorization: Bearer <FAL_KEY>`.
 Testing the Connection performs MCP initialization and verifies that the server
 advertises `submit_job` and `check_job`.
 
-Each fal model is represented by a World Graph Studio Template, but World Graph Studio normally
-creates and updates these records automatically. Saving a fal Connection
-schedules MCP catalog/schema discovery. Testing it performs the same sync
-immediately. A Connection-level Model selects one endpoint; Model Access is an
-authoritative JSON allowlist and provisions one Template per endpoint. With
-neither configured, fal MCP supplies a current text-to-image model.
+Each supported fal endpoint is represented by a World Graph Studio Template,
+and World Graph Studio creates and updates these records automatically. Saving
+a fal Connection schedules MCP catalog/schema discovery. Testing it performs
+the same sync immediately. A Connection-level Model selects one endpoint;
+Model Access is an authoritative JSON allowlist and provisions one Template per
+endpoint. With neither configured, fal MCP supplies a current text-to-image
+model. The built-in fal catalog maps discovered endpoints to text-to-image;
+other fal modalities require an adapter extension.
 
 The generated Template keeps runtime inputs separate from the full provider
 schema in Configuration JSON:
@@ -110,9 +155,9 @@ schema in Configuration JSON:
 }
 ```
 
-World Graph Studio supplies `prompt` and resolved Template input bindings at runtime,
-submits the work with `submit_job`, polls with `check_job`, and imports returned
-image or video URLs into the WordPress media library. A generation job is not
+World Graph Studio supplies `prompt` and resolved Template input bindings at
+runtime, submits the work with `submit_job`, polls with `check_job`, and imports
+returned image URLs into the WordPress media library. A generation job is not
 marked complete unless every returned media URL has been downloaded and stored
 as a WordPress attachment.
 
@@ -170,6 +215,14 @@ Configure the AI Editor in WordPress under **World Graph Studio > AI Settings**.
 
 ## World Graph Studio Without ComfyUI
 
-World Graph Studio remains fully useful without ComfyUI: creators can write, develop story worlds, run WordPress filmmaking agents, plan production, manage continuity, import/export scripts and EDL data, and register or upload assets from any external generator.
+World Graph Studio remains useful without ComfyUI: creators can write, develop
+story worlds, use configured LLM advisors, plan production, manage continuity,
+use delivered JSON and Markdown interchange, parse/preview or export EDL data,
+and register or upload assets from an external generator.
 
-Web-based generation providers such as Veo can participate in the World Graph Studio framework as external asset sources. World Graph Studio should store their prompt, provider, model, source URL, usage rights, and generated media as asset provenance. A provider needs an explicit WordPress connector before World Graph Studio can submit jobs or poll it automatically; direct Veo, Nova, and similar connectors are roadmap work, not current built-in execution paths.
+Web-based generation services such as Veo can be recorded as external asset
+sources. Store their prompt, provider, model, source URL, usage rights, and
+generated media as provenance. A provider requires an explicit WordPress
+adapter before World Graph Studio can submit or poll it automatically. Veo,
+Nova Reel, and similarly named provider choices are extension/configuration
+surfaces, not built-in execution claims or scheduled delivery commitments.

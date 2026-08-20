@@ -5,31 +5,23 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BACKUP_SQL="$ROOT_DIR/scripts/backup.sql"
-DB_CONTAINER_NAME="worldgraph_database_1"
+BACKUP_ARCHIVE="$ROOT_DIR/scripts/backup.sql.gz"
 
-if [[ ! -f "$BACKUP_SQL" ]]; then
-  echo "Backup file not found: $BACKUP_SQL"
+if [[ ! -f "$BACKUP_ARCHIVE" ]]; then
+  echo "Backup file not found: $BACKUP_ARCHIVE"
   exit 1
 fi
 
-if ! docker ps --format '{{.Names}}' | grep -qx "$DB_CONTAINER_NAME"; then
-  echo "MariaDB container '$DB_CONTAINER_NAME' is not running yet."
-  echo "Run this script again after the database service is up."
+if ! command -v lando >/dev/null 2>&1; then
+  echo "Lando is required to import the database backup."
   exit 1
 fi
 
 echo "=== Bootstrapping World Graph Studio database ==="
 
-docker exec "$DB_CONTAINER_NAME" bash -lc "
-  mysql -uroot -proot -e \"CREATE DATABASE IF NOT EXISTS wordpress CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\"
-  mysql -uroot -proot -e \"CREATE USER IF NOT EXISTS 'wordpress'@'%' IDENTIFIED BY 'wordpress'; GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'%'; FLUSH PRIVILEGES;\"ILEGES;\"
-"
-
-docker cp "$BACKUP_SQL" "$DB_CONTAINER_NAME":/tmp/backup.sql
-
-docker exec "$DB_CONTAINER_NAME" bash -lc "
-  mysql -uwordpress -pwordpress wordpress < /tmp/backup.sql
-"
+(
+  cd "$ROOT_DIR"
+  lando db-import "$BACKUP_ARCHIVE"
+)
 
 echo "=== Database bootstrap complete ==="

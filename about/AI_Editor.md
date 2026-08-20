@@ -1,389 +1,275 @@
-# Phase 8: AI Editor
+# World Graph Studio AI Editor
 
-> Build Your Story Once. Create Everywhere.
+> Story Graph-aware assistance, inside the creative workspace.
 
-**Status: Implemented — Live end-to-end validation pending**
+**Status: delivered and complete.** The Gutenberg interface, classic
+Story Graph editor workflow, REST routes, LLM client, specialist advisors,
+context builder, and WordPress Abilities are implemented in the current
+repository. Provider credentials and endpoint availability are installation
+configuration, not unfinished product work.
 
-The AI Editor implementation is complete, and the LLM connection is
-established. Live end-to-end testing of the internal AI chat has **not** yet
-been completed.
+## Purpose
 
-## Implementation Update
+The AI Editor lets creators analyze, discuss, and develop a Story Graph entity
+without leaving WordPress. It combines approved project context with one of
+more than 50 specialist creative advisor profiles and a configured local or
+hosted LLM.
 
-The AI Editor is a WordPress plugin module. It combines Story Graph context,
-WordPress filmmaking abilities, and an API-connected LLM behind Gutenberg,
-WordPress REST, and the WordPress Abilities API.
+The editor is human-directed:
 
-## Objective
+- AI responses are labeled as generated suggestions.
+- The server decides which Story Graph context is sent.
+- Suggestions do not silently change canonical records.
+- Gutenberg insertion or replacement requires an explicit creator action.
+- The current browser session holds chat history; the chat route does not
+  persist it as project content.
 
-Give creators useful AI assistance without leaving WordPress. The AI Editor
-supports chat, content analysis, generation assistance, continuity checks, and
-context inspection for posts and Story Graph entities.
+World Graph Studio remains useful for editing, search, continuity, production
+planning, and asset organization when no LLM is configured.
 
-The Story Graph remains the source of truth. The AI Editor may suggest content,
-prompts, relationships, or editorial actions, but it must not silently change
-canonical story data.
+## User surfaces
+
+The delivered experience includes:
+
+- A Gutenberg plugin sidebar for chat and context-aware actions.
+- A story-element workflow metabox for supported classic editors.
+- Specialist advisor selection and automatic routing.
+- Chat, analysis, draft generation, and continuity actions.
+- Context inspection for the current WordPress record.
+- Explicit insert-as-blocks, insert-as-HTML, insert-as-text, and replace-content
+  controls in Gutenberg.
+- AI connection, model, fallback, rate-limit, and cache configuration through
+  the World Graph Studio setup surface.
+- Health, settings, and advisor discovery endpoints.
 
 ## Architecture
 
 ```text
-WordPress Admin
-  Gutenberg post and CPT editors
-  AI Editor sidebar
-          |
-          +------------------------------+
-          |                              |
-          v                              v
-World Graph Studio REST API                    WordPress Abilities API
-  /worldgraph/v1/ai/*                  tools, resources, prompts
-          |                              |
-          +--------------+---------------+
-                         v
-                  World Graph Studio AI Editor
-                  - Context Builder
-                  - LLM Client
-                  - Ability callbacks
-                  - Permission and schema checks
+Gutenberg sidebar, classic metabox, or authorized API client
                          |
                          v
-                  Configured LLM endpoint
-                  local or hosted
+               worldgraph/v1/ai routes
+                 or WordPress Ability
+                         |
+             +-----------+-----------+
+             |                       |
+             v                       v
+      Capability checks       Context Builder
+                              Story Graph + SCF
+             |                       |
+             +-----------+-----------+
+                         v
+              Agent router / advisor skill
+                         |
+                         v
+                    LLM Client
+          local, OpenAI, or Anthropic endpoint
+                         |
+                         v
+              Structured, labeled response
 ```
 
-WordPress owns authentication, permissions, context assembly, request
-validation, response formatting, and user-visible history. The configured LLM
-only receives the approved context and prompt for the current operation.
+WordPress owns authentication, permissions, system instructions, context
+assembly, request validation, error normalization, and user-visible controls.
+The configured provider receives only the prompt, bounded conversation, and
+approved context needed for the operation.
 
-## User Experience
+## Implementation map
 
-The Gutenberg sidebar can provide:
+The module lives under
+`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/`.
 
-- Chat about the current post or Story Graph entity.
-- Analyze content and return structured observations.
-- Generate draft text, prompts, or editorial suggestions.
-- Run a continuity check and link findings to affected entities.
-- Preview the Story Graph context that will be sent to the LLM.
-- Apply an accepted suggestion explicitly to an editor field.
-- Show response history for the current editing session.
+| Component | Responsibility |
+| --- | --- |
+| `class-ai-editor.php` | Module bootstrap, settings, admin integration, Gutenberg assets, and classic-editor workflow |
+| `class-ai-editor-rest.php` | Permission-aware `worldgraph/v1/ai/*` routes |
+| `class-ai-context-builder.php` | Bounded post, character, scene, project, and relationship context |
+| `class-ai-llm-client.php` | Local/hosted requests, fallback, caching, rate limiting, health, and normalized errors |
+| `class-ai-agent-router.php` | Advisor selection when the creator does not select one |
+| `class-ai-agent-skills.php` | Loading and enabling specialist advisor definitions |
+| `class-ai-maf-bridge.php` | Shared execution bridge between advisors and the configured LLM |
+| `class-ai-image-client.php` | Configured AI image request support used by editor workflows |
+| `class-ai-abilities.php` | Typed WordPress tools, resources, prompts, schemas, and MCP metadata |
 
-The panel must distinguish generated suggestions from saved WordPress content.
-Actions that modify content require an explicit user action and appropriate
-WordPress capability.
+The user interface lives under
+`wordpress/wp-content/plugins/worldgraph/assets/ai-editor/` and includes the
+Gutenberg sidebar and classic story-element workflow scripts and styles.
+Advisor profiles live under
+`wordpress/wp-content/plugins/worldgraph/includes/agents/`.
 
-## Plugin Structure
+## Story Graph context contract
 
-The active implementation surfaces are:
+Context may include the current entity, its registered SCF values, relevant
+relationships, project, story world, and concise neighboring records. Context
+construction must:
 
-```text
-wordpress/wp-content/plugins/worldgraph/
-├── worldgraph.php
-├── includes/
-│   └── ai-editor/
-│       ├── class-ai-editor.php
-│       ├── class-ai-llm-client.php
-│       ├── class-ai-context-builder.php
-│       ├── class-ai-editor-rest.php
-│       └── class-ai-abilities.php
-└── assets/
-    └── ai-editor/
-        ├── js/ai-editor.js
-        └── css/ai-editor.css
-```
+- Verify that the current user can access the requested record.
+- Prefer registered content types, fields, taxonomies, and canonical
+  relationships over unregistered metadata.
+- Include only relationships relevant to the requested action.
+- Bound serialized context before calling a provider.
+- Exclude credentials, nonces, private settings, unrelated users, and
+  unauthorized entities.
+- Preserve stable source IDs so a response can identify the evidence it used.
 
-Responsibilities:
+The Story Graph remains authoritative. An LLM can explain or propose a change;
+it cannot redefine stored facts merely by returning different text.
 
-- `class-ai-editor.php` bootstraps the module, settings, and service objects.
-- `class-ai-llm-client.php` calls the configured LLM endpoint and normalizes
-  responses and errors.
-- `class-ai-context-builder.php` assembles bounded Story Graph context for a
-  post, character, scene, or related entity.
-- `class-ai-editor-rest.php` registers and handles AI Editor REST routes.
-- `class-ai-abilities.php` registers tools, resources, and prompts with the
-  WordPress Abilities API.
-- `assets/ai-editor/js/ai-editor.js` provides the Gutenberg sidebar UI.
-- `assets/ai-editor/css/ai-editor.css` provides its presentation layer.
+## LLM connections
 
-## Story Graph Context
+The delivered client supports:
 
-The context builder should include only data required for the requested action.
-For a character post, a context object may contain:
+| Mode | Use |
+| --- | --- |
+| OpenAI-compatible | Local or hosted endpoints such as Ollama, llama.cpp, vLLM, LM Studio, OpenRouter, or another compatible API |
+| OpenAI | OpenAI chat-completions API |
+| Anthropic | Anthropic messages API |
+| Dual/fallback | A primary configured endpoint with an optional fallback backend |
 
-```php
-$context = [
-    'post_type'    => 'worldgraph_character',
-    'post_id'      => 123,
-    'entity'       => $character_data,
-    'relationships' => [
-        'appears_in_scenes'    => [ 45, 67, 89 ],
-        'associated_locations' => [ 12, 34 ],
-        'related_characters'   => [ 56, 78 ],
-    ],
-    'project'      => $project_data,
-    'story_world'  => $world_data,
-];
-```
+An installation configures its backend, endpoint, model, token limit,
+temperature, request rate, cache lifetime, and optional fallback. Deployment
+constants can supply protected credentials:
 
-Context rules:
+- `WORLDGRAPH_AI_API_KEY`
+- `WORLDGRAPH_AI_FALLBACK_API_KEY`
+- `WORLDGRAPH_AI_IMAGE_API_KEY`
 
-- Respect the current user's ability to read each entity.
-- Prefer registered CPT and SCF data over ad hoc metadata reads.
-- Include relationship IDs and concise labels rather than entire unrelated
-  posts.
-- Bound context size before sending it to an LLM.
-- Redact credentials, nonces, private settings, and unrelated user data.
-- Record the source post and context version for auditability.
+Browser-only consumer subscriptions do not supply API access. Hosted services
+can impose their own pricing, quotas, moderation, and terms. Local or open
+models can be used without buying World Graph Studio credits.
 
-## LLM Connection Layer
-
-Implementation:
-
-`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-llm-client.php`
-
-Supported connection modes are configured in **World Graph Studio > AI Settings**:
-
-| Connection | Endpoint | Credential |
-| --- | --- | --- |
-| OpenAI | OpenAI API | OpenAI API key |
-| Claude | Anthropic API | Anthropic API key |
-| Local or hosted compatible API | Provider `/v1` endpoint | Optional or provider-specific key |
-
-Deployment guidance is documented in
-[Deployment and Connections](Deployment_and_Connections.md).
-
-Environment variables may override WordPress settings for deployed sites:
-
-- `WORLDGRAPH_AI_API_KEY` for the primary connection.
-- `WORLDGRAPH_AI_FALLBACK_API_KEY` for an optional fallback.
-
-The client must:
-
-- Use the selected backend's documented request format.
-- Set bounded timeouts and response sizes.
-- Normalize successful responses into the AI Editor response shape.
-- Convert transport and provider failures into sanitized `WP_Error` values.
-- Never log or persist API keys, authorization headers, or full raw responses.
-
-Local model support is optional. World Graph Studio remains useful for story management,
-continuity, planning, and asset organization when no LLM is configured.
+See [Deployment and Connections](Deployment_and_Connections.md) for operating
+configuration.
 
 ## REST API
 
-The AI Editor REST controller is:
+The delivered routes use the `worldgraph/v1` namespace:
 
-`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-editor-rest.php`
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/worldgraph/v1/ai/chat` | Chat with an advisor using optional post context and bounded prior turns |
+| `POST` | `/worldgraph/v1/ai/analyze` | Return structured observations about supplied content and context |
+| `POST` | `/worldgraph/v1/ai/generate` | Return draft text, prompts, or another requested suggestion |
+| `POST` | `/worldgraph/v1/ai/continuity` | Run the shared continuity workflow for a Story Graph entity |
+| `GET` | `/worldgraph/v1/ai/context` | Return approved context for the requested entity |
+| `GET` | `/worldgraph/v1/ai/agents` | List enabled specialist advisors |
+| `GET` | `/worldgraph/v1/ai/settings` | Return non-secret client configuration |
+| `GET` | `/worldgraph/v1/ai/health` | Report configured backend health without exposing credentials |
 
-Routes use the `worldgraph/v1` namespace:
+The chat route accepts a prompt, optional post ID, advisor, action, and up to
+20 prior `user` or `assistant` messages. Client-supplied `system` messages
+are rejected; the server owns its system instructions and Story Graph context.
 
-```text
-POST /worldgraph/v1/ai/chat
-POST /worldgraph/v1/ai/analyze
-POST /worldgraph/v1/ai/generate
-POST /worldgraph/v1/ai/continuity
-GET  /worldgraph/v1/ai/context
-GET  /worldgraph/v1/ai/agents
-GET  /worldgraph/v1/ai/settings
-GET  /worldgraph/v1/ai/health
-```
+Every route validates arguments and applies WordPress capability checks. Error
+responses are normalized and must not reveal authorization headers, API keys,
+or unrestricted provider payloads.
 
-`POST /worldgraph/v1/ai/chat` accepts `prompt`, optional `post_id`, `agent`, and
-`action`, plus an optional `messages` array containing up to 20 prior `user`
-and `assistant` turns. The server owns the system prompt and Story Graph
-context, so client-supplied `system` messages are rejected. Chat history is
-kept in the browser and is not persisted by this endpoint.
+## WordPress Abilities
 
-Each route must validate its arguments and use the appropriate WordPress
-permission callback. The `agent` argument identifies a filmmaking ability or
-profile when one is selected; it is not a request to create a separate runtime
-or dispatch service.
+When the host WordPress installation provides the Abilities API, World Graph
+Studio registers typed capabilities under the `worldgraph` namespace.
+LLM-dependent abilities are registered when a valid LLM endpoint is
+configured.
 
-REST responses should provide stable fields such as:
-
-- `success` and a bounded response message.
-- The requested action.
-- Source post or entity ID when applicable.
-- Structured analysis, continuity findings, or generated suggestions.
-- Sanitized error code and message when unsuccessful.
-
-## WordPress Abilities API
-
-The Abilities API registration is in:
-
-`wordpress/wp-content/plugins/worldgraph/includes/ai-editor/class-ai-abilities.php`
-
-The module registers three groups.
-
-### Tools
+### AI tools
 
 - `worldgraph/chat`
 - `worldgraph/analyze`
 - `worldgraph/generate`
 - `worldgraph/continuity-check`
 
-### Resources
+### Context resources
 
 - `worldgraph/post-context`
 - `worldgraph/character-context`
 - `worldgraph/scene-context`
-- `worldgraph/templates-manifest`
 
-### Prompts
+### Template and asset abilities
+
+- `worldgraph/templates-manifest` — read-only discovery of published, active
+  generation templates.
+- `worldgraph/template-requirements` — inspect and optionally validate a
+  template's ComfyUI requirements.
+- `worldgraph/suggest-asset-prompt` — build a source-aware asset prompt.
+- `worldgraph/generate-asset` — queue an authorized generation request and
+  optionally link its result to the source.
+
+### Prompt resources
 
 - `worldgraph/story-review-prompt`
 - `worldgraph/continuity-prompt`
 
-Each ability must define:
+Each ability declares input and output schemas, a permission callback, and MCP
+metadata describing whether it is a tool, resource, or prompt. Read/write,
+destructive, and idempotency annotations describe the actual behavior. An
+installed WordPress MCP adapter may expose these abilities to compatible
+clients; it does not change their WordPress permission boundary.
 
-- Human-readable label and description.
-- JSON input and output schemas.
-- A PHP execute callback that uses existing World Graph Studio services.
-- A permission callback based on the requested entity and action.
-- MCP metadata identifying whether it is a tool, resource, or prompt.
-- Accurate `readonly`, `destructive`, and `idempotent` annotations.
+## Advisor model
 
-The WordPress MCP Adapter may discover public abilities and expose them to
-MCP-compatible clients. World Graph Studio should register abilities through WordPress and
-should not duplicate them in a separate integration server.
+Advisor profiles cover writing, directing, cinematography, art, camera,
+lighting, sound, editorial, visual effects, production, locations, costumes,
+hair and makeup, stunts, and other production disciplines.
 
-## Ability Behavior
+A creator can select an enabled advisor or let the router choose one from the
+prompt. The selected profile contributes domain instructions; it does not
+create a separate agent server, data store, or permission system. All advisors
+reuse the same context, LLM, REST, and WordPress security services.
 
-### `worldgraph/chat`
+## Security and privacy
 
-Accepts a prompt and optional post context, then returns a response from the
-configured filmmaking ability and LLM connection. Chat does not write content.
+- Require an appropriate WordPress capability for every route and Ability.
+- Verify nonces for browser-originated requests.
+- Sanitize prompts and parameters and escape rendered output.
+- Treat AI output as untrusted until a creator explicitly uses it.
+- Keep keys in protected options or deployment constants, never JavaScript.
+- Keep credentials out of prompts, context resources, logs, history, and
+  response bodies.
+- Bound prompt length, chat history, context, response size, request time, and
+  per-user request rate.
+- Do not expose private entities to a user who cannot read or edit them.
 
-### `worldgraph/analyze`
+The creator controls WordPress deployment and content visibility. A configured
+provider still receives the approved material sent to it and applies its own
+data handling terms.
 
-Returns structured observations about the current post, Story Graph context,
-prompt, or selected editorial concern. Analysis should identify evidence from
-the supplied context.
+## Failure behavior
 
-### `worldgraph/generate`
-
-Returns a draft, prompt, or other explicitly requested content. It should
-return proposed values for the editor to review rather than silently saving
-them.
-
-### `worldgraph/continuity-check`
-
-Calls the same WordPress continuity services used by the Phase 7 admin and REST
-surfaces. Results should include severity, rule, affected entities, evidence,
-and suggested next steps.
-
-### Context resources
-
-Context resources are read-only and permission-checked. They provide compact
-JSON representations suitable for an AI client and should not expose secrets or
-private entities to a user who cannot read them in WordPress.
-
-### Prompt resources
-
-Prompt abilities return reusable templates for story review and continuity
-work. Prompt text must make the Story Graph context boundary and output format
-clear.
-
-### Generation template discovery
-
-`worldgraph/templates-manifest` is a read-only resource for MCP clients that need
-to discover available generation templates before preparing an asset request.
-It is exposed at `worldgraph://templates-manifest` and returns only published
-`worldgraph_template` records with `status` set to `active`. Entries include the
-template identity, revision/version, generation structure, provider type,
-configuration schema, and default values.
-
-The manifest does not expose credentials or raw executable ComfyUI workflows,
-and it does not queue generation. A client must use the discovered metadata to
-prepare a validated WordPress-owned request package through the Generation
-Engine contract.
-
-## Security
-
-- Require the appropriate WordPress capability for every REST route and
-  ability.
-- Verify nonces for browser-originated state-changing requests.
-- Sanitize prompts and parameters before processing.
-- Escape generated output before rendering it in admin screens.
-- Keep API keys in environment variables or non-autoloaded protected options.
-- Do not put credentials in JavaScript, context resources, prompts, logs, or
-  response history.
-- Mark AI-generated content and preserve its source context where it is saved.
-- Apply request limits per user and backend.
-- Treat generated text as untrusted content and sanitize it before insertion.
-
-## Performance and Failure Handling
-
-- Keep context assembly bounded and avoid loading unrelated Story Graph data.
-- Cache safe context and configuration data with invalidation on content save.
-- Use bounded request timeouts and clear user-facing failure messages.
-- Do not block WordPress page loads on long-running generation work.
-- Return partial structured results only when their completeness is clear.
-- Make health checks report configuration and connectivity without exposing
+- If no LLM is configured, normal WordPress and Story Graph features continue
+  to work.
+- If an endpoint is unreachable, the client returns a sanitized error and can
+  use the configured fallback when enabled.
+- If no advisor is enabled, the request fails clearly instead of inventing an
+  execution path.
+- If context is missing or unauthorized, the request is rejected or proceeds
+  without that context as appropriate.
+- Caching and rate limiting use WordPress-owned state and do not expose
   credentials.
-- Preserve normal WordPress editing when an LLM or optional MCP client is
-  unavailable.
 
-## Testing Strategy
+## Delivered acceptance contract
 
-### Context Builder
+The AI Editor is complete when an authorized creator can open the supported
+WordPress editing surfaces, inspect and send approved context, use an enabled
+advisor through a configured backend, receive a labeled response, explicitly
+insert or replace content, invoke continuity and analysis actions, and discover
+the registered Ability resources available on that installation. That contract
+is implemented in the current release.
 
-- Builds correct context for posts, characters, and scenes.
-- Includes approved relationships and excludes unauthorized entities.
-- Redacts secrets and bounds output size.
-- Produces stable context for equivalent WordPress data.
+Browser, accessibility, security, caching, and provider-compatibility work may
+continue as normal maintenance. It is not represented as a pending product
+phase.
 
-### LLM Client
+## Extension points
 
-- Handles successful compatible, OpenAI, and Anthropic responses.
-- Handles malformed responses, timeouts, authentication failures, and provider
-  errors as sanitized `WP_Error` values.
-- Does not leak credentials in errors or logs.
-- Applies configured backend and fallback settings correctly.
+Additional advisor profiles, typed editor actions, provider adapters, and
+context resources can extend the module when they reuse WordPress permissions
+and the canonical Story Graph. They are not active roadmap commitments.
 
-### REST and Abilities
+## Related documents
 
-- Routes validate required fields and post IDs.
-- Unauthorized users cannot read context or invoke AI actions.
-- Ability schemas register on supported WordPress versions.
-- Tool callbacks return structured responses.
-- Resource callbacks enforce post and entity permissions.
-- Prompt callbacks return valid prompt definitions.
-
-### Gutenberg Panel
-
-- Loads on supported World Graph Studio post types.
-- Displays loading, success, empty, and failure states.
-- Shows context before sending when requested.
-- Does not overwrite editor content without explicit confirmation.
-- Handles unavailable LLM configuration accessibly.
-
-## Definition of Done
-
-- [x] AI Editor module is bootstrapped by the World Graph Studio plugin.
-- [x] Gutenberg sidebar provides chat and context-aware actions.
-- [x] Story Graph context is assembled in WordPress.
-- [x] Local and hosted LLM connection settings are supported.
-- [x] AI Editor REST routes validate and permission-check requests.
-- [x] Four tool abilities are registered.
-- [x] Three context resources are registered.
-- [x] Active generation templates are discoverable through a read-only MCP resource.
-- [x] Two prompt abilities are registered.
-- [x] MCP metadata and permission callbacks are defined.
-- [ ] Complete live MCP Adapter discovery tests.
-- [ ] Complete browser and accessibility coverage for the sidebar.
-- [ ] Add durable audit records for accepted AI edits.
-
-## Relationship to Other Phases
-
-| Phase | Relationship |
-| --- | --- |
-| Story Core | Supplies the posts, SCF fields, and relationships used as context. |
-| Story Graph Intelligence | Supplies search, continuity, and relationship results. |
-| Generation Engine | Uses approved prompts and Story Graph context for media workflows. |
-| Script Ecosystem | Provides imported script entities for analysis and continuity. |
-| Editorial Ecosystem | Provides timeline and EDL context for editorial assistance. |
-
-## Long-Term Direction
-
-The AI Editor should remain a focused WordPress feature: a permission-aware
-context layer, a reliable LLM client, an ergonomic Gutenberg panel, and a clear
-Abilities API contract. New capabilities should be added as typed WordPress
-abilities or editor actions that reuse existing World Graph Studio services.
+- [Delivery Status](Delivery_Status.md)
+- [Product Requirements](World_Graph_Studio_PRD.md)
+- [Architecture](World_Graph_Studio_Architecture.md)
+- [Agent Architecture](Agent_Architecture.md)
+- [Story Graph Intelligence](Story_Graph_Intelligence.md)
+- [REST API Specification](REST_API_Specification.md)

@@ -1,6 +1,6 @@
 # World Graph Studio Code of Conduct
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Our Commitment
 
@@ -126,6 +126,4 @@ World Graph Studio exists to advance storytelling through open technology and co
 
 By participating in this project, you agree to uphold these standards and help create a welcoming environment for everyone.
 
-**The future of storytelling is structured.**
-
-**The future of storytelling is open.**
+**Open tools. Creator-owned work. A respectful community.**

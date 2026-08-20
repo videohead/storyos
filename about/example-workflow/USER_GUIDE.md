@@ -1,65 +1,164 @@
-## User guide for World Graph Studio
+# World Graph Studio User Guide
 
-This guide describes a recommended first-time onboarding flow for World Graph Studio. It is a concrete example of how a project can begin, not a requirement that every deployment uses the exact same sequence.
+This guide takes a new user from installation to a connected sample project.
+AI and generation services are optional: the Story Graph, planning, import,
+export, and editorial tools work as ordinary WordPress features.
 
-## Hosting and setup
+## 1. Install World Graph Studio
 
-WordPress hosting and installation are beyond the scope of this document. There are many useful setup references available, including:
+World Graph Studio requires WordPress 6.0 or newer, PHP 8.1 or newer, the
+Secure Custom Fields plugin, and the [Frost block theme](https://github.com/wpengine/frost).
+Frost is the parent theme for the included `worldgraph-child` theme. Download
+Frost and install it at `wp-content/themes/frost` before activating the child
+theme; WordPress will not recognize the child correctly without its parent.
 
-https://wordpress.org/documentation/article/faq-installation/
+For the repository's Lando environment:
 
-World Graph Studio can be useful for story development, production planning, continuity, collaboration, and asset tracking even without a live generation service. A working LLM connection is only required for AI-assisted workflows, and a ComfyUI or Comfy Cloud connection is only required when generating visual assets.
+```bash
+lando start
+lando wp plugin activate secure-custom-fields worldgraph
+```
 
-## ComfyUI and generation
+If you are using the custom World Graph theme, install the included
+`wordpress/wp-content/themes/worldgraph-child` directory after Frost is in
+place, then activate `worldgraph-child` from **Appearance > Themes**.
 
-ComfyUI Cloud is a straightforward option for generation and is well suited to World Graph Studio workflows.
+Open the URL reported by `lando info`, sign in to WordPress, and choose **World
+Graph Studio > Setup**.
 
-- Sign up here: https://cloud.comfy.org/cloud/signup
-- Create an API key
-- Enter the key and endpoint in the World Graph Studio setup flow when you are ready to generate visuals
+If this site is being upgraded from StoryOS, activate the plugin from its new
+`worldgraph/worldgraph.php` path. The compatibility migration preserves
+supported legacy content, taxonomy, option, metadata, relationship, and SCF
+identifiers. Back up WordPress before any production upgrade. Existing Lando
+users must also export the database before changing the app name and import it
+into the new `worldgraph` app; named volumes do not move automatically.
 
-A local ComfyUI setup accessed through an MCP-capable client is also supported as an optional creator workflow.
+## 2. Choose only the connections you need
 
-## World Graph Studio example workflow
+The setup screen separates core WordPress operation from optional services:
 
-The sample workflow below demonstrates the most common first-time path for evaluating World Graph Studio:
+- **No AI connection:** create and manage the Story Graph, assets, continuity
+  metadata, imports, exports, and integrations manually.
+- **LLM connection:** enable AI Editor conversations, analysis, generation
+  assistance, and specialist advisor workflows.
+- **Generation connection:** submit supported templates to Comfy Cloud MCP,
+  local ComfyUI, fal MCP, or ElevenLabs, depending on the adapter and templates
+  you configure.
+- **Manual external generation:** create media in another tool, then import it
+  into WordPress with its source and provenance.
 
-1. Install and launch World Graph Studio in WordPress
-2. Add LLM credentials for AI advisor features
-3. Optionally add ComfyUI or Comfy Cloud credentials for generation
-4. Import the example story
-5. World Graph Studio creates the following records from the sample content:
-   - Project
-   - World
-   - Characters
-   - Locations
-   - Props
-   - Scenes
-   - Shots
-   - Storyboard frames
-   - Editorial assets
-   - Sequence
-6. AI assistants analyze the story and align it to the Story Graph
-7. Review character arcs, dialogue, continuity, and style direction with production terminology
-8. Generate visual assets through ComfyUI or Comfy Cloud
-9. Import generated assets back into World Graph Studio
-10. Render or assemble a final sequence based on the story structure
+For production, prefer environment-managed secrets. See
+[Deployment and connections](../Deployment_and_Connections.md) for provider
+requirements and network boundaries.
 
-This workflow is intended to show how World Graph Studio preserves a single canonical story data model while supporting generation, review, and production planning.
+## 3. Import the sample project
 
-## Advanced workflows
+The repository includes a complete Little Red Riding Hood example:
 
-The additional chapters of this guide describe more advanced workflows, including:
+`about/example-workflow/little-red-riding-hood.worldgraph.json`
 
-- Sequencing assets in World Graph Studio and exporting an EDL
-- Exporting the example story as a script
+In WordPress:
 
-Advanced or future functionality includes:
+1. Open **World Graph Studio > Import**.
+2. Choose the `.worldgraph.json` sample.
+3. Leave overwrite disabled for a first import.
+4. Select **Import World Graph Studio JSON**.
+5. Review the import report for created, updated, and skipped records.
 
-- Importing scripts into a World Graph Studio builder workflow that creates structured JSON from written scripts
-- Importing EDLs and existing media into World Graph Studio and linking them with scenes
-- Building a character LoRA or other consistency model for character-driven generation
+The importer creates the project's world, characters, locations, props,
+scenes, shots, sounds, storyboard frames, sequence data, and relationships.
+The [JSON import contract](JSON_import_spec.md) documents the exact mapping and
+expected record counts.
 
-These are extensions of the core World Graph Studio workflow, not the minimum setup required to use the platform.
+## 4. Explore the Story Graph
 
+Open the imported Project from the World Graph Studio dashboard, then follow
+its related records:
 
+- The Story World provides shared setting and worldbuilding context.
+- Characters connect to scenes, locations, organizations, and props.
+- Scenes establish narrative order and connect to shots and planned sounds.
+- Shots connect production intent to storyboard frames and media assets.
+- Assets preserve uploaded or generated media and provenance.
+- Editorial artifacts preserve downstream edit and delivery information.
+
+Edit these records like normal WordPress content. Structured Content Fields
+hold the production-specific metadata; relationship controls preserve the
+graph connections.
+
+## 5. Review the story with AI
+
+With an LLM connection configured, open a supported Story Graph record in the
+block editor and use the World Graph Studio AI Editor sidebar.
+
+You can:
+
+- ask questions using the current record and related Story Graph context;
+- analyze character, scene, dialogue, visual, or production choices;
+- request suggestions from specialist creative advisors;
+- run continuity-oriented checks; and
+- prepare prompts and generation intent without detaching them from the
+  project.
+
+AI output is advisory. Review it before changing canonical project data.
+
+## 6. Create or attach assets
+
+For a configured generation connection:
+
+1. Publish an active Template compatible with the connection.
+2. Open a Story Graph record with the Assets workflow.
+3. Select a runnable Template and provide any required prompt or references.
+4. Queue the generation request.
+5. Follow the persisted job status while WP-Cron processes it.
+6. Review the returned media in WordPress and its linked Asset record.
+
+World Graph Studio records the target entity, connection, template, parameters,
+job state, and available provenance. Supported output depends on the selected
+adapter and template. You can also upload media made elsewhere and link it to
+the same Story Graph records.
+
+## 7. Export and exchange work
+
+The current release provides these portable workflows:
+
+- **World Graph Studio JSON import** for structured project data.
+- **Markdown screenplay export** from live project and scene records.
+- **Markdown storyboard export** with shot and storyboard context.
+- **Outbound Celtx synchronization** through the optional bundled integration.
+- **EDL parsing, preview, timecode, and format helpers** through the optional
+  bundled editorial utility. Import persistence and live project timeline
+  export are not part of the current workflow.
+
+The repository also contains prototype source for a Google Web Stories
+connector. It is not loaded or supported as a current release workflow.
+
+Open **World Graph Studio > Export** to download a Markdown screenplay or
+storyboard. The sample output is
+[Little Red Riding Hood screenplay export](Little-Red-Riding-Hood-Screenplay-Example-Export.md).
+
+Additional FDX, Fade In, Highland, Story Architect, and professional script
+format work is on hold. It is not required for the delivered workflows above.
+
+## 8. Keep the project portable and private
+
+- Back up the WordPress database and uploads together.
+- Restrict site access using WordPress, hosting, and network controls when a
+  project should remain private.
+- Keep API credentials in deployment environment variables for production.
+- Review the licenses and terms of every model and provider used to create an
+  asset.
+- Export project and editorial artifacts at meaningful milestones.
+
+World Graph Studio does not impose a credit meter or claim ownership of your
+work. Hosted services can still impose their own pricing, quotas, moderation,
+and licensing terms.
+
+## Next references
+
+- [Delivery status](../Delivery_Status.md)
+- [Story Graph specification](../Story_Graph_Specification.md)
+- [Setup guide](../../wordpress/wp-content/plugins/worldgraph/documentation/SETUP_GUIDE.md)
+- [REST API](../REST_API_Specification.md)
+- [Generation engine](../plugins/GENERATION_ENGINE.md)
+- [Script and EDL integration](../Script_EDL_Integration.md)

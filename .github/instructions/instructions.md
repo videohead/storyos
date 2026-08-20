@@ -1,6 +1,6 @@
 # World Graph Studio Build Instructions
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 This file defines the active development conventions for World Graph Studio. World Graph Studio is a
 WordPress application whose canonical data model is the Story Graph. ComfyUI is
@@ -91,15 +91,15 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
     - `includes/agents/` - Agent-related code and integrations
     - `includes/ai-editor/` - AI Editor implementation
     - `includes/cpts/` - Custom Post Type definitions and handlers
-    - `includes/exporter/` - Export functionality (EDL, Markdown, screenplay formats)
-    - `includes/importer/` - Import functionality (JSON, screenplay formats)
+      - `includes/exporter/` - Markdown screenplay and storyboard export
+      - `includes/importer/` - World Graph Studio JSON import
     - `includes/rest-api/` - REST API controllers and endpoints
     - `includes/taxonomies/` - Custom taxonomy definitions
     - `includes/utils/` - Utility functions and helpers (generation, search, relationships, continuity)
     - `plugins/` - Sub-plugins and integrations:
       - `celtx/` - Celtx GEM API integration
-      - `edl/` - EDL export functionality
-      - `web-stories/` - Web Stories integration
+      - `edl/` - EDL parsing, preview, timecode, and generation utilities
+      - `web-stories/` - Web Stories connector prototype source
     - `assets/` - Frontend assets
       - `ai-editor/` - AI Editor React components and styles
       - `css/` - Stylesheets
@@ -107,23 +107,30 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
     - `tests/` - Test files and test utilities
   - `wp-content/plugins/secure-custom-fields/` - Structured Content Fields (SCF) plugin
 
-## Current Roadmap
+## Current Delivery Scope
+
+The current repository is delivered. Optional provider accounts and external
+services still require deployment-specific credentials and configuration; that
+does not make their World Graph Studio integration unfinished. Use
+`about/Delivery_Status.md` as the status source of truth.
 
 ### Script Ecosystem
 
 - CPT synchronization for projects, characters, locations, scenes, and shots.
-- Import from JSON and export scripts to Markdown
-- Planned file-based import and export for FDX, Fade In, Highland,
-  Markdown, screenplay, and shooting-script formats.
+- World Graph Studio JSON import and Markdown screenplay/storyboard export.
+- Additional file-based formats such as FDX, Fade In, Highland, and Story
+  Architect are on hold.
 - Persistent World Graph Studio to Celtx ID mapping in post meta.
-- Celtx GEM API bi-directional sync through the `worldgraph-celtx` plugin.
+- Outbound World Graph Studio-to-Celtx sync through the bundled Celtx plugin.
 - WordPress REST API endpoints and settings UI for Celtx credentials.
 
 ### Editorial Ecosystem
 
-- EDL export.
-- Timeline metadata and scene/shot mapping.
-- NLE integrations such as XML and AAF.
+- CMX-style text and XML EDL parsing, preview, timecode, and generation tools.
+- Timeline persistence and live Project/Episode export remain adapter work.
+- Editorial artifact, scene, shot, track, and timecode metadata.
+- AAF, OMF, and provider-specific NLE panels are extension points, not current
+  delivery commitments.
 
 ### Story Graph Intelligence
 
@@ -155,7 +162,7 @@ module. Implementation files are located in:
   - `js/` - React Gutenberg sidebar components
   - `css/` - Panel and component styles
 
-The full feature specification is in `about/Phase_8_AI_Editor.md`.
+The full feature specification is in `about/AI_Editor.md`.
 
 ## Coding Conventions
 
@@ -166,8 +173,8 @@ The full feature specification is in `about/Phase_8_AI_Editor.md`.
   surface.
 - Use Structured Content Fields via SCF in
   `wordpress/wp-content/plugins/secure-custom-fields`.
-- Register REST endpoints under the `/api/worldgraph/v1/` namespace used by the
-  existing plugin.
+- Register core REST endpoints under the `worldgraph/v1` namespace, exposed by
+  WordPress beneath `/wp-json/worldgraph/v1/`.
 - All World Graph Studio custom post types must support the REST API.
 - Use WordPress nonces for form submissions.
 - Sanitize input and escape output.
@@ -291,9 +298,10 @@ Key testing principles:
 - Story Graph: `about/Story_Graph_Specification.md`
 - Content model: `about/Content_Model_Specification.md`
 - REST API: `about/REST_API_Specification.md`
+- Delivery status: `about/Delivery_Status.md`
 - Roadmap: `about/ROADMAP_World_Graph_Studio.md`
-- AI Editor: `about/Phase_8_AI_Editor.md`
-- Story Graph Intelligence: `about/Phase_7_Story_Graph_Intelligence.md`
+- AI Editor: `about/AI_Editor.md`
+- Story Graph Intelligence: `about/Story_Graph_Intelligence.md`
 - Script EDL Integration: `about/Script_EDL_Integration.md`
 - CPT and SCF Schema: `about/CPT_and_SCF_Schema.md`
 - Deployment: `about/Deployment_and_Connections.md`

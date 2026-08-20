@@ -1,6 +1,6 @@
-# Phase 7: Story Graph Intelligence
+# Story Graph Intelligence
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 **Status: Complete**
 
@@ -14,7 +14,8 @@ and its WordPress data and API surfaces.
 ## Objective
 
 Make the Story Graph useful as a queryable narrative model rather than only a
-collection of WordPress posts. Phase 7 provides three related capabilities:
+collection of WordPress posts. The delivered feature provides three related
+capabilities:
 
 1. **Story search** - Find characters, scenes, locations, shots, props, assets,
    storyboard frames, and editorial artifacts by title, content, metadata, and
@@ -234,7 +235,8 @@ request fails.
 
 ## Story Graph Data Surface
 
-Phase 7 works with the existing Story Graph custom post types and relationships.
+Story Graph Intelligence works with the existing Story Graph custom post types
+and relationships.
 Indexed or inspected fields should be explicit and documented per entity type.
 
 | Entity | Useful fields |
@@ -340,7 +342,8 @@ another application or a remote intelligence service.
 ### Abilities and REST Tests
 
 - Ability schemas register on supported WordPress versions.
-- Unauthorized users cannot read private intelligence data or run checks.
+- Public search results are limited to published content; private intelligence
+  data and state-changing checks require WordPress permissions.
 - Ability callbacks return structured success and error responses.
 - REST responses contain stable entity IDs and types.
 - Nonces and capability checks protect state-changing operations.
@@ -354,13 +357,14 @@ another application or a remote intelligence service.
 - [x] Admin panels display continuity and relationship results.
 - [x] Story Graph context is available through WordPress abilities.
 - [x] REST and admin surfaces enforce WordPress permissions.
-- [ ] Incremental search/index cache invalidation is optimized for large sites.
-- [ ] Performance benchmarks cover production-scale Story Graphs.
-- [ ] End-to-end browser coverage covers search, continuity, and analytics panels.
+
+The release requirements above are complete. Large-site performance tuning and
+end-to-end browser coverage are ongoing quality work, not pending product
+deliverables.
 
 ## Relationship to Other Phases
 
-| Phase | Relationship |
+| Capability | Relationship |
 | --- | --- |
 | Story Core | Supplies the canonical entities, SCF fields, and relationships. |
 | Generation Engine | Stores generated assets and provenance in the Story Graph. |

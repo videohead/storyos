@@ -1,6 +1,6 @@
 # World Graph Studio Content Model Specification v1.0
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Overview
 
@@ -10,7 +10,13 @@ All story, production, asset, and editorial information is represented as struct
 
 The Story Graph serves as the primary source of truth.
 
-Scripts, storyboards, generated assets, production plans, schedules, and editorial artifacts are derived views of Story Graph data.
+Scripts, storyboards, generated assets, production views, and editorial
+artifacts are derived views of Story Graph data. A scheduling extension can
+derive call sheets or shoot-day records without making them core entities.
+
+The model described here is delivered in the current repository. See
+[Delivery Status](Delivery_Status.md) for the authoritative shipped and
+on-hold boundary.
 
 ---
 
@@ -34,7 +40,12 @@ All entities must be queryable by AI advisors and workflows.
 
 ## Interoperability
 
-All entities should support import, export, API access, and future integrations.
+Entities expose WordPress and World Graph Studio API surfaces where appropriate.
+The delivered interchange formats are World Graph Studio JSON, Markdown
+screenplay/storyboard exports, optional Celtx synchronization, EDL exchange,
+and the related editorial views. Bundled Google Web Stories source is an
+extension prototype rather than part of the delivered interchange contract.
+Additional professional script-file formats are on hold.
 
 ---
 
@@ -52,7 +63,9 @@ Project
 ├── Storyboards
 ├── Sounds
 ├── Assets
-└── Editorial Artifacts
+├── Editorial Artifacts
+├── Generation Templates
+└── Connections
 
 ---
 
@@ -63,22 +76,24 @@ Represents a top-level creative project.
 ## Fields
 
 - Project Name
+- Project Slug
 - Description
 - Genre
-- Status
 - Target Medium
+- Production Status
 - Owner
+- Start Date
+- End Date
 - Team Members
 - Production Stage
-- Created Date
-- Updated Date
+- Frame Width and Height
+- Aspect Ratio
+- Frame Rate
 
 ## Relationships
 
-- Owns Story Worlds
-- Owns Assets
-- Owns Scripts
-- Owns Storyboards
+- Linked from Story Worlds and Episodes through their Project fields
+- Contains the Character records selected as Team Members
 
 ---
 
@@ -89,18 +104,19 @@ Represents a fictional universe.
 ## Fields
 
 - World Name
-- Description
+- Synopsis
 - Timeline
 - Rules
 - Themes
 - Geography
-- Historical Notes
+- References
 
 ## Relationships
 
 - Contains Characters
 - Contains Locations
 - Contains Organizations
+- Belongs To Project
 
 ---
 
@@ -116,7 +132,7 @@ Represents a fictional universe.
 - Personality Traits
 - Motivation
 - Backstory
-- Tags
+- Avatar Asset
 
 ## Relationships
 
@@ -125,6 +141,7 @@ Represents a fictional universe.
 - Related To Other Characters
 - Referenced By Storyboards
 - Referenced By Assets
+- Belongs To Story World
 
 ## Taxonomies
 
@@ -148,6 +165,7 @@ Represents a fictional universe.
 - Contains Scenes
 - Appears In Storyboards
 - Linked To Assets
+- Belongs To Story World
 
 ---
 
@@ -158,8 +176,8 @@ Represents a fictional universe.
 - Name
 - Description
 - Purpose
-- Ownership
-- References
+- Owner Character
+- Notes
 
 ## Relationships
 
@@ -176,7 +194,12 @@ Represents a fictional universe.
 - Type
 - Description
 - Leadership
-- Relationships
+- Goals
+
+## Relationships
+
+- Belongs To Story World
+- Links Leadership To Characters
 
 ---
 
@@ -185,12 +208,14 @@ Represents a fictional universe.
 ## Fields
 
 - Episode Number
-- Summary
+- Title
+- Synopsis
 - Status
 
 ## Relationships
 
 - Contains Scenes
+- Belongs To Project
 
 ---
 
@@ -200,13 +225,13 @@ Represents a fictional universe.
 
 - Scene Number
 - Title
-- Description
+- Summary
 - Script Content
 - Dialogue (structured speaker, line, description, and sequence entries)
 - Location
 - Time Of Day
-- Characters
-- Notes
+- Emotional Tone
+- Production Notes
 - Sequence
 
 ## Relationships
@@ -214,6 +239,8 @@ Represents a fictional universe.
 - Belongs To Episode
 - Contains Shots
 - Contains Sounds
+- Located In a Location
+- References Characters and Props
 - References Assets
 - References Storyboards
 
@@ -224,11 +251,16 @@ Represents a fictional universe.
 ## Fields
 
 - Shot Number
+- Shot Name
+- Shot Type
 - Camera Angle
 - Lens
 - Duration
-- Notes
-- Editorial Metadata
+- Take Number
+- Slate ID
+- Shot Description
+- Editorial Notes
+- Sequence
 
 ## Relationships
 
@@ -246,8 +278,8 @@ Represents a fictional universe.
 - Frame Number
 - Description
 - Prompt
-- Image Reference
-- Notes
+- Image Asset
+- Camera Notes
 
 ## Relationships
 
@@ -289,8 +321,9 @@ is not mirrored into Sound records.
 - Music Sound cue: `MusicComposition`
 - Linked audio Asset or attachment: `AudioObject`
 
-For the MVP, a music cue carries its composition text directly. A later reusable
-composition entity can normalize lyrics shared by multiple cue occurrences.
+In the current model, a music cue carries its composition text directly.
+Extensions can introduce a reusable composition entity when a project needs to
+normalize lyrics shared by multiple cue occurrences.
 
 ---
 
@@ -303,6 +336,8 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 - Source Workflow
 - Prompt
 - Model
+- Seed
+- Generation Parameters
 - Version
 - Status
 - Storage Location
@@ -321,9 +356,12 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 
 ## Fields
 
-- Type
+- Artifact Type
 - Export Format
-- Version
+- Generated Date
+- Source Scene
+- Source Shot
+- Project
 - Notes
 
 ## Supported Types
@@ -331,8 +369,66 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 - EDL
 - Timeline Metadata
 - XML
-- AAF (Future)
 - Shot Lists
+- Production Reports
+
+The `aaf` value is reserved in the schema for cataloguing an external artifact,
+but the current release does not include an AAF or OMF import/export codec.
+
+---
+
+# CPT: Generation Template
+
+A Generation Template stores reusable provider-neutral generation
+configuration. It selects a modality and Connection, keeps a provider Template
+or endpoint identity, validates JSON configuration and input bindings, and can
+record model requirements and defaults. Only published Templates with the
+internal status `active` can be submitted.
+
+## Fields
+
+- Template Name and Description
+- Generation Structure and Modality
+- Connection ID and Provider Type
+- Provider Template / Model Endpoint ID
+- Checkpoint and Model Family
+- Workflow JSON and Configuration JSON
+- Input Bindings and Default Values
+- Model Requirements
+- Version and Status
+
+---
+
+# CPT: Connection
+
+A Connection is a private control-plane record for a provider endpoint. It is
+managed through the permission-aware World Graph Studio admin and REST
+controller rather than the public native CPT REST surface.
+
+## Fields
+
+- Connection Name, Provider Type, Environment, and Status
+- Endpoint URL and optional MCP Endpoint URL
+- Credential Reference
+- Model, Max Tokens, and Temperature
+- Model Access, Enabled Structures, and Enabled Templates
+- Rate Limits and Cost Controls
+
+Credentials can be stored as environment references such as `env://FAL_KEY`.
+The current setup UI can also store a literal key in this administrator-only
+record for local evaluation. Resolved environment values are not exposed as
+ordinary Story Graph content; production deployments should prefer an
+environment reference.
+
+---
+
+# Internal Generation Job
+
+`worldgraph_gen` records queued and submitted work beneath the target Asset or
+source Story Graph item. `_worldgraph_gen_*` metadata preserves the Template,
+Connection, provider, workflow, prompt, inputs, state, remote job identity,
+results, imported attachment IDs, and provenance. This is an internal workflow
+record, not one of the 15 SCF-backed editorial content types.
 
 ---
 
@@ -340,21 +436,28 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 
 ## Genre
 
-- Science Fiction
-- Fantasy
 - Drama
-- Documentary
+- Comedy
+- Sci-Fi
+- Fantasy
 - Horror
+- Documentary
 - Animation
+- Action
+- Thriller
+- Romance
 
 ## Asset Type
 
+- Image
 - Character
 - Prop
 - Environment
 - Storyboard
 - Video
 - Audio
+- Lookbook
+- Concept Art
 
 ## Sound Type
 
@@ -371,8 +474,11 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 
 - Draft
 - In Development
+- In Production
+- In Post-Production
 - Approved
 - Archived
+- On Hold
 
 ## Character Role
 
@@ -387,6 +493,34 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 - Ensemble
 - Unknown
 
+## Character Relation
+
+- Protagonist
+- Antagonist
+- Mentor
+- Ally
+- Family
+- Love Interest
+- Rival
+- Sidekick
+- Neutral
+- Unknown
+
+## Scene Tag
+
+- Action
+- Drama
+- Comedy
+- Tension
+- Revelation
+- Exposition
+- Emotional
+- Quiet
+- Chaotic
+- Flashback
+- Voiceover
+- Montage
+
 ## Sequence
 
 - Setup
@@ -396,11 +530,23 @@ composition entity can normalize lyrics shared by multiple cue occurrences.
 - Climax
 - Resolution
 
+## Template Category
+
+- Character
+- Scene
+- Storyboard
+- Concept
+- Editorial
+- Marketing
+- Asset Variation
+- Video
+- Image
+
 ---
 
 # AI Advisor Access Model
 
-All entities should expose structured metadata for:
+Story Graph entities expose structured metadata for:
 
 - Narrative Advisors
 - Prompt Advisors
@@ -408,47 +554,54 @@ All entities should expose structured metadata for:
 - Editorial Advisors
 - Technical Advisors
 
-Advisors should retrieve context directly from Story Graph entities.
+Advisors retrieve context directly from Story Graph entities.
 
 ---
 
 # Script Integration Mapping
 
-## ✅ Celtx Integration (COMPLETE — Phase E)
+## Celtx Integration (Delivered)
 
-World Graph Studio ↔ Celtx bi-directional sync via the `worldgraph-celtx` WordPress plugin.
+World Graph Studio-to-Celtx synchronization is delivered through the optional
+`worldgraph-celtx` WordPress plugin.
 
 ### Synced Entities
 
-| World Graph Studio CPT | Celtx Entity | Sync Direction |
+| World Graph Studio CPT | Celtx Entity | Current Sync Direction |
 |-------------|--------------|----------------|
-| Project | `/project` | Bi-directional |
-| Character | `/element` (character) | Bi-directional |
-| Location | `/element` (location) | Bi-directional |
-| Scene | `/scene` / `/element` | Bi-directional |
-| Shot | `/element` (shot) | Bi-directional |
+| Project | `/project` | World Graph Studio → Celtx |
+| Character | `/element` (character) | World Graph Studio → Celtx |
+| Location | `/element` (location) | World Graph Studio → Celtx |
+| Scene | `/scene` / `/element` | World Graph Studio → Celtx |
+| Shot | `/element` (shot/comment) | World Graph Studio → Celtx |
 
 ### ID Mapping
 
-Persistent mapping stored in WordPress post meta:
-- `worldgraph_celtx_id` — Celtx element/project ID
-- `worldgraph_celtx_type` — Celtx entity type
-- `worldgraph_synced_at` — Last sync timestamp
+Persistent mapping is stored in `_worldgraph_celtx_mapping`. The array is keyed
+by entity category and records the remote `element_id` and `synced_at`
+timestamp. Unsync removes the local category mapping without deleting the
+remote Celtx record.
 
 ### API Endpoints
 
-- `GET /wp-json/worldgraph-celtx/v1/sync/status`
-- `POST /wp-json/worldgraph-celtx/v1/sync/{entity_type}`
-- `GET /wp-json/worldgraph-celtx/v1/settings`
+- `GET /wp-json/worldgraph/v1/celtx/test`
+- `GET|POST /wp-json/worldgraph/v1/celtx/sync`
+- `POST /wp-json/worldgraph/v1/celtx/sync/{type}`
+- `POST /wp-json/worldgraph/v1/celtx/sync/{type}/{id}`
+- `GET /wp-json/worldgraph/v1/celtx/mapping/{type}/{id}`
+- `DELETE /wp-json/worldgraph/v1/celtx/unsync/{type}/{id}`
 
-### Supported Formats (Planned)
+### Delivered Interchange
 
-Story Graph → Script Formats:
+- World Graph Studio JSON import creates and links the supported Story Graph
+  entities. Validation can run without committing changes.
+- Markdown export produces screenplay and storyboard views from live project
+  data.
+- Celtx synchronization remains a separate, optional integration.
 
-- [ ] Final Draft (.fdx)
-- [ ] Fade In
-- [ ] Highland
-- [ ] Markdown
+Final Draft FDX, Fade In, Highland, Story Architect, automated screenplay
+parsing, format-specific preview/merge workflows, and additional professional
+script exporters are on hold. They are not current API or schema contracts.
 
 ---
 
@@ -458,11 +611,13 @@ Story Graph → Editorial Outputs
 
 Supported Targets:
 
-- EDL
+- CMX 3600 EDL parsing/preview and export
+- SMPTE 436m XML EDL parsing/preview and export
 - Timeline Metadata
-- XML (Future)
-- AAF (Future)
 - Storyboard
+
+AAF, OMF, and NLE-specific panels are extension points rather than current
+delivery commitments.
 
 ---
 
@@ -479,27 +634,34 @@ World Graph Studio aligns with widely used story and film terminology to keep me
 Current model coverage:
 
 - Scene and Shot are modeled directly.
-- Sequence is modeled as an optional taxonomy attached to Scene records.
+- Sequence is modeled as an optional taxonomy attached to Scene and Shot
+  records.
 
 ## Story Terms
 
 - Protagonist and Antagonist are Character roles.
-- Premise and Logline belong to Project-level story metadata.
-- Conflict, Stakes, and Turning Points are Scene/Episode annotations.
-- Climax and Resolution are milestone tags on key scenes.
+- The current Project `description` can hold a premise or logline; sites that
+  need separately addressable values can add SCF extension fields.
+- Conflict, stakes, and turning points can be recorded in Episode synopsis or
+  Scene summary/production notes, or normalized by extension fields.
+- Climax and Resolution are seeded Sequence terms that can classify Scenes and
+  Shots.
 
 ## Film Production Terms
 
 - Coverage is captured through shot-level metadata (type, angle, lens, duration).
 - Shot List is a view derived from ordered Scene -> Shot relations.
-- Continuity is validated from linked entities across Character, Location, Prop, Scene, Shot, Sound, Storyboard, and Asset.
+- The local continuity checker currently reports empty Scene/Shot content;
+  configured AI assistance can perform broader contextual review.
 - Storyboard is represented through Storyboard Frame entities and links.
-- EDL is represented as an Editorial Artifact derived from Scene/Shot structure.
+- EDL can be catalogued as an Editorial Artifact linked to source Scene/Shot
+  records. The optional EDL formatter does not yet derive those live links into
+  its admin export clip list.
 
 ## Film Grammar Terms
 
-- Take is the recording instance of a shot and should be captured in shot-level production metadata.
-- Slate/Clapperboard identifiers should be modeled as optional shot metadata for sync and editorial traceability.
+- Take is the recording instance of a shot and is captured by `take_number`.
+- Slate/Clapperboard identity is captured by optional `slate_id` metadata.
 - Establishing, Insert, Cutaway, and Reaction are shot function categories and should map to shot_type values.
 - Continuity errors are validation findings generated from graph comparisons, not standalone entities.
 
@@ -520,4 +682,6 @@ Current model coverage:
 
 The Story Graph is the canonical source of truth.
 
-Every script, storyboard, generated asset, production plan, and editorial artifact should be traceable back to structured story entities.
+Every script, storyboard, generated asset, production plan, and editorial
+artifact produced by World Graph Studio is traceable back to structured story
+entities.

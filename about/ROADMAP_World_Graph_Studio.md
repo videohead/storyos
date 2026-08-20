@@ -1,439 +1,158 @@
 # World Graph Studio Roadmap
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
-This roadmap describes World Graph Studio as a WordPress storytelling operating system.
-WordPress owns the Story Graph, editorial workflows, AI abilities, generation
-records, and assets. ComfyUI workflows are accessed through MCP.
+## Current release
 
-**Roadmap status:** Phases 1-4, 7, and 8 are complete. Phases 5, 6, and 9 are
-on hold as of 2026-08-17.
+**Status: complete.** Every capability presented as current in this repository
+is delivered. Optional providers and integrations can still require
+credentials, compatible services, models, workflows, or WordPress
+configuration; those operating requirements do not make the implementation
+incomplete.
 
-**Integration status:** Connections to the LLM (AI Editor) and ComfyUI /
-Comfy Cloud MCP are established, but live end-to-end validation of the
-internal AI chat and ComfyUI generation models has not yet been completed. A
-user guide and example starting workflow are in progress, with specifications
-under `about/example-workflow/`.
+[Delivery Status](Delivery_Status.md) is the authoritative status record. This
+roadmap separates delivered work, one explicitly paused body of work, and
+possible extension points.
 
-## Guiding Vision
+## Product direction
 
-World Graph Studio provides one place to manage:
+World Graph Studio is an open-source, self-hosted creative production platform
+for worldbuilding, storytelling, AI-assisted analysis, asset generation, and
+production planning. WordPress owns the canonical Story Graph and media.
+Creators may connect local, open, or hosted services without moving their
+project into a World Graph Studio cloud or buying World Graph Studio credits.
 
-- Story development and structured world building.
-- Script and screenplay data.
-- AI-assisted writing and editorial analysis.
-- ComfyUI media workflows.
-- Storyboarding and production planning.
-- Editorial and NLE exchange.
-- Story Graph intelligence.
+The product direction is guided by four rules:
 
-The Story Graph is the canonical source of truth in every phase. External tools
-and MCP clients read approved context or exchange artifacts through explicit
-WordPress integrations.
+- Keep ideas, assets, relationships, and production decisions connected.
+- Keep the Story Graph useful when optional AI services are unavailable.
+- Treat models and providers as replaceable connections.
+- Give creators practical ways to bring data in and take deliverables out.
 
-## Current Architecture
+## Delivered milestones
 
-```text
-Creators and MCP Clients
-          |
-          v
-WordPress + World Graph Studio Plugin
-  CPTs, SCF, REST, Abilities, AI Editor
-          |
-          v
-Story Graph and WordPress Media Library
-          |
-   +------+------+
-   |             |
-   v             v
-AI abilities   ComfyUI MCP
-and LLMs       Cloud or local client
-   |             |
-   +------+------+
-          v
-Production, scripts, editorial, and asset workflows
-```
+### Story Graph foundation — complete
 
-The standard deployment is WordPress, MariaDB, and the World Graph Studio plugin. An API
-connected LLM and ComfyUI are optional connections, not required for core story
-management.
+- Fifteen content types and nine taxonomies.
+- Structured Content Fields and portable field definitions.
+- Canonical relationships, graph traversal, and REST exposure.
+- Projects, worlds, characters, locations, props, organizations, episodes,
+  scenes, shots, sounds, storyboards, assets, editorial records, templates,
+  and connections.
+- Migration of stored legacy identifiers to the `worldgraph` namespace.
 
-## Phase 1: Story Core - Complete
+### Creative workspace and production planning — complete
 
-### Objective
+- WordPress editing and administration surfaces.
+- Storyboard, shot, sound, asset, production, and editorial workflows.
+- Setup wizard, connection management, dashboards, plugin controls, and logs.
+- WordPress Media Library linkage for uploaded, imported, and generated media.
 
-Establish the canonical Story Graph and WordPress content model.
+### Story intelligence — complete
 
-### Delivered
+- Keyword and optional semantic assistance.
+- Continuity checks and stored findings.
+- Relationship traversal, summaries, and analytics.
+- Admin, REST, and Ability integration points.
 
-- Projects and story worlds.
-- Characters, locations, props, scenes, shots, and assets.
-- Storyboard frames and editorial artifacts.
-- WordPress custom post type architecture.
-- Structured Content Fields and taxonomies.
-- Relationship storage and graph traversal.
-- WordPress REST API foundations.
-- Schema and metadata alignment for interoperability.
+### AI Editor and specialist advisors — complete
 
-### Source of Truth
+- Gutenberg AI Editor sidebar and story-element workflow surfaces.
+- Bounded, permission-aware Story Graph context.
+- Chat, analysis, draft generation, continuity, agent, settings, and health
+  REST routes.
+- Local and hosted LLM connection modes.
+- WordPress tools, resources, and prompts through the Abilities API.
+- More than 50 specialist creative advisor profiles.
 
-`wordpress/wp-content/plugins/worldgraph/`
+### Generation and provenance — complete
 
-## Phase 2: Generation Core - Complete
+- Connection and template records with validation and capability discovery.
+- Provider-neutral input binding and request preparation.
+- Queued generation records and WP-Cron processing.
+- Status polling, cancellation, failure reporting, and generation logs.
+- Returned-media import, source linkage, and provenance.
+- Comfy Cloud MCP, local ComfyUI HTTP, fal MCP, ElevenLabs, and manually
+  managed external-generator workflows where configured.
 
-### Objective
+### Interchange and publishing — complete
 
-Connect Story Graph context to reusable generative media workflows.
+- World Graph Studio JSON import.
+- Markdown screenplay and storyboard export.
+- Optional outbound Celtx synchronization with persistent remote-ID mapping.
+- Optional EDL parsing, preview, timecode, and format generators for CMX 3600
+  and SMPTE 436m XML. Project persistence and live-timeline export are
+  extension boundaries.
+- Google Web Stories connector source is retained as a prototype and is not a
+  current-release workflow.
 
-### Delivered
+The delivered JSON, Markdown, Celtx, and EDL utility surfaces remain supported
+while additional script format work is paused.
 
-- Comfy Cloud MCP connection.
-- Optional local ComfyUI workflow through an MCP-capable client.
-- WordPress generation records.
-- Prompt and template configuration.
-- Generation provenance and asset linkage.
-- Character, environment, concept-art, lookbook, and storyboard use cases.
-- ComfyUI connection settings and capability information.
+## On hold: additional script import/export
 
-### Current Boundary
-
-WordPress prepares and records generation requests. ComfyUI owns workflow
-execution. Generated media returns to the WordPress media and Story Graph asset
-pipeline.
-
-### Remaining Epic: Assets, Templates, and ComfyUI Request Packaging
-
-The next major generation milestone is to connect the existing World Graph Studio Assets
-metabox to the available `worldgraph_template` CPT and make the resolved request
-portable to ComfyUI MCP. This is a coordination and contract project, not a
-new execution service.
-
-The Assets metabox currently manages the featured WordPress attachment and the
-supporting gallery for supported Story Graph posts. The Templates CPT currently
-stores reusable, provider-neutral generation configuration. The missing
-product surface is an explicit, permission-aware way to select or associate an
-active template with an asset-generating story item and resolve its defaults,
-Story Graph references, and user overrides.
-
-The epic must deliver:
-
-- A documented relationship between an asset-generating story item, its
-  selected template and revision, and the resulting generation record.
-- Template selection and validation in the relevant Assets workflow without
-  replacing the existing featured-asset or gallery semantics.
-- A normalized request package containing the template identity and revision,
-  generation structure, prompt and reference bindings, resolved parameters,
-  target Story Graph entity, connection mode, output requirements, and
-  provenance. Secrets and raw provider responses must be excluded.
-- An adapter that maps the normalized package to the approved ComfyUI MCP
-  operation, including workflow/input bindings and preflight validation. The
-  package must not be a raw arbitrary workflow upload or a second source of
-  truth outside WordPress.
-- Persistence of the package inputs and resolved provenance on the WordPress
-  generation record, followed by import and linkage of returned media through
-  the existing World Graph Studio asset pipeline.
-- Permission, schema, invalid-template, unavailable-connection, and
-  end-to-end ComfyUI fixture coverage.
-
-Until this epic is delivered, the Assets metabox and Templates CPT should be
-documented as separate surfaces, and local ComfyUI should remain an advanced
-single-workflow integration. The existing Comfy Cloud MCP path may continue to
-accept supported generation requests, but it must not imply that every asset
-already has a template-backed ComfyUI package.
-
-### Major Deferred Project: Local ComfyUI Workflow Catalog and Connections
-
-The current local HTTP path can reach a configured ComfyUI server and submit a
-manually pasted API-format workflow. It is intentionally a minimal developer
-integration, not a complete local-generation product. Completing local ComfyUI
-support is a significant follow-on project.
-
-The project must make the `worldgraph_conn` CPT the source of truth for a
-local ComfyUI endpoint, supported workflow catalog, model availability, and
-installation state. It must deliver:
-
-- Connection-specific workflow records or workflow packages, including stable
-  identifiers, revisions, parameter schemas, prompt/reference bindings, and
-  supported Story Graph structures.
-- A connection-to-workflow assignment model; global pasted workflow JSON must
-  not become the durable multi-connection configuration mechanism.
-- API-format workflow validation, prompt and input-node bindings, output-node
-  discovery, and compatibility checks before a generation job is queued.
-- Model, custom-node, and workflow dependency manifests with checksums,
-  provenance, license metadata, compatible ComfyUI versions, and install
-  status.
-- An administrator-authorized, auditable dependency-download/install flow with
-  allowlisted sources, disk-space checks, failure recovery, and no secrets in
-  WordPress records or logs.
-- Connection health, capability, queue, and dependency synchronization against
-  the local ComfyUI API.
-- Per-connection generation routing, status polling, artifact import, error
-  reporting, cancellation where supported, and end-to-end tests using a real
-  ComfyUI fixture.
-
-Until that project is delivered, local ComfyUI should be treated as an
-advanced single-workflow integration. Comfy Cloud MCP remains the supported
-managed server-side generation connection.
-
-The ComfyUI / Comfy Cloud MCP connection is established, but live end-to-end
-validation of the ComfyUI generation models has **not** yet been completed.
-
-See [GENERATION_ENGINE.md](plugins/GENERATION_ENGINE.md) and
-[Deployment and Connections](Deployment_and_Connections.md).
-
-## Phase 3: Filmmaking Abilities - Complete
-
-### Objective
-
-Make World Graph Studio expertise available as typed, permission-aware WordPress
-Abilities for the editor and MCP-compatible clients.
-
-### Delivered
-
-- Plugin-owned filmmaking ability definitions.
-- Story Graph context retrieval.
-- Story, prompt, production, editorial, and technical assistance profiles.
-- WordPress Abilities API registration.
-- Permission callbacks and structured input/output schemas.
-- MCP metadata for tools, resources, and prompts.
-
-### Current Boundary
-
-Abilities execute through WordPress services and configured LLM connections.
-They are not a separate application or execution runtime. Ability callbacks
-must reuse the same context, continuity, search, and generation services used by
-the WordPress UI and REST API.
-
-## Phase 4: Storyboarding and Production - Complete
-
-### Objective
-
-Support production planning through World Graph Studio data and WordPress extensions.
-
-### Delivered
-
-- Storyboard frames and shot relationships.
-- Asset-to-scene and asset-to-shot mapping.
-- Production metadata stored with Story Graph entities.
-- WordPress plugin integration points for scheduling and production tools.
-- Media library access for generated and uploaded assets.
-
-### Extension Approach
-
-Production scheduling, call sheets, and specialized planning interfaces may be
-provided by WordPress plugins. They should query Story Graph data through
-WordPress APIs and preserve World Graph Studio relationships as the canonical record.
-
-## Phase 5: Script Ecosystem - On Hold
-
-### Objective
-
-Support screenplay import, export, and synchronization with writing tools.
-
-### Delivered
-
-Celtx synchronization is operational through the `worldgraph-celtx` plugin:
-
-- Projects, characters, locations, scenes, and shots.
-- Bidirectional ID mapping in post metadata.
-- Celtx GEM API synchronization.
-- WordPress settings and authentication support.
-- Sync REST endpoints under `worldgraph-celtx/v1`.
-
-### Deferred
+The following work is on hold and is not part of the current release:
 
 - Final Draft FDX import.
-- Fade In and Highland import.
-- Story Architect and Markdown import.
-- Screenplay and shooting-script export.
-- Script parsing and Story Graph entity extraction.
-- Duplicate detection and import preview.
-- Additional synchronization providers.
+- Fade In import.
+- Highland import.
+- Story Architect import.
+- Automated screenplay parsing and Story Graph extraction for those formats.
+- Format-specific import preview, deduplication, and merge.
+- Professional screenplay and shooting-script exporters beyond the delivered
+  Markdown screenplay and storyboard exports.
+- Additional script synchronization providers beyond Celtx.
 
-Further script work remains deferred while the current Celtx integration is
-maintained.
+“Script import/export is on hold” refers only to these additional formats. It
+does not refer to the delivered World Graph Studio JSON, Markdown, outbound
+Celtx, or EDL-helper surfaces.
 
-## Phase 6: Editorial Ecosystem - On Hold
+## Extension points
 
-### Objective
+The architecture can support additional work without treating it as a current
+commitment. Examples include:
 
-Exchange Story Graph production data with editorial and NLE workflows.
+- AAF, OMF, asset-reference exchange, and provider-specific NLE panels.
+- Additional generation or LLM providers.
+- Interactive graph visualization and large-graph indexing strategies.
+- Specialized scheduling, call-sheet, and production-planning plugins.
+- Reusable template, integration, or community distribution services.
+- A production-ready Google Web Stories connector built from the bundled
+  prototype source.
 
-### Delivered
+An extension becomes roadmap work only when it has an approved scope,
+acceptance criteria, and release target. Until then, these are documented
+possibilities rather than pending deliverables.
 
-- EDL export.
-- CMX 3600 ASCII and SMPTE 436m XML support.
-- Drop-frame timecode support for common NTSC rates.
-- Frame handles.
-- Multi-track video and audio support.
-- Clip naming suitable for common NLE workflows.
-- Compatibility testing for Premiere Pro, DaVinci Resolve, Avid, Final Cut Pro,
-  and Unreal Engine workflows.
+## Maintenance priorities
 
-### Deferred
+Ongoing maintenance does not change the complete status of the current
+release. Changes should:
 
-- Timeline metadata surface.
-- Formal scene and shot mapping export contract.
-- Asset reference exchange.
-- AAF and OMF export.
-- NLE-specific panels and plugins.
-- Direct media linking with deployment-specific paths.
+- Preserve the Story Graph as the canonical source of truth.
+- Keep permissions, sanitization, provenance, and compatibility contracts
+  intact.
+- Maintain graceful behavior when optional services are unavailable.
+- Keep code, schema tests, API specifications, and user documentation aligned.
+- Avoid turning provider configuration or account setup into a product
+  dependency.
 
-EDL functionality remains available while the broader editorial roadmap is on
-hold.
+## Release status policy
 
-## Phase 7: Story Graph Intelligence - Complete
+- **Delivered** means the implementation is present in the repository and its
+  documented interface is part of the current release.
+- **Configured** describes whether a particular installation has supplied the
+  optional credentials, endpoint, model, or integration needed to run it.
+- **On hold** applies only to the additional script import/export work listed
+  above.
+- **Extension point** identifies a compatible direction without promising
+  delivery.
 
-### Objective
+## Related documents
 
-Make Story Graph data useful by meaning, consistency, and relationship.
-
-### Delivered
-
-- WordPress search enhancement with World Graph Studio entity filters.
-- Keyword and optional semantic search modes with fallback behavior.
-- Continuity checks on relevant entity saves and manual actions.
-- Severity-based continuity issue storage.
-- Relationship traversal and graph summaries.
-- Character co-occurrence and entity connectivity analytics.
-- Isolated entity detection.
-- WordPress admin panels for continuity and analytics.
-- WordPress REST and Abilities integration points.
-
-### Current Boundary
-
-Search, continuity rules, and relationship calculations run against WordPress
-entities, SCF values, post metadata, and canonical relationships. Results are
-stored and displayed through WordPress. Optional LLM assistance may explain or
-help explore findings, but deterministic WordPress data remains authoritative.
-
-See [Phase_7_Story_Graph_Intelligence.md](Phase_7_Story_Graph_Intelligence.md).
-
-### Future Improvements
-
-- Better cache invalidation for large Story Graphs.
-- Incremental search indexing.
-- Search ranking and relevance benchmarks.
-- Interactive graph visualization.
-- Larger-scale performance testing.
-- Optional narrative reasoning abilities.
-
-## Phase 8: AI Editor - Complete
-
-### Objective
-
-Bring Story Graph-aware AI assistance into the WordPress content editor.
-
-### Delivered
-
-- Gutenberg AI Editor sidebar.
-- Story Graph context builder.
-- Local and hosted LLM connection settings.
-- Chat, analysis, generation, and continuity REST routes.
-- WordPress Abilities API integration.
-- Four tool abilities:
-  - `worldgraph/chat`
-  - `worldgraph/analyze`
-  - `worldgraph/generate`
-  - `worldgraph/continuity-check`
-- Three context resources:
-  - `worldgraph/post-context`
-  - `worldgraph/character-context`
-  - `worldgraph/scene-context`
-- Two prompt abilities:
-  - `worldgraph/story-review-prompt`
-  - `worldgraph/continuity-prompt`
-- Permission-aware schemas and MCP metadata.
-- AI settings for OpenAI, Claude, and OpenAI-compatible endpoints.
-
-### Next Work
-
-- Complete live end-to-end testing of the internal AI chat.
-- Complete live MCP Adapter discovery tests.
-- Complete browser and accessibility coverage.
-- Add durable audit records for accepted AI edits.
-- Improve context and response caching.
-- Add explicit editor insertion actions.
-- Label and preserve AI-generated content provenance.
-- Continue security and input/output audits.
-
-See [Phase_8_AI_Editor.md](Phase_8_AI_Editor.md).
-
-## Phase 9: Community Platform - On Hold
-
-### Objective
-
-Build an ecosystem around World Graph Studio extensions and reusable creative resources.
-
-### Deferred
-
-- Plugin marketplace.
-- Workflow and template marketplace.
-- Ability and integration directory.
-- Educational resources.
-- Contributor programs.
-- Community governance and review process.
-
-The community phase should begin after the WordPress integration contracts,
-security model, and extension documentation are stable.
-
-## Cross-Phase Priorities
-
-### WordPress Integrity
-
-- Keep the Story Graph canonical.
-- Use registered CPT, SCF, taxonomy, and relationship definitions.
-- Preserve permissions and auditability across every integration.
-- Keep generated and imported assets linked to their source context.
-
-### MCP and External Connections
-
-- Treat Comfy Cloud MCP as the supported server-side media connection.
-- Treat local ComfyUI MCP as an optional creator workflow.
-- Use WordPress Abilities as the public AI and MCP capability contract.
-- Never place secrets in source control, JavaScript, prompts, or context data.
-
-### Quality
-
-- Prefer narrow, deterministic WordPress services.
-- Validate input and escape output.
-- Provide keyword or manual fallbacks when optional AI services are unavailable.
-- Test permissions, empty states, failures, and large Story Graphs.
-- Update the relevant specification when a public REST, Ability, or MCP
-  contract changes.
-
-## Success Metrics
-
-### Product
-
-- Projects and Story Graphs created.
-- Story Graph entities managed.
-- Assets generated, imported, and linked with provenance.
-- Continuity issues detected and resolved.
-- AI Editor sessions that produce accepted editorial changes.
-
-### Reliability
-
-- Successful Comfy Cloud MCP workflow completion.
-- Successful asset registration in WordPress.
-- Search fallback coverage when optional semantic services are unavailable.
-- Continuity check accuracy reviewed by creators.
-- Ability and REST permission violations prevented.
-
-### Ecosystem
-
-- WordPress integrations using documented Story Graph contracts.
-- MCP clients using World Graph Studio abilities.
-- Community plugins and templates.
-- Contributors and maintained extensions.
-
-## Long-Term Goal
-
-World Graph Studio is not another isolated media-generation service. It is an open
-storytelling operating system where structured stories, AI assistance,
-generative workflows, production planning, and editorial assets meet in one
-WordPress-owned Story Graph.
-
-**The future of storytelling is structured.**
-
-**The future of storytelling is open.**
+- [Marketing Overview](marketing/overview.md)
+- [Delivery Status](Delivery_Status.md)
+- [Product Requirements](World_Graph_Studio_PRD.md)
+- [Architecture](World_Graph_Studio_Architecture.md)
+- [AI Editor](AI_Editor.md)
+- [Script and Editorial Interchange](Script_EDL_Integration.md)

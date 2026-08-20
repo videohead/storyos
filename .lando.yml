@@ -38,8 +38,6 @@ services:
       user: wordpress
       password: wordpress
       database: wordpress
-    volumes:
-      - ./scripts/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
   cli:
     type: node:20
     overrides:

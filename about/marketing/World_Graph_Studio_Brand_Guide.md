@@ -1,6 +1,6 @@
 # World Graph Studio Brand Guide v1.0
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Brand Naming Standard
 
@@ -53,15 +53,19 @@ technical identifier itself is being documented.
 
 ## Elevator Pitch
 
-World Graph Studio is an open-source creative production platform that connects story development, AI generation, production planning, and editorial workflows through a unified Story Graph.
+World Graph Studio is the open-source studio for worldbuilding, storytelling,
+and AI-powered creative production. It connects ideas, assets, production
+decisions, and optional AI workflows through a Story Graph creators control.
 
 ## Mission
 
-Enable creators to own, organize, and evolve stories through open technology.
+Give creators control of their ideas, assets, models, and production workflow
+through open, self-hosted technology.
 
 ## Vision
 
-Become the open studio for structured, connected storytelling.
+Become the open studio for building connected worlds and carrying them from an
+idea into production.
 
 ---
 
@@ -70,6 +74,10 @@ Become the open studio for structured, connected storytelling.
 World Graph Studio helps creators preserve story context across the entire creative lifecycle.
 
 Instead of managing disconnected documents and assets, creators build stories within a shared Story Graph that powers scripts, storyboards, AI generation, production planning, and editing.
+
+World Graph Studio does not sell creative credits or require a single model
+provider. Optional hosted providers can still set their own prices, quotas,
+licenses, and usage policies.
 
 ---
 
@@ -80,6 +88,7 @@ Story First.
 AI Assisted.
 Creator Owned.
 Open Source.
+No Platform Credits.
 ```
 
 ---
@@ -93,6 +102,11 @@ Stories drive assets.
 ## Creator Ownership
 
 Creators own their stories, workflows, prompts, and assets.
+
+## Creative Control
+
+Creators choose where the studio runs and which local or hosted models it can
+reach.
 
 ## Open Source
 
@@ -379,20 +393,22 @@ World Graph Studio connects storytelling, generation, production, and editorial 
 
 ## Benefit
 
-Build your story once and reuse it everywhere.
+Your ideas and assets remain connected, portable, and under your control.
 
 ---
 
 # One-Sentence Description
 
-> World Graph Studio is an open-source creative production platform that connects writing, AI generation, production planning, and editorial workflows through a shared Story Graph.
+> World Graph Studio is the open-source studio for worldbuilding, storytelling,
+> and AI-powered creative production, built around a Story Graph creators
+> control.
 
 ---
 
 # GitHub Repository Description
 
 ```text
-Open-source creative production platform for connected stories, helpful agents in WordPress, and generative workflows through ComfyUI and MCP.
+Open-source, self-hosted studio for connected worlds, creative AI advisors, and provider-agnostic production workflows in WordPress.
 ```
 
 ---
@@ -401,11 +417,13 @@ Open-source creative production platform for connected stories, helpful agents i
 
 ## Headline
 
-**Build Your Story Once. Create Everywhere.**
+**Your ideas. Your assets. No credits needed.**
 
 ## Subheadline
 
-World Graph Studio is the open-source creative production platform that connects story development, AI generation, production workflows, and editorial planning through a shared Story Graph.
+The open-source studio for worldbuilding, storytelling, and AI-powered creative
+production. Build connected worlds without a World Graph Studio credit meter
+or mandatory model provider.
 
 ---
 
@@ -423,6 +441,14 @@ Most platforms focus on outputs.
 
 World Graph Studio focuses on context.
 
+Most AI platforms meter creativity.
+
+World Graph Studio lets creators choose the infrastructure.
+
 ## Deployment Promise
 
 World Graph Studio runs on a WordPress.org-capable host or a local Docker/Lando deployment. Helpful filmmaking agents require an API-connected LLM: a local OpenAI-compatible server or an OpenAI/Anthropic API key. Generation can use Comfy Cloud MCP or a creator's local ComfyUI MCP setup. Browser-only AI subscriptions are not a World Graph Studio server connection.
+
+Use “no credits needed” to describe World Graph Studio itself and local/open
+model workflows. Do not imply that optional hosted providers are free or lack
+their own terms.

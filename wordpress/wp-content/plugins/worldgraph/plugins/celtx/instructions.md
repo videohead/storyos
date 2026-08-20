@@ -1,4 +1,5 @@
-Create a simple WordPress API plugin for within worldgraph that utilizes the Celtx API to synchronize matches in World Graph Studio with Celtx elements
-Use only functions like wp_remote_get and wp_remote_post, this should be WordPress native
-The Celtx swagger is here : https://games-api.celtx.com/docs/api/
-Will need a place to store the Celtx API keys
+# Celtx connector notes
+
+This extension implements authenticated outbound synchronization from World Graph Studio to Celtx using WordPress HTTP functions. It is not a bidirectional importer.
+
+See [Celtx connector](../../../../../../about/plugins/CELTX.md) for the delivered scope and current limitations.

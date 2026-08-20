@@ -1,12 +1,12 @@
 # World Graph Studio Governance
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Purpose
 
 This document defines how World Graph Studio is governed, how decisions are made, and how contributors can participate in the evolution of the project.
 
-World Graph Studio is an open-source storytelling operating system focused on creator ownership, open standards, community participation, and long-term sustainability.
+World Graph Studio is an open-source creative production platform focused on creator ownership, open standards, community participation, and long-term sustainability.
 
 ---
 
@@ -165,7 +165,7 @@ Community members are encouraged to:
 
 The roadmap is maintained in:
 
-ROADMAP.md
+[ROADMAP_World_Graph_Studio.md](ROADMAP_World_Graph_Studio.md)
 
 Community feedback is encouraged and helps influence future priorities.
 
@@ -185,6 +185,4 @@ World Graph Studio aims to become an open storytelling infrastructure platform t
 
 The project will remain community-driven, extensible, and focused on creator ownership.
 
-**The future of storytelling is structured.**
-
-**The future of storytelling is open.**
+**Open tools. Creator-owned work. Sustainable governance.**

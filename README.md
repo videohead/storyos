@@ -1,283 +1,172 @@
 # World Graph Studio
 
-> Build Your Story Once. Create Everywhere.
->
-> An open-source storytelling operating system: stories, story analysis, and helpful filmmaking agents in WordPress, generative workflows through your favorite subscription and free tools, including ComfyUI.
+> Your ideas. Your assets. No credits needed.
 
-## Table of Contents
+World Graph Studio is a free, open-source, self-hosted creative production
+platform for worldbuilding, storytelling, story analysis, asset generation,
+and production planning. It runs in WordPress and keeps the people, places,
+scenes, shots, media, and production decisions for a project connected in one
+Story Graph.
 
-### About World Graph Studio
-- [Deployment and Connections](about/Deployment_and_Connections.md) — Comfy Cloud, local Comfy MCP, LLM, and BYOK setup
-- [Web GenAI Platform Support](about/WEB_GENAI.md) — current support matrix and paths for external web generators
-- [World Graph Studio Architecture](about/World_Graph_Studio_Architecture.md) — System overview and component design
-- [Content Model Specification](about/Content_Model_Specification.md) — Data model for stories, characters, scenes, and assets
-- [Story Graph Specification](about/Story_Graph_Specification.md) — Connected story data structure
-- [CPT and SCF Schema](about/CPT_and_SCF_Schema.md) — Custom Post Type and Structured Content Field definitions
-- [REST API Specification](about/REST_API_Specification.md) — API endpoints and usage
-- [SchemaOrg Minimum Surface](about/SchemaOrg_Minimum_Surface.md) — Schema.org integration baseline
-- [SchemaOrg Interoperability Review](about/SchemaOrg_Interoperability_Review.md) — Cross-platform schema analysis
-- [Script EDL Integration](about/Script_EDL_Integration.md) — Edit Decision List support for editorial workflows
+Use World Graph Studio as a private creative workspace, publish from it when
+you choose, and connect the local or hosted AI tools that fit your workflow.
+The platform does not sell generation credits or require a single model
+provider.
 
-### Multi-Agent System
-- [Agent Architecture](about/Agent_Architecture.md) — AI advisor system design
-- [Agents Documentation](about/AGENTS.md) — Agent roles, capabilities, and configuration
-- [Agents Copy](about/AGENTS\ copy.md) — Additional agent reference documentation
+## What ships today
 
-### Product & Planning
-- [World Graph Studio PRD](about/World_Graph_Studio_PRD.md) — Product Requirements Document
-- [Roadmap](about/ROADMAP_World_Graph_Studio.md) — Project timeline and milestones
+- A structured Story Graph with 15 WordPress content types, nine taxonomies,
+  reusable relationships, and Structured Content Fields.
+- Project, world, character, location, prop, organization, episode, scene,
+  shot, sound, storyboard, asset, editorial, template, and connection tools.
+- An AI Editor, Story Graph-aware analysis, continuity checks, relationship
+  analytics, semantic-search fallbacks, and 50+ specialist creative advisors.
+- Template-backed generation jobs, provider connections, WordPress media
+  imports, provenance, status tracking, cancellation, and scheduled batches.
+- World Graph Studio JSON import plus Markdown screenplay and storyboard
+  export.
+- Optional outbound Celtx synchronization plus EDL parsing, preview, and
+  formatting tools.
+- A permission-aware REST API and WordPress Abilities for tools, resources,
+  and prompts.
 
-### Governance & Community
-- [Contributing Guide](about/CONTRIBUTING_World_Graph_Studio.md) — How to contribute to World Graph Studio
-- [Governance](about/GOVERNANCE_World_Graph_Studio.md) — Project governance model
-- [Code of Conduct](about/CODE_OF_CONDUCT_World_Graph_Studio.md) — Community guidelines
+Broader file-based script interchange—such as FDX, Fade In, Highland, Story
+Architect, and additional professional script exports—is on hold. The JSON,
+Markdown, Celtx, and EDL-helper surfaces already in the product remain
+available. See [Delivery status](about/Delivery_Status.md) for the exact
+boundary. The bundled Web Stories source is an extension prototype, not a
+current release feature.
 
-### Marketing
-- [Brand Guide](about/marketing/World_Graph_Studio_Brand_Guide.md) — Brand identity and usage guidelines
-- [Pitch Deck](about/marketing/World-Graph-Studio-PitchDeck.png) — Visual pitch deck
+## Why it exists
+
+Creative work is more than a prompt and an output file. World Graph Studio
+keeps narrative context and production context together, so a character can
+stay connected to a world, a scene, a shot, a generated asset, an editorial
+decision, and the reasoning behind those choices.
+
+With self-hosted and open models, creators can work without a platform-level
+credit meter, proprietary project format, or mandatory cloud account. Hosted
+providers remain optional and may apply their own prices, quotas, licenses,
+and usage policies.
+
+## Architecture
+
+```text
+Creator
+  |
+  v
+WordPress + World Graph Studio
+  |-- Story Graph, SCF, media, REST, and admin workflows
+  |-- AI Editor, creative advisors, search, and continuity
+  |-- connections, templates, generation jobs, and provenance
+  |
+  +--> optional LLM connection
+  +--> optional ComfyUI / Comfy Cloud / provider connection
+  +--> optional Celtx sync and EDL format tooling
+```
+
+WordPress is the application and source of truth. External AI and generation
+services are replaceable connections; they do not own the Story Graph.
+
+## Quick start
+
+### Requirements
+
+- Docker Desktop or Docker Engine
+- [Lando](https://docs.lando.dev/getting-started/installation.html)
+- Git
+- The [Frost block theme](https://github.com/wpengine/frost) installed as the
+  parent theme for the included World Graph child theme
+- An API-connected LLM only if you want AI Editor or advisor features
+- ComfyUI, Comfy Cloud, or another configured provider only if you want
+  automated asset generation
+
+### Start the local site
+
+```bash
+git clone <repository-url> worldgraph
+cd worldgraph
+lando start
+lando info
+```
+
+Before activating the included `worldgraph-child` theme, download Frost from
+the [official Frost repository](https://github.com/wpengine/frost)
+and install it as `wordpress/wp-content/themes/frost`. Frost is the parent theme
+declared by the child theme; WordPress must be able to find it before the child
+can be activated.
+
+Lando starts WordPress, PHP 8.2, MariaDB, and phpMyAdmin. The default local URL
+is `https://worldgraph.lndo.site`.
+
+For a fresh WordPress database, complete WordPress installation and activate
+the required plugins:
+
+```bash
+lando wp core install \
+  --url=https://worldgraph.lndo.site \
+  --title="World Graph Studio" \
+  --admin_user=admin \
+  --admin_password=<choose-a-password> \
+  --admin_email=<your-email>
+lando wp plugin activate secure-custom-fields worldgraph
+```
+
+If you are restoring an existing database instead, import a serialization-safe
+WordPress backup before activating `worldgraph`. Activation migrates supported
+legacy StoryOS identifiers to the `worldgraph` namespace.
+
+The Lando app name also changed to `worldgraph`. Lando uses that name when it
+identifies services and database volumes, so an existing database from the old
+app name is not moved automatically. Export it before switching Landofiles,
+then import the archive into the new app and activate `worldgraph`.
+
+Open **World Graph Studio > Setup** to configure an LLM and any optional
+generation connections. Core story and production planning work without those
+services.
+
+## Documentation
+
+Start with the [documentation guide](about/README.md), then use these primary
+references:
+
+- [Product overview](about/marketing/overview.md)
+- [Delivery status](about/Delivery_Status.md)
+- [Product requirements](about/World_Graph_Studio_PRD.md)
+- [Architecture](about/World_Graph_Studio_Architecture.md)
+- [User guide](about/example-workflow/USER_GUIDE.md)
+- [Deployment and connections](about/Deployment_and_Connections.md)
+- [Story Graph specification](about/Story_Graph_Specification.md)
+- [REST API](about/REST_API_Specification.md)
+
+## Namespace
+
+The product name is **World Graph Studio**. Machine-readable identifiers use
+`worldgraph`, PHP symbols use `WorldGraph`, and constants and environment
+variables use `WORLDGRAPH_`.
+
+## Development
+
+Run the PHP test suite without writing PHPUnit's result cache:
+
+```bash
+./vendor/bin/phpunit \
+  -c wordpress/wp-content/plugins/worldgraph/tests/phpunit.xml \
+  --testsuite "World Graph Studio" \
+  --do-not-cache-result
+```
+
+Development conventions and runtime-specific commands are in
+[`.github/instructions/instructions.md`](.github/instructions/instructions.md).
+Contributions are welcome; see the
+[contributing guide](about/CONTRIBUTING_World_Graph_Studio.md).
+
+## License
+
+The repository is licensed under the [MIT License](LICENSE). WordPress plugin
+headers in this repository declare GPL v2-or-later for the distributed plugin
+components. No change to either license statement is implied by the rebrand.
 
 ---
 
-## What is World Graph Studio?
-
-World Graph Studio is an open-source platform that combines structured story development, AI-assisted creation, production planning, asset generation, and editorial workflows into a unified storytelling environment.
-
-Unlike AI tools that focus only on image or video generation, World Graph Studio focuses on preserving story context throughout the entire creative lifecycle.
-
-World Graph Studio treats stories as structured, connected data.
-
-Characters, locations, props, scenes, storyboards, scripts, shots, generated assets, production plans, and editorial artifacts all become part of a shared Story Graph that serves as the source of truth for the project.
-
-## Vision
-
-Create an open platform where creators can manage story worlds, develop scripts, generate visual assets, plan productions, collaborate with AI advisors, and export industry-standard deliverables from a single source of truth.
-
-## Core Architecture
-
-```
-┌─────────────┐     ┌──────────────────┐     ┌───────────────┐
-│  WordPress  │───▶│ WP-Cron batches  │───▶ │ Comfy Cloud   │
-│(Story Graph)│     │ + MCP client     │     │ MCP / ComfyUI │
-└──────┬──────┘     └──────────────────┘     └───────────────┘
-  │
-┌──────▼───────────┐
-│ WordPress        │
-│ Abilities API    │
-│ (filmmaking AI)  │
-└──────────────────┘
-```
-
-**Data Flow:**
-1. WordPress stores structured story data (CPTs, SCFs, Story Graph)
-2. WordPress queues durable generation records and WP-Cron processes bounded batches
-3. The Comfy Cloud MCP client submits templates and polls remote job status
-4. Generated assets and job state remain associated with WordPress records
-5. WordPress Abilities expose filmmaking agents to MCP-compatible AI tooling
-
-## Technology Stack
-
-### WordPress
-- Content management with Custom Post Types (Project, Character, Location, Scene, Shot, Asset)
-- Structured Content Fields (SCF) for metadata
-- REST API for Story Graph queries
-- Media library for asset storage
-
-### Generation Processing
-- WordPress generation records and WP-Cron batch processing
-- Official Comfy Cloud MCP over Streamable HTTP
-- Comfy workflow templates and remote job polling
-- No project-managed Python, Celery, or Redis runtime
-
-### Comfy Cloud MCP
-- GPU-accelerated image, video, audio, and 3D workflows
-- Template discovery and execution through the first-party MCP endpoint
-- API key supplied with `WORLDGRAPH_COMFY_API_KEY` or the World Graph Studio option
-
-### AI Advisors
-- 50 specialized advisors from film industry archetypes
-- WordPress Abilities API registration for tools, resources, and prompts
-- Plugin-owned filmmaker agent definitions and context-aware local routing
-- Conversation history and context management
-
-## Current Status
-
-### 🔌 Integration Status
-
-The WordPress stack, Story Graph model, and external connections are established:
-
-- **ComfyUI / Comfy Cloud MCP connection** — established
-- **AI connection (OpenAI, Claude, or OpenAI-compatible API)** — established
-
-Live end-to-end validation has **not** yet been completed for:
-
-- **Internal AI chat** — not yet tested
-- **ComfyUI generation models** — not yet tested
-
-A user guide and an example starting workflow are in progress, with specifications
-in [about/example-workflow/](about/example-workflow/).
-
-### ✅ Phase A: Workflow Template System (COMPLETE)
-- JSON-based workflow templates
-- Templates: base, character-sheet, environment, storyboard
-- Story Graph context builder (WordPress CPT queries)
-- WP-Cron batch scheduling and durable job records
-- Comfy Cloud MCP template execution and status polling
-
-### ✅ Phase B: Production Hardening (COMPLETE)
-- WordPress-native job state, cancellation, and status endpoints
-- Bounded cron batches with overlap locking
-
-### ✅ Phase C: Agent Integration (COMPLETE)
-- 50 specialized advisors from film industry archetypes
-- WordPress Ability tools, resources, and prompt templates
-- Plugin-owned filmmaker agent registry
-- Conversation history tracking
-- Multi-advisor review capability
-
-### ✅ Phase E: Script Ecosystem (COMPLETE)
-- **Celtx Integration** — Full bi-directional sync via Celtx GEM API
-  - CPT synchronization (Projects, Characters, Locations, Scenes, Shots)
-  - Persistent World Graph Studio ↔ Celtx ID mapping
-  - WordPress plugin with REST API endpoints
-  - API key, Basic Auth, and Cookie Auth support
-- **File-Based Import** (Planned)
-  - FDX, Fade In, Highland, Markdown
-  - Scene/character/location extraction
-  - Auto-create Story Graph entities from scripts
-- **Script Export** (Planned)
-  - Screenplay, Storyboard, Shooting Script formats
-  - Script-to-Story Graph conversion
-
-### 📋 Phase F: Editorial Ecosystem (COMPLETE)
-- EDL import and export
-- Timeline metadata
-- NLE integrations (Unity, Davinci Resolve)
-
-### 📋 Phase G: Story Graph Intelligence (COMPLETE)
-- Semantic search and indexing in WordPress
-- Continuity validation
-- Relationship analytics
-
-### 🚧 Phase 8: AI Editor (LIVE TESTING PENDING)
-- Gutenberg AI Editor sidebar
-- Story Graph context builder
-- Local and hosted LLM connection settings
-- Chat, analysis, generation, and continuity REST routes
-- WordPress Abilities API integration (tools, resources, prompts)
-- **Internal AI chat** — connection established, live end-to-end testing pending
-
-## Quick Start
-
-### 1. Install the prerequisites
-Before starting World Graph Studio, make sure you have the following installed and running:
-- Docker Desktop or Docker Engine
-- Git
-- Lando
-- A WordPress.org-capable host or local Docker/Lando deployment
-- An API-connected LLM: local OpenAI-compatible server or an OpenAI/Anthropic API key
-
-Comfy Cloud MCP or local ComfyUI via an MCP client is optional for generation. Browser-only ChatGPT, Claude, and Claude Code subscriptions are not supported by the WordPress integration without an API credential.
-
-### 2. Install Lando
-Lando is the recommended way to run World Graph Studio locally.
-
-Get the installer from the official Lando documentation:
-https://docs.lando.dev/getting-started/installation.html
-
-The installation steps vary by platform:
-- macOS: use the macOS installer or Homebrew
-- Windows: use the Windows installer
-- Linux: install Docker first, then install the Linux package or installer from the official Lando site
-
-After installation, verify that Lando is available:
-
-```bash
-lando version
-```
-
-### 3. Clone the repository and start the stack
-
-```bash
-git clone <repo-url>
-cd worldgraph
-lando start
-```
-
-This starts the core local stack, including:
-- WordPress with PHP 8.2 and MariaDB
-- phpMyAdmin for database inspection
-
-Once Lando finishes starting, use:
-
-```bash
-lando info
-```
-
-to see the local URLs for the app, database tools, and other services.
-
-### 3b. Import the database
-
-To import the existing WordPress database dump:
-
-```bash
-lando db-import scripts/backup.sql
-```
-
-This loads the SQL dump into the MariaDB database. Verify the import with:
-
-```bash
-lando db-import --check
-```
-
-### 4. Connect Generation and AI
-Open **World Graph Studio > Setup** in WordPress to configure Comfy Cloud MCP and an API-connected LLM. Configure local Comfy MCP in an MCP-capable agent client. See [Deployment and Connections](about/Deployment_and_Connections.md) for the required credentials and supported local endpoints.
-
-### Useful commands
-
-```bash
-lando info
-lando wp
-lando wp option update siteurl https://worldgraph.lndo.site
-lando wp option update home https://worldgraph.lndo.site
-lando phpunit
-lando playwright
-lando wp-cron
-lando pma
-```
-
-### Troubleshooting
-- If `lando start` fails, make sure Docker is running and that your user account can access Docker.
-- If the database is still warming up, wait a moment and run `lando info` again.
-- If you need to inspect logs, use `lando logs`.
-
-### API Endpoints
-
-#### WordPress REST
-- `POST /wp-json/worldgraph/v1/generation` — Queue a Comfy Cloud MCP generation
-- `GET /wp-json/worldgraph/v1/generation/{id}` — Read persisted job state
-- `POST /wp-json/worldgraph/v1/generation/{id}/cancel` — Cancel a queued WordPress job
-- `GET /wp-json/worldgraph/v1/ai/agents` — List plugin-owned filmmaking agents
-
-## Project Structure
-
-```
-worldgraph/
-├── wordpress/                 # WordPress core and World Graph Studio plugin
-│   └── wp-content/plugins/worldgraph/
-│       ├── includes/ai-editor/ # WordPress Abilities and filmmaker agents
-│       └── includes/utils/     # Comfy Cloud MCP client and WP-Cron batches
-├── .lando.yml                 # PHP, MariaDB, and phpMyAdmin development stack
-└── *.md                       # Architecture docs
-```
-
-## Contributing
-
-We welcome contributions from storytellers, filmmakers, artists, WordPress developers, ComfyUI developers, AI engineers, educators, and researchers.
-
-## Long-Term Goal
-
-World Graph Studio is an open storytelling infrastructure project that supports every stage of the creative lifecycle from concept through production and editorial delivery.
-
-**The future of storytelling is structured.**
-
-**The future of storytelling is open.**
+Build worlds. Connect ideas. Generate anything. No credits needed.

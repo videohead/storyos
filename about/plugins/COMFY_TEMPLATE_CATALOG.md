@@ -1,438 +1,221 @@
-# Comfy Template Catalog: Discovery and Provisioning
+# ComfyUI Template Catalog
 
-> Status: specification. Supersedes the exploratory notes in
-> `about/interesting-info-from-the-comfyui-mcp.md`.
->
-> Companion: `about/plugins/GENERATE_PREFERENCES.md` covers how a provisioned
-> Template reaches an author through the Generate metabox. This document ends
-> at a runnable Template; that one begins there.
->
-> Companion: `about/plugins/COMFY_AND_PROMPT_AGENTS.md` covers the Comfy
-> Technician agent that explains catalog and provisioning state in natural
-> language.
+> **Delivery status:** catalog discovery, curation, materialization, requirement
+> checks, and provider-side download requests are implemented for the current
+> release. This document describes the shipped behavior, not a future epic.
+> See [Delivery Status](../Delivery_Status.md).
 
-This document defines the actionable process by which World Graph Studio:
+## What the catalog does
 
-1. **Discovers** the ComfyUI workflow templates available on a given Connection,
-   whether that Connection is Comfy Cloud MCP or a local ComfyUI.
-2. **Curates** that catalog — the operator enables the small number of templates
-   World Graph Studio should actually offer.
-3. **Provisions** each enabled template — forcing download/install of the models
-   (and reporting the custom nodes) it requires on that Connection.
-4. **Validates** that provisioning succeeded before the template is usable.
+The catalog lets an administrator discover what a specific ComfyUI Connection
+advertises without turning every provider example into a WordPress Template.
+It keeps three records distinct:
 
-WordPress is the control plane. ComfyUI MCP is the authority on what ComfyUI can
-do; World Graph Studio mirrors it, never invents it.
-
----
-
-## 1. Vocabulary
-
-| Term | Meaning |
+| Record | Purpose |
 | --- | --- |
-| **Connection** | `worldgraph_conn` post. One endpoint + credential reference. `provider_type = comfyui`. |
-| **Catalog entry** | One template *as advertised by the Connection's provider*. Not a World Graph Studio Template. Ephemeral, refreshable, cached. |
-| **Enabled entry** | A catalog entry the operator has switched on for that Connection. |
-| **Template** | `worldgraph_template` post. A World Graph Studio-owned, curated, bound, runnable configuration. Materialized from an enabled catalog entry. |
-| **Manifest** | The nodes + models + download URLs a Template needs, per `Comfy_Manifest`. |
+| Connection | A `worldgraph_conn` post containing the endpoint, environment, credential, and provider policy |
+| Catalog entry | A cached provider or built-in descriptor of something the Connection could offer |
+| Template | A curated `worldgraph_template` post that generation requests can select |
 
-The key modeling decision: **catalog entries are not Templates.** A provider may
-advertise 70+ example workflows; World Graph Studio must not create 70 posts. Discovery
-produces a cached catalog; curation is a per-Connection allow-list; only enabled
-entries are materialized into `worldgraph_template` posts.
+A catalog entry is inert. Enabling it records an allowlist choice; materializing
+it creates or updates the corresponding World Graph Studio Template.
 
----
+## Capability tiers
 
-## 2. Connection Capability Tiers
+`Comfy_Cloud_MCP::capability_tier()` probes each Connection independently:
 
-Discovery and download capability differ per Connection. Probe and record the
-tier; never assume it.
-
-| Tier | Detection | Discovery | Download |
+| Tier | Meaning | Catalog source | Download behavior |
 | --- | --- | --- | --- |
-| **A — MCP template system** | `Comfy_Cloud_MCP::available_tools()` includes `list_templates`, `get_template`, `download_models` | `list_templates` / `get_template` | `download_models` |
-| **B — MCP, partial** | MCP reachable, subset of the above tools | whatever is advertised | may be unavailable |
-| **C — HTTP only** | `mcp_endpoint_url` empty; `GET /system_stats` succeeds | built-in `Generation_Modality` catalog + `/object_info` introspection | not automatic — manual install plan |
-
-Comfy Cloud is normally Tier A. A local ComfyUI with a co-located MCP server
-(`mcp_endpoint_url` set) can be Tier A or B. A bare local ComfyUI at
-`http://localhost:8188` is Tier C.
-
-### 2.1 Required code changes
-
-`Comfy_Cloud_MCP::supports_tool()` currently calls `available_tools()` with no
-`$connection_id`, so it probes the default cloud endpoint regardless of which
-Connection is being asked about. Likewise `Comfy_Manifest::request_downloads()`
-calls `Comfy_Cloud_MCP::download_models( $urls )` with no `$connection_id`,
-which will send a local Template's downloads to the cloud endpoint.
-
-- `supports_tool( string $name, int $connection_id = 0 ): bool` — thread the
-  Connection through.
-- `Comfy_Manifest::request_downloads( int $template_id )` must read the
-  Template's `connection_id` meta and pass it to `download_models()`.
-- Add `Comfy_Cloud_MCP::capability_tier( int $connection_id ): string` returning
-  `a` | `b` | `c` | `unreachable`, cached alongside `TOOLS_TRANSIENT`.
-- Persist the resolved tier and tool list onto the Connection as
-  `last_health_report['comfy']` during `Connection_Tester::test()`, so admin UI
-  can render the right affordances without a live probe.
-
----
-
-## 3. Stage 1 — Discovery
-
-**Trigger:** explicit operator action ("Sync template catalog" on the Connection
-row / Connection edit screen) and after a successful `Connection_Tester::test()`
-on a `comfyui` Connection. Never on page load; never on `init`.
-
-### 3.1 Tier A/B: MCP discovery
-
-```
-list_templates( filters, connection_id )
-```
-
-Call once per `Generation_Modality::all()` `task_type` (`txt2img`, `img2img`,
-`txt2video`, `img2video`, `video2video`, …), plus one unfiltered call, and merge
-by template id. Filtering by task type is what lets World Graph Studio map a provider
-template onto a World Graph Studio modality without guessing.
-
-For each returned entry, normalize to the **catalog entry schema**:
-
-```json
-{
-  "id": "flux_txt2img_basic",
-  "name": "Flux — text to image",
-  "source": "mcp",
-  "model_type": "flux",
-  "task_type": "txt2img",
-  "modality": "text-to-image",
-  "required_nodes": ["CheckpointLoaderSimple", "KSampler", "..."],
-  "models": [{"filename": "flux1-dev.safetensors", "folder": "diffusion_models"}],
-  "model_urls": ["https://huggingface.co/.../flux1-dev.safetensors"],
-  "parameters": {"width": 1024, "height": 1024, "steps": 20},
-  "model_family": "wan",
-  "workflow_hash": "sha1:…"
-}
-```
-
-- `modality` is derived by mapping `task_type` back through
-  `Generation_Modality::all()`; entries whose `task_type` maps to nothing are
-  kept with `modality: null` and marked `unmappable` (visible but not enablable
-  until an operator picks a modality).
-- `model_family` is inferred from `required_nodes` via
-  `Model_Family::all()` node prefixes, **longest prefix first** (`WanSCAIL`
-  before `Wan`).
-- `required_nodes` and `models` come from `list_templates` when present, else
-  from `Comfy_Manifest::extract_nodes()` / `extract_models()` on the returned
-  workflow graph.
-- Do **not** store the full workflow JSON in the catalog. Store
-  `workflow_hash` and re-fetch the graph via `get_template()` at materialization
-  time. Catalogs must stay small.
-
-`Comfy_Manifest::discover_provider_templates()` currently reduces each entry to
-`{id, name}` — it must be widened to emit the schema above. `discover()`
-already produces most of it and should be refactored to share one normalizer.
-
-### 3.2 Tier C: local ComfyUI without MCP
-
-There is no provider template list. Synthesize the catalog from what World Graph Studio
-already knows plus what the instance reports:
-
-1. Seed one catalog entry per `Generation_Modality::all()` slug, using
-   `default_workflow()` / `default_settings()`, with `source: "builtin"`.
-2. Fetch `Comfy_Manifest::catalog( $endpoint )` (`/object_info`, 5-minute
-   transient) and mark each entry `installable: true|false` by testing whether
-   every node in `required_nodes` is a key in the object-info catalog.
-3. For each model-loader input, use `Comfy_Manifest::installed_options()` to
-   list the checkpoints actually present, and attach them as
-   `available_checkpoints` on the entry.
-
-This gives the local operator a real, honest list: "these modalities your
-ComfyUI can run today, these need nodes/models."
-
-### 3.3 Persistence
-
-Store the catalog **per Connection**, not globally:
-
-- Snapshot: post meta `comfy_template_catalog` on the `worldgraph_conn` post
-  (JSON: `{ synced_at, tier, source, entries: [...] }`).
-- Post meta, not a transient — the operator's enable decisions reference it, so
-  it must not silently evaporate. Staleness is communicated by `synced_at`,
-  refreshed by re-running Stage 1.
-- Re-sync is a full replace, but enable flags (Stage 2) live in a separate meta
-  key and survive re-sync. Entries that disappear from the provider are retained
-  in the enable list and rendered as `withdrawn` so the operator sees why a
-  Template stopped working.
-
----
-
-## 4. Stage 2 — Curation (the enable/disable step)
-
-**Decision: opt-in allow-list per Connection, defaulting to none enabled.**
-
-Rationale for this over the alternatives:
-
-- *Auto-create a Template for every discovered entry* — rejected. Produces
-  dozens of unusable posts, each needing a checkpoint, bindings, and a model
-  download; pollutes the Template CPT which is a curated authoring surface.
-- *Auto-enable everything whose requirements are already satisfied* — rejected
-  as the default because it makes the offered set depend on install order, which
-  is not reproducible. It is offered as a **bulk action** ("Enable all
-  ready-to-run"), not as a default.
-- *Enable-by-modality (turn on a task type, World Graph Studio picks the best template)* —
-  rejected as the primary model because it hides which graph runs. It is
-  reintroduced as a **preferred-template** setting per modality in Stage 5.
-- **Chosen: explicit per-entry toggle, opt-in, with bulk helpers.** Matches the
-  existing `enabled_structures` / `model_access` allow-list pattern already on
-  the Connection CPT, and matches the fail-closed posture appropriate to an
-  action that downloads multi-gigabyte files.
-
-### 4.1 Storage
-
-New Connection post meta, mirroring `enabled_structures`:
-
-```
-enabled_templates = [
-  { "id": "flux_txt2img_basic", "modality": "text-to-image", "enabled_at": "…", "template_id": 412 },
-  …
-]
-```
-
-Empty array = nothing enabled. Unlike `enabled_structures`, this is
-**fail-closed**: an empty `enabled_templates` means the Connection offers only
-its explicitly configured Templates (including the `Comfy_Bootstrap` default),
-not "everything".
-
-Expose it through `Connection_Repository::get()` / `resolve()` alongside the
-other public fields.
-
-### 4.2 UI
-
-A "Template Catalog" panel on the Connection edit screen and on
-World Graph Studio → Connections:
-
-- Header: tier badge, `synced_at`, **Sync catalog** button.
-- Filter bar: modality, model family, and a `ready | needs models | needs nodes |
-  unmappable | withdrawn` status filter.
-- One row per entry: name, modality, model family, requirement status chip,
-  enable checkbox.
-- Row expands to show `required_nodes`, `models`, and `model_urls`.
-- Bulk actions: *Enable selected*, *Disable selected*, *Enable all ready-to-run*.
-- Enabling is cheap and reversible; it does **not** download anything. It queues
-  the entry for Stage 3.
-
-Requirement status per row is computed from the cached `/object_info` catalog
-(Tier A local / Tier C) or, on Comfy Cloud where the local filesystem is not
-introspectable, from the entry's own `models` list versus what previous
-`download_models` calls recorded — see §5.4.
-
----
-
-## 5. Stage 3 — Provisioning (forcing downloads/setup)
-
-**Trigger:** explicit "Provision" on an enabled entry, or "Provision all
-enabled" on the Connection. Downloads are never implicit.
-
-Provisioning runs as a **job**, not a request. Model files are large; a
-synchronous admin-ajax call will time out.
-
-### 5.1 Job model
-
-Reuse the existing generation job/logging surface rather than inventing a second
-one:
-
-- Record: a `worldgraph_gen`-style provisioning record, or a dedicated
-  `comfy_provisioning` post meta queue on the Connection holding
-  `{ entry_id, state, requested_urls, started_at, finished_at, report }`.
-- States: `queued` → `running` → `satisfied` | `partial` | `failed` |
-  `manual_required`.
-- Executed by WP-Cron, one entry at a time per Connection, so a provisioning run
-  cannot saturate the endpoint.
-- Every transition writes to `Generation_Log` with the `comfy_provisioning`
-  source and the `connection_id`, so the existing log UI covers it.
-
-### 5.2 Tier A — MCP `download_models`
-
-```
-get_template( entry.id, {}, connection_id )      → authoritative workflow + urls
-extract_model_urls( template )                    → download URL list
-download_models( urls, connection_id )            → provider fetches into workspace
-```
-
-Rules:
-
-- Always re-fetch via `get_template()` at provision time. The catalog snapshot
-  may be stale, and the workflow graph is the authority on what is needed.
-- Deduplicate URLs across entries on the same Connection before dispatch — two
-  enabled Flux templates must not pull the same 12 GB file twice.
-- Chunk the URL list; dispatch and record per-URL outcomes so a single bad URL
-  does not fail the whole entry.
-- If `download_models` is not advertised (Tier B), fall through to §5.4.
-
-### 5.3 Tier C — local ComfyUI without MCP
-
-No remote download tool exists. World Graph Studio must not shell out or write to the
-ComfyUI filesystem — that is outside the WordPress boundary and would break the
-container contract. Instead, produce a **manual install plan** and, where a
-manager API is present, delegate.
-
-Order of preference:
-
-1. **Local MCP** — if the operator sets `mcp_endpoint_url` on the Connection,
-   the Connection is re-tiered to A/B and §5.2 applies. The setup wizard should
-   actively prompt for this: it is the single highest-value field for local
-   users, because it is the only thing that makes local downloads automatic.
-2. **ComfyUI-Manager** — if `/object_info` reveals the manager's endpoints,
-   offer to POST model/node install requests to it. Probe once, record on the
-   Connection health report, degrade silently if absent.
-3. **Manual plan** — emit a copy-pasteable plan and mark the entry
-   `manual_required`:
-
-   ```
-   models/diffusion_models/flux1-dev.safetensors
-     https://huggingface.co/…/flux1-dev.safetensors
-   Custom nodes not installed: ComfyUI-VideoHelperSuite
-   ```
-
-   Folder targets come from `Comfy_Manifest::MODEL_FIELDS`; family-level
-   fallback comes from `Model_Family::all()['checkpoint_folder']`.
-
-Custom **nodes** are never auto-installed on any tier. World Graph Studio reports missing
-node classes; installing arbitrary code into ComfyUI is an operator decision.
-
-### 5.4 Downloads with no URL
-
-If a required model has a filename but no source URL, the entry cannot be
-auto-provisioned. Do not guess a Hugging Face URL from the filename. Mark
-`manual_required` and surface the existing guidance already implemented in
-`Comfy_Manifest::request_downloads()`: add
-`{"filename":"…","folder":"…","url":"…"}` to the Template's Model Requirements
-JSON, or install the file into ComfyUI directly.
-
----
-
-## 6. Stage 4 — Validation
-
-After provisioning, and on demand:
-
-- **Tier A local / Tier C:** `Comfy_Manifest::flush_catalog()`, then
-  `Comfy_Manifest::validate( $template_id, $endpoint )`. `missing_nodes` empty
-  and `missing_models` empty ⇒ `satisfied`.
-- **Comfy Cloud:** the models directory is not introspectable over
-  `/object_info`. Validate by the `download_models` result payload plus a
-  cheap `get_template()` round trip; if neither is conclusive, mark
-  `assumed_satisfied` and let the first real job be the proof. Record the
-  distinction — never report `satisfied` on evidence that does not exist.
-
-An entry only leaves the provisioning queue on `satisfied`,
-`assumed_satisfied`, `manual_required`, or `failed`.
-
----
-
-## 7. Stage 5 — Materialization into Templates
-
-Only after an entry is enabled do we create a `worldgraph_template` post. Do it at
-**enable** time (so the operator can bind inputs while models download), and
-record the resulting post ID back onto the `enabled_templates` entry.
-
-Field mapping from catalog entry → Template meta:
-
-| Template meta | Source |
+| `a` | MCP exposes `list_templates`, `get_template`, and `download_models` | Provider MCP catalog | Provider-side download requests available |
+| `b` | MCP is reachable but exposes only part of the template toolset | Advertised tools only | Available only when `download_models` is advertised |
+| `c` | No MCP endpoint is configured | Registered modalities plus local `/object_info` | Manual installation through ComfyUI |
+| `unreachable` | Configured MCP endpoint could not be probed | Local synthesized catalog when possible | MCP action reports the connection error |
+
+Comfy Cloud normally uses an MCP tier. A local ComfyUI can be:
+
+- HTTP-only, using its normal API at the Connection's `endpoint_url`; or
+- paired with a separate MCP service in `mcp_endpoint_url`.
+
+ComfyUI's normal port does not provide MCP. An operator must not create a fake
+MCP URL by appending `/mcp` to port `8188`.
+
+## Discovery
+
+Catalog sync is an explicit administrator action on a ComfyUI Connection. It is
+also safe to repeat: the catalog snapshot is replaced while the enabled
+allowlist remains separate.
+
+### MCP-backed discovery
+
+When `list_templates` is available, World Graph Studio calls it once without a
+task filter and once for each task type in the current modality registry. The
+results are normalized and merged by provider template ID.
+
+The current task types are:
+
+- `txt2img`;
+- `text-to-speech`;
+- `text-to-dialogue`;
+- `text-to-sound-effects`;
+- `text-to-music`; and
+- `text-to-voice`.
+
+Each stored entry can include its provider ID and name, task type, mapped
+World Graph Studio modality, required nodes, models, model URLs, default
+parameters, inferred model family, and workflow hash. The full workflow is not
+kept in the catalog snapshot; it is fetched again when materialized.
+
+An entry whose task type does not map to a registered modality remains visible
+as `unmappable` and cannot be enabled automatically.
+
+### Local HTTP discovery
+
+An HTTP-only local ComfyUI has no provider template list. World Graph Studio
+synthesizes one entry per registered modality and inspects `GET /object_info`
+when the endpoint is available. This identifies missing node classes for the
+built-in workflow shapes.
+
+The managed local text-to-image Template created by setup is the executable
+zero-MCP path. Synthesized catalog entries primarily communicate what the local
+instance can support; installing models and custom nodes remains an operator
+task unless a real MCP download service is added.
+
+## Persistence and status
+
+The Connection owns two JSON meta values:
+
+- `comfy_template_catalog` — the latest snapshot, including `synced_at`,
+  tier, probe result, message, and entries;
+- `enabled_templates` — the stable allowlist, including catalog entry ID,
+  modality, enabled time, and linked Template ID.
+
+The UI decorates entries with one of these coarse statuses:
+
+| Status | Meaning |
 | --- | --- |
-| `template_name` | entry `name` |
-| `modality` | mapped from `task_type` |
-| `connection_id` | the Connection being curated |
+| `ready` | The catalog descriptor has no known missing node/model blocker |
+| `needs_nodes` | Local `/object_info` lacks a required node class |
+| `needs_models` | The entry names models but provides no download URLs |
+| `unmappable` | Provider task type has no registered World Graph Studio modality |
+| `withdrawn` | Still enabled locally but absent from the latest provider snapshot |
+
+This status is catalog guidance. A materialized Template's requirement manifest
+is the authoritative local readiness check.
+
+## Administrator workflow
+
+Open the relevant Connection and use its provider configurator:
+
+1. **Sync Catalog** probes capabilities and refreshes the cached entries.
+2. **Enable** records that an entry is allowed for this Connection.
+3. **Materialize Template** creates or updates the paired
+   `worldgraph_template`, then enables and links the entry.
+4. **Download Requirements** asks the provider MCP service to fetch advertised
+   model URLs when both the URLs and `download_models` are available.
+5. Open the resulting Template and use **Check ComfyUI** to validate its
+   workflow requirements against the configured local instance.
+
+Disabling an entry removes it from the allowlist. It does not delete its linked
+Template or generation history.
+
+These controls use capability-checked WordPress admin AJAX actions protected by
+the `worldgraph_conn_configurator` nonce. They are not public catalog REST
+routes.
+
+## Template materialization
+
+Materialization reuses a Template with the same Connection and provider
+template ID or creates a new published Template. It writes the current fields
+that the runtime consumes:
+
+| Template field | Catalog/provider source |
+| --- | --- |
+| `template_name` | Entry display name |
 | `provider_type` | `comfyui` |
-| `provider_template_id` | entry `id` |
-| `model_family` | inferred via `Model_Family` |
-| `checkpoint` | entry `models` primary loader file |
-| `workflow_json` | from `get_template()` at materialization; Tier C uses `Generation_Modality::default_workflow()` |
-| `model_requirements` | entry `models` joined with `model_urls` |
-| `default_values` | entry `parameters` merged over `Generation_Modality::default_settings()` |
-| `input_bindings` | left empty — operator binds via `Template_Bindings` |
-| `generation_structure` | intent slugs, per `about/plugins/GENERATE_PREFERENCES.md` §7; left empty means "serves any intent matching this modality" |
-| `status` | `draft` until Stage 4 reports satisfied, then `active` |
+| `status` | `active` |
+| `modality` | Mapped registered modality |
+| `generation_structure` | Modality output type |
+| `connection_id` | Owning Connection |
+| `provider_template_id` | Provider entry ID |
+| `model_family` | Inferred node family |
+| `workflow_json` | Re-fetched provider workflow, when returned |
+| `configuration_json` | Provider parameters |
+| `model_requirements` | Models paired with advertised URLs |
+| `checkpoint` | First checkpoint model, when identified |
 
-The `status = draft` gate is what prevents a half-provisioned Template from
-being selected by `Generation_Controller::resolve_active_template()`. Promotion
-to `active` is automatic on `satisfied`, manual on `assumed_satisfied`.
+Generation still validates that an active Template and its Connection use the
+same provider. Catalog curation cannot bypass that runtime check.
 
-Disabling an entry sets the Template to `archived`. It never deletes the post —
-generation history references it.
+## Requirement manifests
 
-Preferred-template-per-modality is a Connection-level map
-(`preferred_templates: { "text-to-image": 412 }`) used when a generation request
-names a modality but no explicit template.
+`Comfy_Manifest::for_template()` builds a provider-neutral report containing:
 
----
+- the Template identity, modality, output, and input slots;
+- whether the workflow is built-in or custom;
+- every workflow `class_type` node;
+- recognized model-loader filenames and target folders; and
+- administrator-declared download URLs.
 
-## 8. REST Surface
+For local validation, `Comfy_Manifest::validate()` compares that report with
+the cached `/object_info` response. The cache lasts five minutes and can be
+flushed before rechecking.
 
-Under the existing `worldgraph/v1` namespace, alongside the connection routes:
+Recognized model fields include checkpoints, diffusion models, VAEs, text
+encoders, LoRAs, ControlNet, style models, CLIP Vision, GLIGEN, and upscalers.
+An input that does not expose an installed-file enum is reported as unverified
+rather than guessed.
 
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `connections/{id}/templates` | `GET` | Return the cached catalog (`?refresh=1` re-syncs). |
-| `connections/{id}/templates/sync` | `POST` | Stage 1. Returns entry count and tier. |
-| `connections/{id}/templates/{entry_id}/enable` | `POST` | Stage 2 + Stage 5. Returns the created Template ID. |
-| `connections/{id}/templates/{entry_id}/disable` | `POST` | Archive the Template, drop the enable flag. |
-| `connections/{id}/templates/{entry_id}/provision` | `POST` | Enqueue Stage 3. Returns job state. |
-| `connections/{id}/templates/{entry_id}/status` | `GET` | Provisioning + validation state. |
-| `generation/templates/{id}/requirements` | `GET` | Already exists. Unchanged. |
+The same manifest is available at:
 
-All mutating routes require `manage_options`, a nonce, and must validate that
-the Connection's `provider_type` is `comfyui`. Follow the instance-based
-`register_routes()` pattern documented in the build instructions — do not
-declare it static.
+`GET /wp-json/worldgraph/v1/generation/templates/{id}/requirements`
 
----
+Pass `validate=false` to return the manifest without contacting local
+ComfyUI.
 
-## 9. Security and Safety Constraints
+## Download and manual-install boundary
 
-- Credentials stay as references. Discovery and download calls resolve the
-  credential at call time from env/vault; the catalog snapshot must never
-  contain a key.
-- `download_models` URLs are attacker-influenced data coming from a remote MCP
-  server. Validate each with `esc_url_raw` plus an `https` scheme check before
-  dispatch, and display the full host to the operator before any bulk
-  provisioning action. Treat a provider-supplied URL list as untrusted input.
-- Provisioning is destructive of disk and bandwidth. It is always explicit,
-  always logged, always cancellable, and never triggered by a read request.
-- Rate-limit sync and provision per Connection using the existing
-  `rate_limits` meta.
-- Fail clearly when ComfyUI is absent. World Graph Studio remains fully usable for
-  story work with no Connection at all.
+There are two delivered download paths:
 
----
+- a catalog entry can re-fetch its provider definition and send advertised
+  model URLs to `download_models`; and
+- a materialized Template can send URLs declared in its Model Requirements
+  JSON for models the local validation report says are missing.
 
-## 10. Implementation Order
+Both operations are explicit administrator actions and execute on the MCP
+provider side. WordPress does not shell into ComfyUI, write directly to its
+model directories, invent missing URLs, or install custom-node code.
 
-1. Connection-aware capability probe: `capability_tier()`, thread
-   `$connection_id` through `supports_tool()` and
-   `Comfy_Manifest::request_downloads()`. *(Bug fix — do this first.)*
-2. Catalog entry normalizer shared by `discover()` and
-   `discover_provider_templates()`; widen the latter's output.
-3. Tier C synthesized catalog from `Generation_Modality` + `/object_info`.
-4. `comfy_template_catalog` and `enabled_templates` Connection meta, plus
-   `Connection_Repository` exposure.
-5. REST routes (§8).
-6. Template Catalog admin panel (§4.2).
-7. Provisioning job + WP-Cron worker + `Generation_Log` integration (§5).
-8. Materialization and the `draft` → `active` promotion gate (§7).
-9. Local MCP prompt in the setup wizard; ComfyUI-Manager probe.
+When no source URL or download tool exists, install the named file under the
+reported `models/{folder}` path in ComfyUI and rerun the requirement check.
 
-Steps 1–4 are prerequisites for everything else. Steps 6 and 7 can proceed in
-parallel once 5 lands.
+## Current boundaries and extension seams
 
----
+The current release intentionally does not promise:
 
-## 11. Open Questions
+- automatic custom-node installation;
+- a persistent, cancellable model-download job queue;
+- checksums, license adjudication, or disk-space forecasting;
+- bulk catalog filtering and preference selection; or
+- a public catalog-management REST API.
 
-- Does the local Comfy MCP server actually advertise `list_templates` /
-  `download_models`, or only the job tools? Step 1 answers this empirically —
-  run the probe against `mcp_endpoint_url` before committing to Tier A for local.
-- Does Comfy Cloud expose any endpoint that reports installed model files? If
-  so, §6 can report `satisfied` instead of `assumed_satisfied` for cloud.
-- Should `enabled_templates` be per-Connection only, or should a template
-  enabled on one Connection propagate as a suggestion to sibling Connections of
-  the same tier? Per-Connection only for now; revisit after real multi-Connection
-  usage.
+Those are possible extension seams, not active delivery commitments. The
+current catalog, admin controls, Template records, generation queue, result
+import, and provenance flow are delivered.
+
+## Security rules
+
+- Only users allowed to edit the Connection may mutate its catalog.
+- Provider catalog data and URLs are untrusted input.
+- Credentials are resolved by the provider adapter and must not be copied into
+  catalog snapshots, Template workflow JSON, generation records, or logs.
+- Downloads require an explicit administrator action and provider support.
+- Local ComfyUI should remain behind the deployment network boundary.
+
+## Implementation map
+
+- [Catalog cache and curation](../../wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-catalog.php)
+- [MCP capability probe](../../wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-cloud-mcp.php)
+- [Requirement manifests](../../wordpress/wp-content/plugins/worldgraph/includes/utils/comfy-manifest.php)
+- [Connection configurator](../../wordpress/wp-content/plugins/worldgraph/includes/cpts/connection.php)
+- [Local readiness panel](../../wordpress/wp-content/plugins/worldgraph/includes/admin/comfy-readiness.php)
+- [Generation Engine](GENERATION_ENGINE.md)

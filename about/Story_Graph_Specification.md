@@ -1,6 +1,6 @@
 # World Graph Studio Story Graph Specification v1.0
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Purpose
 
@@ -9,6 +9,9 @@ The Story Graph is the core architectural component of World Graph Studio.
 It provides a structured, interconnected representation of narrative, production, asset, and editorial information. Rather than treating a story as a collection of documents, World Graph Studio treats a story as a living graph of related entities.
 
 The Story Graph serves as the canonical source of truth for all World Graph Studio workflows.
+
+This specification describes the delivered current release. See
+[Delivery Status](Delivery_Status.md) for the release boundary.
 
 ---
 
@@ -28,11 +31,12 @@ Enable advisors and agent workflows to access contextual project knowledge.
 
 ## Traceability
 
-Every generated artifact should be traceable back to originating story entities.
+Every generated artifact is traceable back to originating story entities.
 
 ## Extensibility
 
-Support future entity types, workflows, integrations, and graph technologies.
+Allow plugins to add entity types, workflows, integrations, and alternative
+graph projections without changing the canonical WordPress model.
 
 ---
 
@@ -40,18 +44,20 @@ Support future entity types, workflows, integrations, and graph technologies.
 
 The Story Graph is the source of truth.
 
-The following are considered generated views of graph data:
+The following are generated views or artifacts of graph data in the current
+core:
 
-- Scripts
-- Storyboards
-- Lookbooks
-- Shot Lists
-- Production Plans
-- Schedules
-- Call Sheets
-- EDL Files
-- Editorial Metadata
-- AI Assets
+- Markdown screenplays and storyboards
+- Storyboard records and Asset collections such as lookbooks
+- Shot lists
+- Production pipeline, task, and timeline views
+- CMX/XML EDL formatting and downloads (currently using sample clip input)
+- Editorial metadata
+- Generated Assets and their provenance
+
+Schedules, call sheets, shoot-day entities, and provider-specific production
+documents can be supplied by extensions; they are not first-class current
+content types.
 
 ---
 
@@ -68,9 +74,16 @@ Project
 │       ├── Shots
 │       └── Sounds
 │
+├── Props
 ├── Storyboards
 ├── Assets
 └── Editorial Artifacts
+
+Generation Template → Connection → Generation Job → Asset/Attachment
+
+Generation Templates and Connections form the control plane. Internal
+generation jobs link a source Story Graph item or Asset to the chosen Template,
+Connection, result attachments, and provenance.
 
 ---
 
@@ -194,29 +207,26 @@ Assets must maintain lineage information.
 
 # Production Graph
 
-Production entities are connected to story entities.
-
-Examples:
-
-Scene
-→ Shot List
-→ Production Schedule
-→ Call Sheet
-→ Shoot Day
-
-This enables production planning directly from story structure.
+Production planning is connected to story entities. The delivered model uses
+Project `production_stage`, Project task/timeline metadata, ordered Scenes and
+Shots, and related Assets. Shot-list and pipeline views are derived from those
+records. A production Schedule, Call Sheet, or Shoot Day is not a first-class
+current entity; extensions can derive one without replacing the Story Graph.
 
 ---
 
 # Editorial Graph
 
-Scene
+Project
+→ Scene
 → Shot
-→ Timeline Segment
-→ EDL
-→ Editorial Metadata
+→ Editorial Artifact
 
-Editorial artifacts remain linked to source story elements.
+Editorial artifacts remain linked to source Project, Scene, or Shot records.
+The current core stores timeline views as Project metadata rather than a
+separate Timeline Segment content type. The optional EDL package formats clip
+arrays, but its current admin export does not yet resolve this live graph into
+clips.
 
 ---
 
@@ -234,23 +244,21 @@ This allows advisors to access relevant project knowledge without requiring full
 
 # Continuity Engine
 
-Future World Graph Studio releases should support automated continuity validation.
-
-Potential checks:
-
-- Character consistency
-- Location consistency
-- Prop continuity
-- Relationship continuity
-- Story arc tracking
-- Asset consistency
-- Sound placement and cue consistency
+Continuity checking is delivered as local Story Graph analysis, an admin panel,
+on-save checks for Scenes and Shots, persisted issue summaries, and AI Editor
+continuity assistance when an LLM connection is configured. The local checker
+currently flags structural/content findings such as an empty Scene; the graph
+and advisor context allow broader character, location, prop, relationship,
+asset, and Sound review without defining a separate Continuity Error entity.
 
 ---
 
-# Semantic Search
+# Search and Discovery
 
-The graph should support semantic discovery of related information.
+World Graph Studio delivers entity-filtered WordPress search, suggestions, and
+search modes through `/wp-json/worldgraph/v1/search`. The current semantic mode
+uses the same WordPress-backed retrieval as keyword mode; no vector
+infrastructure or separate semantic provider is registered in the core plugin.
 
 Examples:
 
@@ -268,55 +276,54 @@ Examples:
 Character
 → Scene
 → Episode
-→ Story Arc
+
+Story-arc classification can be represented with existing Episode/Scene
+metadata or supplied by an extension; it is not a current first-class entity.
 
 ## Production Query
 
-Scene
+Project
+→ Scene
 → Shot
-→ Schedule
-→ Shoot Day
+→ Asset
 
 ## Asset Query
 
 Character
 → Asset
-→ Workflow
+→ Generation Job / Template
 → Prompt
 
 ## Editorial Query
 
-Episode
+Project
 → Scene
 → Shot
-→ EDL
+→ Editorial Artifact / EDL
 
 ---
 
-# Future Enhancements
-
-## Graph Database Support
-
-Potential future support:
-
-- Neo4j
-- ArangoDB
-- RDF Stores
-- WordPress-native graph abstractions
+# Delivered Intelligence and Extension Points
 
 ## Analytics
 
-- Character importance scoring
-- Narrative density analysis
-- Scene dependency analysis
-- Production complexity scoring
+The delivered WordPress-native graph analyzer reports entity and relationship
+counts, density, relationship-type distribution, connected and isolated
+entities, character networks, scene presence, and co-occurrence. Project-scoped
+admin views expose these results and cache them for responsive exploration.
 
 ## Story Intelligence
 
-- Continuity reasoning
-- Narrative recommendations
-- Story gap analysis
-- Dependency visualization
+Continuity findings, graph traversal, summaries, dramaturgy assistance,
+narrative recommendations, and specialist advisors operate on Story Graph
+context in the current release. Their output remains advisory rather than a
+new canonical entity unless a user saves it to the graph.
+
+## Alternative Graph Stores
+
+Neo4j, ArangoDB, RDF stores, and provider-specific visualization systems are
+possible extension targets. They are not required by, or promised as part of,
+the current WordPress-native release.
 
 ---
 

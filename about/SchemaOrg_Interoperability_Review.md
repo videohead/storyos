@@ -42,8 +42,8 @@ World Graph Studio should treat existing Schema.org classes and properties as th
   - image assets -> `ImageObject`
   - video assets -> `VideoObject`
   - audio assets -> `AudioObject`
-- `worldgraph_board_frame` -> `ImageObject` or `CreativeWork` (depending on whether the frame is treated as media-first or annotation-first)
-- `worldgraph_editorial_artifact` -> `CreativeWork`
+- `worldgraph_board` -> `ImageObject` or `CreativeWork` (depending on whether the frame is treated as media-first or annotation-first)
+- `worldgraph_editorial` -> `CreativeWork`
 
 Planned Sound cues and rendered media are intentionally distinct:
 

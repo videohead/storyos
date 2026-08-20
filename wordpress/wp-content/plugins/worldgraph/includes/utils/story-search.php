@@ -100,9 +100,15 @@ function fetch_keyword_search( string $query, array $args = [] ): array {
 	$config = search_config();
 	$entity_types = ! empty( $args['entity_types'] ) ? $args['entity_types'] : array_keys( $config['entity_types'] );
 	$post_types = array_map( static function ( $type ) use ( $config ) { return entity_to_post_type( $type ); }, $entity_types );
-	$posts = get_posts( [ 'post_type' => $post_types, 'post_status' => 'any', 'posts_per_page' => absint( $args['top_k'] ?? $config['max_results'] ), 's' => $query ] );
+	$post_status = current_user_can( 'edit_posts' )
+		? [ 'publish', 'draft', 'pending', 'private', 'future' ]
+		: 'publish';
+	$posts = get_posts( [ 'post_type' => $post_types, 'post_status' => $post_status, 'posts_per_page' => absint( $args['top_k'] ?? $config['max_results'] ), 's' => $query ] );
 	$results = [];
 	foreach ( $posts as $post ) {
+		if ( 'publish' !== $post->post_status && ! current_user_can( 'read_post', $post->ID ) ) {
+			continue;
+		}
 		$results[] = [ 'entity_type' => array_search( $post->post_type, array_column( $config['entity_types'], 'post_type' ), true ), 'entity_id' => $post->ID, 'title' => $post->post_title, 'score' => 1.0, 'snippet' => wp_trim_words( wp_strip_all_tags( $post->post_content ), 30 ) ];
 	}
 	return [ 'results' => $results ];

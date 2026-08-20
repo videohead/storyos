@@ -2,20 +2,24 @@
 
 This page describes what a web-based generative AI platform can do with World Graph Studio today. World Graph Studio is the editorial and asset-management layer; it is not a compatibility layer for every provider API.
 
+The entries below describe the delivered connector boundary. See
+[Delivery Status](Delivery_Status.md) for the overall release status.
+
 ## Current Support
 
 | Platform or route | World Graph Studio status | What users can do now |
 | --- | --- | --- |
-| Comfy Cloud MCP | Supported | Configure `WORLDGRAPH_COMFY_API_KEY`, submit image/video/audio/3D workflows, and let WordPress queue and poll jobs with WP-Cron. |
+| Comfy Cloud MCP | Supported | Configure a ComfyUI Connection and credential reference, submit a compatible active Template, and let WordPress queue and poll jobs with WP-Cron. |
 | Local ComfyUI through an MCP-capable client | Supported workflow | Connect the client to both World Graph Studio and the local `comfy-mcp` server. Run local workflows and register or upload the resulting assets in World Graph Studio. |
-| fal MCP | Supported | Configure a fal API key, discover model schemas, provision World Graph Studio Templates, submit image/video jobs, poll them through WP-Cron, and import the returned media into WordPress. |
+| fal MCP | Supported | Configure a fal API key, discover model schemas, provision text-to-image Templates, submit image jobs, poll them through WP-Cron, and import the returned media into WordPress. |
 | ElevenLabs Generative Audio API | Supported | Configure an ElevenLabs API key, provision Templates for speech, dialogue, sound effects, music, or voice design, and import the generated audio into WordPress. |
 | OpenAI, Anthropic, or OpenAI-compatible LLM API | Supported for AI Editor | Configure an API credential and compatible base URL in **World Graph Studio > AI Settings**. A browser subscription alone is not sufficient. |
 | Other web image/video platforms | External asset source | Generate in the provider's own web app, then upload or register the result in World Graph Studio with its prompt, model, source URL, and usage-rights information. |
 
-## Platforms That Are Not Automatic Connectors Yet
+## External Platforms and Extension Points
 
-The following platforms are not currently supported as direct World Graph Studio generation connections:
+The following platforms are not direct World Graph Studio generation
+connections in the current release:
 
 - OpenAI Sora
 - Runway
@@ -35,7 +39,9 @@ The presence of `veo` or `nova_reel` in the connection form is an extension poin
 ### Path A: Managed generation in World Graph Studio
 
 1. Create a Comfy Cloud account and API key.
-2. Set `WORLDGRAPH_COMFY_API_KEY` in the deployment environment, or enter the key in World Graph Studio settings for local evaluation.
+2. Store the credential on the ComfyUI Connection for local evaluation, or use
+   an environment reference such as `env://COMFYUI_API_KEY` in a managed
+   deployment.
 3. Configure a reliable host scheduler for `wp-cron.php`; local Lando users can run `lando wp-cron`.
 4. Enable the Generation Engine and submit a workflow from World Graph Studio.
 5. WordPress stores the generation record and polls Comfy Cloud through WP-Cron.
@@ -61,15 +67,19 @@ These are first-party World Graph Studio execution paths. Provider model availab
 
 World Graph Studio can manage the story context, asset relationship, provenance, and downstream editorial work even when it did not submit the generation request.
 
-## What Requires Future Work
+## Connector Contract
 
-To make a web platform a direct connector, World Graph Studio needs a provider-specific implementation for authentication, capability validation, submission, polling or webhooks, cancellation where available, artifact download, and asset ingestion. The current WordPress generation batch is intentionally limited to Comfy Cloud MCP, so adding a provider name or endpoint to a connection record alone is not enough.
+A third-party extension can make another web platform a direct connector by
+implementing its authentication, capability validation, submission, polling or
+webhooks, cancellation where available, artifact download, and asset ingestion.
+The delivered generation batch already dispatches ComfyUI, fal, and ElevenLabs
+jobs through their adapters; adding an arbitrary provider name or endpoint to a
+Connection record does not create an executable adapter.
 
-## To Do: API Discovery
-
-- [ ] Confirm official API availability, authentication, regional access, and commercial terms for Sora, Runway, Veo, Kling, Seedance, Firefly, Midjourney, and Amazon video services.
-- [ ] Record provider-specific generation, polling/webhook, cancellation, and artifact-download requirements.
-- [ ] Verify whether each provider's API permits asset provenance, source URLs, prompts, model identifiers, and usage-rights metadata to be retained in World Graph Studio.
-- [ ] Prototype one connector end to end, including capability discovery, credential references, retries, downloadable artifacts, and WordPress media ingestion, before labeling the provider supported.
+Before an extension labels another provider supported, its maintainer should
+verify official API access and terms, implement the complete job lifecycle,
+preserve permitted provenance, exercise retries and failures, and prove media
+ingestion end to end. These are acceptance criteria for extensions, not a
+current World Graph Studio roadmap commitment.
 
 See [Deployment and Connections](Deployment_and_Connections.md) for credentials and runtime setup. Keep provider availability, pricing, regions, model limits, and terms of use with the provider's official documentation.

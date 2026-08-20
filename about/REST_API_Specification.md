@@ -1,251 +1,102 @@
 # World Graph Studio REST API Specification v1.0
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
-## Overview
+## Status and Scope
 
->  see [Deployment and Connections](Deployment_and_Connections.md).
-
-The World Graph Studio REST API provides a unified integration layer between:
-
-- WordPress
-- Story Graph
-- WordPress Abilities API
-- WordPress generation records and WP-Cron
-- Comfy Cloud MCP
-- Script Importers
-- Production Workflows
-- Editorial Systems
-
-The API exposes Story Graph entities and workflows while maintaining a consistent contract for internal and external integrations.
-
----
-
-# Design Principles
-
-## Story Graph First
-
-All API operations ultimately read or write Story Graph entities.
-
-## Resource Oriented
-
-Entities are exposed as REST resources.
-
-## Extensible
-
-New entity types and workflows can be added without breaking existing integrations.
-
-## Auditable
-
-All modifications should support activity tracking and version history.
-
----
-
-# Base URL
+The REST API described here is delivered in the current repository. Its core
+namespace is `worldgraph/v1`, exposed by WordPress beneath:
 
 ```text
-/api/worldgraph/v1
+/wp-json/worldgraph/v1/
 ```
 
----
+This document records the implemented contract rather than a prospective API.
+See [Delivery Status](Delivery_Status.md) for the release boundary and
+[Deployment and Connections](Deployment_and_Connections.md) for runtime and
+credential setup.
 
-# Authentication
+The API covers Story Graph resources, relationships, production/editorial
+views, JSON import, generation jobs, the AI Editor, search, and optional
+integrations. Final Draft FDX, Fade In, Highland, Story Architect, and other
+professional script-file endpoints are on hold and are not registered routes.
 
-Supported mechanisms:
+## Authentication and Permissions
 
-```text
-WordPress Authentication
-Application Passwords
-OAuth (Future)
-Entra ID (Future)
-Service Accounts (Future)
-```
+World Graph Studio uses WordPress authentication and capabilities. Supported
+deployment mechanisms include an authenticated WordPress session with REST
+nonces and WordPress Application Passwords over HTTPS. Read, edit, create,
+delete, generation, import, connection, and administrator operations use the
+capability checks in their controller. The Search routes are the explicit
+current exception and are registered without an authentication requirement.
 
----
+World Graph Studio does not implement a separate OAuth, Microsoft Entra ID, or
+service-account protocol. A site may add those mechanisms with a WordPress
+authentication plugin, but that is an extension boundary rather than part of
+this API.
 
-# Core Resources
+Connection routes are administrator-only because `credential_reference` may be
+an `env://` pointer or a credential entered for local evaluation. Treat their
+responses as sensitive control-plane data; do not expose them to public clients
+or application logs.
 
-## Projects
+## Common Resource Contract
+
+The primary Story Graph collection routes follow a shared pattern:
 
 ```http
-GET    /projects
-GET    /projects/{id}
-POST   /projects
-PUT    /projects/{id}
-DELETE /projects/{id}
+GET    /wp-json/worldgraph/v1/{resource}
+POST   /wp-json/worldgraph/v1/{resource}
+GET    /wp-json/worldgraph/v1/{resource}/{id}
+PUT    /wp-json/worldgraph/v1/{resource}/{id}
+DELETE /wp-json/worldgraph/v1/{resource}/{id}
+GET    /wp-json/worldgraph/v1/{resource}/{id}/graph
 ```
 
-## Story Worlds
+The implemented resource bases are:
+
+| Resource | CPT key |
+| --- | --- |
+| `projects` | `worldgraph_project` |
+| `storyworlds` | `worldgraph_world` |
+| `characters` | `worldgraph_character` |
+| `locations` | `worldgraph_location` |
+| `props` | `worldgraph_prop` |
+| `organizations` | `worldgraph_org` |
+| `episodes` | `worldgraph_episode` |
+| `scenes` | `worldgraph_scene` |
+| `shots` | `worldgraph_shot` |
+| `sounds` | `worldgraph_sound` |
+| `storyboard-frames` | `worldgraph_board` |
+| `assets` | `worldgraph_asset` |
+| `editorial-artifacts` | `worldgraph_editorial` |
+
+Collection responses support controller-specific filters. Resource responses
+include the WordPress identity and lifecycle fields, SCF-backed `meta`, assigned
+`taxonomies`, outgoing `relationships`, Schema.org mapping hints, featured
+media, and the World Graph Studio asset gallery where applicable.
+
+Project, Story World, Scene, and Character list filters include their relevant
+taxonomy and relationship criteria. Scene and Shot ordering is also exposed:
 
 ```http
-GET    /worlds
-GET    /worlds/{id}
-POST   /worlds
-PUT    /worlds/{id}
+POST /wp-json/worldgraph/v1/scenes/reorder
+POST /wp-json/worldgraph/v1/shots/reorder
 ```
 
-## Characters
+### Sound Validation
 
-```http
-GET    /characters
-GET    /characters/{id}
-POST   /characters
-PUT    /characters/{id}
-DELETE /characters/{id}
-```
+Sounds are planned soundtrack cues, not audio file encodings. A Sound requires
+a title, exactly one `worldgraph_sound_type`, and a Scene. An optional Shot must
+belong to that Scene, and an optional rendered Asset must have the Audio asset
+type.
 
-Common list filters:
+Supported list filters include `scene`, `shot`, `sound_type`,
+`production_status`, and the WordPress post `status`. Ordinary screenplay
+dialogue remains structured Scene metadata; the reserved `dialogue` sound-type
+slug cannot be assigned.
 
-- `character_role` (slug or comma-separated slugs)
-- `status` (taxonomy slug)
-
-Filter combination behavior:
-
-- Filters are combined with `AND` across different filter keys.
-- Comma-separated values within a single key are matched as OR terms for that taxonomy.
-
-Examples:
-
-```http
-GET /characters?character_role=protagonist&status=approved
-GET /characters?character_role=protagonist,mentor&status=in-development
-```
-
-Expected response snippet:
-
-```json
-[
-  {
-    "id": 412,
-    "type": "worldgraph_character",
-    "title": "Mara Quinn",
-    "meta": {
-      "character_roles": [
-        { "id": 12, "name": "Protagonist", "slug": "protagonist" }
-      ]
-    },
-    "taxonomies": {
-      "worldgraph_character_role": [
-        { "id": 12, "name": "Protagonist", "slug": "protagonist" }
-      ],
-      "worldgraph_status": [
-        { "id": 7, "name": "Approved", "slug": "approved" }
-      ]
-    }
-  }
-]
-```
-
-Character responses include taxonomy metadata such as:
-
-- `worldgraph_character_relation`
-- `worldgraph_character_role`
-
-## Locations
-
-```http
-GET    /locations
-POST   /locations
-PUT    /locations/{id}
-```
-
-## Scenes
-
-```http
-GET    /scenes
-GET    /scenes/{id}
-POST   /scenes
-PUT    /scenes/{id}
-```
-
-Common list filters:
-
-- `sequence` (slug or comma-separated slugs)
-- `status` (taxonomy slug)
-
-Filter combination behavior:
-
-- Filters are combined with `AND` across different filter keys.
-- Comma-separated values within a single key are matched as OR terms for that taxonomy.
-
-Examples:
-
-```http
-GET /scenes?sequence=climax&status=approved
-GET /scenes?sequence=midpoint,climax&status=approved
-```
-
-Expected response snippet:
-
-```json
-[
-  {
-    "id": 827,
-    "type": "worldgraph_scene",
-    "title": "Bridge Confrontation",
-    "meta": {
-      "sequences": [
-        { "id": 24, "name": "Climax", "slug": "climax" }
-      ],
-      "shot_count": 11
-    },
-    "taxonomies": {
-      "worldgraph_sequence": [
-        { "id": 24, "name": "Climax", "slug": "climax" }
-      ],
-      "worldgraph_status": [
-        { "id": 7, "name": "Approved", "slug": "approved" }
-      ]
-    }
-  }
-]
-```
-
-Scene responses include taxonomy metadata such as:
-
-- `worldgraph_scene_tag`
-- `worldgraph_sequence`
-
-## Shots
-
-```http
-GET    /shots
-POST   /shots
-PUT    /shots/{id}
-```
-
-Shot metadata includes:
-
-- `take_number`
-- `slate_id`
-- `shot_type` values including `establishing`, `insert`, `cutaway`, and `reaction`
-
-## Sounds
-
-```http
-GET    /sounds
-GET    /sounds/{id}
-POST   /sounds
-PUT    /sounds/{id}
-DELETE /sounds/{id}
-GET    /sounds/{id}/graph
-```
-
-Sounds are planned soundtrack cues, not audio file encodings. A Sound links to
-an audio-typed Asset, which can represent the rendered WordPress attachment.
-
-List filters:
-
-- `scene` (post ID)
-- `shot` (post ID)
-- `sound_type` (slug or comma-separated slugs)
-- `production_status` (`worldgraph_status` taxonomy slug or comma-separated slugs)
-- `status` (WordPress lifecycle: `draft`, `pending`, `publish`, or `private`)
-
-Creation requires a non-empty `title`, exactly one `meta.sound_type`, and
-`meta.scene`. If `meta.shot` is provided, the API validates that it belongs to
-the selected Scene. Nonzero `meta.asset` values must reference an audio-typed
-Asset.
+Example create payload:
 
 ```json
 {
@@ -266,333 +117,255 @@ Asset.
 }
 ```
 
-Seed terms are `narration`, `voiceover`, `music`, `sound-effect`, `ambience`,
-`foley`, `silence`, and `adr`; `worldgraph_sound_type` remains extensible.
-Custom terms must be created through the taxonomy API or admin before REST use.
-The `dialogue` slug is reserved and cannot be created or assigned.
-`spoken_text` is reserved for narration, voice-over, or ADR. Existing Scene
-dialogue remains canonical and is not duplicated into Sound resources.
+## Story Graph
 
-## Assets
+The graph controller exposes entity discovery and canonical relationship
+operations:
 
 ```http
-GET    /assets
-GET    /assets/{id}
-POST   /assets
-PUT    /assets/{id}
+GET    /wp-json/worldgraph/v1/graph/{id}
+GET    /wp-json/worldgraph/v1/graph/entities
+GET    /wp-json/worldgraph/v1/graph/relationships
+POST   /wp-json/worldgraph/v1/graph/relationships
+DELETE /wp-json/worldgraph/v1/graph/relationships/{from_id}/{to_id}
 ```
 
----
+The resource-specific `/{resource}/{id}/graph` routes return the same graph
+context around a typed entity. Relationship records carry source and target
+IDs/types, a relationship type, and optional metadata. UI and API wording uses
+Source for provenance and Linked for association.
 
-# Story Graph Endpoints
+Examples of canonical semantics:
 
-## Entity Relationships
+- Project `contains` Story World or Episode.
+- Episode `contains` Scene.
+- Scene `contains` Shot.
+- Character `appears_in` Scene.
+- Sound `belongs_to` Scene or Shot and may link to a Character and audio Asset.
+- Asset `derived_from` or `references` a Story Graph source.
+
+## Sequences
+
+Sequences are `worldgraph_sequence` taxonomy terms with ordering helpers:
 
 ```http
-GET /graph/entity/{id}
-GET /graph/entity/{id}/relationships
+GET    /wp-json/worldgraph/v1/sequences
+POST   /wp-json/worldgraph/v1/sequences
+GET    /wp-json/worldgraph/v1/sequences/{id}
+DELETE /wp-json/worldgraph/v1/sequences/{id}
+POST   /wp-json/worldgraph/v1/sequences/reorder
+POST   /wp-json/worldgraph/v1/sequences/{id}/shots
+POST   /wp-json/worldgraph/v1/sequences/{id}/scenes
 ```
 
-Response includes:
+## World Graph Studio JSON Import
 
-- Related entities
-- Relationship types
-- Metadata
-
-## Relationship Semantics
-
-World Graph Studio distinguishes two link intents in API/UI wording:
-
-- Source: provenance link where an output is derived from an origin entity.
-- Linked: associative link where entities are related but not necessarily derived.
-
-Examples:
-
-- Asset -> Source Scene (provenance)
-- Asset -> Source Character (provenance)
-- Character -> Linked Asset (association)
-- Sound -> Scene/Shot (`belongs_to` placement)
-- Sound -> Character (optional voice/narrator association)
-- Sound -> Asset (optional rendered-audio encoding)
-
-## Vocabulary Semantics
-
-API payloads and docs follow these shared term meanings:
-
-- Shot: continuous footage between two edits.
-- Take: one recorded attempt of a shot; modeled as shot production metadata.
-- Sequence: one or more scenes grouped by dramatic progression (`worldgraph_sequence`).
-- Continuity: consistency across adjacent shots/scenes and linked entities.
-- EDL: editorial decision output represented as an Editorial Artifact.
-- ADR: post-production dialogue replacement metadata when present.
-
-Lifecycle interpretation for status-like fields:
-
-- Pre-Production -> planning-oriented states and artifacts
-- Principal Photography -> capture/execution states
-- Post-Production -> editorial/finishing states
-
-## Graph Traversal
+The delivered importer accepts a World Graph Studio JSON document. It validates
+cross-references, creates or updates supported Story Graph entities, assigns
+taxonomies, builds relationships, and reports the resolved counts.
 
 ```http
-POST /graph/query
+POST /wp-json/worldgraph/v1/import/validate
+POST /wp-json/worldgraph/v1/import
 ```
 
-Example:
+`/import/validate` performs a dry run. `/import` accepts the JSON document and
+an optional overwrite flag. Import requires administrator permission. The same
+engine is available through the WordPress Import admin screen.
+
+Markdown screenplay and storyboard export is delivered through the WordPress
+admin export action and exporter class; there is no `/scripts/export` REST
+route in v1.
+
+Additional FDX, Fade In, Highland, Story Architect, screenplay parsing,
+format-specific preview/merge, and professional script-export routes are on
+hold. Consumers must not depend on `/scripts/*` paths.
+
+## Generation
+
+Generation uses an active `worldgraph_template` paired with an available
+`worldgraph_conn`. WordPress creates an internal generation record, schedules a
+bounded WP-Cron batch, invokes the matching adapter, polls asynchronous jobs,
+imports returned media, and records provenance.
+
+```http
+POST /wp-json/worldgraph/v1/generation
+GET  /wp-json/worldgraph/v1/generation/{id}
+POST /wp-json/worldgraph/v1/generation/{id}/cancel
+GET  /wp-json/worldgraph/v1/generation/asset/{asset_id}/history
+GET  /wp-json/worldgraph/v1/generation/templates/{id}/requirements
+```
+
+The `POST /generation` payload contains an output `type`, prompt,
+Template/workflow reference, parameters, and optional target Asset and bound
+inputs. The controller accepts `image`, `video`, `audio`, and `text` type values,
+but the Template and Connection must name the same registered provider adapter
+and the requested output must match an available Template modality.
+
+The editor-facing image workflow is also available through:
+
+```http
+GET  /wp-json/worldgraph/v1/assets/generate/prompt
+POST /wp-json/worldgraph/v1/assets/generate
+```
+
+Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
+fal MCP, and ElevenLabs. The built-in catalog currently provisions
+text-to-image and ElevenLabs audio Templates. Additional output modalities need
+an adapter that registers and executes a compatible Template; a provider value
+without that implementation is configuration metadata only.
+
+## Connections
+
+```http
+GET    /wp-json/worldgraph/v1/connections
+POST   /wp-json/worldgraph/v1/connections
+POST   /wp-json/worldgraph/v1/connections/sync
+GET    /wp-json/worldgraph/v1/connections/{id}
+PUT    /wp-json/worldgraph/v1/connections/{id}
+DELETE /wp-json/worldgraph/v1/connections/{id}
+GET    /wp-json/worldgraph/v1/connections/{id}/resolve
+POST   /wp-json/worldgraph/v1/connections/{id}/test
+```
+
+Connection status is the load/disable authority for provider adapters.
+`resolve` reports the normalized Connection configuration, including its
+sensitive credential reference; `test` exercises the provider-specific
+readiness check; `sync` refreshes the local provider-capability descriptor.
+Provider catalog and Template discovery run through provider-specific
+save/test/admin flows rather than this generic capability route.
+
+## AI Editor and Advisors
+
+The Gutenberg AI Editor exposes permission-aware routes under the core
+namespace:
+
+```http
+POST /wp-json/worldgraph/v1/ai/chat
+POST /wp-json/worldgraph/v1/ai/analyze
+POST /wp-json/worldgraph/v1/ai/generate
+POST /wp-json/worldgraph/v1/ai/continuity
+GET  /wp-json/worldgraph/v1/ai/context
+GET  /wp-json/worldgraph/v1/ai/agents
+GET  /wp-json/worldgraph/v1/ai/settings
+GET  /wp-json/worldgraph/v1/ai/health
+```
+
+Specialist advisor definitions and action/history records use:
+
+```http
+GET|POST        /wp-json/worldgraph/v1/agents
+GET|PUT|DELETE  /wp-json/worldgraph/v1/agents/{id}
+POST            /wp-json/worldgraph/v1/agents/{id}/actions
+GET             /wp-json/worldgraph/v1/agents/{id}/history
+```
+
+An LLM connection is optional for the Story Graph itself but required for
+routes that request model output.
+
+## Search
+
+```http
+POST /wp-json/worldgraph/v1/search
+GET  /wp-json/worldgraph/v1/search/suggest
+```
+
+Search accepts a query, optional entity-type filters, mode, and result limit.
+The current `semantic` mode uses the same WordPress-backed retrieval as keyword
+mode; no vector-store integration is registered. Both Search routes are public.
+Anonymous requests receive published records. Authenticated editors may also
+receive non-public lifecycle states that WordPress permits them to read.
+
+## Production and Editorial Views
+
+Project-scoped production endpoints expose the delivered planning model:
+
+```http
+GET  /wp-json/worldgraph/v1/production/{project_id}/overview
+GET  /wp-json/worldgraph/v1/production/{project_id}/pipeline
+PUT  /wp-json/worldgraph/v1/production/{project_id}/stage
+GET  /wp-json/worldgraph/v1/production/{project_id}/tasks
+POST /wp-json/worldgraph/v1/production/{project_id}/tasks
+PUT  /wp-json/worldgraph/v1/production/tasks/{task_id}/status
+GET  /wp-json/worldgraph/v1/production/{project_id}/timeline
+```
+
+Project-scoped editorial routes provide views, records, export data, reviews,
+and storyboards:
+
+```http
+GET  /wp-json/worldgraph/v1/editorial/{project_id}/overview
+GET  /wp-json/worldgraph/v1/editorial/{project_id}/artifacts
+POST /wp-json/worldgraph/v1/editorial/{project_id}/artifacts
+POST /wp-json/worldgraph/v1/editorial/{project_id}/export
+GET  /wp-json/worldgraph/v1/editorial/{project_id}/reviews
+POST /wp-json/worldgraph/v1/editorial/{project_id}/reviews
+GET  /wp-json/worldgraph/v1/editorial/{project_id}/storyboard
+```
+
+The optional EDL plugin delivers CMX 3600 and SMPTE 436m XML formatters and
+downloads plus import parsing and preview through its nonce- and
+capability-protected WordPress admin/AJAX workflow. Its current export resolver
+uses fixed sample clips rather than a live Project/Episode timeline, and its
+advanced export controls are not wired through to the formatter. Confirmed
+previews are not persisted as Story Graph timeline records. The plugin does not
+register the speculative `/editorial/edl/generate` REST path.
+
+## Optional Celtx Synchronization
+
+When the bundled Celtx plugin is enabled and configured, it registers these
+administrator-only routes in the core namespace:
+
+```http
+GET    /wp-json/worldgraph/v1/celtx/test
+GET    /wp-json/worldgraph/v1/celtx/sync
+POST   /wp-json/worldgraph/v1/celtx/sync
+POST   /wp-json/worldgraph/v1/celtx/sync/{type}
+POST   /wp-json/worldgraph/v1/celtx/sync/{type}/{id}
+GET    /wp-json/worldgraph/v1/celtx/mapping/{type}/{id}
+DELETE /wp-json/worldgraph/v1/celtx/unsync/{type}/{id}
+```
+
+Celtx synchronization sends supported Project, Character, Location, Scene, and
+Shot data from World Graph Studio to Celtx and stores persistent external ID
+mappings in `_worldgraph_celtx_mapping`. The current sync service does not
+import remote Celtx changes into WordPress.
+
+## Google Web Stories Extension Prototype
+
+The repository contains prototype source for a separate
+`worldgraph-web-stories/v1` namespace:
+
+```http
+POST /wp-json/worldgraph-web-stories/v1/sync/story/{story_id}
+POST /wp-json/worldgraph-web-stories/v1/sync/scene/{scene_id}
+POST /wp-json/worldgraph-web-stories/v1/sync/all
+GET  /wp-json/worldgraph-web-stories/v1/mapping/{post_id}
+GET  /wp-json/worldgraph-web-stories/v1/status
+GET  /wp-json/worldgraph-web-stories/v1/settings
+POST /wp-json/worldgraph-web-stories/v1/settings
+```
+
+These paths document the prototype controller surface, not routes delivered by
+the active World Graph Studio plugin. The main plugin does not load or register
+the Web Stories package, and the package's current bootstrap and settings
+paths are not production-ready. Clients must not depend on bidirectional sync,
+automatic sync, storyboard-page sync, or an admin sync dashboard unless an
+extension first completes and activates that integration.
+
+## Errors and Versioning
+
+Controllers return standard WordPress REST errors. A typical error has this
+shape:
 
 ```json
 {
-  "entityType": "Character",
-  "entityId": 123,
-  "depth": 3
+  "code": "worldgraph_sound_scene_required",
+  "message": "A Sound must belong to a Scene.",
+  "data": { "status": 400 }
 }
 ```
 
----
-
-# Script Integration API
-
-## ✅ Celtx Integration (COMPLETE — Phase E)
-
-The `worldgraph-celtx` WordPress plugin provides bi-directional sync with Celtx via the Celtx GEM API.
-
-### Sync Endpoints
-
-```http
-GET  /wp-json/worldgraph-celtx/v1/sync/status
-POST /wp-json/worldgraph-celtx/v1/sync/characters
-POST /wp-json/worldgraph-celtx/v1/sync/locations
-POST /wp-json/worldgraph-celtx/v1/sync/scenes
-POST /wp-json/worldgraph-celtx/v1/sync/shots
-POST /wp-json/worldgraph-celtx/v1/sync/projects
-POST /wp-json/worldgraph-celtx/v1/sync/full
-```
-
-### Settings Endpoints
-
-```http
-GET  /wp-json/worldgraph-celtx/v1/settings
-POST /wp-json/worldgraph-celtx/v1/settings
-```
-
-### Authentication
-
-- API Key: `x-api-key` header (primary)
-- Basic Auth: `Authorization: Basic base64(username:password)`
-- Cookie Auth: `Cookie: cx_session=...`
-
-### Supported Formats (Planned)
-
-#### Import
-
-- [ ] FDX (Final Draft) — XML parsing → Story Graph entities
-- [ ] Fade In — import screenplay format
-- [ ] Highland — import screenplay format
-- [ ] Markdown — basic scene detection
-
-#### Export
-
-- [ ] Markdown — structured markdown export
-- [ ] Storyboard - export a storyboard as a PDF
-- [ ] Screenplay — formatted screenplay export
-- [ ] Shooting Script — scene numbers, shot descriptions, asset references
-
-
-### Import/Export Endpoints (Planned)
-
-```http
-POST /scripts/import
-POST /scripts/export
-GET  /scripts/import/{id}/preview
-POST /scripts/import/{id}/commit
-GET  /scripts/export/{project_id}?format=shooting
-```
-
----
-
-# Storyboard API
-
-## Generate Storyboard
-
-```http
-POST /storyboards/generate
-```
-
-Input:
-
-- Scene ID
-- Shot IDs
-- Style profile
-
-Output:
-
-- Storyboard records
-- Generated assets
-
----
-
-# Asset Generation API
-
-## Execute Workflow
-
-```http
-POST /generation/workflows/run
-```
-
-Payload:
-
-```json
-{
-  "sceneId": 15,
-  "workflow": "character-sheet",
-  "model": "flux"
-}
-```
-
-## Workflow Status
-
-```http
-GET /generation/workflows/{id}
-```
-
-## Retrieve Assets
-
-```http
-GET /generation/assets/{id}
-```
-
----
-
-# MAF Agent API
-
-## Execute Advisor
-
-```http
-POST /agents/run
-```
-
-Sample:
-
-```json
-{
-  "agent": "story-advisor",
-  "projectId": 1,
-  "prompt": "Review character consistency"
-}
-```
-
-## Get Agent Context
-
-```http
-GET /agents/context/{projectId}
-```
-
----
-
-# Production API
-
-## Generate Shot List
-
-```http
-POST /production/shotlists/generate
-```
-
-## Generate Schedule
-
-```http
-POST /production/schedules/generate
-```
-
-## Generate Breakdown
-
-```http
-POST /production/breakdowns/generate
-```
-
----
-
-# Editorial API
-
-## Generate EDL
-
-```http
-POST /editorial/edl/generate
-```
-
-## Export Timeline Metadata
-
-```http
-POST /editorial/timeline/export
-```
-
-## Editorial Artifacts
-
-```http
-GET /editorial/artifacts
-```
-
----
-
-# Search API
-
-## Entity Search
-
-```http
-GET /search?q=query
-```
-
-## Semantic Search
-
-```http
-POST /search/semantic
-```
-
-Future enhancement using vector search.
-
----
-
-# Events
-
-World Graph Studio should support event-driven workflows.
-
-Example events:
-
-```text
-ProjectCreated
-CharacterUpdated
-SceneCreated
-AssetGenerated
-StoryboardCreated
-EDLGenerated
-```
-
----
-
-# Versioning
-
-API versioning format:
-
-```text
-/api/worldgraph/v1
-/api/worldgraph/v2
-```
-
-Backward compatibility should be maintained whenever possible.
-
----
-
-# Error Format
-
-```json
-{
-  "success": false,
-  "code": "SCENE_NOT_FOUND",
-  "message": "Scene does not exist"
-}
-```
-
----
-
-# Long-Term Objective
-
-The World Graph Studio API becomes the integration backbone connecting storytelling, generation, production, and editorial systems through a common Story Graph platform.
+The stable current namespace is `worldgraph/v1`. Extensions should use their
+own namespace when they do not implement the core contract, and clients should
+feature-detect optional integration routes rather than assume they are active.

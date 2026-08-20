@@ -1,309 +1,329 @@
 # World Graph Studio Plugin Architecture
 
-## Overview
+> **Current release status: complete.** This document describes the code in the
+> repository. Optional providers still require credentials, compatible models,
+> and reachable services. The repository-wide status authority is
+> [Delivery Status](../../../../../about/Delivery_Status.md).
 
-World Graph Studio is a WordPress plugin that manages the Story Graph — a comprehensive data model for AI-powered storytelling. The plugin has been revised to remove Python orchestrator dependencies and align with modern WordPress standards.
+## System boundary
 
-## Core Architecture
+World Graph Studio is a WordPress application. WordPress owns the Story Graph,
+Structured Content Fields, provider configuration, generation jobs, media,
+provenance, admin UI, permissions, and REST API.
 
-### 1. ComfyUI MCP Integration
+External LLM and media services execute only the work delegated to their
+adapters. There is no separate World Graph Studio Python orchestrator, queue
+service, or provider database.
 
-**File:** `includes/utils/comfy-cloud-mcp.php`
-
-The plugin communicates with Comfy Cloud MCP (Model Context Protocol) via HTTP for generative AI tasks. This replaces the previous Python orchestrator dependency.
-
-**Key Methods:**
-- `run_template(template, prompt, parameters)` - Submit generation jobs
-- `get_job_status(job_id)` - Poll job status
-- `call_tool(name, arguments)` - Generic tool invocation
-
-**Configuration:**
-- API Key: `WORLDGRAPH_COMFY_API_KEY` (constant) or `worldgraph_comfy_api_key` (option)
-- Endpoint: `https://cloud.comfy.org/mcp`
-
-### 2. WordPress Cron (WP-Cron) Job Processing
-
-**File:** `includes/utils/generation-batch.php`
-
-Generation jobs are processed asynchronously via WordPress Cron, not via a separate Python service.
-
-**Process Flow:**
-1. User submits generation via REST API → `POST /wp-json/worldgraph/v1/generation`
-2. Job stored in `worldgraph_gen` CPT with status `queued`
-3. `Generation_Batch::schedule()` schedules WP-Cron event
-4. WP-Cron processor calls `Generation_Batch::process()` every 60 seconds
-5. Processor submits queued jobs to Comfy Cloud MCP
-6. Processor polls submitted jobs for completion
-7. Results stored in post meta when complete
-
-**WP-Cron Hook:** `worldgraph_process_generation_batch`
-
-### 3. Local Story Graph Analytics
-
-All analytics functions operate on local WordPress data without requiring external services:
-
-**Files:**
-- `includes/utils/relationship-graph.php` - Network analysis
-- `includes/utils/continuity-checker.php` - Continuity validation
-- `includes/utils/story-search.php` - Keyword + semantic search
-- `includes/utils/capability_sync.php` - Provider capability tracking
-
-**Key Functions:**
-- `fetch_relationship_graph()` - Build graph from posts and relationships
-- `fetch_graph_analytics()` - Calculate network metrics (density, connectivity)
-- `fetch_continuity_validation()` - Local content validation
-- `fetch_keyword_search()` - WordPress post search with filters
-
-### 4. WordPress Agent Abilities API
-
-**File:** `includes/ai-editor/class-ai-abilities.php`
-
-For WordPress 6.9+, World Graph Studio exposes capabilities via the WordPress Abilities API for integration with AI tools and MCP adapters.
-
-**Features:**
-- Structured ability definitions with input/output schemas
-- Execute callbacks for ability implementation
-- Permission callbacks for access control
-- Integration with WordPress REST API
-
-**Categories:**
-- `worldgraph-ai-editor` - Main AI editor category
-
-**Initialization:**
-```php
-if ( function_exists( 'wp_register_ability' ) ) {
-    \WorldGraph\AI\Abilities\Abilities::instance()->init();
-}
+```text
+WordPress
+├── Story Graph content and relationships
+├── SCF runtime schema and Local JSON archive
+├── AI Editor and filmmaking advisors
+├── Connections and Templates
+├── WP-Cron generation queue
+├── WordPress media and Asset provenance
+└── /wp-json/worldgraph/v1
+        │
+        ├── local or hosted LLM
+        ├── local ComfyUI HTTP API
+        ├── Comfy MCP
+        ├── fal MCP
+        └── ElevenLabs REST API
 ```
 
-### 5. Provider Connections
+## Bootstrap and naming
 
-**File:** `includes/cpts/connection.php`
+The plugin entry point is [worldgraph.php](../worldgraph.php). Its public naming
+contract is:
 
-Manages API connections to providers like Comfy Cloud MCP.
+- product name: **World Graph Studio**;
+- plugin directory and text domain: `worldgraph`;
+- PHP namespace: `WorldGraph`;
+- constant prefix: `WORLDGRAPH_`;
+- content/meta prefix: `worldgraph_`; and
+- REST namespace: `worldgraph/v1`.
 
-**Fields:**
-- `connection_name` - Human-readable name
-- `provider_type` - Currently: `comfy_cloud_mcp`
-- `environment` - Local/Dev/Staging/Production
-- `status` - Unverified/Verified/Error
-- `configuration` - Provider-specific config
+The bootstrap checks the Secure Custom Fields dependency, loads core utilities,
+registers content types and taxonomies, reconciles the persisted SCF schema,
+registers REST/admin modules, initializes the AI Editor, and loads configured
+provider adapters.
 
-**Validation:**
-- `includes/utils/connection_tester.php` - Verifies credentials
-- Tests Comfy Cloud MCP API key configuration
+## Story Graph data model
 
-## Custom Post Types (CPTs)
+The current application registers 15 content/configuration types:
 
-| CPT | Purpose |
-|-----|---------|
-| `worldgraph_project` | Top-level story project container |
-| `worldgraph_world` | Story world/universe settings |
-| `worldgraph_character` | Character definitions |
-| `worldgraph_location` | Location/setting data |
-| `worldgraph_prop` | Prop/object catalog |
-| `worldgraph_org` | Organization/group data |
-| `worldgraph_episode` | Episode/chapter structure |
-| `worldgraph_scene` | Scene content and metadata |
-| `worldgraph_shot` | Shot/sequence data |
-| `worldgraph_sound` | Planned soundtrack cues linked to scenes, shots, characters, and rendered audio assets |
-| `worldgraph_board` | Storyboard visual frames (`worldgraph_board_frame` is its REST base) |
-| `worldgraph_asset` | Generated/managed assets |
-| `worldgraph_editorial` | Editorial notes, scripts, etc. (`worldgraph_editorial_artifact` is its REST base) |
-| `worldgraph_template` | Story templates/patterns |
-| `worldgraph_conn` | Provider connections |
-| `worldgraph_gen` | Generation job tracking |
+| Post type | Role |
+| --- | --- |
+| `worldgraph_project` | Top-level creative project |
+| `worldgraph_world` | Story world or setting system |
+| `worldgraph_character` | Character record |
+| `worldgraph_location` | Location record |
+| `worldgraph_prop` | Story or production object |
+| `worldgraph_org` | Organization or faction |
+| `worldgraph_episode` | Episode or chapter structure |
+| `worldgraph_scene` | Scene content and continuity |
+| `worldgraph_shot` | Shot planning and coverage |
+| `worldgraph_sound` | Narration, dialogue, effects, ambience, Foley, music, or silence cue |
+| `worldgraph_board` | Storyboard frame |
+| `worldgraph_asset` | Managed media and provenance |
+| `worldgraph_editorial` | Editorial artifact |
+| `worldgraph_template` | Reusable generation/provider configuration |
+| `worldgraph_conn` | Provider control-plane record |
 
-### Secure Custom Fields Schema
+Generation jobs are stored as internal `worldgraph_gen` posts by the
+generation controllers and batch worker. They are operational records, not an
+authoring content type in the Story Graph registry.
 
-World Graph Studio commits its SCF Local JSON field groups under `acf-json/`. The plugin
-uses those files as a portable, versioned seed/archive rather than an always-on
-SCF load path. Editable database groups are the runtime authority. On a
-privileged admin or WP-CLI request, a changed archive is validated and merged
-into the database while preserving SCF-managed presentation settings and
-site-added extension fields; failures are reported without destructive import.
-Group and standalone-field saves refresh the owning archive when it is
-writable, otherwise database edits continue with a non-portable-change warning.
-The plugin-directory archive is a source-controlled deployment artifact and
-must be exported/committed before plugin replacement or upgrade; multisite
-installations share that archive while retaining per-site runtime DB groups.
-Canonical location, activation/REST exposure, field key/name/type/parent, and
-storage settings are protected; labels, instructions, layout, choices, order,
-and extension fields remain manageable in SCF. Relationship extension names
-remain stable because they identify Story Graph slots. Core field keys include their
-CPT key, for example `field_worldgraph_project_status`.
+Nine taxonomies cover genre, asset type, production status, character
+relations, character roles, scene tags, editorial sequence, sound type, and
+Template category.
 
-## REST API Endpoints
+Canonical relationships are stored in namespaced post meta and exposed through
+the graph utilities and REST controller. Global graph traversal, relationship
+analytics, continuity checks, and keyword/optional semantic search operate on
+WordPress data.
 
-All endpoints use namespace: `/wp-json/worldgraph/v1/`
+## Structured Content Fields
 
-### Generation API
-- `POST /generation` - Submit generation job
-- `GET /generation/{id}` - Get job status
-- `POST /generation/{id}/cancel` - Cancel job
-- `GET /generation/asset/{asset_id}/history` - Get generation history
+Secure Custom Fields is required. The committed [acf-json](../acf-json)
+directory is a portable seed/archive; editable database field groups are the
+runtime authority.
 
-### Agents API
-- `GET /agents` - List available agents
-- `GET /agents/{id}` - Get agent details
-- `POST /agents/{id}/execute` - Execute agent action
+On privileged admin or WP-CLI requests, World Graph Studio validates and merges
+changed archive groups into the database while preserving SCF-managed
+presentation settings and site extension fields. Saving an owned group refreshes
+its archive when the directory is writable. Database edits continue with a
+warning when the archive cannot be updated.
 
-### Graph API
-- `GET /graph` - Get story graph analytics
-- `GET /graph/relationships` - Get relationship data
-- `GET /graph/connections` - Get network connections
+Stable group and field keys use the current CPT key, for example
+`group_worldgraph_scene` and `field_worldgraph_scene_scene_number`.
 
-### CRUD Endpoints
-All CPTs have standard REST endpoints:
-- `GET /projects`, `POST /projects`, `GET /projects/{id}`, `PUT /projects/{id}`, `DELETE /projects/{id}`
-- `GET /sounds`, `POST /sounds`, `GET /sounds/{id}`, `PUT /sounds/{id}`, `DELETE /sounds/{id}`
-- Similar for characters, locations, scenes, shots, etc.
+## AI Editor and advisors
 
-## Admin Panels
+The AI Editor lives under [includes/ai-editor](../includes/ai-editor). It
+provides:
 
-| Location | Purpose |
-|----------|---------|
-| `World Graph Studio > Dashboard` | Overview and statistics |
-| `World Graph Studio > Connections` | Provider connection management |
-| `Tools > Story Graph Analytics` | Analytics and insights |
-| `World Graph Studio > Setup Wizard` | Initial configuration |
+- LLM clients for OpenAI-compatible, OpenAI, Anthropic, and dual/fallback
+  configuration;
+- Story Graph context assembly;
+- chat, analysis, generation-assistance, continuity, settings, and health REST
+  routes;
+- a Gutenberg sidebar and classic AI Workflow metabox; and
+- 51 Markdown-defined filmmaking advisors.
 
-## Job Processing Flow (WP-Cron)
+Advisor requests include WordPress-owned context and return suggestions. The
+current LLM client uses `tool_choice: none`; advisors do not autonomously call
+generation, catalog, or download actions.
 
-```
-User submits generation request
-           ↓
-REST API stores job in worldgraph_gen CPT
-           ↓
-Generation_Batch::schedule() schedules WP-Cron event
-           ↓
-WP-Cron calls worldgraph_process_generation_batch hook
-           ↓
-Generation_Batch::process() runs:
-  1. submit_queued_jobs() → Comfy Cloud MCP
-  2. poll_submitted_jobs() → Check status
-  3. Schedule next event if jobs remain
-           ↓
-Results stored in post meta
-           ↓
-REST API returns job results to client
-```
+On WordPress versions that expose `wp_register_ability`, the plugin also
+registers schema-described WordPress Abilities. A compatible WordPress MCP
+adapter can expose public abilities to external MCP clients. This is distinct
+from the built-in advisor execution path.
 
-## Removed Components
+## Generation architecture
 
-The following have been removed or deprecated:
-- ❌ Python orchestrator service
-- ❌ subprocess/shell_exec execution
-- ❌ Orchestrator health check endpoints
-- ❌ Provider discovery from external orchestrator
+### Registered modalities
 
-## Plugin Dependencies
+The canonical [Generation_Modality](../includes/utils/generation-modality.php)
+registry currently contains:
 
-### Required
-- WordPress 6.0+ (6.9+ for full Abilities API support)
-- PHP 8.1+
-- Secure Custom Fields (SCF) plugin
+- `text_to_image`;
+- `text_to_speech`;
+- `text_to_dialogue`;
+- `text_to_sound_effect`;
+- `text_to_music`; and
+- `text_to_voice`.
 
-### Recommended
-- WordPress 6.9+ (for WordPress Agent Abilities API)
+The first is the built-in ComfyUI image path. The five audio shapes are
+provisioned by the ElevenLabs adapter. The media-import layer can store image,
+video, and audio results, but broader storage does not imply a registered direct
+generation modality.
 
-## Configuration
+### Connections and Templates
 
-### Setup Wizard
+`worldgraph_conn` records select a provider, environment, HTTP/MCP endpoints,
+credential value or reference, model selection/allowlist, status, and optional
+limits. Adapter implementations load only for configured, non-disabled
+Connections or while the provider is being configured.
 
-All API keys and provider connections are configured through the **World Graph Studio Setup Wizard** that appears automatically on plugin activation.
+`worldgraph_template` records select the Connection, modality, provider
+template or endpoint, optional ComfyUI API workflow, default configuration,
+input bindings, and model requirements.
 
-**Access the wizard:**
-- Automatic redirect after plugin activation
-- Manual access: Navigate to **World Graph Studio > Setup**
+The shipped executable adapters are:
 
-**Configured items:**
-1. Comfy Cloud MCP API key (optional)
-2. Primary LLM provider and credentials
-3. Advanced LLM settings (max tokens, temperature)
-4. Fallback LLM provider and credentials
+- local ComfyUI HTTP;
+- Comfy MCP, including Comfy Cloud;
+- fal MCP; and
+- ElevenLabs.
 
-**Security:**
-- API keys can be defined as environment variables in `wp-config.php`
-- When constants are defined, wizard displays fields as read-only
-- Production recommended: Use environment variables, not database storage
+Other provider names in the Connection schema are manually managed extension
+points unless an adapter registers executable behavior.
 
-See [SETUP_WIZARD_GUIDE.md](SETUP_WIZARD_GUIDE.md) for comprehensive wizard documentation.
+### Catalog and readiness
 
-### Environment Variables (Optional for Production)
-```php
-define( 'WORLDGRAPH_COMFY_API_KEY', 'your-comfy-api-key' );
-define( 'WORLDGRAPH_AI_API_KEY', 'your-llm-api-key' );
-define( 'WORLDGRAPH_AI_FALLBACK_API_KEY', 'your-fallback-key' );
-```
+ComfyUI Connections support a per-Connection catalog. MCP Connections discover
+provider templates; HTTP-only local Connections synthesize entries from the
+registered modality list and inspect `/object_info`. Administrators can enable
+entries, materialize Templates, request provider-side model downloads when the
+MCP tool exists, and validate Template requirements.
 
-### WordPress Options (Set via Wizard or Programmatically)
-```php
-// Comfy Cloud MCP
-get_option( 'worldgraph_comfy_api_key' )
-get_option( 'worldgraph_gen_connection_mode' ) // Current preferred Connection choice.
-get_option( 'worldgraph_comfy_connection_mode' ) // Legacy compatibility mirror.
+Local setup provisions a managed text-to-image Template and exposes a readiness
+panel for the required nodes and checkpoint.
 
-// Primary LLM
-get_option( 'worldgraph_ai_backend' )
-get_option( 'worldgraph_ai_url' )
-get_option( 'worldgraph_ai_model' )
-get_option( 'worldgraph_ai_api_key' )
-get_option( 'worldgraph_ai_max_tokens' )
-get_option( 'worldgraph_ai_temperature' )
+### Asset generation
 
-// Fallback LLM
-get_option( 'worldgraph_ai_fallback_backend' )
-get_option( 'worldgraph_ai_fallback_api_key' )
+The **World Graph Studio Assets** metabox:
+
+1. builds a prompt from the source Story Graph post;
+2. lists active image Templates whose bindings and Connections are available;
+3. queues the selected Template through the REST controller; and
+4. optionally sets the imported result as featured media and creates a linked
+   Asset.
+
+This is a Template-first workflow. A Generation Intent registry and Generate
+Preferences screen are not part of the current release.
+
+### WP-Cron jobs
+
+[Generation_Batch](../includes/utils/generation-batch.php) owns the
+`worldgraph_process_generation_batch` hook. It locks concurrent runs, polls
+submitted work, submits queued work, and reschedules itself after 60 seconds
+while jobs remain.
+
+```text
+POST generation request
+        ↓
+worldgraph_gen: queued
+        ↓
+WP-Cron selects Connection adapter
+        ↓
+provider completes synchronously or returns remote job ID
+        ↓
+worldgraph_gen: submitted (when polling is required)
+        ↓
+validate and import provider media
+        ↓
+attachments + optional Asset + provenance
+        ↓
+completed | failed | cancelled
 ```
 
-## Development Notes
+Completed image, video, and audio files pass through WordPress validation and
+media attachment creation. Generation records retain source, Template,
+Connection, provider, prompt, parameters, remote job, output IDs, status, and
+sanitized result metadata.
 
-### Adding New Abilities
-Edit `includes/ai-editor/abilities/` and implement `AbstractAbilityGroup`:
-```php
-class My_Ability_Group extends AbstractAbilityGroup {
-    protected $slug = 'worldgraph_my_group';
-    public function register(): void {
-        $this->register_ability( 'worldgraph/my_ability', [
-            'label' => 'My Ability',
-            'input_schema' => [...],
-            'execute_callback' => [$this, 'execute_my_ability'],
-        ]);
-    }
-}
-```
+## REST API
 
-### Job Status Values
-- `queued` - Waiting to submit
-- `submitted` - Sent to Comfy Cloud MCP
-- `completed` - Job finished successfully
-- `failed` - Job encountered error
-- `cancelled` - User cancelled job
+The base is `/wp-json/worldgraph/v1/`. Controllers use instance-based
+`register_routes()` methods and WordPress permission callbacks.
 
-## Testing
+Primary route groups are:
+
+| Group | Representative routes |
+| --- | --- |
+| Story content | `/projects`, `/storyworlds`, `/characters`, `/locations`, `/props`, `/organizations`, `/episodes`, `/scenes`, `/shots`, `/sounds`, `/storyboard-frames`, `/assets`, `/editorial-artifacts` |
+| Graph | `/graph/{id}`, `/graph/entities`, `/graph/relationships` |
+| Generation | `/assets/generate`, `/assets/generate/prompt`, `/generation`, `/generation/{id}`, `/generation/{id}/cancel`, `/generation/asset/{id}/history`, `/generation/templates/{id}/requirements` |
+| Connections | `/connections`, `/connections/{id}`, `/connections/{id}/resolve`, `/connections/{id}/test`, `/connections/sync` |
+| AI Editor | `/ai/agents`, `/ai/chat`, `/ai/analyze`, `/ai/context`, `/ai/continuity`, `/ai/generate`, `/ai/health`, `/ai/settings` |
+| Production/editorial | `/production/{project_id}/*`, `/editorial/{project_id}/*`, `/sequences/*` |
+| Project interchange | `/import`, `/import/validate` |
+
+Catalog curation uses nonce-protected administrator actions rather than public
+catalog REST routes.
+
+## Administration
+
+The delivered admin surfaces include:
+
+- Dashboard and grouped Story Elements, Editorial, and Story Analysis menus;
+- Setup & Settings;
+- Connections and provider configurators;
+- Templates and ComfyUI requirement controls;
+- World Graph Studio Assets and AI Workflow metaboxes;
+- Generation Log;
+- continuity, summaries, dramaturgy, analytics, editorial cut, import, and
+  export tools; and
+- integration status/toggles for packaged optional plugins.
+
+## Setup and configuration
+
+Activation redirects administrators to
+`/wp-admin/admin.php?page=worldgraph-setup` until the form has been submitted.
+The wizard can create a managed generation Connection, a primary LLM Connection,
+and their backing options. Media generation is optional; an API-connected LLM
+is required only for AI advisor features.
+
+The guided generation choices are:
+
+- Comfy Cloud MCP;
+- local ComfyUI HTTP plus optional separate MCP;
+- fal MCP;
+- ElevenLabs generative audio; or
+- no generation Connection.
+
+The wizard also configures the primary LLM provider, URL, model, API key, max
+tokens, and temperature. It can be submitted with provider fields empty so
+core Story Graph work remains available.
+
+See [Setup Guide](SETUP_GUIDE.md) and
+[Setup Wizard Guide](SETUP_WIZARD_GUIDE.md).
+
+## Dependencies and runtime ownership
+
+Required:
+
+- WordPress 6.0 or later;
+- PHP 8.1 or later; and
+- Secure Custom Fields.
+
+WordPress 6.9 or later is needed for the conditional WordPress Abilities
+registration. Provider accounts and services are optional.
+
+In the repository's Lando environment:
+
+- `appserver` owns PHP, WordPress, and WP-CLI;
+- `cli` owns Node.js and JavaScript checks; and
+- `database` owns MariaDB.
+
+PHP changes do not require restarting WordPress.
+
+## Namespace migration
+
+The one-time compatibility migration runs after current CPT registration. It
+migrates legacy post types, taxonomies, namespaced options/meta, serialized
+references, SCF identifiers, and scheduled hooks to the `worldgraph` naming
+contract. Legacy identifiers are migration inputs only.
+
+Back up the database before upgrading an existing installation and activate the
+renamed `worldgraph/worldgraph.php` plugin so the migration can run.
+
+## Verification
+
+From the repository root:
 
 ```bash
-# Test plugin activation
-wp plugin activate worldgraph
+./vendor/bin/phpunit \
+  -c wordpress/wp-content/plugins/worldgraph/tests/phpunit.xml \
+  --testsuite "World Graph Studio" \
+  --do-not-cache-result
 
-# Test generation endpoint
-curl -X POST http://localhost/wp-json/worldgraph/v1/generation \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "image",
-    "prompt": "A dramatic scene",
-    "provider_type": "comfy_cloud_mcp",
-    "connection_id": 1,
-    "workflow": "character-sheet"
-  }'
+find wordpress/wp-content/plugins/worldgraph -type f -name '*.php' \
+  -exec php -l {} \;
+
+lando exec cli -- /bin/sh -lc \
+  'find /app/wordpress/wp-content/plugins/worldgraph/assets -type f -name "*.js" -exec node --check {} \;'
 ```
 
-## Migration Notes
+For an activated local site:
 
-If upgrading from Python orchestrator version:
-1. Backup all post data
-2. Ensure Comfy Cloud MCP API key is set
-3. Run capability sync to cache provider descriptors
-4. Test WP-Cron is functional
-5. Submit test generation job and verify WP-Cron processing
+```bash
+lando wp plugin status worldgraph
+lando wp cron event list
+```
+
+Use [Delivery Status](../../../../../about/Delivery_Status.md) rather than old
+roadmap checklists to determine whether a repository capability is delivered.

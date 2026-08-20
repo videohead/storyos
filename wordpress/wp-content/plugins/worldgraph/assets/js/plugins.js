@@ -53,7 +53,7 @@
 								window.location.reload();
 							}, 500);
 						}
-					} else {
+						} else {
 							if (response.data && response.data.settings_url) {
 								showNotice(response.data.message || 'Please configure this plugin first.', 'error');
 								setTimeout(function() {
@@ -61,8 +61,8 @@
 								}, 400);
 								return;
 							}
-						showNotice(response.data.message || 'Failed to toggle plugin.', 'error');
-					}
+							showNotice(response.data.message || 'Failed to toggle plugin.', 'error');
+						}
 				},
 				error: function() {
 					showNotice('An error occurred. Please try again.', 'error');
@@ -121,10 +121,12 @@
 
 			$('.wrap.worldgraph-plugins').prepend(notice);
 
-			// Auto-dismiss after 5 seconds.
-			setTimeout(function() {
-				$('.notice.is-dismissible').fadeOut();
-			}, 5000);
-		}
+				// Auto-dismiss after 5 seconds.
+				setTimeout(function() {
+					$('.notice.is-dismissible').fadeOut();
+				}, 5000);
+			}
 
-	})(jQuery);
+		});
+
+})(jQuery);

@@ -1,208 +1,254 @@
-# World Graph Studio Setup Wizard - API Key Configuration
+# World Graph Studio Setup Wizard
 
-## Overview
+## Purpose
 
-All API keys for the World Graph Studio plugin can now be configured through the integrated setup wizard that appears on plugin activation. This eliminates the need for manual environment variable configuration or direct WordPress option editing.
+The setup wizard creates the managed Connections used by media generation and
+the AI Editor. It is a first-run convenience, not a requirement for core Story
+Graph authoring.
 
-## What's New
+Current release status is defined in
+[Delivery Status](../../../../../about/Delivery_Status.md). An optional service
+being unconfigured does not make its World Graph Studio integration unfinished.
 
-### Comprehensive Wizard Integration
+## Access and permissions
 
-The setup wizard now includes **complete API key configuration** for all World Graph Studio components:
+Activation sets a one-time redirect for administrators when
+`worldgraph_setup_complete` is false. The page is always available at:
 
-#### 1. **Comfy Cloud MCP** (Optional)
-- Configure image/video generation provider
-- Set API credentials in wizard
-- Supports environment variable override
+`/wp-admin/admin.php?page=worldgraph-setup`
 
-#### 2. **Primary LLM** (Required for AI Agents)
-Configure your main AI language model:
-- **Provider Selection**
-  - OpenAI-compatible (local: Ollama, llama.cpp, vLLM, LM Studio)
-  - OpenAI API
-  - Anthropic API  
-  - Dual mode (local + fallback cloud)
-- **Endpoint Configuration**
-  - Base URL for compatible services
-  - Model name/identifier
-  - API credentials
-- **Advanced Settings** (Optional)
-  - Max tokens (default: 2048)
-  - Temperature/creativity (default: 0.7)
+Only users with `manage_options` may view, test, or save setup. Until the form
+is submitted, other World Graph Studio admin pages redirect administrators back
+to setup; unrelated WordPress admin screens remain accessible.
 
-#### 3. **Fallback LLM** (Optional)
-Configure backup AI provider for failover:
-- **Provider Selection** (OpenAI or Anthropic)
-- **Credentials** for automatic failover scenarios
+The form may be submitted with all optional service fields blank.
 
-## Using the Setup Wizard
+## Wizard sections
 
-### First-Time Setup (Automatic)
+### 1. WordPress Runtime
 
-1. Activate the plugin
-2. Wizard redirects to **World Graph Studio > Setup**
-3. Fill in all configuration sections
-4. Click "Save All Configurations"
-5. Settings saved, setup complete
+This section confirms that WordPress is the application runtime and reminds the
+operator to configure a reliable WP-Cron trigger. It is informational; the
+wizard does not install a host scheduler.
 
-### Reconfiguring Later
+### 2. Generation Connection (optional)
 
-```bash
-# Re-open wizard (if needed)
-wp option update worldgraph_setup_complete false
-```
+The preferred-Connection list is built from installed adapter metadata:
 
-Then navigate to **World Graph Studio > Setup** in WordPress admin.
+| Choice | Provider record | Fields and behavior |
+| --- | --- | --- |
+| Comfy Cloud MCP | `provider_type = comfyui`, production | Hosted provider credential; fixed MCP endpoint |
+| Local ComfyUI HTTP API + MCP | `provider_type = comfyui`, local | Local HTTP URL plus optional separate MCP URL |
+| fal MCP | `provider_type = fal`, production | fal API key; fixed MCP endpoint |
+| ElevenLabs Generative Audio | `provider_type = elevenlabs`, production | ElevenLabs API key; fixed REST endpoint |
+| No generation connection yet | none | Does not create, update, or delete a managed generation Connection |
 
-## API Key Fields
+The entered hosted-provider credential is written to the managed Connection's
+`credential_reference` field. The field is hidden for local ComfyUI and when
+no provider is selected.
 
-| Setting | Location | Purpose | Environment Var |
-|---------|----------|---------|-----------------|
-| Comfy Cloud API Key | Section 2 | Generation service | `WORLDGRAPH_COMFY_API_KEY` |
-| LLM API Key | Section 3 (Primary) | Main AI provider | `WORLDGRAPH_AI_API_KEY` |
-| Fallback API Key | Section 3 (Fallback) | Backup AI provider | `WORLDGRAPH_AI_FALLBACK_API_KEY` |
+#### Local ComfyUI fields
 
-## Environment Variable Support
+**Local ComfyUI API URL** is the normal ComfyUI HTTP endpoint. In Lando, use:
 
-The wizard respects environment variables for production deployments:
+`http://host.lando.internal:8188`
+
+**Local ComfyUI MCP URL** is optional and must point to a separate MCP server.
+ComfyUI's HTTP API does not become MCP by adding `/mcp`.
+
+Saving local setup ensures a managed text-to-image Template exists. After the
+form is saved, the readiness panel reports missing nodes or checkpoints and
+offers a recheck action.
+
+#### Provider tests
+
+**Test Generation Connection** uses the unsaved form values:
+
+- local ComfyUI requests `/system_stats`;
+- fal initializes MCP and checks the required generation tools;
+- ElevenLabs reads the voice/model catalog; and
+- Comfy Cloud is saved first and managed from the Connections screen.
+
+Tests do not store the unsaved values. Saving is a separate action.
+
+#### Catalog side effects
+
+Saving:
+
+- creates the managed local text-to-image Template for local ComfyUI;
+- schedules fal Template provisioning; or
+- schedules ElevenLabs voice/model Template provisioning.
+
+ComfyUI provider-catalog sync and manual materialization remain available on
+the saved Connection.
+
+### 3. External Generator Workflow
+
+This section explains how to bring media from a provider's web application into
+WordPress. It stores no provider credentials and creates no Connection.
+
+### 4. LLM Connection
+
+An LLM is required for the AI Editor and filmmaking advisors, not for core
+World Graph Studio content.
+
+The form stores:
+
+- provider: `openai_compatible`, `openai`, `anthropic`, or `dual`;
+- base URL;
+- model identifier;
+- API key/token;
+- maximum response tokens; and
+- temperature.
+
+For a local service running on the Lando host, use a container-reachable URL,
+for example `http://host.lando.internal:11434/v1`.
+
+**Test LLM Connection** evaluates the current unsaved values. For a compatible
+endpoint it can populate the model datalist from the provider response.
+
+If the PHP constant `WORLDGRAPH_AI_API_KEY` is defined, the primary key field
+is disabled and the constant is used for wizard testing. The wizard does not
+expose separate cloud-fallback fields in the current form.
+
+## Save flow
+
+Selecting **Save All Configurations** performs a nonce and capability check,
+then:
+
+1. validates the generation choice against the adapter registry;
+2. saves generation mode and local ComfyUI URL options;
+3. creates or updates the managed `generation` Connection when selected;
+4. schedules or performs the provider-specific Template bootstrap;
+5. saves primary LLM and advanced response settings;
+6. creates or updates the managed `llm` Connection;
+7. sets `worldgraph_setup_complete` to true; and
+8. redirects back with a success notice.
+
+Managed records are identified by `worldgraph_wizard_slot`, so rerunning setup
+updates them rather than creating another wizard-owned Connection.
+
+## Stored state
+
+### WordPress options
+
+| Option | Purpose | Default/fallback |
+| --- | --- | --- |
+| `worldgraph_gen_connection_mode` | Current generation choice | `none` |
+| `worldgraph_comfy_connection_mode` | Compatibility mirror of the choice | `none` |
+| `worldgraph_comfy_local_url` | Local ComfyUI HTTP URL | form suggests `http://host.lando.internal:8188` |
+| `worldgraph_comfy_local_mcp_url` | Optional separate local MCP URL | empty |
+| `worldgraph_ai_backend` | Primary LLM backend | `openai_compatible` |
+| `worldgraph_ai_url` | Primary LLM base URL | empty from a newly submitted blank form |
+| `worldgraph_ai_model` | Primary model | empty |
+| `worldgraph_ai_api_key` | Primary LLM key when no constant is defined | empty |
+| `worldgraph_ai_max_tokens` | Response limit | `2048` in wizard |
+| `worldgraph_ai_temperature` | Sampling temperature | `0.7` |
+| `worldgraph_setup_complete` | First-run gate | false until saved |
+
+The compatibility `worldgraph_comfy_connection_mode` option is written
+alongside the current generation option. New code should use
+`worldgraph_gen_connection_mode`.
+
+### Managed Connection fields
+
+The generation record stores the selected provider type, environment, endpoint,
+MCP endpoint where applicable, credential, and `unverified` status.
+
+The LLM record stores the backend as provider type, endpoint, credential, model,
+max tokens, and temperature. It uses the `llm` wizard slot.
+
+## Credentials
+
+### Primary LLM environment override
+
+Map the deployment environment into a PHP constant in `wp-config.php`:
 
 ```php
-// In wp-config.php
-define( 'WORLDGRAPH_COMFY_API_KEY', getenv( 'WORLDGRAPH_COMFY_API_KEY' ) );
-define( 'WORLDGRAPH_AI_API_KEY', getenv( 'WORLDGRAPH_AI_API_KEY' ) );
-define( 'WORLDGRAPH_AI_FALLBACK_API_KEY', getenv( 'WORLDGRAPH_AI_FALLBACK_API_KEY' ) );
+define( 'WORLDGRAPH_AI_API_KEY', getenv( 'WORLDGRAPH_AI_API_KEY' ) ?: '' );
 ```
 
-When constants are defined:
-- Wizard displays fields as **disabled** (read-only)
-- Shows note: "Configured through the deployment environment"
-- Settings cannot be changed in WordPress admin
-- Ideal for production security
+The environment variable by itself does not define a PHP constant.
 
-## Configuration Storage
+### Generation credentials
 
-All settings are stored as WordPress options:
+The wizard accepts a provider credential and stores it on the managed
+Connection. The fal and ElevenLabs adapters also resolve manually configured
+`env://FAL_KEY` and `env://ELEVENLABS_API_KEY` references.
 
-| Option | Value Type | Default |
-|--------|-----------|---------|
-| `worldgraph_gen_connection_mode` | string | `none` |
-| `worldgraph_comfy_connection_mode` | string | `none` |
-| `worldgraph_comfy_api_key` | string | empty |
-| `worldgraph_ai_backend` | string | `openai_compatible` |
-| `worldgraph_ai_url` | string | `http://localhost:11434/v1` |
-| `worldgraph_ai_model` | string | empty |
-| `worldgraph_ai_api_key` | string | empty |
-| `worldgraph_ai_max_tokens` | integer | `2048` |
-| `worldgraph_ai_temperature` | float | `0.7` |
-| `worldgraph_ai_fallback_backend` | string | `openai` |
-| `worldgraph_ai_fallback_api_key` | string | empty |
-| `worldgraph_setup_complete` | boolean | `true` (after wizard) |
+Do not place secrets in tracked `.env` files, screenshots, logs, Template JSON,
+or REST examples. Protect database backups because wizard-entered credentials
+are persisted.
 
-## Security Best Practices
+## Reopen or reset
 
-### For Development
-- Use wizard to save API keys
-- Keys stored in WordPress options (database)
-- Accessible via WordPress admin panel
-- Good for local/staging environments
+You can revisit the page without resetting anything:
 
-### For Production
-- Define constants in `wp-config.php` using environment variables
-- Keys NOT stored in database
-- Wizard shows fields as disabled
-- Recommended for security and compliance
-- Environment variables can be managed by deployment system
+`/wp-admin/admin.php?page=worldgraph-setup`
 
-## Wizard Form Flow
+To restore first-run redirect behavior:
 
+```bash
+lando wp option update worldgraph_setup_complete 0
 ```
-1. WordPress Runtime
-   ↓ (Status: Connected)
-2. Generation Connection (Optional)
-	├─ Preferred Connection dropdown
-	└─ Hosted provider API key (fal, Comfy Cloud, or ElevenLabs)
-3. LLM Connection (Required for AI Agents)
-   ├─ Primary Configuration
-   │  ├─ Provider selection
-   │  ├─ Endpoint/URL
-   │  ├─ Model name
-   │  └─ API credentials
-   ├─ Advanced Settings
-   │  ├─ Max tokens
-   │  └─ Temperature
-   └─ Fallback Configuration
-      ├─ Fallback provider
-      └─ Fallback API key
-4. External Generator Workflow
-   └─ (Instructions only)
-   ↓
-Save All Configurations → Setup Complete
+
+Submitting the wizard sets it to true again.
+
+## Verify saved configuration
+
+```bash
+lando wp option get worldgraph_gen_connection_mode
+lando wp option get worldgraph_ai_backend
+lando wp option get worldgraph_ai_model
+lando wp option get worldgraph_setup_complete
 ```
+
+Do not print credential options in a shared terminal log. Use the Connections
+screen to test providers and inspect non-secret status fields.
 
 ## Troubleshooting
 
-### API Key Not Appearing in Wizard
+### The activation redirect did not appear
 
-**Check if using environment variables:**
-```php
-// If defined in wp-config.php
-if ( defined( 'WORLDGRAPH_COMFY_API_KEY' ) ) {
-    // Field is disabled/read-only in wizard
-    echo "Using environment variable";
-}
-```
+Open the setup URL directly. Redirects are intentionally skipped for AJAX,
+cron, bulk activation, and users without `manage_options`.
 
-### Lost Wizard Access
+### World Graph Studio pages keep returning to setup
 
-To restore setup wizard access:
-```bash
-wp option update worldgraph_setup_complete false
-```
-
-### Verifying Configuration
+Submit the form once, or verify:
 
 ```bash
-# Check what's saved
-wp option get worldgraph_comfy_connection_mode
-wp option get worldgraph_ai_backend
-wp option get worldgraph_ai_fallback_backend
-
-# Verify environment variables
-wp eval 'echo defined("WORLDGRAPH_COMFY_API_KEY") ? "Set" : "Not set";'
-wp eval 'echo defined("WORLDGRAPH_AI_API_KEY") ? "Set" : "Not set";'
-wp eval 'echo defined("WORLDGRAPH_AI_FALLBACK_API_KEY") ? "Set" : "Not set";'
+lando wp option get worldgraph_setup_complete
 ```
 
-## Migration from Manual Configuration
+### Local ComfyUI test cannot connect
 
-If you previously set API keys manually:
+- Use `host.lando.internal`, not `localhost`, for a service on the Lando
+  host.
+- Confirm the URL is the ComfyUI HTTP base, not an MCP URL.
+- Confirm the host firewall and bind address allow the appserver container.
 
-### Option 1: Use Wizard (Recommended)
+### fal or ElevenLabs test succeeds but Templates are not visible
+
+Saving schedules a single WP-Cron catalog event. Run due events and inspect the
+Connection's provider configuration:
+
 ```bash
-# Reset setup flag
-wp option update worldgraph_setup_complete false
-
-# Complete wizard at World Graph Studio > Setup
+lando wp cron event run --due-now
 ```
 
-### Option 2: Keep Existing Settings
-Existing WordPress options are preserved. Wizard will load them on next access.
+Then review the Connection's last catalog sync/error fields.
 
-### Option 3: Use Environment Variables
-Define constants in `wp-config.php`. Wizard will display as read-only.
+### LLM test cannot find models
 
-## Next Steps
+- Confirm the URL is reachable from WordPress.
+- Use the correct OpenAI-compatible `/v1` base.
+- Check the model endpoint's authentication requirement.
+- Select or enter a model returned by the endpoint.
 
-1. ✅ Activate plugin
-2. ✅ Complete setup wizard with all API keys
-3. ✅ Test generation workflow
-4. ✅ Configure WP-Cron for production
-5. ✅ (Optional) Switch to environment variables for production
+## Related documentation
 
-## Support
-
-For issues with the setup wizard:
-- Check SETUP_GUIDE.md for troubleshooting
-- Visit World Graph Studio > Setup to reconfigure
-- Review WordPress options for saved settings
-- Verify environment variables if using constants
+- [Full Setup Guide](SETUP_GUIDE.md)
+- [Plugin Architecture](ARCHITECTURE.md)
+- [Generation Engine](../../../../../about/plugins/GENERATION_ENGINE.md)
+- [Deployment and Connections](../../../../../about/Deployment_and_Connections.md)

@@ -1,10 +1,15 @@
 # World Graph Studio CPT and SCF Schema Specification v1.0
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Purpose
 
 This document defines the WordPress Custom Post Types (CPTs), Structured Content Fields (SCF), taxonomies, and relationships used to implement the World Graph Studio Story Graph.
+
+The schema described here is delivered in the current repository. See
+[Delivery Status](Delivery_Status.md) for the release boundary; in particular,
+additional professional script-file import/export formats are on hold and do
+not change this schema contract.
 
 The schema serves as the foundation for:
 
@@ -286,17 +291,17 @@ Top-level container for all story assets.
 - references Assets
 - references Storyboards
 
-## Celtx Sync Metadata (Phase E — Complete)
+## Celtx Sync Metadata (Delivered)
 
-When synced with Celtx, the following post meta fields are added:
+When an item is synced to Celtx, the optional integration stores one private
+post-meta value:
 
 | Meta Key | Type | Description |
 |----------|------|-------------|
-| `worldgraph_celtx_id` | string | Celtx element/project ID |
-| `worldgraph_celtx_type` | string | Celtx entity type (`scene`, `element`, etc.) |
-| `worldgraph_celtx_project_id` | string | Parent Celtx project ID |
-| `worldgraph_synced_at` | datetime | Last successful sync timestamp |
-| `worldgraph_sync_direction` | string | `wordpress_to_celtx`, `celtx_to_wordpress`, `bidirectional` |
+| `_worldgraph_celtx_mapping` | array | Map keyed by entity category (for example `scene`), with the remote `element_id` and `synced_at` timestamp |
+
+The current sync service creates or updates supported Celtx records from World
+Graph Studio data. Removing a mapping does not delete the remote record.
 
 ---
 
@@ -379,8 +384,8 @@ represents one cue occurrence; repeated cues may link to the same Asset.
 
 Schema.org alignment uses `CreativeWork` for a planned Sound and
 `MusicComposition` for a music cue. Audio-typed Assets remain `AudioObject`
-encodings. The MVP intentionally keeps composition text such as lyrics on the
-cue; a reusable composition entity can normalize repeated music works later.
+encodings. The current model keeps composition text such as lyrics on the cue;
+an extension can add a reusable composition entity for repeated music works.
 
 ---
 
@@ -443,21 +448,27 @@ SCF field mappings used to resolve a generation request. `default_values` may
 provide reusable starting values, but explicit user input takes precedence
 after validation.
 
-## Planned Generation Relationship
+## Delivered Generation Contract
 
-The Assets workflow is expected to select an active template revision for the
-asset-generating Story Graph item. That relationship must preserve the
-template identity and revision on the generation record; it must not alter the
-featured attachment or `_worldgraph_asset_gallery_ids` gallery metadata.
+The Assets workflow selects an active `worldgraph_template` and its associated
+`worldgraph_conn`. A queued internal `worldgraph_gen` record preserves the
+template, connection, provider, workflow identifier, prompt, resolved inputs,
+parameters, source Story Graph item, state, and timestamps. The relevant meta
+keys use the `_worldgraph_gen_*` prefix, including
+`_worldgraph_gen_template_id`, `_worldgraph_gen_connection_id`,
+`_worldgraph_gen_provider_type`, and `_worldgraph_gen_status`.
 
-After resolution, WordPress should create a normalized request package for the
-configured ComfyUI MCP connection. The package includes resolved prompts,
-references, parameters, output requirements, Story Graph target, workflow
-identity, and provenance. Credentials, raw provider responses, and arbitrary
-executable workflow content do not belong in the package.
+WP-Cron processes bounded batches, submits or polls the configured adapter,
+supports cancellation, and imports completed media for supported Template
+modalities into the WordPress media library before marking those jobs complete.
+The built-in catalog currently provisions text-to-image and ElevenLabs audio
+Templates; other modalities require an adapter extension. Imported attachments
+and Asset records retain generation lineage. Featured-image and
+`_worldgraph_asset_gallery_ids` updates remain separate from the Template
+configuration itself.
 
-This relationship and request-package adapter are a remaining Generation Core
-epic and are not yet represented as a completed CPT contract.
+Credentials stay on the Connection or in environment-backed references. They
+are not copied into a generation request or result record.
 
 ---
 
@@ -479,18 +490,25 @@ Canonical CPT key: `worldgraph_editorial`.
 
 - EDL
 - XML
-- AAF
 - Timeline Metadata
+- Shot List
 - Production Reports
+
+The schema also reserves `aaf` as an artifact-type value so imported or
+externally produced records can be catalogued. World Graph Studio does not ship
+an AAF or OMF codec in the current release; those are extension points.
 
 ---
 
 # CPT: Connection
 
-The `worldgraph_conn` CPT is a control-plane record for a configured
-provider endpoint. It stores credential references, never raw secret values.
-Templates and generation jobs select a Connection by post ID; this association
-is currently stored as configuration rather than as a Story Graph edge.
+The `worldgraph_conn` CPT is a control-plane record for a configured provider
+endpoint. Its `credential_reference` field may contain an `env://` pointer or
+a literal provider key entered through the current setup UI. Use environment
+references in managed deployments and restrict Connection access to
+administrators. Templates and generation jobs select a Connection by post ID;
+this association is currently stored as configuration rather than as a Story
+Graph edge.
 
 ## Fields
 
@@ -523,24 +541,31 @@ is currently stored as configuration rather than as a Story Graph edge.
 - Horror
 - Documentary
 - Animation
+- Action
+- Thriller
+- Romance
 
 ## Project Status
 
 - Draft
-- Development
-- Production
-- Post Production
-- Published
+- In Development
+- In Production
+- In Post-Production
+- Approved
 - Archived
+- On Hold
 
 ## Asset Type
 
+- Image
 - Character
 - Environment
 - Prop
 - Storyboard
 - Video
 - Audio
+- Lookbook
+- Concept Art
 
 ## Sound Type
 
@@ -566,6 +591,34 @@ is currently stored as configuration rather than as a Story Graph edge.
 - Ensemble
 - Unknown
 
+## Character Relation
+
+- Protagonist
+- Antagonist
+- Mentor
+- Ally
+- Family
+- Love Interest
+- Rival
+- Sidekick
+- Neutral
+- Unknown
+
+## Scene Tag
+
+- Action
+- Drama
+- Comedy
+- Tension
+- Revelation
+- Exposition
+- Emotional
+- Quiet
+- Chaotic
+- Flashback
+- Voiceover
+- Montage
+
 ## Sequence
 
 - Setup
@@ -574,6 +627,18 @@ is currently stored as configuration rather than as a Story Graph edge.
 - Midpoint
 - Climax
 - Resolution
+
+## Template Category
+
+- Character
+- Scene
+- Storyboard
+- Concept
+- Editorial
+- Marketing
+- Asset Variation
+- Video
+- Image
 
 ---
 
@@ -603,7 +668,10 @@ Editorial Artifact -> Project
 
 # AI Advisor Access Requirements
 
-All fields should be exposed through World Graph Studio APIs.
+Story Graph fields are exposed through the native WordPress or World Graph
+Studio APIs according to their sensitivity. Connection configuration,
+including credential references, remains behind the administrator-only
+Connections controller.
 
 Agents must be able to:
 
@@ -628,24 +696,30 @@ To reduce ambiguity, World Graph Studio uses a controlled vocabulary that aligns
 Implementation note:
 
 - World Graph Studio models Shot and Scene as first-class entities.
-- Sequence is currently implemented as an optional Scene taxonomy (`worldgraph_sequence`).
+- Sequence is currently implemented as an optional taxonomy shared by Scene
+  and Shot records (`worldgraph_sequence`).
 
 ## Canonical Narrative Terms
 
 - Protagonist: model as a Character role/tag, not a separate CPT
 - Antagonist: model as a Character role/tag, not a separate CPT
-- Stakes: capture in Scene or Episode notes/metadata
-- Conflict: capture in Scene summary/notes and relationship metadata
-- Climax and Resolution (Denouement): capture as tagged Scene milestones
-- Premise and Logline: capture at Project level metadata
+- Stakes and Conflict: capture in Episode synopsis, Scene summary or production
+  notes, relationship metadata, or site-added SCF fields
+- Climax and Resolution (Denouement): use the seeded Sequence terms on Scene or
+  Shot records
+- Premise and Logline: use Project description today, or add separate SCF
+  extension fields when individually addressable values are required
 
 ## Canonical Production Terms
 
 - Shot List: represented by ordered Shot entities per Scene
 - Coverage: represented by Shot variants (shot_type, angle, lens, duration)
-- Continuity: represented by graph relationships across Scene, Shot, Sound, Asset, Character, and Location
+- Continuity context: represented by graph relationships across Scene, Shot,
+  Sound, Asset, Character, and Location; the current local checker itself
+  reports empty Scene/Shot content
 - Storyboard: represented by Storyboard Frame entities linked to Scene/Shot
-- EDL: represented as Editorial Artifact with links to source Scene/Shot
+- EDL: catalogued as an Editorial Artifact with links to source Scene/Shot;
+  current EDL formatting does not yet derive live clips from those links
 
 ## Film Grammar Terms
 
@@ -660,8 +734,8 @@ Implementation note:
 - Pre-Production: planning phase (scripts, storyboards, shot planning)
 - Principal Photography: active scene/shot capture phase
 - Post-Production: editorial/finishing phase (EDL, timeline, exports)
-- Daily Call Sheet: production schedule artifact (future Production entity)
-- Dailies: raw daily review media (future Asset sub-type)
+- Daily Call Sheet: a production schedule artifact; not a first-class current entity
+- Dailies: raw daily review media; store as Assets in the current model
 
 ## Field-to-Vocabulary Crosswalk
 
@@ -682,17 +756,15 @@ When a relationship implies generic association, keep Linked wording.
 
 ---
 
-# MVP Schema
+# Current Schema
 
-Required for initial release:
+The current release registers 15 schema-backed content types:
 
-- Project
-- Character
-- Location
-- Scene
-- Shot
-- Sound
-- Asset
-- Storyboard Frame
+- Project, Story World, Character, Location, Prop, Organization, and Episode
+- Scene, Shot, Sound, and Storyboard Frame
+- Asset and Editorial Artifact
+- Generation Template and Connection
 
-Future entities can be added without modifying the core Story Graph model.
+Generation jobs use the internal `worldgraph_gen` record type. Additional
+entity types can be supplied by extensions without changing the canonical
+relationship model.

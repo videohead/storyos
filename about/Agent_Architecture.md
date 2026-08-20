@@ -1,6 +1,6 @@
 # World Graph Studio Agent Architecture v1.1
 
-> Build Your Story Once. Create Everywhere.
+> Your ideas. Your assets. No credits needed.
 
 ## Purpose
 

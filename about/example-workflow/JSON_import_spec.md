@@ -359,7 +359,7 @@ storyboards[]
 ### CPT
 
 ```text
-worldgraph_board_frame
+worldgraph_board
 ```
 
 ### Fields

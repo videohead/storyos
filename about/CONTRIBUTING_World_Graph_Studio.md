@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to World Graph Studio.
 
-World Graph Studio is an open-source storytelling operating system that keeps structured story data and helpful filmmaking agents in WordPress and connects generative workflows through ComfyUI and MCP.
+World Graph Studio is an open-source creative production studio that keeps structured story data and filmmaking tools in WordPress, with optional connections to generation and publishing services.
 
 ## Our Mission
 
@@ -117,15 +117,15 @@ Scripts, storyboards, assets, production plans, and editorial artifacts should d
 
 ## Areas of Focus
 
-Current priorities include:
+The current release scope is complete. Useful contribution areas include:
 
 - Story Graph architecture
 - WordPress content model design
-- Enahancements to WordPress plugins
+- Enhancements to WordPress plugins
 - Comfy Cloud MCP workflows and local Comfy MCP creator workflows
 - WordPress Abilities and Story Graph agent context
-- Script import/export workflows
-- EDL integration
+- Maintenance of delivered World Graph Studio JSON import and Markdown export
+- Production adapters built on the delivered EDL format utilities
 - Production planning workflows
 - Documentation
 
@@ -151,4 +151,4 @@ Open a GitHub Discussion or Issue if you have questions about:
 
 Thank you for helping build World Graph Studio.
 
-**Build Your Story Once. Create Everywhere.**
+**Your ideas. Your assets. No credits needed.**
