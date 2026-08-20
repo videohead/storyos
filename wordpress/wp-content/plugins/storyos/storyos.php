@@ -8,7 +8,7 @@
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: storyos
- * Requires Plugins: secure-custom-fields/secure-custom-fields.php
+ * Requires Plugins: secure-custom-fields
  * Requires at least: 6.0
  * Requires PHP: 8.1
  *
@@ -471,6 +471,10 @@ function auto_validate_shot( int $post_id, \WP_Post $post, bool $update ): void 
  * Flush rewrite rules on activation.
  */
 function activate(): void {
+	if ( ! scf_is_active() ) {
+		storyos_missing_scf_dependency();
+	}
+
 	init();
 	flush_rewrite_rules();
 

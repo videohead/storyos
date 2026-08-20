@@ -578,11 +578,21 @@ final class SCF_Fields {
 		if ( ! $db_group || empty( $db_group['ID'] ) ) {
 			$validation_error = self::validate_group_schema( $cpt, storyos_get_field_defaults( $cpt ), $group );
 			if ( '' === $validation_error ) {
-				return self::enforce_canonical_group_contract( $group );
+				return self::prepare_group_fields_for_import( self::enforce_canonical_group_contract( $group ) );
 			}
 
 			self::persist_external_import_error( $key, 'A new StoryOS group import was blocked: ' . $validation_error );
-			return $group;
+			$archive = self::read_archive_group( $cpt );
+			if ( $archive && '' === self::validate_group_schema( $cpt, storyos_get_field_defaults( $cpt ), $archive ) ) {
+				unset( $archive['local'], $archive['local_file'], $archive['modified'] );
+				return self::prepare_group_fields_for_import( $archive );
+			}
+
+			wp_die(
+				esc_html__( 'StoryOS blocked this SCF import because neither the submitted group nor its plugin archive is safe to import.', 'storyos' ),
+				esc_html__( 'StoryOS SCF import blocked', 'storyos' ),
+				[ 'response' => 409, 'back_link' => true ]
+			);
 		}
 
 		$db_fields = self::read_raw_database_fields( (int) $db_group['ID'] );
@@ -602,7 +612,7 @@ final class SCF_Fields {
 		if ( ! is_wp_error( $merged ) ) {
 			$validation_error = self::validate_group_schema( $cpt, storyos_get_field_defaults( $cpt ), $merged );
 			if ( '' === $validation_error ) {
-				return $merged;
+				return self::prepare_group_fields_for_import( $merged );
 			}
 			$merged = new \WP_Error( 'storyos_scf_import_validation_failed', $validation_error );
 		}
@@ -613,7 +623,20 @@ final class SCF_Fields {
 		$safe           = self::enforce_canonical_group_contract( $db_group );
 		$safe['fields'] = array_map( [ __CLASS__, 'clean_database_field' ], $db_fields );
 		unset( $safe['local'], $safe['local_file'], $safe['modified'] );
-		return $safe;
+		return self::prepare_group_fields_for_import( $safe );
+	}
+
+	/** Restore the top-level parent/order settings SCF adds before this filter. */
+	private static function prepare_group_fields_for_import( array $group ): array {
+		$fields = array_values( (array) ( $group['fields'] ?? [] ) );
+		foreach ( $fields as $index => &$field ) {
+			$field['parent']     = (string) ( $group['key'] ?? '' );
+			$field['menu_order'] = $index;
+		}
+		unset( $field );
+		$group['fields'] = $fields;
+
+		return $group;
 	}
 
 	/** Persist a native-import failure for the existing administrator notice. */

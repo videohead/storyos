@@ -90,6 +90,19 @@ class Test_StoryOS_CPT extends TestCase {
 	}
 
 	/**
+	 * WordPress must recognize SCF as a plugin dependency on every activation path.
+	 */
+	public function test_scf_dependency_and_activation_guards() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/storyos.php' );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString( 'Requires Plugins: secure-custom-fields', $source );
+		$this->assertStringNotContainsString( 'Requires Plugins: secure-custom-fields/secure-custom-fields.php', $source );
+		$this->assertStringContainsString( "if ( ! scf_is_active() ) {\n\t\tstoryos_missing_scf_dependency();", $source );
+		$this->assertStringContainsString( "is_plugin_active_for_network( \$plugin )", $source );
+	}
+
+	/**
 	 * StoryOS CPT keys must fit WordPress's 20-character database limit.
 	 */
 	public function test_storyos_cpt_keys_fit_wordpress_limit() {
