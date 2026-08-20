@@ -47,16 +47,18 @@ class EditorialArtifact {
 			'required'    => false,
 		],
 		'source_scene'    => [
-			'type'        => 'relationship',
-			'label'       => 'Source Scene',
-			'required'    => false,
-			'related_cpt' => 'storyos_scene',
+			'type'              => 'relationship',
+			'label'             => 'Source Scene',
+			'required'          => false,
+			'related_cpt'       => 'storyos_scene',
+			'relationship_type' => 'references',
 		],
 		'source_shot'     => [
-			'type'        => 'relationship',
-			'label'       => 'Source Shot',
-			'required'    => false,
-			'related_cpt' => 'storyos_shot',
+			'type'              => 'relationship',
+			'label'             => 'Source Shot',
+			'required'          => false,
+			'related_cpt'       => 'storyos_shot',
+			'relationship_type' => 'references',
 		],
 		'notes'           => [
 			'type'        => 'wysiwyg',
@@ -64,10 +66,11 @@ class EditorialArtifact {
 			'required'    => false,
 		],
 		'project'         => [
-			'type'        => 'relationship',
-			'label'       => 'Project',
-			'required'    => false,
-			'related_cpt' => 'storyos_project',
+			'type'              => 'relationship',
+			'label'             => 'Project',
+			'required'          => false,
+			'related_cpt'       => 'storyos_project',
+			'relationship_type' => 'references',
 		],
 	];
 

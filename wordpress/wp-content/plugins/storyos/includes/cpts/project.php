@@ -86,11 +86,12 @@ class Project {
 			'required'    => false,
 		],
 		'team_members'        => [
-			'type'        => 'relationship',
-			'label'       => 'Team Members',
-			'required'    => false,
-			'related_cpt' => 'storyos_character',
-			'multiple'    => true,
+			'type'              => 'relationship',
+			'label'             => 'Team Members',
+			'required'          => false,
+			'related_cpt'       => 'storyos_character',
+			'relationship_type' => 'contains',
+			'multiple'          => true,
 		],
 		'production_stage'    => [
 			'type'        => 'select',

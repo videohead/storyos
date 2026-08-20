@@ -39,10 +39,11 @@ class Prop {
 			'required'    => false,
 		],
 		'owner_character' => [
-			'type'        => 'relationship',
-			'label'       => 'Owner Character',
-			'required'    => false,
-			'related_cpt' => 'storyos_character',
+			'type'              => 'relationship',
+			'label'             => 'Owner Character',
+			'required'          => false,
+			'related_cpt'       => 'storyos_character',
+			'relationship_type' => 'linked_to',
 		],
 		'notes'           => [
 			'type'        => 'wysiwyg',

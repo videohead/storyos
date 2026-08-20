@@ -34,10 +34,11 @@ class StoryboardFrame {
 			'required'    => false,
 		],
 		'image_asset'     => [
-			'type'        => 'relationship',
-			'label'       => 'Image Asset',
-			'required'    => false,
-			'related_cpt' => 'storyos_asset',
+			'type'              => 'relationship',
+			'label'             => 'Image Asset',
+			'required'          => false,
+			'related_cpt'       => 'storyos_asset',
+			'relationship_type' => 'references',
 		],
 		'prompt_text'     => [
 			'type'        => 'wysiwyg',
@@ -50,16 +51,18 @@ class StoryboardFrame {
 			'required'    => false,
 		],
 		'scene'           => [
-			'type'        => 'relationship',
-			'label'       => 'Scene',
-			'required'    => false,
-			'related_cpt' => 'storyos_scene',
+			'type'              => 'relationship',
+			'label'             => 'Scene',
+			'required'          => false,
+			'related_cpt'       => 'storyos_scene',
+			'relationship_type' => 'references',
 		],
 		'shot'            => [
-			'type'        => 'relationship',
-			'label'       => 'Shot',
-			'required'    => false,
-			'related_cpt' => 'storyos_shot',
+			'type'              => 'relationship',
+			'label'             => 'Shot',
+			'required'          => false,
+			'related_cpt'       => 'storyos_shot',
+			'relationship_type' => 'references',
 		],
 	];
 
