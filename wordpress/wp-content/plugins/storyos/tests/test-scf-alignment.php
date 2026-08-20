@@ -34,8 +34,8 @@ class Test_StoryOS_SCF_Alignment extends TestCase {
 	}
 
 	/**
-	 * Every StoryOS CPT has one portable, REST-enabled SCF group at its exact
-	 * post-type location.
+	 * Every StoryOS CPT has one portable SCF group at its exact post-type
+	 * location. Connection control-plane fields stay off native public REST.
 	 */
 	public function test_every_cpt_has_an_archived_scf_group(): void {
 		$groups = $this->get_groups();
@@ -47,7 +47,8 @@ class Test_StoryOS_SCF_Alignment extends TestCase {
 			$this->assertArrayHasKey( $key, $groups, "Missing SCF group for {$cpt}" );
 			$this->assertSame( $cpt, $groups[ $key ]['location'][0][0]['value'] ?? null );
 			$this->assertSame( 'post_type', $groups[ $key ]['location'][0][0]['param'] ?? null );
-			$this->assertSame( 1, $groups[ $key ]['show_in_rest'] ?? null );
+			$expected_rest_visibility = 'storyos_connection' === $cpt ? 0 : 1;
+			$this->assertSame( $expected_rest_visibility, $groups[ $key ]['show_in_rest'] ?? null );
 			$this->assertTrue( $groups[ $key ]['active'] ?? false );
 			$this->assertArrayNotHasKey( 'local_file', $groups[ $key ], 'Local JSON must not archive machine-specific paths.' );
 		}

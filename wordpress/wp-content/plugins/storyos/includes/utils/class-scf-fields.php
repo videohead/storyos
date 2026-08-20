@@ -14,16 +14,6 @@ namespace StoryOS\Utils;
 final class SCF_Fields {
 
 	/**
-	 * Increment when the code-defined field contract adds required fields.
-	 */
-	private const SCHEMA_VERSION = '1.0.0';
-
-	/**
-	 * Option used to make field-group synchronization an idempotent migration.
-	 */
-	private const SCHEMA_VERSION_OPTION = 'storyos_scf_schema_version';
-
-	/**
 	 * Whether runtime hooks have been registered.
 	 *
 	 * @var bool
@@ -36,6 +26,13 @@ final class SCF_Fields {
 	 * @var array<string, array<string, array<string, mixed>>>
 	 */
 	private static $field_cache = [];
+
+	/**
+	 * SCF keys contained in each StoryOS-owned group, including sub-fields.
+	 *
+	 * @var array<string, array<int, string>>
+	 */
+	private static $owned_field_keys = [];
 
 	/**
 	 * Initialize persisted groups and value synchronization.
@@ -117,8 +114,6 @@ final class SCF_Fields {
 	 * @param array<string, array<string, array<string, mixed>>> $definitions Code-defined fields.
 	 */
 	private static function sync_groups( array $definitions ): void {
-		$schema_changed = self::SCHEMA_VERSION !== (string) get_option( self::SCHEMA_VERSION_OPTION, '' );
-
 		foreach ( $definitions as $cpt => $fields ) {
 			if ( ! is_array( $fields ) ) {
 				continue;
@@ -132,22 +127,55 @@ final class SCF_Fields {
 			}
 
 			// acf_get_raw_field_group() bypasses Local JSON and checks the
-			// database. Import only when no editable copy exists.
+			// database. Import a missing or older editable copy.
 			$db_group = function_exists( 'acf_get_raw_field_group' )
 				? acf_get_raw_field_group( self::group_key( $cpt ) )
 				: false;
-			if ( ! $db_group ) {
+			if ( ! $db_group || self::archive_is_newer( $group, $db_group ) ) {
 				$import = $group;
-				unset( $import['ID'], $import['local'], $import['local_file'] );
-				acf_import_field_group( $import );
+				unset( $import['local'], $import['local_file'] );
+				$import['ID'] = $db_group ? (int) $db_group['ID'] : 0;
+
+				// Archive-to-database synchronization must not rewrite the source
+				// JSON file or advance its timestamp during this same import.
+				$local_json = function_exists( 'acf_get_instance' ) ? acf_get_instance( 'ACF_Local_JSON' ) : null;
+				if ( $local_json ) {
+					remove_action( 'acf/update_field_group', [ $local_json, 'update_field_group' ] );
+				}
+
+				try {
+					acf_import_field_group( $import );
+				} finally {
+					if ( $local_json ) {
+						add_action( 'acf/update_field_group', [ $local_json, 'update_field_group' ] );
+					}
+				}
 			}
 		}
 
-		if ( $schema_changed ) {
-			update_option( self::SCHEMA_VERSION_OPTION, self::SCHEMA_VERSION, false );
+		self::$field_cache      = [];
+		self::$owned_field_keys = [];
+	}
+
+	/**
+	 * Whether a Local JSON group is newer than its editable database copy.
+	 *
+	 * This mirrors SCF's normal "Sync available" comparison, but performs the
+	 * import during StoryOS boot so the SCF editor never presents a stale schema
+	 * after a plugin update. A newer database record is left untouched because
+	 * it may contain an administrator change whose JSON write failed.
+	 *
+	 * @param array<string, mixed> $group    Loaded group, normally from JSON.
+	 * @param array<string, mixed> $db_group Raw database group.
+	 * @return bool
+	 */
+	private static function archive_is_newer( array $group, array $db_group ): bool {
+		if ( 'json' !== (string) ( $group['local'] ?? '' ) || empty( $group['modified'] ) || empty( $db_group['ID'] ) ) {
+			return false;
 		}
 
-		self::$field_cache = [];
+		$db_modified = get_post_modified_time( 'U', true, (int) $db_group['ID'] );
+		return (int) $group['modified'] > (int) $db_modified;
 	}
 
 	/**
@@ -188,7 +216,7 @@ final class SCF_Fields {
 			'hide_on_screen'        => '',
 			'active'                => true,
 			'description'           => 'Structured metadata for the StoryOS Story Graph. This persisted group may be managed in Secure Custom Fields.',
-			'show_in_rest'          => 1,
+			'show_in_rest'          => 'storyos_connection' === $cpt ? 0 : 1,
 		];
 	}
 
@@ -360,12 +388,8 @@ final class SCF_Fields {
 			return $defaults;
 		}
 
-		$groups = acf_get_field_groups( [ 'post_type' => $cpt ] );
-		$groups = is_array( $groups ) ? $groups : [];
 		$core_group = acf_get_field_group( self::group_key( $cpt ) );
-		if ( $core_group && ! self::contains_group( $groups, (string) $core_group['key'] ) ) {
-			array_unshift( $groups, $core_group );
-		}
+		$groups     = $core_group ? [ $core_group ] : [];
 
 		$fields = [];
 		foreach ( $groups as $group ) {
@@ -386,22 +410,6 @@ final class SCF_Fields {
 
 		self::$field_cache[ $cpt ] = ! empty( $fields ) ? $fields : $defaults;
 		return self::$field_cache[ $cpt ];
-	}
-
-	/**
-	 * Whether a group list already contains a group key.
-	 *
-	 * @param array<int, array<string, mixed>> $groups Groups.
-	 * @param string                           $key    Group key.
-	 */
-	private static function contains_group( array $groups, string $key ): bool {
-		foreach ( $groups as $group ) {
-			if ( $key === (string) ( $group['key'] ?? '' ) ) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	/**
@@ -454,6 +462,42 @@ final class SCF_Fields {
 	}
 
 	/**
+	 * Whether a field belongs to the StoryOS-owned group for this CPT.
+	 *
+	 * @param string               $cpt   CPT slug.
+	 * @param array<string, mixed> $field SCF field.
+	 * @return bool
+	 */
+	private static function is_owned_field( string $cpt, array $field ): bool {
+		if ( ! isset( self::$owned_field_keys[ $cpt ] ) ) {
+			$group = acf_get_field_group( self::group_key( $cpt ) );
+			$keys  = [];
+			self::collect_field_keys( $group ? (array) acf_get_fields( $group ) : [], $keys );
+			self::$owned_field_keys[ $cpt ] = $keys;
+		}
+
+		return in_array( (string) ( $field['key'] ?? '' ), self::$owned_field_keys[ $cpt ], true );
+	}
+
+	/**
+	 * Collect field and nested sub-field keys.
+	 *
+	 * @param array<int, array<string, mixed>> $fields Fields.
+	 * @param array<int, string>               $keys   Collected keys.
+	 */
+	private static function collect_field_keys( array $fields, array &$keys ): void {
+		foreach ( $fields as $field ) {
+			if ( ! empty( $field['key'] ) ) {
+				$keys[] = (string) $field['key'];
+			}
+
+			if ( ! empty( $field['sub_fields'] ) && is_array( $field['sub_fields'] ) ) {
+				self::collect_field_keys( $field['sub_fields'], $keys );
+			}
+		}
+	}
+
+	/**
 	 * Resolve an SCF field by CPT and field name.
 	 *
 	 * @return array<string, mixed>|false
@@ -468,12 +512,10 @@ final class SCF_Fields {
 			return $field;
 		}
 
-		$groups = function_exists( 'acf_get_field_groups' ) ? acf_get_field_groups( [ 'post_type' => $cpt ] ) : [];
-		foreach ( (array) $groups as $group ) {
-			foreach ( (array) acf_get_fields( $group ) as $candidate ) {
-				if ( $field_name === (string) ( $candidate['name'] ?? '' ) ) {
-					return $candidate;
-				}
+		$group = acf_get_field_group( self::group_key( $cpt ) );
+		foreach ( $group ? (array) acf_get_fields( $group ) : [] as $candidate ) {
+			if ( $field_name === (string) ( $candidate['name'] ?? '' ) ) {
+				return $candidate;
 			}
 		}
 
@@ -517,6 +559,22 @@ final class SCF_Fields {
 		$cpt   = (string) get_post_type( $post_id );
 		$field = self::get_field_object( $cpt, $field_name );
 		if ( $field && function_exists( 'delete_field' ) ) {
+			$defaults = storyos_get_field_defaults( $cpt );
+			$config   = self::from_scf_field( $field, $defaults[ $field_name ] ?? [] );
+			if ( 'relationship' === $config['type'] && ! empty( $config['related_cpt'] ) && function_exists( __NAMESPACE__ . '\\set_relationships_for_field' ) ) {
+				$result = set_relationships_for_field(
+					$post_id,
+					$cpt,
+					[],
+					(string) $config['related_cpt'],
+					(string) ( $config['relationship_type'] ?? 'belongs_to' ),
+					$field_name
+				);
+				if ( is_wp_error( $result ) ) {
+					return false;
+				}
+			}
+
 			return (bool) delete_field( (string) $field['key'], $post_id );
 		}
 
@@ -540,7 +598,7 @@ final class SCF_Fields {
 
 		$post_id = (int) $post_id;
 		$cpt     = (string) get_post_type( $post_id );
-		if ( ! isset( storyos_get_all_cpts()[ $cpt ] ) ) {
+		if ( ! isset( storyos_get_all_cpts()[ $cpt ] ) || ! self::is_owned_field( $cpt, $field ) ) {
 			return $value;
 		}
 
@@ -552,7 +610,7 @@ final class SCF_Fields {
 				$target_ids[] = is_object( $target ) && isset( $target->ID ) ? (int) $target->ID : (int) $target;
 			}
 
-			set_relationships_for_field(
+			$result = set_relationships_for_field(
 				$post_id,
 				$cpt,
 				array_values( array_filter( $target_ids ) ),
@@ -560,6 +618,10 @@ final class SCF_Fields {
 				(string) ( $config['relationship_type'] ?? 'belongs_to' ),
 				(string) $field['name']
 			);
+			if ( is_wp_error( $result ) ) {
+				return get_post_meta( $post_id, (string) $field['name'], true );
+			}
+
 			return $value;
 		}
 
@@ -585,6 +647,10 @@ final class SCF_Fields {
 
 		$post_id = (int) $post_id;
 		$cpt     = (string) get_post_type( $post_id );
+		if ( ! self::is_owned_field( $cpt, $field ) ) {
+			return $value;
+		}
+
 		$defaults = storyos_get_field_defaults( $cpt );
 		$config   = self::from_scf_field( $field, $defaults[ $field['name'] ] ?? [] );
 		$to_type  = (string) ( $config['related_cpt'] ?? '' );
@@ -610,9 +676,9 @@ final class SCF_Fields {
 			return 'relationship' === (string) $field['type'] || ! empty( $field['multiple'] ) ? $matches : $matches[0];
 		}
 
-		// Preserve legacy named relationship meta only until a Story Graph slot
-		// exists. A present (even empty) graph meta value is authoritative.
-		if ( metadata_exists( 'post', $post_id, STORYOS_CPT_PREFIX . 'relationships' ) ) {
+		// A per-field marker distinguishes an intentionally empty graph slot from
+		// legacy named relationship meta that has not been migrated yet.
+		if ( function_exists( __NAMESPACE__ . '\\relationship_field_marker_key' ) && metadata_exists( 'post', $post_id, relationship_field_marker_key( (string) $field['name'] ) ) ) {
 			return 'relationship' === (string) $field['type'] || ! empty( $field['multiple'] ) ? [] : '';
 		}
 
@@ -632,6 +698,9 @@ final class SCF_Fields {
 
 		$cpt = self::cpt_from_field_key( (string) ( $field['key'] ?? '' ) );
 		if ( '' === $cpt ) {
+			return $field;
+		}
+		if ( ! self::is_owned_field( $cpt, $field ) ) {
 			return $field;
 		}
 

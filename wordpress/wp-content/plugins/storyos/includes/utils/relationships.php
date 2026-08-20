@@ -28,6 +28,17 @@ function relationship_types(): array {
 }
 
 /**
+ * Get the private marker used to distinguish a cleared graph field from
+ * unmigrated named relationship meta.
+ *
+ * @param string $field_name Relationship field name.
+ * @return string
+ */
+function relationship_field_marker_key( string $field_name ): string {
+	return '_storyos_relationship_field_' . sanitize_key( $field_name );
+}
+
+/**
  * Add a relationship between two Story Graph entities.
  *
  * @param int    $from_id    The source entity ID.
@@ -147,11 +158,19 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 	update_post_meta( $from_id, $meta_key, $existing );
 
 	if ( 0 === $to_id ) {
+		if ( '' !== $field_name ) {
+			update_post_meta( $from_id, relationship_field_marker_key( $field_name ), 1 );
+		}
 		return 0;
 	}
 
 	$metadata['field'] = $field_name;
-	return add_relationship( $from_id, $from_type, $to_id, $to_type, $type, $metadata );
+	$result = add_relationship( $from_id, $from_type, $to_id, $to_type, $type, $metadata );
+	if ( ! is_wp_error( $result ) && '' !== $field_name ) {
+		update_post_meta( $from_id, relationship_field_marker_key( $field_name ), 1 );
+	}
+
+	return $result;
 }
 
 /**
@@ -226,6 +245,8 @@ function set_relationships_for_field( int $from_id, string $from_type, array $ta
 			return $result;
 		}
 	}
+
+	update_post_meta( $from_id, relationship_field_marker_key( $field_name ), 1 );
 
 	return count( $target_ids );
 }

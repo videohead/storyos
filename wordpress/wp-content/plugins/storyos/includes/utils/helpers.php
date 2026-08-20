@@ -914,11 +914,11 @@ function storyos_sanitize_field_value( $value, array $field ) {
 	}
 
 	if ( 'wysiwyg' === $type ) {
-		return wp_kses_post( wp_unslash( (string) $value ) );
+		return wp_kses_post( (string) $value );
 	}
 
 	if ( 'textarea' === $type ) {
-		return sanitize_textarea_field( wp_unslash( (string) $value ) );
+		return sanitize_textarea_field( (string) $value );
 	}
 
 	if ( 'select' === $type ) {
@@ -927,7 +927,7 @@ function storyos_sanitize_field_value( $value, array $field ) {
 		return isset( $options[ $value ] ) ? $value : '';
 	}
 
-	return sanitize_text_field( wp_unslash( (string) $value ) );
+	return sanitize_text_field( (string) $value );
 }
 
 /**

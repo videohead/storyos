@@ -318,6 +318,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 
 		// Save relationships.
 		$this->save_relationships( $post_id, $request );
+		do_action( 'storyos_after_rest_entity_save', $post_id, $this->cpt, $request );
 
 		$post = get_post( $post_id );
 		return $this->prepare_item( $post, $request->get_params() );
@@ -366,15 +367,10 @@ abstract class Base_Controller extends WP_REST_Controller {
 			if ( '' === $meta[ $key ] || null === $meta[ $key ] ) {
 				\StoryOS\Utils\storyos_delete_field_value( $post_id, $key );
 			} else {
-				$value = $meta[ $key ];
-				if ( ! is_array( $value ) && ! is_object( $value ) ) {
-					$value = \StoryOS\Utils\storyos_sanitize_field_value( $value, $field );
-				}
-
 				\StoryOS\Utils\storyos_update_field_value(
 					$post_id,
 					$key,
-					$value
+					$meta[ $key ]
 				);
 			}
 		}
@@ -570,6 +566,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 
 		// Update relationships.
 		$this->save_relationships( $post_id, $request );
+		do_action( 'storyos_after_rest_entity_save', $post_id, $this->cpt, $request );
 
 		$post = get_post( $post_id );
 		return $this->prepare_item( $post, $request->get_params() );

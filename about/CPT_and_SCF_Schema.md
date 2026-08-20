@@ -37,18 +37,25 @@ The Story Graph is the canonical source of truth.
 
 # SCF Persistence and Runtime Contract
 
-StoryOS archives one REST-enabled SCF field group per CPT under
+StoryOS archives one SCF field group per CPT under
 `wordpress/wp-content/plugins/storyos/acf-json/`. These Local JSON files are
 committed with the plugin and are the portable field-schema baseline. StoryOS
 adds that directory to SCF's JSON load paths and routes saves for
 `group_storyos_*` groups back to the same directory; unrelated SCF groups keep
 their configured save paths.
 
+Content groups are exposed through SCF's native REST integration. The
+Connection group is deliberately excluded because it contains private
+control-plane configuration; Connections remain available only through the
+authenticated StoryOS API.
+
 At plugin initialization, StoryOS imports any missing archived group into the
-WordPress database. The database copy makes the group available in SCF's
-Field Groups admin screen, where administrators can add, update, and manage
-custom fields. Saving a StoryOS-owned group in SCF refreshes its Local JSON
-archive, which should be reviewed and committed like any other schema change.
+WordPress database and synchronizes an archive that is newer than its database
+copy. The database copy makes the group available in SCF's Field Groups admin
+screen, where administrators can add, update, and manage custom fields. A newer
+database copy is never overwritten during boot. Saving a StoryOS-owned group in
+SCF refreshes its Local JSON archive, which should be reviewed and committed
+like any other schema change.
 
 SCF field groups are the runtime authority for the StoryOS field schema.
 StoryOS's PHP field definitions seed the persisted groups, provide a fallback

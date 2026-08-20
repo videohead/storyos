@@ -27,7 +27,7 @@ class ElevenLabs_Catalog {
 
 	/** Schedule provisioning after Connection meta has been saved. */
 	public static function schedule_after_connection_save( int $post_id, \WP_Post $post ): void {
-		if ( 'publish' !== $post->post_status || 'elevenlabs' !== get_post_meta( $post_id, 'provider_type', true ) ) {
+		if ( 'publish' !== $post->post_status || 'elevenlabs' !== get_post_meta( $post_id, 'provider_type', true ) || 'disabled' === get_post_meta( $post_id, 'status', true ) ) {
 			return;
 		}
 		if ( ! wp_next_scheduled( self::HOOK, [ $post_id ] ) ) {

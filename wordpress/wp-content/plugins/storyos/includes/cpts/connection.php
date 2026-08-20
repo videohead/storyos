@@ -58,12 +58,158 @@ class Connection {
 	public static function init(): void {
 		self::register_cpt();
 		self::register_meta_boxes();
-		add_action( 'save_post_' . self::CPT, [ __CLASS__, 'save_meta' ], 10, 2 );
+		add_filter( 'acf/update_value', [ __CLASS__, 'sanitize_scf_value' ], 30, 4 );
+		add_filter( 'acf/validate_value', [ __CLASS__, 'validate_scf_value' ], 20, 4 );
+		add_filter( 'acf/load_field/key=field_storyos_connection_provider_type', [ __CLASS__, 'load_provider_choices' ] );
+		add_action( 'acf/save_post', [ __CLASS__, 'after_scf_save' ], 20 );
+		add_action( 'storyos_after_rest_entity_save', [ __CLASS__, 'after_rest_save' ], 10, 3 );
 		add_action( 'wp_ajax_storyos_sync_connection_catalog', [ __CLASS__, 'ajax_sync_catalog' ] );
 		add_action( 'wp_ajax_storyos_enable_connection_catalog_entry', [ __CLASS__, 'ajax_enable_catalog_entry' ] );
 		add_action( 'wp_ajax_storyos_disable_connection_catalog_entry', [ __CLASS__, 'ajax_disable_catalog_entry' ] );
 		add_action( 'wp_ajax_storyos_materialize_connection_catalog_entry', [ __CLASS__, 'ajax_materialize_catalog_entry' ] );
 		add_action( 'wp_ajax_storyos_download_connection_catalog_entry', [ __CLASS__, 'ajax_download_catalog_entry' ] );
+	}
+
+	/**
+	 * Keep the archived Provider Type field aligned with adapter extensions.
+	 *
+	 * @param array<string, mixed> $field SCF field.
+	 * @return array<string, mixed>
+	 */
+	public static function load_provider_choices( array $field ): array {
+		$provider_types   = self::provider_types();
+		$field['choices'] = empty( $provider_types ) ? [] : array_combine( $provider_types, $provider_types );
+		return $field;
+	}
+
+	/**
+	 * Apply Connection-specific normalization after SCF's field-type handling.
+	 *
+	 * @param mixed                $value    Submitted value.
+	 * @param int|string           $post_id  SCF object ID.
+	 * @param array<string, mixed> $field    SCF field.
+	 * @param mixed                $original Original submitted value.
+	 * @return mixed
+	 */
+	public static function sanitize_scf_value( $value, $post_id, array $field, $original ) {
+		if ( ! is_numeric( $post_id ) || self::CPT !== get_post_type( (int) $post_id ) ) {
+			return $value;
+		}
+
+		switch ( (string) ( $field['name'] ?? '' ) ) {
+			case 'provider_type':
+				$value = sanitize_key( (string) $value );
+				return in_array( $value, self::provider_types(), true ) ? $value : '';
+
+			case 'environment':
+				$value = sanitize_key( (string) $value );
+				return in_array( $value, self::ENVIRONMENTS, true ) ? $value : 'local';
+
+			case 'status':
+				$value = sanitize_key( (string) $value );
+				return in_array( $value, self::STATUSES, true ) ? $value : 'unverified';
+
+			case 'endpoint_url':
+			case 'mcp_endpoint_url':
+				return esc_url_raw( trim( (string) $value ) );
+
+			case 'max_tokens':
+				return '' === trim( (string) $value ) ? '' : (string) absint( $value );
+
+			case 'temperature':
+				return '' === trim( (string) $value ) ? '' : (string) (float) $value;
+
+			case 'model_access':
+			case 'enabled_structures':
+			case 'enabled_templates':
+			case 'rate_limits':
+			case 'cost_controls':
+				$normalized = self::sanitize_json_field( (string) $value );
+				return null === $normalized
+					? get_post_meta( (int) $post_id, (string) $field['name'], true )
+					: $normalized;
+
+			case 'connection_name':
+			case 'credential_reference':
+			case 'model':
+				return sanitize_text_field( (string) $value );
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Report domain validation errors in SCF before any Connection values save.
+	 *
+	 * @param bool|string          $valid Whether the value is valid so far.
+	 * @param mixed                $value Submitted value.
+	 * @param array<string, mixed> $field SCF field.
+	 * @param string               $input Input name.
+	 * @return bool|string
+	 */
+	public static function validate_scf_value( $valid, $value, array $field, string $input ) {
+		if ( true !== $valid || 0 !== strpos( (string) ( $field['key'] ?? '' ), 'field_storyos_connection_' ) ) {
+			return $valid;
+		}
+
+		$name = (string) ( $field['name'] ?? '' );
+		if ( 'provider_type' === $name && ! in_array( sanitize_key( (string) $value ), self::provider_types(), true ) ) {
+			return __( 'Select a supported provider type.', 'storyos' );
+		}
+		if ( 'environment' === $name && ! in_array( sanitize_key( (string) $value ), self::ENVIRONMENTS, true ) ) {
+			return __( 'Select a supported environment.', 'storyos' );
+		}
+		if ( 'status' === $name && ! in_array( sanitize_key( (string) $value ), self::STATUSES, true ) ) {
+			return __( 'Select a supported connection status.', 'storyos' );
+		}
+		if ( in_array( $name, [ 'max_tokens', 'temperature' ], true ) && '' !== trim( (string) $value ) && ! is_numeric( $value ) ) {
+			return __( 'Enter a numeric value.', 'storyos' );
+		}
+		if ( in_array( $name, [ 'model_access', 'enabled_structures', 'enabled_templates', 'rate_limits', 'cost_controls' ], true ) && null === self::sanitize_json_field( (string) $value ) ) {
+			return __( 'Enter a valid JSON array or object.', 'storyos' );
+		}
+
+		return $valid;
+	}
+
+	/**
+	 * Load the selected adapter and schedule provider catalog refreshes after
+	 * SCF has persisted a Connection edit.
+	 *
+	 * @param int|string $post_id SCF object ID.
+	 */
+	public static function after_scf_save( $post_id ): void {
+		if ( ! is_numeric( $post_id ) || self::CPT !== get_post_type( (int) $post_id ) ) {
+			return;
+		}
+
+		$post_id       = (int) $post_id;
+		$provider_type = (string) \StoryOS\Utils\storyos_get_field_value( $post_id, 'provider_type' );
+		$status        = (string) \StoryOS\Utils\storyos_get_field_value( $post_id, 'status' );
+		if ( 'disabled' === $status ) {
+			return;
+		}
+
+		\StoryOS\Utils\Connection_Adapters::load( $provider_type );
+
+		if ( 'fal' === $provider_type && ! wp_next_scheduled( \StoryOS\Utils\Fal_Catalog::HOOK, [ $post_id ] ) ) {
+			wp_schedule_single_event( time() + 5, \StoryOS\Utils\Fal_Catalog::HOOK, [ $post_id ] );
+		} elseif ( 'elevenlabs' === $provider_type && ! wp_next_scheduled( \StoryOS\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] ) ) {
+			wp_schedule_single_event( time() + 5, \StoryOS\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
+		}
+	}
+
+	/**
+	 * Run the same Connection lifecycle after custom StoryOS REST writes.
+	 *
+	 * @param int              $post_id Post ID.
+	 * @param string           $cpt     CPT slug.
+	 * @param \WP_REST_Request $request REST request.
+	 */
+	public static function after_rest_save( int $post_id, string $cpt, \WP_REST_Request $request ): void {
+		if ( self::CPT === $cpt ) {
+			self::after_scf_save( $post_id );
+		}
 	}
 
 	/**
@@ -181,10 +327,13 @@ class Connection {
 			self::CPT,
 			'Connections',
 			[
-				'menu_icon'    => 'dashicons-admin-network',
+				'menu_icon'          => 'dashicons-admin-network',
+				'public'             => false,
+				'publicly_queryable' => false,
+				'show_in_rest'       => false,
 				// The native post list is intentionally not registered in the admin menu;
 				// StoryOS\Admin\Connections::render_page() is the single Connections view.
-				'show_in_menu' => false,
+				'show_in_menu'       => false,
 			],
 			$fields
 		);
