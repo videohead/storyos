@@ -17,12 +17,120 @@ class Template {
 	public static function init(): void {
 		self::register_cpt();
 		self::register_meta_boxes();
-		add_action( 'save_post_storyos_template', [ __CLASS__, 'save_meta' ], 10, 2 );
+		add_filter( 'acf/update_value', [ __CLASS__, 'sanitize_scf_value' ], 30, 4 );
+		add_filter( 'acf/validate_value', [ __CLASS__, 'validate_scf_value' ], 20, 4 );
+		add_filter( 'acf/load_field/key=field_storyos_template_modality', [ __CLASS__, 'load_modality_choices' ] );
+		add_filter( 'acf/load_field/key=field_storyos_template_model_family', [ __CLASS__, 'load_model_family_choices' ] );
 		add_action( 'wp_ajax_storyos_check_template_requirements', [ __CLASS__, 'ajax_check_requirements' ] );
 		add_action( 'wp_ajax_storyos_install_template_models', [ __CLASS__, 'ajax_install_models' ] );
 		add_action( 'wp_ajax_storyos_discover_comfy_templates', [ __CLASS__, 'ajax_discover_comfy_templates' ] );
 		add_action( 'wp_ajax_storyos_download_comfy_template_requirements', [ __CLASS__, 'ajax_download_comfy_template_requirements' ] );
 		add_action( 'wp_ajax_storyos_import_provider_template_definition', [ __CLASS__, 'ajax_import_provider_template_definition' ] );
+	}
+
+	/**
+	 * Refresh registry-backed choices without requiring a JSON rewrite when an
+	 * adapter extends the available modality or model-family registry.
+	 *
+	 * @param array<string, mixed> $field SCF field.
+	 * @return array<string, mixed>
+	 */
+	public static function load_modality_choices( array $field ): array {
+		$field['choices'] = \StoryOS\Utils\Generation_Modality::labels();
+		return $field;
+	}
+
+	/**
+	 * Refresh model-family choices from the runtime registry.
+	 *
+	 * @param array<string, mixed> $field SCF field.
+	 * @return array<string, mixed>
+	 */
+	public static function load_model_family_choices( array $field ): array {
+		$field['choices'] = \StoryOS\Utils\Model_Family::labels();
+		return $field;
+	}
+
+	/**
+	 * Apply Template-specific normalization after SCF field-type handling.
+	 *
+	 * @param mixed                $value    Submitted value.
+	 * @param int|string           $post_id  SCF object ID.
+	 * @param array<string, mixed> $field    SCF field.
+	 * @param mixed                $original Original submitted value.
+	 * @return mixed
+	 */
+	public static function sanitize_scf_value( $value, $post_id, array $field, $original ) {
+		if ( ! is_numeric( $post_id ) || 'storyos_template' !== get_post_type( (int) $post_id ) || 0 !== strpos( (string) ( $field['key'] ?? '' ), 'field_storyos_template_' ) ) {
+			return $value;
+		}
+
+		$name = (string) ( $field['name'] ?? '' );
+		if ( 'modality' === $name ) {
+			return \StoryOS\Utils\Generation_Modality::sanitize( (string) $value );
+		}
+		if ( 'model_family' === $name ) {
+			return \StoryOS\Utils\Model_Family::sanitize( (string) $value );
+		}
+		if ( 'connection_id' === $name ) {
+			return '' === trim( (string) $value ) ? '' : (string) absint( $value );
+		}
+		if ( 'status' === $name ) {
+			$value = sanitize_key( (string) $value );
+			return in_array( $value, [ 'draft', 'active', 'archived' ], true ) ? $value : 'draft';
+		}
+		if ( in_array( $name, [ 'workflow_json', 'configuration_json', 'input_bindings', 'model_requirements', 'default_values' ], true ) ) {
+			$normalized = self::normalize_json( (string) $value );
+			return null === $normalized
+				? get_post_meta( (int) $post_id, $name, true )
+				: $normalized;
+		}
+
+		return $value;
+	}
+
+	/**
+	 * Validate Template-specific SCF values before save.
+	 *
+	 * @param bool|string          $valid Whether the value is valid so far.
+	 * @param mixed                $value Submitted value.
+	 * @param array<string, mixed> $field SCF field.
+	 * @param string               $input Input name.
+	 * @return bool|string
+	 */
+	public static function validate_scf_value( $valid, $value, array $field, string $input ) {
+		if ( true !== $valid || 0 !== strpos( (string) ( $field['key'] ?? '' ), 'field_storyos_template_' ) ) {
+			return $valid;
+		}
+
+		$name = (string) ( $field['name'] ?? '' );
+		if ( 'connection_id' === $name && '' !== trim( (string) $value ) && ( ! ctype_digit( (string) $value ) || 'storyos_connection' !== get_post_type( (int) $value ) ) ) {
+			return __( 'Select an existing StoryOS Connection ID.', 'storyos' );
+		}
+		if ( in_array( $name, [ 'workflow_json', 'configuration_json', 'input_bindings', 'model_requirements', 'default_values' ], true ) && null === self::normalize_json( (string) $value ) ) {
+			return __( 'Enter valid JSON.', 'storyos' );
+		}
+
+		return $valid;
+	}
+
+	/**
+	 * Normalize JSON text while preserving arrays, objects, and escaping.
+	 *
+	 * @return string|null Normalized JSON, blank, or null when invalid.
+	 */
+	private static function normalize_json( string $value ): ?string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$decoded = json_decode( $value, true );
+		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+			return null;
+		}
+
+		return (string) wp_json_encode( $decoded );
 	}
 
 	/**

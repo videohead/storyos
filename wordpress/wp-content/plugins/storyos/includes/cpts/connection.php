@@ -92,7 +92,7 @@ class Connection {
 	 * @return mixed
 	 */
 	public static function sanitize_scf_value( $value, $post_id, array $field, $original ) {
-		if ( ! is_numeric( $post_id ) || self::CPT !== get_post_type( (int) $post_id ) ) {
+		if ( ! is_numeric( $post_id ) || self::CPT !== get_post_type( (int) $post_id ) || 0 !== strpos( (string) ( $field['key'] ?? '' ), 'field_storyos_connection_' ) ) {
 			return $value;
 		}
 

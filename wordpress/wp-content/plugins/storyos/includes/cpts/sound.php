@@ -21,9 +21,8 @@ class Sound {
 	 */
 	public static function init(): void {
 		self::register_cpt();
-		add_action( 'save_post_storyos_sound', [ __CLASS__, 'save_meta' ], 10, 2 );
+		add_action( 'acf/validate_save_post', [ __CLASS__, 'validate_scf_request' ], 20 );
 		add_action( 'add_meta_boxes_storyos_sound', [ __CLASS__, 'remove_duplicate_taxonomy_boxes' ] );
-		add_action( 'admin_notices', [ __CLASS__, 'render_validation_notice' ] );
 	}
 
 	/**
@@ -140,11 +139,90 @@ class Sound {
 	}
 
 	/**
-	 * Keep the StoryOS Details selectors as the single taxonomy editing surface.
+	 * Keep SCF as the single taxonomy editing surface.
 	 */
 	public static function remove_duplicate_taxonomy_boxes(): void {
 		remove_meta_box( 'tagsdiv-storyos_sound_type', 'storyos_sound', 'side' );
 		remove_meta_box( 'tagsdiv-storyos_status', 'storyos_sound', 'side' );
+	}
+
+	/**
+	 * Validate cross-field Sound rules before SCF persists the edit form.
+	 */
+	public static function validate_scf_request(): void {
+		$submitted = isset( $_POST['acf'] ) && is_array( $_POST['acf'] ) // phpcs:ignore WordPress.Security.NonceVerification.Missing -- SCF owns validation nonce handling.
+			? wp_unslash( $_POST['acf'] ) // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated by field below.
+			: [];
+		$prefix    = 'field_storyos_sound_';
+		$is_sound  = false;
+		foreach ( array_keys( $submitted ) as $field_key ) {
+			if ( 0 === strpos( (string) $field_key, $prefix ) ) {
+				$is_sound = true;
+				break;
+			}
+		}
+
+		$post_id = absint( $_POST['post_ID'] ?? $_POST['_acf_post_id'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- validation only.
+		if ( ! $is_sound && ( ! $post_id || 'storyos_sound' !== get_post_type( $post_id ) ) ) {
+			return;
+		}
+
+		if ( isset( $_POST['post_title'] ) && '' === trim( (string) wp_unslash( $_POST['post_title'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- validation only.
+			acf_add_validation_error( 'post_title', __( 'A Sound title is required.', 'storyos' ) );
+		}
+
+		$type_id      = absint( self::scf_request_value( 'sound_type', $submitted, $post_id ) );
+		$scene_id     = absint( self::scf_request_value( 'scene', $submitted, $post_id ) );
+		$shot_id      = absint( self::scf_request_value( 'shot', $submitted, $post_id ) );
+		$character_id = absint( self::scf_request_value( 'character', $submitted, $post_id ) );
+		$asset_id     = absint( self::scf_request_value( 'asset', $submitted, $post_id ) );
+		$lyrics       = trim( (string) self::scf_request_value( 'lyrics', $submitted, $post_id ) );
+		$type         = $type_id ? get_term( $type_id, 'storyos_sound_type' ) : null;
+
+		if ( ! $type || is_wp_error( $type ) || \StoryOS\Utils\storyos_is_reserved_sound_type( $type ) ) {
+			self::add_scf_error( 'sound_type', __( 'Select a valid non-dialogue Sound Type.', 'storyos' ) );
+		}
+		if ( ! $scene_id || 'storyos_scene' !== get_post_type( $scene_id ) ) {
+			self::add_scf_error( 'scene', __( 'Select a valid Scene.', 'storyos' ) );
+		}
+		if ( $shot_id && ( 'storyos_shot' !== get_post_type( $shot_id ) || ! self::shot_belongs_to_scene( $shot_id, $scene_id ) ) ) {
+			self::add_scf_error( 'shot', __( 'The selected Shot must belong to the selected Scene.', 'storyos' ) );
+		}
+		if ( $character_id && 'storyos_character' !== get_post_type( $character_id ) ) {
+			self::add_scf_error( 'character', __( 'Select a valid narrator or voice Character.', 'storyos' ) );
+		}
+		if ( $asset_id && ! \StoryOS\Utils\storyos_is_audio_asset( $asset_id ) ) {
+			self::add_scf_error( 'asset', __( 'The rendered Asset must have the Audio asset type.', 'storyos' ) );
+		}
+		if ( '' !== $lyrics && ( ! $type || is_wp_error( $type ) || 'music' !== $type->slug ) ) {
+			self::add_scf_error( 'lyrics', __( 'Lyrics may only be stored on a Music Sound.', 'storyos' ) );
+		}
+	}
+
+	/**
+	 * Read a submitted SCF value, falling back to the current stored value.
+	 *
+	 * @param string              $field_name Field name.
+	 * @param array<string,mixed> $submitted  Submitted SCF values.
+	 * @param int                 $post_id    Existing post ID.
+	 * @return mixed
+	 */
+	private static function scf_request_value( string $field_name, array $submitted, int $post_id ) {
+		$field_key = \StoryOS\Utils\SCF_Fields::field_key( 'storyos_sound', $field_name );
+		if ( array_key_exists( $field_key, $submitted ) ) {
+			$value = $submitted[ $field_key ];
+			return is_array( $value ) && 1 === count( $value ) ? reset( $value ) : $value;
+		}
+
+		return $post_id ? \StoryOS\Utils\storyos_get_field_value( $post_id, $field_name ) : '';
+	}
+
+	/**
+	 * Add an SCF validation error to a stable Sound field input.
+	 */
+	private static function add_scf_error( string $field_name, string $message ): void {
+		$field_key = \StoryOS\Utils\SCF_Fields::field_key( 'storyos_sound', $field_name );
+		acf_add_validation_error( 'acf[' . $field_key . ']', $message );
 	}
 
 	/**
