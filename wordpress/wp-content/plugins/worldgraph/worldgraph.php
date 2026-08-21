@@ -371,6 +371,11 @@ function init(): void {
 		require_once WORLDGRAPH_PLUGIN_DIR . 'plugins/edl/edl-import-export.php';
 	}
 
+	// Load optional headless (Next.js) cache revalidation integration.
+	if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/headless-revalidate/headless-revalidate.php' ) ) {
+		require_once WORLDGRAPH_PLUGIN_DIR . 'plugins/headless-revalidate/headless-revalidate.php';
+	}
+
 	// Enqueue search widget assets on frontend.
 	add_action( 'wp_enqueue_scripts', __NAMESPACE__ . '\\Utils\\enqueue_search_assets' );
 

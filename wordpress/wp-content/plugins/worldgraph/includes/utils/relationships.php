@@ -499,10 +499,11 @@ function get_graph_entities( int $entity_id, string $entity_type = '', int $dept
 		}
 
 		$result[ $key ] = [
-			'id'    => $post->ID,
-			'type'  => $post->post_type,
-			'title' => $post->post_title,
-			'status'=> $post->post_status,
+			'id'          => $post->ID,
+			'external_id' => (string) get_post_meta( $post->ID, 'external_id', true ),
+			'type'        => $post->post_type,
+			'title'       => $post->post_title,
+			'status'      => $post->post_status,
 		];
 
 		if ( $current['depth'] >= $depth ) {

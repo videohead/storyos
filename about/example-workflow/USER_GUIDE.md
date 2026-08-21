@@ -49,9 +49,14 @@ requirements and network boundaries.
 
 ## 3. Import the sample project
 
-The repository includes a complete Little Red Riding Hood example:
+The repository includes a comprehensive version 1.2 Little Red Riding Hood
+example:
 
-`about/example-workflow/little-red-riding-hood.worldgraph.json`
+`about/example-workflow/little-red-riding-hood-full-featured.worldgraph.json`
+
+The smaller
+`about/example-workflow/little-red-riding-hood.worldgraph.json` version 1.1
+fixture is retained for importer compatibility testing.
 
 In WordPress:
 
@@ -61,10 +66,11 @@ In WordPress:
 4. Select **Import World Graph Studio JSON**.
 5. Review the import report for created, updated, and skipped records.
 
-The importer creates the project's world, characters, locations, props,
-scenes, shots, sounds, storyboard frames, sequence data, and relationships.
-The [JSON import contract](JSON_import_spec.md) documents the exact mapping and
-expected record counts.
+The full-featured importer example creates the Project, Story World,
+Characters, Locations, Props, Organization, Episode, Scenes, Shots, Sounds,
+Assets, Storyboard Frames, Editorial Artifact, Sequence data, taxonomies, and
+relationships. The [JSON import contract](JSON_import_spec.md) documents the
+exact mapping, compatibility behavior, and expected record counts.
 
 ## 4. Explore the Story Graph
 

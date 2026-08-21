@@ -143,13 +143,16 @@ class Projects_Controller extends Base_Controller {
 	 * @return int
 	 */
 	private static function count_related( int $post_id, string $related_cpt, string $from_cpt ): int {
-		$rels = \WorldGraph\Utils\get_relationships( $post_id, $from_cpt, 'outgoing' );
-		$count = 0;
-		foreach ( $rels as $rel ) {
-			if ( $rel['to_type'] === $related_cpt ) {
-				$count++;
+		$related_ids = [];
+		foreach ( [ 'outgoing', 'incoming' ] as $direction ) {
+			foreach ( \WorldGraph\Utils\get_relationships( $post_id, $from_cpt, $direction ) as $relationship ) {
+				$type = 'outgoing' === $direction ? ( $relationship['to_type'] ?? '' ) : ( $relationship['from_type'] ?? '' );
+				$id   = 'outgoing' === $direction ? ( $relationship['to_id'] ?? 0 ) : ( $relationship['from_id'] ?? 0 );
+				if ( $related_cpt === $type ) {
+					$related_ids[] = absint( $id );
+				}
 			}
 		}
-		return $count;
+		return count( array_unique( array_filter( $related_ids ) ) );
 	}
 }

@@ -21,7 +21,7 @@ class StoryWorlds_Controller extends Base_Controller {
 	 *
 	 * @var string
 	 */
-	protected $cpt = 'worldgraph_storyworld';
+	protected $cpt = 'worldgraph_world';
 
 	/**
 	 * Rest base.
@@ -108,7 +108,7 @@ class StoryWorlds_Controller extends Base_Controller {
 	 */
 	public static function get_graph( WP_REST_Request $request ) {
 		$post_id = absint( $request->get_param( 'id' ) );
-		$entities = \WorldGraph\Utils\get_graph_entities( $post_id, 'worldgraph_storyworld' );
+		$entities = \WorldGraph\Utils\get_graph_entities( $post_id, 'worldgraph_world' );
 		return rest_ensure_response( $entities );
 	}
 
@@ -123,9 +123,9 @@ class StoryWorlds_Controller extends Base_Controller {
 		$data = parent::get_item_data( $post, $params );
 
 		// Add story world-specific computed fields.
-		$data['meta']['location_count'] = self::count_related( $post->ID, 'worldgraph_location', 'worldgraph_storyworld' );
-		$data['meta']['character_count'] = self::count_related( $post->ID, 'worldgraph_character', 'worldgraph_storyworld' );
-		$data['meta']['organization_count'] = self::count_related( $post->ID, 'worldgraph_org', 'worldgraph_storyworld' );
+		$data['meta']['location_count'] = self::count_related( $post->ID, 'worldgraph_location', 'worldgraph_world' );
+		$data['meta']['character_count'] = self::count_related( $post->ID, 'worldgraph_character', 'worldgraph_world' );
+		$data['meta']['organization_count'] = self::count_related( $post->ID, 'worldgraph_org', 'worldgraph_world' );
 
 		return $data;
 	}
@@ -139,13 +139,16 @@ class StoryWorlds_Controller extends Base_Controller {
 	 * @return int
 	 */
 	private static function count_related( int $post_id, string $related_cpt, string $from_cpt ): int {
-		$rels = \WorldGraph\Utils\get_relationships( $post_id, $from_cpt, 'outgoing' );
-		$count = 0;
-		foreach ( $rels as $rel ) {
-			if ( $rel['to_type'] === $related_cpt ) {
-				$count++;
+		$related_ids = [];
+		foreach ( [ 'outgoing', 'incoming' ] as $direction ) {
+			foreach ( \WorldGraph\Utils\get_relationships( $post_id, $from_cpt, $direction ) as $relationship ) {
+				$type = 'outgoing' === $direction ? ( $relationship['to_type'] ?? '' ) : ( $relationship['from_type'] ?? '' );
+				$id   = 'outgoing' === $direction ? ( $relationship['to_id'] ?? 0 ) : ( $relationship['from_id'] ?? 0 );
+				if ( $related_cpt === $type ) {
+					$related_ids[] = absint( $id );
+				}
 			}
 		}
-		return $count;
+		return count( array_unique( array_filter( $related_ids ) ) );
 	}
 }

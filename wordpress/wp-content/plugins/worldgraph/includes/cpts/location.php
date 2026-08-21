@@ -58,10 +58,11 @@ class Location {
 			'required'    => false,
 		],
 		'visual_reference'=> [
-			'type'        => 'relationship',
-			'label'       => 'Visual Reference Asset',
-			'required'    => false,
-			'related_cpt' => 'worldgraph_asset',
+			'type'              => 'relationship',
+			'label'             => 'Visual Reference Asset',
+			'required'          => false,
+			'related_cpt'       => 'worldgraph_asset',
+			'relationship_type' => 'linked_to',
 		],
 		'story_world'     => [
 			'type'        => 'relationship',

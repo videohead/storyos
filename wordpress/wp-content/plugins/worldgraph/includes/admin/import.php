@@ -130,7 +130,7 @@ class Import {
 			<?php endif; ?>
 
 			<p class="description">
-				<?php esc_html_e( 'Upload a World Graph Studio JSON file (for example, the Little Red Riding Hood example) to create a complete miniature World Graph Studio project: Project, World, Characters, Locations, Props, Scenes, Shots, Storyboard Frames, and Sequence.', 'worldgraph' ); ?>
+				<?php esc_html_e( 'Upload a World Graph Studio JSON file (for example, the full-featured Little Red Riding Hood version 1.2 example) to create a complete miniature project: Project, World, Characters, Locations, Props, Organizations, Episodes, Scenes, Shots, Sounds, Assets, Storyboard Frames, Editorial Artifacts, and Sequence.', 'worldgraph' ); ?>
 			</p>
 
 			<form method="post" id="worldgraph-import-form" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -142,7 +142,7 @@ class Import {
 						<th scope="row"><label for="worldgraph_json_file"><?php esc_html_e( 'World Graph Studio JSON File', 'worldgraph' ); ?></label></th>
 						<td>
 							<input type="file" name="worldgraph_json_file" id="worldgraph_json_file" accept=".json,application/json" class="regular-text" />
-							<p class="description"><?php esc_html_e( 'Select a JSON document that follows the World Graph Studio import contract, or use the example workflow document.', 'worldgraph' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Select a JSON document that follows the World Graph Studio import contract, or use the full-featured version 1.2 example workflow document.', 'worldgraph' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -159,9 +159,13 @@ class Import {
 				<?php submit_button( __( 'Import World Graph Studio JSON', 'worldgraph' ) ); ?>
 			</form>
 
-			<h2><?php esc_html_e( 'Example', 'worldgraph' ); ?></h2>
+			<h2><?php esc_html_e( 'Examples', 'worldgraph' ); ?></h2>
 			<p>
-				<?php esc_html_e( 'The example workflow JSON is available at:', 'worldgraph' ); ?>
+				<strong><?php esc_html_e( 'Full-featured version 1.2 (recommended):', 'worldgraph' ); ?></strong>
+				<code>about/example-workflow/little-red-riding-hood-full-featured.worldgraph.json</code>
+			</p>
+			<p>
+				<strong><?php esc_html_e( 'Legacy version 1.1 compatibility fixture:', 'worldgraph' ); ?></strong>
 				<code>about/example-workflow/little-red-riding-hood.worldgraph.json</code>
 			</p>
 		</div>

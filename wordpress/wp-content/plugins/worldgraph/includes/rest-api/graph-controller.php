@@ -179,13 +179,14 @@ class Graph_Controller extends Base_Controller {
 		$entities = [];
 
 		if ( $query->have_posts() ) {
-			foreach ( $query->posts as $post ) {
-				$entities[] = [
-					'id'    => $post->ID,
-					'type'  => $post->post_type,
-					'title' => $post->post_title,
-					'slug'  => $post->post_name,
-				];
+				foreach ( $query->posts as $post ) {
+					$entities[] = [
+						'id'          => $post->ID,
+						'external_id' => (string) get_post_meta( $post->ID, 'external_id', true ),
+						'type'        => $post->post_type,
+						'title'       => $post->post_title,
+						'slug'        => $post->post_name,
+					];
 			}
 			wp_reset_postdata();
 		}
@@ -231,6 +232,14 @@ class Graph_Controller extends Base_Controller {
 		if ( $params['rel_type'] ) {
 			$relationships = array_filter( $relationships, fn( $r ) => $r['type'] === $params['rel_type'] );
 		}
+		$relationships = array_map(
+			static function( array $relationship ): array {
+				$relationship['from_external_id'] = (string) get_post_meta( absint( $relationship['from_id'] ?? 0 ), 'external_id', true );
+				$relationship['to_external_id']   = (string) get_post_meta( absint( $relationship['to_id'] ?? 0 ), 'external_id', true );
+				return $relationship;
+			},
+			$relationships
+		);
 
 		return rest_ensure_response( array_values( $relationships ) );
 	}
@@ -262,13 +271,15 @@ class Graph_Controller extends Base_Controller {
 
 		return rest_ensure_response( [
 			'message' => 'Relationship created successfully.',
-			'relationship' => [
-				'from_id'  => $from_id,
-				'from_type' => $from_type,
-				'to_id'    => $to_id,
-				'to_type'  => $to_type,
-				'type'     => $rel_type,
-			],
+				'relationship' => [
+					'from_id'          => $from_id,
+					'from_external_id' => (string) get_post_meta( $from_id, 'external_id', true ),
+					'from_type'        => $from_type,
+					'to_id'            => $to_id,
+					'to_external_id'   => (string) get_post_meta( $to_id, 'external_id', true ),
+					'to_type'          => $to_type,
+					'type'             => $rel_type,
+				],
 		] );
 	}
 

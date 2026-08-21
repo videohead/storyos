@@ -141,20 +141,12 @@ class Sequences_Controller extends Base_Controller {
 		$sequences = \WorldGraph\Utils\worldgraph_get_ordered_sequences();
 
 		foreach ( $sequences as $index => $sequence ) {
-			$shots = \WorldGraph\Utils\get_objects_in_term(
-				$sequence['id'],
-				\WorldGraph\Taxonomies\Sequence::TAXONOMY,
-				[ 'worldgraph_shot' ]
-			);
+			$sequences[ $index ]['external_id'] = (string) get_term_meta( (int) $sequence['id'], 'external_id', true );
+			$shots  = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $sequence['id'], 'worldgraph_shot' );
+			$scenes = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $sequence['id'], 'worldgraph_scene' );
 
-			$scenes = \WorldGraph\Utils\get_objects_in_term(
-				$sequence['id'],
-				\WorldGraph\Taxonomies\Sequence::TAXONOMY,
-				[ 'worldgraph_scene' ]
-			);
-
-			$sequences[ $index ]['shot_count'] = is_array( $shots ) ? count( $shots ) : 0;
-			$sequences[ $index ]['scene_count'] = is_array( $scenes ) ? count( $scenes ) : 0;
+			$sequences[ $index ]['shot_count']  = count( $shots );
+			$sequences[ $index ]['scene_count'] = count( $scenes );
 			$sequences[ $index ]['edit_link'] = admin_url( 'term.php?taxonomy=' . \WorldGraph\Taxonomies\Sequence::TAXONOMY . '&tag_ID=' . $sequence['id'] );
 		}
 
@@ -175,8 +167,8 @@ class Sequences_Controller extends Base_Controller {
 			return new WP_Error( 'rest_sequence_not_found', 'Sequence term not found.', [ 'status' => 404 ] );
 		}
 
-		$shot_ids = \WorldGraph\Utils\get_objects_in_term( $term->term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY, [ 'worldgraph_shot' ] );
-		$scene_ids = \WorldGraph\Utils\get_objects_in_term( $term->term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY, [ 'worldgraph_scene' ] );
+		$shot_ids  = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $term->term_id, 'worldgraph_shot' );
+		$scene_ids = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $term->term_id, 'worldgraph_scene' );
 
 		// Order shots by menu_order (the editorial cut order).
 		$shots = [];
@@ -193,6 +185,7 @@ class Sequences_Controller extends Base_Controller {
 			foreach ( $shot_posts as $shot ) {
 				$shots[] = [
 					'id'           => $shot->ID,
+					'external_id'  => (string) get_post_meta( $shot->ID, 'external_id', true ),
 					'title'        => $shot->post_title,
 					'display_name' => \WorldGraph\Utils\worldgraph_get_shot_display_name( $shot->ID ),
 					'menu_order'   => (int) $shot->menu_order,
@@ -211,10 +204,23 @@ class Sequences_Controller extends Base_Controller {
 				'order'          => 'ASC',
 				'include'        => $scene_ids,
 			] );
+			usort(
+				$scene_posts,
+				static function( \WP_Post $left, \WP_Post $right ): int {
+					$left_sequence_order  = absint( get_post_meta( $left->ID, 'sequence_order', true ) );
+					$right_sequence_order = absint( get_post_meta( $right->ID, 'sequence_order', true ) );
+					$left_order            = $left_sequence_order ?: PHP_INT_MAX;
+					$right_order           = $right_sequence_order ?: PHP_INT_MAX;
+					$comparison            = $left_order <=> $right_order;
+
+					return 0 !== $comparison ? $comparison : (int) $left->menu_order <=> (int) $right->menu_order;
+				}
+			);
 
 			foreach ( $scene_posts as $scene ) {
 				$scenes[] = [
 					'id'             => $scene->ID,
+					'external_id'    => (string) get_post_meta( $scene->ID, 'external_id', true ),
 					'title'          => $scene->post_title,
 					'menu_order'     => (int) $scene->menu_order,
 					'sequence_order' => get_post_meta( $scene->ID, 'sequence_order', true ),
@@ -223,8 +229,9 @@ class Sequences_Controller extends Base_Controller {
 		}
 
 		return rest_ensure_response( [
-			'id'         => $term->term_id,
-			'name'       => $term->name,
+			'id'          => $term->term_id,
+			'external_id' => (string) get_term_meta( $term->term_id, 'external_id', true ),
+			'name'        => $term->name,
 			'slug'       => $term->slug,
 			'order'      => \WorldGraph\Utils\worldgraph_get_sequence_order( $term->term_id ),
 			'shots'      => $shots,
@@ -257,9 +264,10 @@ class Sequences_Controller extends Base_Controller {
 		\WorldGraph\Utils\worldgraph_set_sequence_order( $term_id, $next_order );
 
 		return rest_ensure_response( [
-			'id'    => $term_id,
-			'name'  => $name,
-			'order' => $next_order,
+			'id'          => $term_id,
+			'external_id' => '',
+			'name'        => $name,
+			'order'       => $next_order,
 		] );
 	}
 
@@ -333,7 +341,14 @@ class Sequences_Controller extends Base_Controller {
 			$updated[] = $post->ID;
 		}
 
-		return rest_ensure_response( [ 'updated' => $updated, 'sequence' => [ 'id' => (int) $term->term_id, 'name' => $term->name ] ] );
+		return rest_ensure_response( [
+			'updated'  => $updated,
+			'sequence' => [
+				'id'          => (int) $term->term_id,
+				'external_id' => (string) get_term_meta( $term->term_id, 'external_id', true ),
+				'name'        => $term->name,
+			],
+		] );
 	}
 
 	/**
@@ -355,8 +370,8 @@ class Sequences_Controller extends Base_Controller {
 			return new WP_Error( 'rest_invalid_scene_ids', 'scene_ids cannot be empty.', [ 'status' => 400 ] );
 		}
 
-		$existing = \WorldGraph\Utils\get_objects_in_term( $term->term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY, [ 'worldgraph_scene' ] );
-		$current_order = is_array( $existing ) ? count( $existing ) : 0;
+		$existing      = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $term->term_id, 'worldgraph_scene' );
+		$current_order = count( $existing );
 
 		$updated = [];
 		foreach ( $scene_ids as $scene_id ) {
@@ -371,7 +386,16 @@ class Sequences_Controller extends Base_Controller {
 			$updated[] = $post->ID;
 		}
 
-		return rest_ensure_response( [ 'updated' => $updated, 'sequence' => [ 'id' => (int) $term->term_id, 'name' => $term->name ] ] );
+		return rest_ensure_response(
+			[
+				'updated'  => $updated,
+				'sequence' => [
+					'id'          => (int) $term->term_id,
+					'external_id' => (string) get_term_meta( $term->term_id, 'external_id', true ),
+					'name'        => $term->name,
+				],
+			]
+		);
 	}
 
 	/**

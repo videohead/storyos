@@ -171,4 +171,511 @@ class Test_WorldGraph_Import extends TestCase {
 		$this->assertStringContainsString( 'worldgraph_is_reserved_sound_type', $importer );
 		$this->assertStringContainsString( 'worldgraph_is_audio_asset', $importer );
 	}
+
+	/**
+	 * The comprehensive example should exercise the complete portable 1.2 field surface.
+	 */
+	public function test_full_featured_document_covers_v12_sections_and_fields() {
+		$document = $this->full_featured_document();
+
+		$this->assertSame( '1.2', $document['worldgraph_version'] );
+
+		$expected_counts = [
+			'characters'           => 4,
+			'locations'            => 3,
+			'props'                => 4,
+			'organizations'        => 1,
+			'episodes'             => 1,
+			'scenes'               => 4,
+			'shots'                => 12,
+			'sounds'               => 9,
+			'assets'               => 6,
+			'storyboards'          => 12,
+			'editorial_artifacts'  => 1,
+		];
+		foreach ( $expected_counts as $section => $expected_count ) {
+			$this->assertArrayHasKey( $section, $document );
+			$this->assertIsArray( $document[ $section ] );
+			$this->assertCount( $expected_count, $document[ $section ], "Unexpected {$section} fixture count." );
+		}
+
+		$expected_fields = [
+			'project' => [
+				'id', 'title', 'project_slug', 'description', 'genres', 'target_medium',
+				'production_status', 'start_date', 'end_date', 'team_members',
+				'production_stage', 'frame_width', 'frame_height', 'aspect_ratio', 'frame_rate',
+			],
+			'world' => [
+				'id', 'name', 'description', 'timeline', 'rules', 'themes', 'geography',
+				'references', 'project',
+			],
+			'characters' => [
+				'id', 'name', 'description', 'age', 'appearance', 'personality', 'motivation',
+				'backstory', 'voice_profile', 'roles', 'relations', 'avatar_asset', 'story_world',
+			],
+			'locations' => [
+				'id', 'name', 'description', 'environment_type', 'geography', 'mood',
+				'visual_reference', 'story_world',
+			],
+			'props' => [
+				'id', 'name', 'description', 'purpose', 'owner_character', 'notes',
+			],
+			'organizations' => [
+				'id', 'name', 'organization_type', 'description', 'leadership', 'goals',
+				'story_world', 'members',
+			],
+			'episodes' => [
+				'id', 'episode_number', 'title', 'synopsis', 'production_status', 'project', 'scenes',
+			],
+			'scenes' => [
+				'id', 'scene_number', 'title', 'location', 'characters', 'props', 'summary',
+				'script_content', 'dialogue', 'time_of_day', 'emotional_tone',
+				'production_notes', 'tags', 'sequence', 'episode',
+			],
+			'shots' => [
+				'id', 'shot_number', 'title', 'scene', 'sequence', 'type', 'camera_angle',
+				'lens', 'duration', 'take_number', 'slate_id', 'description', 'editorial_notes',
+			],
+			'sounds' => [
+				'id', 'title', 'type', 'production_status', 'description', 'spoken_text',
+				'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes',
+				'scene', 'shot', 'character', 'asset',
+			],
+			'assets' => [
+				'id', 'title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed',
+				'generation_parameters', 'version', 'status', 'storage_uri', 'project',
+				'character', 'location', 'scene', 'storyboard',
+			],
+			'storyboards' => [
+				'id', 'title', 'frame_number', 'description', 'image_asset', 'prompt_text',
+				'camera_notes', 'scene', 'shot',
+			],
+			'editorial_artifacts' => [
+				'id', 'title', 'artifact_type', 'export_format', 'generated_date', 'source_scene',
+				'source_shot', 'notes', 'project',
+			],
+			'sequence' => [
+				'id', 'title', 'sequence_order', 'order',
+			],
+		];
+
+		foreach ( $expected_fields as $section => $fields ) {
+			$records = in_array( $section, [ 'project', 'world', 'sequence' ], true )
+				? [ $document[ $section ] ]
+				: $document[ $section ];
+			$available_fields = [];
+			foreach ( $records as $record ) {
+				$this->assertIsArray( $record );
+				$available_fields = array_merge( $available_fields, array_keys( $record ) );
+			}
+
+			$this->assertSame(
+				[],
+				array_values( array_diff( $fields, array_unique( $available_fields ) ) ),
+				"The {$section} fixture does not cover every documented field."
+			);
+		}
+
+		$dialogue_fields = [];
+		foreach ( $document['scenes'] as $scene ) {
+			foreach ( $scene['dialogue'] as $line ) {
+				$dialogue_fields = array_merge( $dialogue_fields, array_keys( $line ) );
+			}
+		}
+		$this->assertSame(
+			[],
+			array_values( array_diff( [ 'speaker', 'line', 'description', 'sequence' ], array_unique( $dialogue_fields ) ) )
+		);
+	}
+
+	/**
+	 * External IDs must be unique across every entity kind in one document.
+	 */
+	public function test_full_featured_document_external_ids_are_globally_unique() {
+		$document = $this->full_featured_document();
+		$seen     = [];
+
+		foreach ( [ 'project', 'world', 'sequence' ] as $section ) {
+			$external_id = $document[ $section ]['id'];
+			$this->assertIsString( $external_id );
+			$this->assertNotSame( '', trim( $external_id ) );
+			$this->assertArrayNotHasKey( $external_id, $seen, "Duplicate external ID {$external_id}." );
+			$seen[ $external_id ] = $section;
+		}
+
+		foreach ( $this->full_featured_entity_sections() as $section ) {
+			foreach ( $document[ $section ] as $entity ) {
+				$this->assertArrayHasKey( 'id', $entity );
+				$external_id = $entity['id'];
+				$this->assertIsString( $external_id );
+				$this->assertNotSame( '', trim( $external_id ) );
+				$this->assertArrayNotHasKey(
+					$external_id,
+					$seen,
+					"External ID {$external_id} is reused in {$section}."
+				);
+				$seen[ $external_id ] = $section;
+			}
+		}
+	}
+
+	/**
+	 * The compatibility and comprehensive fixtures must be safe to import together.
+	 */
+	public function test_example_documents_do_not_share_external_ids() {
+		$project_root = dirname( dirname( __DIR__ ), 4 );
+		$legacy_path  = $project_root . '/about/example-workflow/little-red-riding-hood.worldgraph.json';
+
+		$this->assertFileExists( $legacy_path );
+		$legacy_json = file_get_contents( $legacy_path );
+		$this->assertNotFalse( $legacy_json );
+		$legacy = json_decode( $legacy_json, true );
+		$this->assertSame( JSON_ERROR_NONE, json_last_error(), json_last_error_msg() );
+		$this->assertIsArray( $legacy );
+
+		$shared_ids = array_values(
+			array_intersect(
+				$this->portable_external_ids( $legacy ),
+				$this->portable_external_ids( $this->full_featured_document() )
+			)
+		);
+		$this->assertSame( [], $shared_ids, 'The two example imports must not resolve to the same persisted entities.' );
+	}
+
+	/**
+	 * Every portable relationship must resolve to an ID in its declared section.
+	 */
+	public function test_full_featured_document_relationship_references_resolve_by_type() {
+		$document = $this->full_featured_document();
+		$ids      = $this->full_featured_id_sets( $document );
+
+		$this->assert_reference( $document['world']['project'], $ids['project'], 'World project' );
+		foreach ( $document['project']['team_members'] as $character_id ) {
+			$this->assert_reference( $character_id, $ids['characters'], 'Project team member' );
+		}
+
+		foreach ( $document['characters'] as $character ) {
+			$this->assert_reference( $character['story_world'], $ids['world'], "Character {$character['id']} story_world" );
+			if ( ! empty( $character['avatar_asset'] ) ) {
+				$this->assert_reference( $character['avatar_asset'], $ids['assets'], "Character {$character['id']} avatar_asset" );
+			}
+		}
+
+		foreach ( $document['locations'] as $location ) {
+			$this->assert_reference( $location['story_world'], $ids['world'], "Location {$location['id']} story_world" );
+			if ( ! empty( $location['visual_reference'] ) ) {
+				$this->assert_reference( $location['visual_reference'], $ids['assets'], "Location {$location['id']} visual_reference" );
+			}
+		}
+
+		foreach ( $document['props'] as $prop ) {
+			$this->assert_reference( $prop['owner_character'], $ids['characters'], "Prop {$prop['id']} owner_character" );
+		}
+
+		foreach ( $document['organizations'] as $organization ) {
+			$this->assert_reference( $organization['leadership'], $ids['characters'], "Organization {$organization['id']} leadership" );
+			$this->assert_reference( $organization['story_world'], $ids['world'], "Organization {$organization['id']} story_world" );
+			foreach ( $organization['members'] as $character_id ) {
+				$this->assert_reference( $character_id, $ids['characters'], "Organization {$organization['id']} member" );
+			}
+		}
+
+		foreach ( $document['episodes'] as $episode ) {
+			$this->assert_reference( $episode['project'], $ids['project'], "Episode {$episode['id']} project" );
+			foreach ( $episode['scenes'] as $scene_id ) {
+				$this->assert_reference( $scene_id, $ids['scenes'], "Episode {$episode['id']} scene" );
+			}
+		}
+
+		foreach ( $document['scenes'] as $scene ) {
+			$this->assert_reference( $scene['location'], $ids['locations'], "Scene {$scene['id']} location" );
+			$this->assert_reference( $scene['sequence'], $ids['sequence'], "Scene {$scene['id']} sequence" );
+			$this->assert_reference( $scene['episode'], $ids['episodes'], "Scene {$scene['id']} episode" );
+			foreach ( $scene['characters'] as $character_id ) {
+				$this->assert_reference( $character_id, $ids['characters'], "Scene {$scene['id']} character" );
+			}
+			foreach ( $scene['props'] as $prop_id ) {
+				$this->assert_reference( $prop_id, $ids['props'], "Scene {$scene['id']} prop" );
+			}
+		}
+
+		foreach ( $document['shots'] as $shot ) {
+			$this->assert_reference( $shot['scene'], $ids['scenes'], "Shot {$shot['id']} scene" );
+			$this->assert_reference( $shot['sequence'], $ids['sequence'], "Shot {$shot['id']} sequence" );
+		}
+
+		foreach ( $document['sounds'] as $sound ) {
+			$this->assert_reference( $sound['scene'], $ids['scenes'], "Sound {$sound['id']} scene" );
+			foreach ( [ 'shot' => 'shots', 'character' => 'characters', 'asset' => 'assets' ] as $field => $target_section ) {
+				if ( ! empty( $sound[ $field ] ) ) {
+					$this->assert_reference( $sound[ $field ], $ids[ $target_section ], "Sound {$sound['id']} {$field}" );
+				}
+			}
+		}
+
+		foreach ( $document['assets'] as $asset ) {
+			$this->assert_reference( $asset['project'], $ids['project'], "Asset {$asset['id']} project" );
+			foreach ( [ 'character' => 'characters', 'location' => 'locations', 'scene' => 'scenes', 'storyboard' => 'storyboards' ] as $field => $target_section ) {
+				if ( ! empty( $asset[ $field ] ) ) {
+					$this->assert_reference( $asset[ $field ], $ids[ $target_section ], "Asset {$asset['id']} {$field}" );
+				}
+			}
+		}
+
+		foreach ( $document['storyboards'] as $frame ) {
+			$this->assert_reference( $frame['scene'], $ids['scenes'], "Storyboard {$frame['id']} scene" );
+			$this->assert_reference( $frame['shot'], $ids['shots'], "Storyboard {$frame['id']} shot" );
+			if ( ! empty( $frame['image_asset'] ) ) {
+				$this->assert_reference( $frame['image_asset'], $ids['assets'], "Storyboard {$frame['id']} image_asset" );
+			}
+		}
+
+		foreach ( $document['editorial_artifacts'] as $artifact ) {
+			$this->assert_reference( $artifact['project'], $ids['project'], "Editorial Artifact {$artifact['id']} project" );
+			$this->assert_reference( $artifact['source_scene'], $ids['scenes'], "Editorial Artifact {$artifact['id']} source_scene" );
+			$this->assert_reference( $artifact['source_shot'], $ids['shots'], "Editorial Artifact {$artifact['id']} source_shot" );
+		}
+
+		foreach ( $document['sequence']['order'] as $scene_id ) {
+			$this->assert_reference( $scene_id, $ids['scenes'], 'Sequence scene' );
+		}
+	}
+
+	/**
+	 * Sequence order must be complete, unique, and agree with explicit Scene numbers.
+	 */
+	public function test_full_featured_sequence_order_matches_scene_numbers() {
+		$document = $this->full_featured_document();
+		$scenes   = $document['scenes'];
+
+		usort(
+			$scenes,
+			static fn( array $left, array $right ): int => $left['scene_number'] <=> $right['scene_number']
+		);
+		$numbered_order = array_column( $scenes, 'id' );
+
+		$this->assertSame( 1, $document['sequence']['sequence_order'] );
+		$this->assertSame( [ 1, 2, 3, 4 ], array_column( $scenes, 'scene_number' ) );
+		$this->assertSame( $numbered_order, $document['sequence']['order'] );
+		$this->assertCount( count( $numbered_order ), array_unique( $document['sequence']['order'] ) );
+
+		foreach ( $document['scenes'] as $scene ) {
+			$this->assertSame( $document['sequence']['id'], $scene['sequence'] );
+		}
+		foreach ( $document['shots'] as $shot ) {
+			$this->assertSame( $document['sequence']['id'], $shot['sequence'] );
+		}
+		foreach ( $document['episodes'] as $episode ) {
+			$this->assertSame( $document['sequence']['order'], $episode['scenes'] );
+		}
+	}
+
+	/**
+	 * A Storyboard's direct Scene must agree with the Scene owned by its Shot.
+	 */
+	public function test_full_featured_storyboard_scenes_match_shot_scenes() {
+		$document    = $this->full_featured_document();
+		$shot_scenes = array_column( $document['shots'], 'scene', 'id' );
+		$board_shots = [];
+
+		foreach ( $document['storyboards'] as $frame ) {
+			$this->assertArrayHasKey( $frame['shot'], $shot_scenes );
+			$this->assertSame(
+				$shot_scenes[ $frame['shot'] ],
+				$frame['scene'],
+				"Storyboard {$frame['id']} does not match its Shot's Scene."
+			);
+			$board_shots[] = $frame['shot'];
+		}
+
+		$this->assertEqualsCanonicalizing( array_keys( $shot_scenes ), $board_shots );
+		$this->assertCount( count( $board_shots ), array_unique( $board_shots ) );
+	}
+
+	/**
+	 * A Sound may only reference an Asset classified as Audio.
+	 */
+	public function test_full_featured_sound_assets_are_audio() {
+		$document      = $this->full_featured_document();
+		$asset_types   = array_column( $document['assets'], 'asset_type', 'id' );
+		$linked_assets = 0;
+
+		foreach ( $document['sounds'] as $sound ) {
+			if ( empty( $sound['asset'] ) ) {
+				continue;
+			}
+
+			$linked_assets++;
+			$this->assertArrayHasKey( $sound['asset'], $asset_types );
+			$this->assertSame( 'audio', $asset_types[ $sound['asset'] ], "Sound {$sound['id']} references a non-Audio Asset." );
+		}
+
+		$this->assertGreaterThan( 0, $linked_assets, 'The fixture must exercise the Sound-to-Audio-Asset contract.' );
+	}
+
+	/**
+	 * Dialogue, props, sounds, and editorial pointers should agree with Scene membership.
+	 */
+	public function test_full_featured_document_preserves_narrative_consistency() {
+		$document           = $this->full_featured_document();
+		$characters_by_name = array_column( $document['characters'], 'id', 'name' );
+		$props_by_id        = [];
+		$scenes_by_id       = [];
+		$shots_by_id        = [];
+
+		foreach ( $document['props'] as $prop ) {
+			$props_by_id[ $prop['id'] ] = $prop;
+		}
+		foreach ( $document['scenes'] as $scene ) {
+			$scenes_by_id[ $scene['id'] ] = $scene;
+		}
+		foreach ( $document['shots'] as $shot ) {
+			$shots_by_id[ $shot['id'] ] = $shot;
+		}
+
+		$dialogue_lines = [];
+		foreach ( $document['scenes'] as $scene ) {
+			$this->assertCount( count( $scene['characters'] ), array_unique( $scene['characters'] ) );
+			$this->assertCount( count( $scene['props'] ), array_unique( $scene['props'] ) );
+			$this->assertSame( range( 1, count( $scene['dialogue'] ) ), array_column( $scene['dialogue'], 'sequence' ) );
+
+			foreach ( $scene['dialogue'] as $line ) {
+				$this->assertArrayHasKey( $line['speaker'], $characters_by_name, "Unknown dialogue speaker {$line['speaker']}." );
+				$this->assertContains( $characters_by_name[ $line['speaker'] ], $scene['characters'] );
+				$this->assertNotSame( '', trim( $line['line'] ) );
+				$this->assertStringContainsString( $line['line'], $scene['script_content'] );
+				$dialogue_lines[] = $line['line'];
+			}
+
+			foreach ( $scene['props'] as $prop_id ) {
+				$this->assertArrayHasKey( $prop_id, $props_by_id );
+				$this->assertContains(
+					$props_by_id[ $prop_id ]['owner_character'],
+					$scene['characters'],
+					"The owner of {$prop_id} is absent from Scene {$scene['id']}."
+				);
+			}
+		}
+
+		$spoken_sound_text = [];
+		foreach ( $document['sounds'] as $sound ) {
+			$scene = $scenes_by_id[ $sound['scene'] ];
+			if ( ! empty( $sound['shot'] ) ) {
+				$this->assertSame( $sound['scene'], $shots_by_id[ $sound['shot'] ]['scene'] );
+			}
+			if ( ! empty( $sound['character'] ) ) {
+				$this->assertContains( $sound['character'], $scene['characters'] );
+			}
+			if ( ! empty( $sound['lyrics'] ) ) {
+				$this->assertSame( 'music', $sound['type'] );
+			}
+			if ( ! empty( $sound['spoken_text'] ) ) {
+				$spoken_sound_text[] = $sound['spoken_text'];
+			}
+			$this->assertNotSame( 'dialogue', $sound['type'] );
+		}
+		$this->assertSame( [], array_values( array_intersect( $dialogue_lines, $spoken_sound_text ) ) );
+
+		foreach ( $document['organizations'] as $organization ) {
+			$this->assertContains( $organization['leadership'], $organization['members'] );
+		}
+		foreach ( $document['editorial_artifacts'] as $artifact ) {
+			$this->assertSame( $artifact['source_scene'], $shots_by_id[ $artifact['source_shot'] ]['scene'] );
+		}
+	}
+
+	/**
+	 * Load the comprehensive import fixture.
+	 *
+	 * @return array
+	 */
+	private function full_featured_document(): array {
+		$project_root = dirname( dirname( __DIR__ ), 4 );
+		$path         = $project_root . '/about/example-workflow/little-red-riding-hood-full-featured.worldgraph.json';
+
+		$this->assertFileExists( $path );
+		$json = file_get_contents( $path );
+		$this->assertNotFalse( $json );
+		$document = json_decode( $json, true );
+		$this->assertSame( JSON_ERROR_NONE, json_last_error(), json_last_error_msg() );
+		$this->assertIsArray( $document );
+
+		return $document;
+	}
+
+	/**
+	 * Array-valued entity sections in the comprehensive fixture.
+	 *
+	 * @return array<int, string>
+	 */
+	private function full_featured_entity_sections(): array {
+		return [
+			'characters',
+			'locations',
+			'props',
+			'organizations',
+			'episodes',
+			'scenes',
+			'shots',
+			'sounds',
+			'assets',
+			'storyboards',
+			'editorial_artifacts',
+		];
+	}
+
+	/**
+	 * Collect the external IDs that identify persisted entities in a document.
+	 *
+	 * @param array $document Parsed fixture.
+	 * @return array<int, string>
+	 */
+	private function portable_external_ids( array $document ): array {
+		$external_ids = [];
+		foreach ( [ 'project', 'world', 'sequence' ] as $section ) {
+			if ( isset( $document[ $section ]['id'] ) ) {
+				$external_ids[] = $document[ $section ]['id'];
+			}
+		}
+
+		foreach ( $this->full_featured_entity_sections() as $section ) {
+			if ( isset( $document[ $section ] ) && is_array( $document[ $section ] ) ) {
+				$external_ids = array_merge( $external_ids, array_column( $document[ $section ], 'id' ) );
+			}
+		}
+
+		return $external_ids;
+	}
+
+	/**
+	 * Build typed external-ID sets for fixture reference checks.
+	 *
+	 * @param array $document Parsed fixture.
+	 * @return array<string, array<int, string>>
+	 */
+	private function full_featured_id_sets( array $document ): array {
+		$ids = [
+			'project'  => [ $document['project']['id'] ],
+			'world'    => [ $document['world']['id'] ],
+			'sequence' => [ $document['sequence']['id'] ],
+		];
+
+		foreach ( $this->full_featured_entity_sections() as $section ) {
+			$ids[ $section ] = array_column( $document[ $section ], 'id' );
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Assert one external-ID reference against its declared entity section.
+	 *
+	 * @param mixed  $reference Reference value.
+	 * @param array  $target_ids Valid external IDs.
+	 * @param string $context Human-readable assertion context.
+	 */
+	private function assert_reference( $reference, array $target_ids, string $context ): void {
+		$this->assertIsString( $reference, "{$context} must be a string external ID." );
+		$this->assertContains( $reference, $target_ids, "{$context} does not resolve to the declared entity type." );
+	}
 }

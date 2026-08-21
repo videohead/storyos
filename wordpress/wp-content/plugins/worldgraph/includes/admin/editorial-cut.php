@@ -69,8 +69,8 @@ class Editorial_Cut {
 					<?php else : ?>
 						<?php foreach ( $sequences as $sequence ) : ?>
 							<?php
-							$scene_count = count( \WorldGraph\Utils\get_objects_in_term( $sequence->term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY, [ 'worldgraph_scene' ] ) );
-							$shot_count  = count( \WorldGraph\Utils\get_objects_in_term( $sequence->term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY, [ 'worldgraph_shot' ] ) );
+							$scene_count = count( \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $sequence->term_id, 'worldgraph_scene' ) );
+							$shot_count  = count( \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $sequence->term_id, 'worldgraph_shot' ) );
 							?>
 							<tr>
 								<td><a href="<?php echo esc_url( admin_url( 'term.php?taxonomy=' . \WorldGraph\Taxonomies\Sequence::TAXONOMY . '&tag_ID=' . $sequence->term_id ) ); ?>"><?php echo esc_html( $sequence->name ); ?></a></td>

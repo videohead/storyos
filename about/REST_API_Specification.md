@@ -81,6 +81,22 @@ include the WordPress identity and lifecycle fields, SCF-backed `meta`, assigned
 `taxonomies`, outgoing `relationships`, Schema.org mapping hints, featured
 media, and the World Graph Studio asset gallery where applicable.
 
+Every content resource response also includes a top-level, read-only
+`external_id` string. This portable identifier is distinct from the numeric
+WordPress `id`: the JSON importer persists it for correlation across sites,
+while the resource create and update routes do not accept it as writable input.
+Records created outside the importer may return an empty string.
+
+Each entry in a content resource's outgoing `relationships` array includes
+`from_external_id` and `to_external_id` alongside the existing numeric
+`from_id` and `to_id`, CPT types, relationship type, metadata, and Schema.org
+property hint. Either portable identifier is an empty string when its endpoint
+has no stored external ID.
+
+The `storyworlds` route and its graph lookup use the canonical
+`worldgraph_world` CPT key. The legacy `worldgraph_storyworld` identifier is not
+the content type returned by this API.
+
 Project, Story World, Scene, and Character list filters include their relevant
 taxonomy and relationship criteria. Scene and Shot ordering is also exposed:
 
@@ -88,6 +104,21 @@ taxonomy and relationship criteria. Scene and Shot ordering is also exposed:
 POST /wp-json/worldgraph/v1/scenes/reorder
 POST /wp-json/worldgraph/v1/shots/reorder
 ```
+
+### Computed Relationship Counts
+
+Several resource controllers add computed counts under `meta`:
+
+| Resource | Computed response fields |
+| --- | --- |
+| Project | `scene_count`, `character_count`, `asset_count` |
+| Character | `scene_count`, `shot_count`, `asset_count` |
+| Location | `scene_count` |
+| Story World | `location_count`, `character_count`, `organization_count` |
+
+These counts traverse both incoming and outgoing Story Graph edges. Related
+WordPress post IDs are de-duplicated before counting, so the same entity linked
+in both directions contributes once.
 
 ### Sound Validation
 
@@ -136,9 +167,11 @@ DELETE /wp-json/worldgraph/v1/graph/relationships/{from_id}/{to_id}
 ```
 
 The resource-specific `/{resource}/{id}/graph` routes return the same graph
-context around a typed entity. Relationship records carry source and target
-IDs/types, a relationship type, and optional metadata. UI and API wording uses
-Source for provenance and Linked for association.
+context around a typed entity. Graph nodes and entity-discovery results include
+their `external_id`. Relationship records carry source and target IDs/types, a
+relationship type, optional metadata, and `from_external_id` /
+`to_external_id`. UI and API wording uses Source for provenance and Linked for
+association.
 
 Examples of canonical semantics:
 
@@ -162,6 +195,11 @@ POST   /wp-json/worldgraph/v1/sequences/reorder
 POST   /wp-json/worldgraph/v1/sequences/{id}/shots
 POST   /wp-json/worldgraph/v1/sequences/{id}/scenes
 ```
+
+Sequence collection entries and single-Sequence responses expose
+`external_id`, read from `external_id` term metadata, alongside the numeric term
+`id`. Imported version 1.2 Sequences use this value for portable correlation;
+Sequences created without an external ID return an empty string.
 
 ## World Graph Studio JSON Import
 

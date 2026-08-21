@@ -143,13 +143,16 @@ abstract class Base_Controller extends WP_REST_Controller {
 			];
 		}, $gallery_ids ) ) );
 
+		$external_id = (string) get_post_meta( $post->ID, 'external_id', true );
 		$schema_relationships = array_map(
-			static function( array $rel ) use ( $post ) {
+			static function( array $rel ) use ( $post, $external_id ) {
 				$rel['schema_property'] = \WorldGraph\Utils\worldgraph_schema_property_for_relationship(
 					(string) ( $rel['type'] ?? '' ),
 					$post->post_type,
 					(string) ( $rel['to_type'] ?? '' )
 				);
+				$rel['from_external_id'] = $external_id;
+				$rel['to_external_id']   = (string) get_post_meta( absint( $rel['to_id'] ?? 0 ), 'external_id', true );
 
 				return $rel;
 			},
@@ -158,6 +161,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 
 		return [
 			'id'           => $post->ID,
+			'external_id'  => $external_id,
 			'slug'         => $post->post_slug ?? $post->post_name,
 			'type'         => $post->post_type,
 			'title'        => $post->post_title,
@@ -519,7 +523,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$items = [];
 		if ( $query->have_posts() ) {
 			foreach ( $query->posts as $post ) {
-				$items[] = $this->prepare_item( $post, $request->get_params() );
+				$items[] = $this->get_item_data( $post, $request->get_params() );
 			}
 			wp_reset_postdata();
 		}

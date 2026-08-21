@@ -29,6 +29,12 @@ llm/*
 node_modules/
 test-framework/node_modules/
 
+# Headless (optional Next.js frontend)
+headless/node_modules/
+headless/.next/
+headless/out/
+headless/.env.local
+
 # ComfyUI
 ComfyUI/*
 

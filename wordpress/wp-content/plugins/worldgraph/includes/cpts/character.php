@@ -64,10 +64,11 @@ class Character {
 			'required'    => false,
 		],
 		'avatar_asset'    => [
-			'type'        => 'relationship',
-			'label'       => 'Avatar Asset',
-			'required'    => false,
-			'related_cpt' => 'worldgraph_asset',
+			'type'              => 'relationship',
+			'label'             => 'Avatar Asset',
+			'required'          => false,
+			'related_cpt'       => 'worldgraph_asset',
+			'relationship_type' => 'linked_to',
 		],
 		'story_world'     => [
 			'type'        => 'relationship',

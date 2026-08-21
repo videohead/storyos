@@ -1171,6 +1171,33 @@ function worldgraph_set_sequence_order( int $term_id, int $order ): void {
 }
 
 /**
+ * Get objects assigned to a Sequence term, filtered to one post type.
+ *
+ * WordPress core's get_objects_in_term() returns every object assigned to the
+ * taxonomy term; its third argument controls query ordering, not object type.
+ * Sequences are shared by Scenes and Shots, so callers must filter explicitly.
+ *
+ * @param int    $term_id   Sequence term ID.
+ * @param string $post_type World Graph Studio CPT slug.
+ * @return array<int, int>
+ */
+function worldgraph_get_sequence_object_ids( int $term_id, string $post_type ): array {
+	$object_ids = get_objects_in_term( $term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+	if ( is_wp_error( $object_ids ) ) {
+		return [];
+	}
+
+	return array_values(
+		array_filter(
+			array_unique( array_map( 'absint', (array) $object_ids ) ),
+			static function( int $object_id ) use ( $post_type ): bool {
+				return $post_type === get_post_type( $object_id );
+			}
+		)
+	);
+}
+
+/**
  * Get all sequence terms ordered for the editorial cut.
  *
  * @return array<int, array{id:int,name:string,slug:string,order:int}>
