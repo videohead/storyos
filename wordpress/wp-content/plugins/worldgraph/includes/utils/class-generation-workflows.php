@@ -219,53 +219,50 @@ class Generation_Workflows {
 			$intent     = (string) ( $output['intent'] ?? '' );
 		}
 
-		$parts = [];
-		if ( '' !== trim( $base_prompt ) ) {
-			$parts[] = self::clean_text( $base_prompt, self::MAX_CONTEXT_WORDS );
-		} else {
-			$labels  = worldgraph_get_all_cpts();
-			$parts[] = sprintf( '%s: %s', (string) ( $labels[ $post_type ] ?? __( 'Story element', 'worldgraph' ) ), self::clean_text( $post->post_title, 80 ) );
+		$labels  = worldgraph_get_all_cpts();
+		$parts   = [ sprintf( '%s: %s', (string) ( $labels[ $post_type ] ?? __( 'Story element', 'worldgraph' ) ), self::clean_text( $post->post_title, 80 ) ) ];
 
-			$seen = [];
-			foreach ( [ $post->post_excerpt, $post->post_content ] as $core_text ) {
-				$core_text = self::clean_text( (string) $core_text, 700 );
-				if ( '' !== $core_text && ! isset( $seen[ md5( strtolower( $core_text ) ) ] ) ) {
-					$seen[ md5( strtolower( $core_text ) ) ] = true;
-					$parts[] = __( 'Narrative description', 'worldgraph' ) . ': ' . $core_text;
-				}
+		$seen = [];
+		foreach ( [ $post->post_excerpt, $post->post_content ] as $core_text ) {
+			$core_text = self::clean_text( (string) $core_text, 700 );
+			if ( '' !== $core_text && ! isset( $seen[ md5( strtolower( $core_text ) ) ] ) ) {
+				$seen[ md5( strtolower( $core_text ) ) ] = true;
+				$parts[] = __( 'Narrative description', 'worldgraph' ) . ': ' . $core_text;
 			}
+		}
 
-			$fields = worldgraph_get_fields( $post_type );
-			foreach ( self::PROMPT_FIELDS[ $post_type ] ?? [] as $field_name ) {
-				$field = (array) ( $fields[ $field_name ] ?? [] );
-				$value = self::field_prompt_value( $post_id, $field_name, $field );
-				if ( '' === $value ) {
-					continue;
-				}
-				$hash = md5( strtolower( $value ) );
-				if ( isset( $seen[ $hash ] ) ) {
-					continue;
-				}
-				$seen[ $hash ] = true;
-				$label         = (string) ( $field['label'] ?? ucwords( str_replace( '_', ' ', $field_name ) ) );
-				$parts[]       = $label . ': ' . $value;
+		$fields = worldgraph_get_fields( $post_type );
+		foreach ( self::PROMPT_FIELDS[ $post_type ] ?? [] as $field_name ) {
+			$field = (array) ( $fields[ $field_name ] ?? [] );
+			$value = self::field_prompt_value( $post_id, $field_name, $field );
+			if ( '' === $value ) {
+				continue;
 			}
+			$hash = md5( strtolower( $value ) );
+			if ( isset( $seen[ $hash ] ) ) {
+				continue;
+			}
+			$seen[ $hash ] = true;
+			$label         = (string) ( $field['label'] ?? ucwords( str_replace( '_', ' ', $field_name ) ) );
+			$parts[]       = $label . ': ' . $value;
+		}
 
-			$dependent_context = self::dependent_context( $post_id, $intent );
-			if ( '' !== $dependent_context ) {
-				$parts[] = $dependent_context;
-			}
+		$dependent_context = self::dependent_context( $post_id, $intent );
+		if ( '' !== $dependent_context ) {
+			$parts[] = $dependent_context;
 		}
 
 		if ( ! empty( $output['instruction'] ) ) {
 			$parts[] = __( 'Creative objective', 'worldgraph' ) . ': ' . self::clean_text( (string) $output['instruction'], 240 );
 		}
 
-		if ( '' === trim( $base_prompt ) ) {
-			$instructions = self::clean_text( (string) worldgraph_get_field_value( $post_id, 'generation_prompt' ), 500 );
-			if ( '' !== $instructions ) {
-				$parts[] = __( 'Generation instructions', 'worldgraph' ) . ': ' . $instructions;
-			}
+		$instructions = self::clean_text( (string) worldgraph_get_field_value( $post_id, 'generation_prompt' ), 500 );
+		if ( '' !== $instructions ) {
+			$parts[] = __( 'Generation instructions', 'worldgraph' ) . ': ' . $instructions;
+		}
+		$base_prompt = self::clean_text( $base_prompt, 700 );
+		if ( '' !== $base_prompt ) {
+			$parts[] = __( 'Additional request instructions', 'worldgraph' ) . ': ' . $base_prompt;
 		}
 
 		$parts[] = __( 'Output constraints: cinematic production design, coherent lighting and continuity, high detail, no watermarks, logos, interface chrome, or unrelated text.', 'worldgraph' );
@@ -398,7 +395,7 @@ class Generation_Workflows {
 					'label'        => (string) ( $output['label'] ?? $intent ),
 					'type'         => (string) ( $output['type'] ?? 'image' ),
 					'featured'     => ! empty( $output['featured'] ),
-					'prompt'       => Asset_Generator::build_prompt( (int) $source->ID, $intent, 'item' === $scope ? $base_prompt : '' ),
+					'prompt'       => Asset_Generator::build_prompt( (int) $source->ID, $intent, $base_prompt ),
 				];
 			}
 		}
@@ -521,16 +518,24 @@ class Generation_Workflows {
 				continue;
 			}
 			$connection_id = absint( get_post_meta( $template->ID, 'connection_id', true ) );
-			if ( ! $connection_id || ! Connection_Repository::is_available( $connection_id ) ) {
+			$connection    = $connection_id ? Connection_Repository::get( $connection_id ) : null;
+			$provider      = sanitize_key( (string) get_post_meta( $template->ID, 'provider_type', true ) );
+			if ( ! $connection || ! Connection_Repository::is_available( $connection_id ) || $provider !== ( $connection['provider_type'] ?? '' ) || ! in_array( $provider, [ 'comfyui', 'fal', 'videodraft', 'openrouter' ], true ) ) {
+				continue;
+			}
+			$requires_media       = ! empty( Generation_Modality::media_inputs( $modality ) );
+			$provider_template_id = trim( (string) ( get_post_meta( $template->ID, 'provider_template_id', true ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
+			$media_supported      = 'videodraft' === $provider || ( 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' ) && '' === $provider_template_id );
+			if ( $requires_media && ! $media_supported ) {
 				continue;
 			}
 			$options[] = [
 				'id'             => (int) $template->ID,
 				'name'           => (string) ( get_post_meta( $template->ID, 'template_name', true ) ?: $template->post_title ),
 				'modality'       => $modality,
-				'provider_type'  => sanitize_key( (string) get_post_meta( $template->ID, 'provider_type', true ) ),
+				'provider_type'  => $provider,
 				'connection_id'  => $connection_id,
-				'requires_media' => ! empty( Generation_Modality::media_inputs( $modality ) ),
+				'requires_media' => $requires_media,
 			];
 		}
 
@@ -891,12 +896,19 @@ class Generation_Workflows {
 			'meta_key'       => self::BATCH_ID_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 			'meta_value'     => $batch_id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 		] );
+		if ( $job_ids ) {
+			update_meta_cache( 'post', $job_ids );
+		}
 
-		$counts = [];
-		$jobs   = [];
-		foreach ( $job_ids as $job_id ) {
+		$counts      = [];
+		$jobs        = [];
+		$detail_limit = 200;
+		foreach ( $job_ids as $index => $job_id ) {
 			$status = sanitize_key( (string) get_post_meta( $job_id, '_worldgraph_gen_status', true ) ) ?: 'unknown';
 			$counts[ $status ] = ( $counts[ $status ] ?? 0 ) + 1;
+			if ( $index >= $detail_limit ) {
+				continue;
+			}
 			$jobs[] = [
 				'id'          => (int) $job_id,
 				'source_id'   => absint( get_post_meta( $job_id, '_worldgraph_gen_source_post_id', true ) ?: get_post_field( 'post_parent', $job_id ) ),
@@ -908,27 +920,53 @@ class Generation_Workflows {
 			];
 		}
 
-		$total     = count( $job_ids );
-		$active    = array_sum( array_intersect_key( $counts, array_flip( self::ACTIVE_JOB_STATES ) ) );
-		$completed = (int) ( $counts['completed'] ?? 0 );
-		$failed    = (int) ( $counts['failed'] ?? 0 );
-		$cancelled = (int) ( $counts['cancelled'] ?? 0 );
-		$status    = $active > 0 ? 'active' : ( $total > 0 && $completed === $total ? 'completed' : ( $failed || $cancelled ? 'completed_with_errors' : 'pending' ) );
-		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_' . $status );
+		$total                   = absint( get_post_meta( $batch_id, '_worldgraph_gen_total', true ) );
+		$materialized            = count( $job_ids );
+		$pending_materialization = max( 0, $total - $materialized );
+		$root_status             = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
+		$cancel_requested        = '' !== (string) get_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', true );
+		$active_children         = array_sum( array_intersect_key( $counts, array_flip( self::ACTIVE_JOB_STATES ) ) );
+		$active                  = $active_children + ( ! $cancel_requested && in_array( $root_status, [ 'batch_materializing', 'batch_activating' ], true ) ? $pending_materialization : 0 );
+		$completed               = (int) ( $counts['completed'] ?? 0 );
+		$failed                  = (int) ( $counts['failed'] ?? 0 );
+		$cancelled_children      = (int) ( $counts['cancelled'] ?? 0 );
+		$cancelled               = $cancelled_children + ( $cancel_requested ? $pending_materialization : 0 );
+		$terminal                = $completed + $failed + $cancelled;
+		if ( 'batch_failed' === $root_status ) {
+			$status = 'failed';
+		} elseif ( $cancel_requested ) {
+			$status = $active_children > 0 ? 'cancelling' : 'cancelled';
+		} elseif ( $active > 0 ) {
+			$status = 'active';
+		} elseif ( $total > 0 && $completed === $total ) {
+			$status = 'completed';
+		} elseif ( $total > 0 && $terminal >= $total ) {
+			$status = 'completed_with_errors';
+		} else {
+			$status = 'pending';
+		}
+		if ( $pending_materialization ) {
+			$counts['not_materialized'] = $pending_materialization;
+		}
 
 		return [
-			'batch_id'   => $batch_id,
-			'post_id'    => (int) $batch->post_parent,
-			'scope'      => (string) get_post_meta( $batch_id, self::BATCH_SCOPE_META, true ),
-			'status'     => $status,
-			'total'      => $total,
-			'active'     => $active,
-			'completed'  => $completed,
-			'failed'     => $failed,
-			'cancelled'  => $cancelled,
-			'counts'     => $counts,
-			'created'    => (string) get_post_meta( $batch_id, '_worldgraph_gen_created', true ),
-			'jobs'       => $jobs,
+			'batch_id'        => $batch_id,
+			'post_id'         => (int) $batch->post_parent,
+			'scope'           => (string) get_post_meta( $batch_id, self::BATCH_SCOPE_META, true ),
+			'status'          => $status,
+			'total'           => $total,
+			'materialized'    => $materialized,
+			'remaining'       => max( 0, $total - $terminal ),
+			'active'          => $active,
+			'completed'       => $completed,
+			'failed'          => $failed,
+			'cancelled'       => $cancelled,
+			'progress_percent'=> $total ? min( 100, (int) floor( 100 * $terminal / $total ) ) : 0,
+			'counts'          => $counts,
+			'created'         => (string) get_post_meta( $batch_id, '_worldgraph_gen_created', true ),
+			'error'           => (string) get_post_meta( $batch_id, '_worldgraph_gen_error', true ),
+			'jobs'            => $jobs,
+			'jobs_truncated'  => count( $job_ids ) > $detail_limit,
 		];
 	}
 
@@ -963,18 +1001,29 @@ class Generation_Workflows {
 			return [];
 		}
 
+		$stoppable = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_ID_META, 'value' => $batch_id ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'staged', 'queued' ], 'compare' => 'IN' ],
+			],
+		] );
 		$stopped = 0;
-		foreach ( (array) $status['jobs'] as $job ) {
-			$job_id = absint( $job['id'] ?? 0 );
-			if ( $job_id && 'queued' === ( $job['status'] ?? '' ) && false !== update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', 'queued' ) ) {
+		foreach ( $stoppable as $job_id ) {
+			$current = (string) get_post_meta( $job_id, '_worldgraph_gen_status', true );
+			if ( in_array( $current, [ 'staged', 'queued' ], true ) && false !== update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', $current ) ) {
 				++$stopped;
 			}
 		}
 		update_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', current_time( 'mysql' ) );
+		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_cancelling' );
 
 		$status                    = self::batch_status( $batch_id );
 		$status['stopped_queued'] = $stopped;
-		$status['cancel_note']    = __( 'Queued jobs were stopped. Jobs already submitted to a provider will finish polling and import their results.', 'worldgraph' );
+		$status['cancel_note']    = __( 'Staged and queued jobs were stopped. Jobs already submitted to a provider will finish polling and import their results.', 'worldgraph' );
 		return $status;
 	}
 }

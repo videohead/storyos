@@ -91,13 +91,15 @@ When no author-edited base prompt is supplied, the prompt composer combines:
 4. dependent Story Graph context for Scene and Episode filmstrips;
 5. the selected output intent's creative objective;
 6. `generation_prompt`; and
-7. common continuity, detail, and no-watermark constraints.
+7. optional `base_prompt` text labeled **Additional request instructions**; and
+8. common continuity, detail, and no-watermark constraints.
 
 Markup is removed, select values and relationship titles are made readable,
-and the final provider prompt has a global 2,400-word bound. An item-scoped
-`base_prompt` adds author direction without removing saved Story Graph context
-or `generation_prompt`. The `worldgraph_generate_asset_prompt` filter runs last
-and receives the prompt, source post, and intent.
+and the final provider prompt has a global 2,400-word bound. `base_prompt` adds
+author direction without removing saved Story Graph context or
+`generation_prompt`; in Project scope it is appended to every source prompt.
+The `worldgraph_generate_asset_prompt` filter runs last and receives the prompt,
+source post, and intent.
 
 `WorldGraph\Utils\Generation_Workflows` defines the delivered representative
 recipes:
@@ -281,19 +283,27 @@ persists the record before external execution and schedules
 Representative-media batches are also durable `worldgraph_gen` posts, marked
 with `_worldgraph_gen_batch_kind = representative_media`. The parent stores the
 root post, `item` or `project` scope, requester, optional idempotency key, a
-versioned frozen task plan, materialization cursor, child IDs, planned total,
-and aggregate status. Each task snapshot retains its source, intent, output
+versioned frozen task plan, materialization cursor, planned total, and aggregate
+status. Each task snapshot retains its step, source, workflow, intent, output
 type, Template, prompt, prompt hash, and featured behavior. Child jobs store
-`_worldgraph_gen_batch_id` and `_worldgraph_gen_intent`. This separation lets a
-Project batch run for hours or days while every child remains independently
-observable through the ordinary worker lifecycle.
+`_worldgraph_gen_batch_id`, `_worldgraph_gen_batch_step`, and
+`_worldgraph_gen_intent`. This separation lets a Project batch run for hours or
+days while every child remains independently observable through the ordinary
+worker lifecycle.
 
 Planning performs no writes. Starting validates edit permission for every
 source and resolves all required Templates before freezing the batch plan. A
 requester-scoped non-empty idempotency key returns the prior batch for the same
 root instead of creating duplicate provider work. Batch summaries derive their
-counts from persisted child states and report `active`, `completed`,
-`completed_with_errors`, or `pending`.
+counts from the frozen total and persisted child states and report `pending`,
+`active`, `cancelling`, `cancelled`, `failed`, `completed`, or
+`completed_with_errors`.
+
+The preparation phases are durable: `batch_materializing` creates up to 20
+non-runnable `staged` children per tick; after every frozen task exists,
+`batch_activating` promotes up to 50 staged children per tick; only then does the
+parent enter `batch_active`. A step key prevents a restarted materialization
+cursor from duplicating a child.
 
 The worker:
 
@@ -342,6 +352,24 @@ workflow/provider-template reference, prompt, parameters, timestamps, remote
 job ID, result attachment IDs, and terminal status. Raw synchronous audio bytes
 are removed before the provider result is persisted.
 
+Generated attachments use identifiable, portable filenames:
+
+```text
+{project-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job-id}.{ext}
+```
+
+`project-slug` uses the Project's canonical `project_slug`, falling back to its
+WordPress slug. The `worldgraph_` prefix is removed from `cpt-type`; the source
+slug is omitted when it would repeat the Project slug, and the intent is omitted
+when the job has none. Imports without a queued job ID use a UTC
+`YYYYMMDD-HHMMSS` suffix instead. Tokens are sanitized for filenames.
+
+The Media Library title uses the readable form
+`Project — CPT type — source — intent/media type`. The Project source omits the
+repeated source component, a registered intent uses its human label, and media
+without an intent falls back to Image, Video, or Audio. This naming is display
+and portability metadata; generation provenance remains attached separately.
+
 Recent diagnostic events are available under the Generation Log admin page.
 Logs and generation records must not contain authorization headers or secret
 keys.
@@ -354,10 +382,10 @@ The canonical REST base is `/wp-json/worldgraph/v1/`.
 | --- | --- |
 | `GET /assets/generate/prompt?post_id={id}` | Suggested prompt plus runnable image Templates |
 | `POST /assets/generate` | Queue an image for a Story Graph post |
-| `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompts, runnable Templates, defaults, and the latest batch |
+| `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompt hashes, runnable Templates, defaults, and the latest batch |
 | `POST /assets/generate/batches` | Validate and start a durable item or Project representative-media batch |
 | `GET /assets/generate/batches/{id}` | Read aggregate batch progress and child jobs |
-| `POST /assets/generate/batches/{id}/cancel` | Cancel cancellable children and return refreshed batch status |
+| `POST /assets/generate/batches/{id}/cancel` | Cancel staged/queued children and return refreshed batch status |
 | `POST /generation` | Create a Template-backed generation record |
 | `GET /generation/{id}` | Read job status and identity |
 | `POST /generation/{id}/cancel` | Mark a job cancelled |

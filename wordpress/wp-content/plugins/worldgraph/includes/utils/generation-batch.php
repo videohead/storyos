@@ -258,7 +258,9 @@ class Generation_Batch {
 			$params = (array) get_post_meta( $job_id, '_worldgraph_gen_params', true );
 			$template_id = absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) );
 			if ( in_array( $provider_type, [ 'fal', 'elevenlabs', 'suno', 'videodraft', 'openrouter' ], true ) && $template_id ) {
-				$params = array_merge( self::template_input( $template_id ), $params );
+				$template_input = get_post_meta( $job_id, '_worldgraph_gen_template_input', true );
+				$template_input = is_array( $template_input ) ? $template_input : self::template_input( $template_id );
+				$params         = array_merge( $template_input, $params );
 			}
 			$inputs = get_post_meta( $job_id, '_worldgraph_gen_inputs', true );
 			if ( 'fal' === $provider_type && is_array( $inputs ) && ! empty( $inputs ) ) {

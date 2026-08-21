@@ -309,26 +309,33 @@ Starting a batch accepts:
 }
 ```
 
-`base_prompt` is an optional additional author direction for item-scoped
-generation; saved CPT/SCF context and `generation_prompt` remain in the final
-prompt. The image and video Template IDs are optional explicit overrides shared
-by outputs of that type; without them, the server applies the registered
-preference and fallback cascade. `idempotency_key` is a required request
-member; a non-empty value is scoped to the requester and root post, and
-repeating it returns the
-existing batch instead of duplicating work. Starting fails before any child is
+`base_prompt` is optional additional author direction. It applies to the item,
+or to every source in Project scope; saved CPT/SCF context and each source's
+`generation_prompt` remain in the final prompt. The image and video Template
+IDs are optional explicit overrides shared by outputs of that type; without
+them, the server applies the registered preference and fallback cascade.
+`idempotency_key` is required and must be
+non-empty. It is scoped to the requester and root post; repeating it returns
+the existing batch instead of duplicating work. Starting fails before any child is
 queued if any task lacks a runnable Template or the requester cannot edit every
 source. A successful start returns `202 Accepted` and a `Location` header for
 the batch status route.
 
 Batch status includes `batch_id`, root `post_id`, `scope`, aggregate `status`,
-`total`, `active`, `completed`, `failed`, `cancelled`, per-state `counts`,
-creation time, and child `jobs`. Each job reports its source, intent, output
-type, status, attachment ID, and error. Cancellation changes only children that
-are still `queued`; submitted work continues polling and importing because a
+planned `total`, `materialized`, `remaining`, `active`, `completed`, `failed`,
+`cancelled`, `progress_percent`, per-state `counts`, creation time, and any
+batch error. Up to 200 child `jobs` are included inline; `jobs_truncated`
+indicates that more exist. Each job reports its source, intent, output type,
+status, attachment ID, and error. Cancellation changes children that are still
+`staged` or `queued`; submitted work continues polling and importing because a
 local request cannot reliably revoke paid work across every provider. The
 response adds `stopped_queued` and a `cancel_note` to the refreshed aggregate
 status.
+
+Media imported by these routes is named
+`{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`;
+the non-job synchronous fallback uses a UTC timestamp. Attachment titles mirror
+the readable Project, CPT type, source, and intent or media type.
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
 fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP,

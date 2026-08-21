@@ -501,8 +501,10 @@ including `_worldgraph_gen_template_id`, `_worldgraph_gen_connection_id`,
 A representative-media run also has a durable parent `worldgraph_gen` record.
 It records `_worldgraph_gen_batch_kind = representative_media`, item or project
 scope, a versioned frozen task plan, materialization cursor,
-requester-scoped idempotency key, child job IDs, and aggregate status. Children
-reference it through `_worldgraph_gen_batch_id`. Planning is read-only;
+requester-scoped idempotency key, and aggregate status. The current workflow
+version is stored in `_worldgraph_gen_workflow_version`. Children reference the
+batch and frozen-plan position through `_worldgraph_gen_batch_id` and
+`_worldgraph_gen_batch_step`. Planning is read-only;
 starting first verifies that every required image and video output has a
 runnable Template, then persists the plan. WP-Cron materializes and activates
 children in bounded groups instead of holding one request open for the complete
@@ -520,6 +522,12 @@ other modalities require an adapter extension. Imported attachments and Asset
 records retain generation lineage. Featured-image and
 `_worldgraph_asset_gallery_ids` updates remain separate from the Template
 configuration itself.
+
+Generated attachment filenames follow
+`{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`.
+Synchronous imports without a queued job use a UTC timestamp in place of the
+job token. Media Library titles mirror the readable Project, CPT type, source,
+and intent or media type.
 
 Credentials stay on the Connection or in environment-backed references. They
 are not copied into a generation request or result record.

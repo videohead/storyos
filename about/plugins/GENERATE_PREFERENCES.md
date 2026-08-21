@@ -56,15 +56,16 @@ When no author-edited base prompt is supplied, composition order is:
 2. non-duplicate excerpt and post content;
 3. labeled detailed fields;
 4. dependent Scene-shot or Episode-bookend context where applicable;
-5. optional item-scoped `base_prompt` author direction;
-6. the representative intent's creative objective;
-7. `generation_prompt`; and
+5. the representative intent's creative objective;
+6. `generation_prompt`;
+7. optional `base_prompt` text labeled **Additional request instructions**; and
 8. common continuity, detail, and no-watermark constraints.
 
 The composer removes markup, renders select values and relationships readably,
 deduplicates repeated core/SCF text, and applies one global 2,400-word bound.
-An item-scoped `base_prompt` adds instructions without removing the assembled
-Story Graph context or saved `generation_prompt`. The
+`base_prompt` adds instructions without removing the assembled Story Graph
+context or saved `generation_prompt`; in Project scope it applies to every
+planned source. The
 `worldgraph_generate_asset_prompt` filter runs last with the prompt, source
 post, and intent.
 
@@ -127,7 +128,8 @@ Site preferences use the versioned option
 Values are `worldgraph_template` post IDs. Missing, partial, stale, or
 incompatible mappings fall through to the next candidate. The
 `worldgraph_generation_default_template_id` filter can alter a resolved
-candidate, but the returned Template must still be suitable for the task.
+candidate. Filter implementations must return a Template suitable for the
+task.
 
 ## Plans and durable batches
 
@@ -152,16 +154,16 @@ include the Project and each supported descendant once. A plan returns:
 - resolved `default_template_ids`; and
 - `latest_batch`, when one exists for the same root and scope.
 
-The start payload accepts `post_id`, `scope`, optional item `base_prompt`,
+The start payload accepts `post_id`, `scope`, optional additive `base_prompt`,
 optional `image_template_id` and `video_template_id`, and the required
-`idempotency_key` member. The server refuses to start unless the requester can
-edit every source and every image/video task resolves a runnable Template.
+non-empty `idempotency_key`. The server refuses to start unless the requester
+can edit every source and every image/video task resolves a runnable Template.
 Plans are limited to 5,000 jobs by default;
 `worldgraph_generation_batch_max_tasks` may change that bound.
 
-A non-empty idempotency key is scoped to the requester and root batch request.
-Repeating it returns the existing batch. This protects clients from duplicate
-provider spending after a timeout or lost response.
+The idempotency key is scoped to the requester and root batch request. Repeating
+it returns the existing batch. This protects clients from duplicate provider
+spending after a timeout or lost response.
 
 ## Batch storage, status, and cancellation
 
@@ -170,25 +172,37 @@ A representative batch is a parent `worldgraph_gen` record with:
 - `_worldgraph_gen_batch_kind = representative_media`;
 - `_worldgraph_gen_batch_scope`;
 - `_worldgraph_gen_batch_plan`, a versioned frozen task list containing source,
-  intent, output type, Template, prompt, prompt hash, and featured behavior;
+  step, workflow, intent, output type, Template, prompt, prompt hash, and
+  featured behavior;
 - `_worldgraph_gen_batch_cursor`, which tracks bounded materialization;
+- `_worldgraph_gen_workflow_version = 1`;
 - `_worldgraph_gen_idempotency_key`;
-- requester, creation time, total, child IDs, and aggregate status.
+- requester, creation time, planned total, and aggregate status.
 
 Each child remains an ordinary generation job and adds
-`_worldgraph_gen_batch_id` and `_worldgraph_gen_intent`. Status responses report
-the root and scope, aggregate status, total/active/completed/failed/cancelled
-counts, per-state counts, creation time, and child source, intent, type, status,
-attachment, and error details.
+`_worldgraph_gen_batch_id`, `_worldgraph_gen_batch_step`, and
+`_worldgraph_gen_intent`. Status responses report the root and scope, aggregate
+status, planned total, materialized/remaining/active/completed/failed/cancelled
+counts, progress percentage, per-state counts, creation time, and batch error.
+Up to 200 child details are returned inline with source, intent, type, status,
+attachment, and error; `jobs_truncated` marks a larger batch.
 
-After start freezes the plan, WP-Cron materializes and activates bounded groups
-of child jobs, then continues to submit and poll bounded numbers of them. A
-large Project batch may therefore run for hours or days without one HTTP
-request remaining open. Cancellation prevents remaining planned tasks from
-being activated, changes already materialized `queued` children to `cancelled`,
-and reports `stopped_queued` plus a human-readable `cancel_note`. Submitted or
+After start freezes the plan, the parent moves through
+`batch_materializing`, `batch_activating`, and `batch_active`. WP-Cron creates
+up to 20 non-runnable `staged` children per tick. Only after every task exists
+does it promote up to 50 staged children to `queued` per tick, then continue
+submitting and polling bounded numbers of jobs. A large Project batch may
+therefore run for hours or days without one HTTP request remaining open.
+Cancellation prevents remaining planned tasks from being activated, changes
+already materialized `staged` or `queued` children to `cancelled`, and reports
+that count in `stopped_queued` plus a human-readable `cancel_note`. Submitted or
 terminal provider work retains its actual lifecycle state and remains in the
 aggregate report.
+
+Generated files carry the same context outside WordPress through
+`{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`.
+Media Library titles use the human-readable Project, CPT type, source, and
+intent label, falling back to the media type when no intent exists.
 
 ## Security and operating boundaries
 

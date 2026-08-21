@@ -154,12 +154,28 @@ class Asset_Generator {
 			'template_id'  => 0,
 			'intent'       => '',
 			'batch_id'     => 0,
+			'batch_step'   => -1,
+			'requester_id' => 0,
+			'initial_status' => 'queued',
+			'schedule'     => true,
 		] );
 		$type = sanitize_key( (string) $args['type'] );
 		if ( ! in_array( $type, [ 'image', 'video' ], true ) ) {
 			return new WP_Error( 'worldgraph_asset_invalid_type', __( 'Representative media must be an image or video.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
+		$requester_id = absint( $args['requester_id'] ) ?: get_current_user_id();
+		$authorization = Generation_Authorization::authorize_submission( $type, $post_id, [], $requester_id );
+		if ( is_wp_error( $authorization ) ) {
+			return $authorization;
+		}
+
 		$intent = sanitize_key( (string) $args['intent'] );
+		if ( '' !== $intent ) {
+			$intent_definition = Generation_Workflows::intent( $post->post_type, $intent );
+			if ( empty( $intent_definition ) || $type !== ( $intent_definition['type'] ?? '' ) ) {
+				return new WP_Error( 'worldgraph_asset_intent_invalid', __( 'That representative-media intent does not apply to this item and output type.', 'worldgraph' ), [ 'status' => 400 ] );
+			}
+		}
 		$prompt = trim( wp_strip_all_tags( (string) $args['prompt'] ) );
 		$prompt = '' !== $prompt ? $prompt : self::build_prompt( $post_id, $intent );
 		$profile = self::project_media_profile( $post_id );
@@ -189,7 +205,7 @@ class Asset_Generator {
 			return new WP_Error( 'worldgraph_asset_provider_unsupported', __( 'This provider has no World Graph Studio asset generation adapter yet.', 'worldgraph' ), [ 'status' => 501 ] );
 		}
 		if ( '' === $provider_template_id ) {
-			if ( in_array( $provider, [ 'fal', 'videodraft' ], true ) || 'local' !== $connection['environment'] ) {
+			if ( 'comfyui' !== $provider || 'local' !== $connection['environment'] ) {
 				return new WP_Error( 'worldgraph_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'worldgraph' ), [ 'status' => 400 ] );
 			}
 
@@ -222,13 +238,6 @@ class Asset_Generator {
 			return new WP_Error( 'worldgraph_openrouter_unconfigured', __( 'The Template Connection has no OpenRouter API key or credential reference.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 
-		if ( $use_local_template ) {
-			$requirements = self::ensure_local_template_requirements( $template_id, $connection_id );
-			if ( is_wp_error( $requirements ) ) {
-				return $requirements;
-			}
-		}
-
 		$bound_inputs = [];
 		if ( $template_id ) {
 			$missing = Template_Bindings::missing_required( $template_id, $post_id );
@@ -247,9 +256,24 @@ class Asset_Generator {
 			$bound_inputs = Template_Bindings::resolve( $template_id, $post_id );
 		}
 
-		$authorization = Generation_Authorization::authorize_submission( $type, $post_id, $bound_inputs, get_current_user_id() );
+		$authorization = Generation_Authorization::authorize_submission( $type, $post_id, $bound_inputs, $requester_id );
 		if ( is_wp_error( $authorization ) ) {
 			return $authorization;
+		}
+		if ( $use_local_template ) {
+			$requirements = self::ensure_local_template_requirements( $template_id, $connection_id );
+			if ( is_wp_error( $requirements ) ) {
+				return $requirements;
+			}
+		}
+
+		$batch_id   = absint( $args['batch_id'] );
+		$batch_step = (int) $args['batch_step'];
+		if ( $batch_id ) {
+			$batch_validation = self::validate_batch_task( $batch_id, $batch_step, $post_id, $type, $intent, $template_id, $requester_id );
+			if ( is_wp_error( $batch_validation ) ) {
+				return $batch_validation;
+			}
 		}
 
 		$job_id = wp_insert_post( [
@@ -270,44 +294,96 @@ class Asset_Generator {
 
 		// A user-selected Template wins; otherwise keep the legacy per-CPT
 		// workflow name so existing jobs without a Template keep working.
-		$template = $use_local_template ? (string) $template_id : $provider_template_id;
-		$adapter  = 'fal' === $provider ? 'fal_mcp' : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? $provider : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
-		$params   = 'fal' === $provider ? self::fal_template_input( $template_id ) : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
-		update_post_meta( $job_id, '_worldgraph_gen_type', $type );
-		update_post_meta( $job_id, '_worldgraph_gen_prompt', $prompt );
-		update_post_meta( $job_id, '_worldgraph_gen_params', $params );
+		$template       = $use_local_template ? (string) $template_id : $provider_template_id;
+		$adapter        = 'fal' === $provider ? 'fal_mcp' : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? $provider : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
+		$template_input = self::fal_template_input( $template_id );
+		$params         = 'fal' === $provider ? $template_input : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
+		$initial_status = in_array( $args['initial_status'], [ 'staged', 'queued' ], true ) ? (string) $args['initial_status'] : 'queued';
+		if ( 'staged' === $initial_status && ! $batch_id ) {
+			wp_delete_post( $job_id, true );
+			return new WP_Error( 'worldgraph_asset_staged_batch_required', __( 'A staged generation job must belong to a representative-media batch.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
+
+		$job_meta = [
+			'_worldgraph_gen_type'             => $type,
+			'_worldgraph_gen_prompt'           => $prompt,
+			'_worldgraph_gen_prompt_hash'      => hash( 'sha256', $prompt ),
+			'_worldgraph_gen_params'           => $params,
+			'_worldgraph_gen_template_input'   => $template_input,
+			'_worldgraph_gen_workflow'         => $template,
+			'_worldgraph_gen_adapter'          => $adapter,
+			'_worldgraph_gen_template_id'      => $template_id,
+			'_worldgraph_gen_provider_type'    => $provider,
+			'_worldgraph_gen_connection_id'    => $connection_id,
+			'_worldgraph_gen_source_post_id'   => $post_id,
+			'_worldgraph_gen_requested_by'     => $requester_id,
+			'_worldgraph_gen_set_featured'     => 'image' === $type && rest_sanitize_boolean( $args['set_featured'] ),
+			'_worldgraph_gen_create_asset'     => rest_sanitize_boolean( $args['create_asset'] ),
+			'_worldgraph_gen_workflow_version' => Generation_Workflows::WORKFLOW_VERSION,
+			'_worldgraph_gen_status'           => $initial_status,
+			'_worldgraph_gen_created'          => current_time( 'mysql' ),
+		];
 		if ( ! empty( $bound_inputs ) ) {
-			update_post_meta( $job_id, '_worldgraph_gen_inputs', $bound_inputs );
+			$job_meta['_worldgraph_gen_inputs'] = $bound_inputs;
 		}
-		update_post_meta( $job_id, '_worldgraph_gen_workflow', $template );
-		update_post_meta( $job_id, '_worldgraph_gen_adapter', $adapter );
-		update_post_meta( $job_id, '_worldgraph_gen_template_id', $template_id );
-		update_post_meta( $job_id, '_worldgraph_gen_provider_type', $provider );
-		update_post_meta( $job_id, '_worldgraph_gen_connection_id', $connection_id );
-		update_post_meta( $job_id, '_worldgraph_gen_source_post_id', $post_id );
-		update_post_meta( $job_id, '_worldgraph_gen_requested_by', get_current_user_id() );
-		update_post_meta( $job_id, '_worldgraph_gen_set_featured', 'image' === $type && rest_sanitize_boolean( $args['set_featured'] ) );
-		update_post_meta( $job_id, '_worldgraph_gen_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );
 		if ( '' !== $intent ) {
-			update_post_meta( $job_id, Generation_Workflows::INTENT_META, $intent );
+			$job_meta[ Generation_Workflows::INTENT_META ] = $intent;
 		}
-		$batch_id = absint( $args['batch_id'] );
 		if ( $batch_id ) {
-			update_post_meta( $job_id, Generation_Workflows::BATCH_ID_META, $batch_id );
+			$job_meta[ Generation_Workflows::BATCH_ID_META ] = $batch_id;
+			$job_meta[ Generation_Workflows::STEP_META ]     = $batch_step;
 		}
-		update_post_meta( $job_id, '_worldgraph_gen_status', 'queued' );
-		update_post_meta( $job_id, '_worldgraph_gen_created', current_time( 'mysql' ) );
-		Generation_Batch::schedule();
+		if ( ! self::store_generation_job_meta( (int) $job_id, $job_meta ) ) {
+			wp_delete_post( $job_id, true );
+			return new WP_Error( 'worldgraph_asset_job_storage_failed', __( 'WordPress could not persist the generation job safely.', 'worldgraph' ), [ 'status' => 500 ] );
+		}
+		if ( 'queued' === $initial_status && rest_sanitize_boolean( $args['schedule'] ) ) {
+			Generation_Batch::schedule();
+		}
 
 		return [
 			'generation_id' => (int) $job_id,
 			'post_id'       => $post_id,
 			'prompt'        => $prompt,
-			'status'        => 'queued',
+			'status'        => $initial_status,
 			'type'          => $type,
 			'intent'        => $intent,
 			'batch_id'      => $batch_id,
 		];
+	}
+
+	/** Validate that a staged child exactly matches its frozen parent task. */
+	private static function validate_batch_task( int $batch_id, int $step, int $post_id, string $type, string $intent, int $template_id, int $requester_id ) {
+		$batch = get_post( $batch_id );
+		$plan  = get_post_meta( $batch_id, Generation_Workflows::BATCH_PLAN_META, true );
+		$task  = is_array( $plan ) && isset( $plan[ $step ] ) && is_array( $plan[ $step ] ) ? $plan[ $step ] : [];
+		if (
+			! $batch instanceof \WP_Post
+			|| 'worldgraph_gen' !== $batch->post_type
+			|| Generation_Workflows::REPRESENTATIVE_BATCH !== get_post_meta( $batch_id, Generation_Workflows::BATCH_KIND_META, true )
+			|| $requester_id !== absint( get_post_meta( $batch_id, '_worldgraph_gen_requested_by', true ) )
+			|| $post_id !== absint( $task['source_id'] ?? 0 )
+			|| $type !== ( $task['type'] ?? '' )
+			|| $intent !== ( $task['intent'] ?? '' )
+			|| $template_id !== absint( $task['template_id'] ?? 0 )
+		) {
+			return new WP_Error( 'worldgraph_asset_batch_task_invalid', __( 'The generation job does not match its frozen representative-media batch task.', 'worldgraph' ), [ 'status' => 409 ] );
+		}
+
+		return true;
+	}
+
+	/** Persist critical job metadata and verify it before a worker can claim it. */
+	private static function store_generation_job_meta( int $job_id, array $meta ): bool {
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $job_id, (string) $key, is_array( $value ) ? wp_slash( $value ) : $value );
+			$stored = get_post_meta( $job_id, (string) $key, true );
+			if ( is_array( $value ) ? $stored !== $value : (string) $stored !== (string) $value ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -425,44 +501,52 @@ class Asset_Generator {
 			return $post_id;
 		}
 
-		$seen         = [];
-		$current_id   = $post_id;
-		$current_type = get_post_type( $post_id );
-
-		for ( $depth = 0; $depth < 6 && $current_id && $current_type; $depth++ ) {
-			if ( isset( $seen[ $current_id ] ) ) {
-				break;
+		$parents = [
+			'worldgraph_world'     => [ 'field' => 'project', 'types' => [ 'worldgraph_project' ] ],
+			'worldgraph_character' => [ 'field' => 'story_world', 'types' => [ 'worldgraph_world' ] ],
+			'worldgraph_location'  => [ 'field' => 'story_world', 'types' => [ 'worldgraph_world' ] ],
+			'worldgraph_prop'      => [ 'field' => 'owner_character', 'types' => [ 'worldgraph_character' ] ],
+			'worldgraph_episode'   => [ 'field' => 'project', 'types' => [ 'worldgraph_project' ] ],
+			'worldgraph_scene'     => [ 'field' => 'episode', 'types' => [ 'worldgraph_episode' ] ],
+			'worldgraph_shot'      => [ 'field' => 'scene', 'types' => [ 'worldgraph_scene' ] ],
+		];
+		$queue   = [ [ $post_id, (string) get_post_type( $post_id ) ] ];
+		$seen    = [];
+		$depth   = 0;
+		while ( $queue && $depth++ < 12 ) {
+			[ $current_id, $current_type ] = array_shift( $queue );
+			if ( isset( $seen[ $current_id ] ) || ! isset( $parents[ $current_type ] ) ) {
+				continue;
 			}
 			$seen[ $current_id ] = true;
-
-			$parent_id   = 0;
-			$parent_type = '';
+			$allowed_types       = $parents[ $current_type ]['types'];
+			$candidates          = [];
+			$field_value         = worldgraph_get_field_value( $current_id, $parents[ $current_type ]['field'] );
+			foreach ( is_array( $field_value ) ? $field_value : [ $field_value ] as $value ) {
+				$candidate_id = $value instanceof \WP_Post ? (int) $value->ID : absint( $value );
+				if ( $candidate_id ) {
+					$candidates[ $candidate_id ] = (string) get_post_type( $candidate_id );
+				}
+			}
 			foreach ( get_relationships( $current_id, $current_type, 'incoming' ) as $relationship ) {
 				if ( 'contains' === ( $relationship['type'] ?? '' ) ) {
-					$parent_id   = absint( $relationship['from_id'] ?? 0 );
-					$parent_type = (string) ( $relationship['from_type'] ?? '' );
-					break;
+					$candidates[ absint( $relationship['from_id'] ?? 0 ) ] = (string) ( $relationship['from_type'] ?? '' );
 				}
 			}
-			if ( ! $parent_id ) {
-				foreach ( get_relationships( $current_id, $current_type, 'outgoing' ) as $relationship ) {
-					if ( 'belongs_to' === ( $relationship['type'] ?? '' ) ) {
-						$parent_id   = absint( $relationship['to_id'] ?? 0 );
-						$parent_type = (string) ( $relationship['to_type'] ?? '' );
-						break;
-					}
+			foreach ( get_relationships( $current_id, $current_type, 'outgoing' ) as $relationship ) {
+				if ( 'belongs_to' === ( $relationship['type'] ?? '' ) ) {
+					$candidates[ absint( $relationship['to_id'] ?? 0 ) ] = (string) ( $relationship['to_type'] ?? '' );
 				}
 			}
-
-			if ( ! $parent_id ) {
-				break;
+			foreach ( $candidates as $candidate_id => $candidate_type ) {
+				if ( ! $candidate_id || ! in_array( $candidate_type, $allowed_types, true ) ) {
+					continue;
+				}
+				if ( 'worldgraph_project' === $candidate_type ) {
+					return (int) $candidate_id;
+				}
+				$queue[] = [ (int) $candidate_id, $candidate_type ];
 			}
-			if ( 'worldgraph_project' === $parent_type ) {
-				return $parent_id;
-			}
-
-			$current_id   = $parent_id;
-			$current_type = $parent_type;
 		}
 
 		return 0;
@@ -595,8 +679,9 @@ class Asset_Generator {
 			return new WP_Error( 'worldgraph_gen_journal_failed', __( 'WordPress could not clean up an interrupted media import.', 'worldgraph' ) );
 		}
 
-		$provider   = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
-		$adapter    = (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true );
+		$provider       = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
+		$adapter        = (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true );
+		$requested_type = sanitize_key( (string) get_post_meta( $job_id, '_worldgraph_gen_type', true ) );
 		$is_videodraft = 'videodraft' === $provider || 'videodraft' === $adapter;
 		$typed_video_urls = self::find_typed_output_urls( $result, 'video' );
 		$typed_audio_urls = self::find_typed_output_urls( $result, 'audio' );
@@ -619,8 +704,10 @@ class Asset_Generator {
 			return new WP_Error( 'worldgraph_gen_output_missing', __( 'The generation provider completed the job but did not return downloadable media.', 'worldgraph' ) );
 		}
 
-		$attachment_id = 0;
-		$media         = [];
+		$attachment_id           = 0;
+		$video_attachment_id     = 0;
+		$audio_attachment_id     = 0;
+		$media                   = [];
 		$generated_attachment_ids = [];
 		if ( ! self::begin_import_journal( $job_id, $post->ID, (int) get_post_thumbnail_id( $post ) ) ) {
 			return new WP_Error( 'worldgraph_gen_journal_failed', __( 'WordPress could not prepare a recoverable media import.', 'worldgraph' ) );
@@ -677,7 +764,7 @@ class Asset_Generator {
 			}
 			$generated_attachment_ids[] = $video_attachment_id;
 			self::add_to_gallery( $post->ID, $video_attachment_id );
-			if ( ! $attachment_id ) {
+			if ( ! $attachment_id || 'video' === $requested_type ) {
 				$attachment_id = $video_attachment_id;
 				$media         = $video;
 			}
@@ -705,7 +792,7 @@ class Asset_Generator {
 			}
 			$generated_attachment_ids[] = $audio_attachment_id;
 			self::add_to_gallery( $post->ID, $audio_attachment_id );
-			if ( ! $attachment_id ) {
+			if ( ! $attachment_id || 'audio' === $requested_type ) {
 				$attachment_id = $audio_attachment_id;
 				$media = $audio;
 			}
@@ -727,7 +814,7 @@ class Asset_Generator {
 			}
 			$generated_attachment_ids[] = $audio_attachment_id;
 			self::add_to_gallery( $post->ID, $audio_attachment_id );
-			if ( ! $attachment_id ) {
+			if ( ! $attachment_id || 'audio' === $requested_type ) {
 				$attachment_id = $audio_attachment_id;
 				$media = $audio;
 			}
@@ -764,7 +851,7 @@ class Asset_Generator {
 			self::add_to_gallery( $post->ID, $additional_attachment_id );
 		}
 
-		if ( ! $attachment_id ) {
+		if ( ( 'video' === $requested_type && ! $video_attachment_id ) || ( 'audio' === $requested_type && ! $audio_attachment_id ) || ! $attachment_id ) {
 			return self::rollback_media_import( $job_id, new WP_Error( 'worldgraph_gen_output_missing', __( 'The generated media could not be imported into the media library.', 'worldgraph' ) ) );
 		}
 
@@ -796,8 +883,71 @@ class Asset_Generator {
 				update_post_meta( $asset_id, Generation_Workflows::BATCH_ID_META, $batch_id );
 			}
 		}
+		$provenance = [
+			'_worldgraph_gen_job_id'           => $job_id,
+			'_worldgraph_gen_source_post_id'   => $post_id,
+			'_worldgraph_gen_type'             => $requested_type,
+			'_worldgraph_gen_template_id'      => absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) ),
+			'_worldgraph_gen_provider_type'    => $provider,
+			'_worldgraph_gen_connection_id'    => absint( get_post_meta( $job_id, '_worldgraph_gen_connection_id', true ) ),
+			'_worldgraph_gen_prompt_hash'      => (string) get_post_meta( $job_id, '_worldgraph_gen_prompt_hash', true ),
+			'_worldgraph_gen_workflow_version' => absint( get_post_meta( $job_id, '_worldgraph_gen_workflow_version', true ) ),
+		];
+		foreach ( $provenance as $key => $value ) {
+			foreach ( $generated_attachment_ids as $generated_attachment_id ) {
+				update_post_meta( $generated_attachment_id, $key, $value );
+			}
+			if ( $asset_id ) {
+				update_post_meta( $asset_id, $key, $value );
+			}
+		}
 
 		return [ 'attachment_id' => $attachment_id, 'attachment_ids' => $generated_attachment_ids, 'asset_id' => $asset_id, 'url' => (string) wp_get_attachment_url( $attachment_id ) ];
+	}
+
+	/** Build a Media Library filename that remains identifiable outside WordPress. */
+	private static function generated_filename( \WP_Post $post, string $extension, int $job_id = 0 ): string {
+		$project_id     = self::resolve_project_id( (int) $post->ID );
+		$project        = $project_id ? get_post( $project_id ) : null;
+		$project_prefix = $project_id ? (string) worldgraph_get_field_value( $project_id, 'project_slug' ) : '';
+		if ( '' === trim( $project_prefix ) && $project instanceof \WP_Post ) {
+			$project_prefix = $project->post_name ?: $project->post_title;
+		}
+		$project_prefix = sanitize_title( $project_prefix ) ?: 'unassigned-project';
+		$type           = sanitize_title( preg_replace( '/^worldgraph_/', '', $post->post_type ) ) ?: 'asset';
+		$source         = sanitize_title( $post->post_name ?: $post->post_title ) ?: (string) $post->ID;
+		$intent         = $job_id ? sanitize_title( (string) get_post_meta( $job_id, Generation_Workflows::INTENT_META, true ) ) : '';
+		$tokens         = [ $project_prefix, $type ];
+		if ( $source !== $project_prefix ) {
+			$tokens[] = $source;
+		}
+		if ( '' !== $intent ) {
+			$tokens[] = $intent;
+		}
+		$tokens[] = $job_id ? 'job-' . $job_id : gmdate( 'Ymd-His' );
+
+		return sanitize_file_name( implode( '-', array_map( static function ( string $token ): string {
+			return substr( $token, 0, 60 );
+		}, $tokens ) ) . '.' . sanitize_key( $extension ) );
+	}
+
+	/** Build a readable Media Library title with Project, type, source, and intent. */
+	private static function generated_media_title( \WP_Post $post, string $mime, int $job_id = 0 ): string {
+		$project_id    = self::resolve_project_id( (int) $post->ID );
+		$project_title = $project_id ? (string) get_the_title( $project_id ) : __( 'Unassigned project', 'worldgraph' );
+		$labels        = worldgraph_get_all_cpts();
+		$type_label    = (string) ( $labels[ $post->post_type ] ?? __( 'Asset', 'worldgraph' ) );
+		$intent        = $job_id ? sanitize_key( (string) get_post_meta( $job_id, Generation_Workflows::INTENT_META, true ) ) : '';
+		$definition    = '' !== $intent ? Generation_Workflows::intent( $post->post_type, $intent ) : [];
+		$intent_label  = (string) ( $definition['label'] ?? '' );
+		$media_label   = 0 === strpos( $mime, 'video/' ) ? __( 'Video', 'worldgraph' ) : ( 0 === strpos( $mime, 'audio/' ) ? __( 'Audio', 'worldgraph' ) : __( 'Image', 'worldgraph' ) );
+		$parts         = [ $project_title, $type_label ];
+		if ( $post->ID !== $project_id ) {
+			$parts[] = $post->post_title;
+		}
+		$parts[] = '' !== $intent_label ? $intent_label : $media_label;
+
+		return implode( ' — ', array_filter( $parts ) );
 	}
 
 	/**
@@ -809,9 +959,7 @@ class Asset_Generator {
 	 * @return int|WP_Error Attachment ID.
 	 */
 	private static function sideload( array $image, \WP_Post $post, int $job_id = 0 ) {
-		$filename = sanitize_file_name(
-			sprintf( 'worldgraph-%s-%d-%s.%s', $post->post_type, $post->ID, gmdate( 'YmdHis' ), $image['extension'] )
-		);
+		$filename = self::generated_filename( $post, (string) $image['extension'], $job_id );
 
 		$checked = wp_check_filetype( $filename, null );
 		if ( empty( $checked['type'] ) || $checked['type'] !== $image['mime'] ) {
@@ -836,17 +984,7 @@ class Asset_Generator {
 			return new WP_Error( 'worldgraph_asset_upload_failed', (string) $upload['error'], [ 'status' => 500 ] );
 		}
 
-		$title_format = __( 'Generated image for %s', 'worldgraph' );
-		if ( 0 === strpos( $image['mime'], 'video/' ) ) {
-			$title_format = __( 'Generated video for %s', 'worldgraph' );
-		} elseif ( 0 === strpos( $image['mime'], 'audio/' ) ) {
-			$title_format = __( 'Generated audio for %s', 'worldgraph' );
-		}
-		$title = sprintf(
-			/* translators: %s: story element title. */
-			$title_format,
-			$post->post_title
-		);
+		$title = self::generated_media_title( $post, (string) $image['mime'], $job_id );
 
 		$attachment_id = wp_insert_attachment(
 			[

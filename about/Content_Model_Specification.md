@@ -454,9 +454,10 @@ The default representative-media model is:
 
 `worldgraph_gen` records represent both individual work and durable
 representative-media batches. A batch record is parented to the requested item
-or Project and retains scope, requester, idempotency key, plan snapshot, child
-IDs, aggregate counts, and state. Each child job is parented to its source Story
-Graph item and retains the batch ID and creative intent together with the
+or Project and retains scope, requester, idempotency key, versioned frozen plan,
+materialization cursor, aggregate counts, and state. Each child job is parented
+to its source Story Graph item and retains the batch ID, frozen-plan step, and
+creative intent together with the
 Template, Connection, provider, workflow, prompt, inputs, state, remote job
 identity, results, imported attachment IDs, and provenance.
 
@@ -468,6 +469,10 @@ and activates child jobs in bounded groups, allowing the batch to execute and
 report work safely over hours or days without one large start request.
 
 These are internal workflow records, not SCF-backed editorial content types.
+Generated attachment filenames retain the Project slug, source CPT type,
+optional source slug and intent, and generation job ID; synchronous imports use
+a UTC timestamp fallback. Their Media Library titles use the equivalent
+human-readable Project, type, source, and intent/media-type labels.
 
 ---
 
