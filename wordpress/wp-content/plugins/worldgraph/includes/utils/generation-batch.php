@@ -457,7 +457,7 @@ class Generation_Batch {
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
 			'meta_query'     => [
-					[ 'key' => '_worldgraph_gen_status', 'value' => [ 'queued', 'submitted', 'submitting', 'polling', 'importing', 'import_retry', 'import_cleanup', 'import_cleaning' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'queued', 'submitted', 'submitting', 'polling', 'importing', 'import_retry', 'import_cleanup', 'import_cleaning' ], 'compare' => 'IN' ],
 			],
 		] );
 	}
