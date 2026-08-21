@@ -36,6 +36,10 @@ runtime state and are deliberately excluded from the interchange example.
   in 1.2 falls back to array order for legacy documents.
 - Fields added in 1.2 are optional when reading older documents. Their absence
   must not prevent import.
+- When a 1.0/1.1 document matches a legacy Sequence term by title and that term
+  has no `external_id`, the importer performs a one-time identity migration by
+  attaching the document's Sequence ID. Version 1.2 documents require
+  overwrite before claiming an unkeyed same-title term.
 
 ## Common Conventions
 

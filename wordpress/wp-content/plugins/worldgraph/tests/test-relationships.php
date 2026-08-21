@@ -76,6 +76,7 @@ class Test_WorldGraph_Relationships extends TestCase {
 				'metadata' => [ 'field' => 'legacy_inverse' ],
 			],
 		];
+		$GLOBALS['worldgraph_incoming_relationship_index'] = [ 'stale' => [] ];
 
 		$this->assertTrue(
 			\WorldGraph\Utils\remove_relationship(
@@ -87,10 +88,12 @@ class Test_WorldGraph_Relationships extends TestCase {
 				'legacy_inverse'
 			)
 		);
+		$this->assertArrayNotHasKey( 'worldgraph_incoming_relationship_index', $GLOBALS );
 		$remaining = $GLOBALS['worldgraph_import_journal_state']['meta'][10]['worldgraph_relationships'];
 		$this->assertCount( 3, $remaining );
 		$this->assertSame( [ 'canonical_slot', 'legacy_inverse', 'legacy_inverse' ], array_column( array_column( $remaining, 'metadata' ), 'field' ) );
 
+		$GLOBALS['worldgraph_incoming_relationship_index'] = [ 'stale' => [] ];
 		$this->assertTrue(
 			\WorldGraph\Utils\remove_relationship(
 				10,
@@ -100,6 +103,7 @@ class Test_WorldGraph_Relationships extends TestCase {
 				'contains'
 			)
 		);
+		$this->assertArrayNotHasKey( 'worldgraph_incoming_relationship_index', $GLOBALS );
 		$remaining = $GLOBALS['worldgraph_import_journal_state']['meta'][10]['worldgraph_relationships'];
 		$this->assertCount( 2, $remaining );
 		$this->assertSame( [ 'references', 'contains' ], array_column( $remaining, 'type' ) );

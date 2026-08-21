@@ -148,6 +148,26 @@ class Test_WorldGraph_Import extends TestCase {
 		);
 	}
 
+	/** Validation rejects values that cannot round-trip through canonical fields. */
+	public function test_importer_rejects_lossy_v12_scalar_values() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString( "! is_string( \$data[ \$section ]['id'] )", $source );
+		$this->assertStringContainsString( "! is_string( \$entity['id'] )", $source );
+		$this->assertStringContainsString( "! is_string( \$data['sequence']['id'] )", $source );
+		$this->assertStringContainsString(
+			"array_key_exists( 'generation_parameters', \$asset ) && ! is_array( \$asset['generation_parameters'] )",
+			$source
+		);
+		$this->assertStringContainsString(
+			"sanitize_title( (string) \$asset['type'] ) !== sanitize_title( (string) \$asset['asset_type'] )",
+			$source
+		);
+		$this->assertStringContainsString( "! is_numeric( \$shot['take_number'] )", $source );
+		$this->assertStringContainsString( 'take_number must be at least 1.', $source );
+	}
+
 	/**
 	 * The 1.1 example and importer preserve Sound cues without duplicating dialogue.
 	 */
@@ -188,7 +208,13 @@ class Test_WorldGraph_Import extends TestCase {
 		$this->assertStringContainsString( 'Ordinary dialogue remains', $importer );
 		$this->assertStringContainsString( "! empty( \$options['dry_run'] )", $importer );
 		$this->assertStringContainsString( 'worldgraph_is_reserved_sound_type', $importer );
-		$this->assertStringContainsString( 'worldgraph_is_audio_asset', $importer );
+		$this->assertStringContainsString( 'private function validate_asset_reference(', $importer );
+		$this->assertStringContainsString(
+			"validate_asset_reference( \$sound['asset'], \$context . ' asset', \$id_sets, \$errors, \$document_assets, [ 'audio' ] )",
+			$importer
+		);
+		$this->assertStringContainsString( "has_term( \$allowed_types, 'worldgraph_asset_type', \$existing_asset_id )", $importer );
+		$this->assertStringContainsString( "\$existing_asset_id && ( ! \$in_document || ! \$this->overwrite )", $importer );
 	}
 
 	/**

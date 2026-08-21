@@ -551,7 +551,8 @@ class WorldGraph_Importer {
 			$title_term     = get_term_by( 'name', $sequence_title, 'worldgraph_sequence' );
 			if ( $title_term ) {
 				$title_external_id = (string) get_term_meta( $title_term->term_id, 'external_id', true );
-				if ( '' === $title_external_id && ! $this->overwrite ) {
+				$is_legacy_document = version_compare( (string) $data['worldgraph_version'], '1.2', '<' );
+				if ( '' === $title_external_id && ! $this->overwrite && ! $is_legacy_document ) {
 					$errors[] = sprintf( 'Sequence title "%s" already exists without an external id; enable overwrite to claim it.', $sequence_title );
 				} elseif ( '' !== $title_external_id && $sequence_external_id !== $title_external_id ) {
 					$errors[] = sprintf( 'Sequence title "%s" is already assigned to external id "%s".', $sequence_title, $title_external_id );
@@ -567,12 +568,20 @@ class WorldGraph_Importer {
 			$this->validate_reference( $character_id, 'characters', 'Project team member', $id_sets, $errors );
 		}
 
+		$document_assets = [];
+		foreach ( $data['assets'] as $asset ) {
+			if ( ! empty( $asset['id'] ) ) {
+				$document_assets[ (string) $asset['id'] ] = $asset;
+			}
+		}
+		$visual_asset_types = [ 'image', 'character', 'environment', 'prop', 'storyboard', 'lookbook', 'concept-art' ];
+
 		foreach ( $data['characters'] as $character ) {
 			if ( ! empty( $character['story_world'] ) && (string) $character['story_world'] !== (string) $data['world']['id'] ) {
 				$errors[] = sprintf( 'Character %s references unknown story world id "%s".', $character['id'] ?? '(unknown)', $character['story_world'] );
 			}
 			if ( ! empty( $character['avatar_asset'] ) ) {
-				$this->validate_asset_reference( $character['avatar_asset'], 'Character ' . ( $character['id'] ?? '(unknown)' ) . ' avatar_asset', $id_sets, $errors );
+				$this->validate_asset_reference( $character['avatar_asset'], 'Character ' . ( $character['id'] ?? '(unknown)' ) . ' avatar_asset', $id_sets, $errors, $document_assets, $visual_asset_types );
 			}
 		}
 
@@ -581,7 +590,7 @@ class WorldGraph_Importer {
 				$errors[] = sprintf( 'Location %s references unknown story world id "%s".', $location['id'] ?? '(unknown)', $location['story_world'] );
 			}
 			if ( ! empty( $location['visual_reference'] ) ) {
-				$this->validate_asset_reference( $location['visual_reference'], 'Location ' . ( $location['id'] ?? '(unknown)' ) . ' visual_reference', $id_sets, $errors );
+				$this->validate_asset_reference( $location['visual_reference'], 'Location ' . ( $location['id'] ?? '(unknown)' ) . ' visual_reference', $id_sets, $errors, $document_assets, $visual_asset_types );
 			}
 		}
 
@@ -685,13 +694,6 @@ class WorldGraph_Importer {
 			}
 		}
 
-		$document_assets = [];
-		foreach ( $data['assets'] as $asset ) {
-			if ( ! empty( $asset['id'] ) ) {
-				$document_assets[ (string) $asset['id'] ] = $asset;
-			}
-		}
-
 		foreach ( $data['editorial_artifacts'] as $artifact ) {
 			$context = 'Editorial Artifact ' . ( $artifact['id'] ?? '(unknown)' );
 			if ( ! empty( $artifact['source_scene'] ) ) {
@@ -760,23 +762,7 @@ class WorldGraph_Importer {
 			}
 
 			if ( ! empty( $sound['asset'] ) ) {
-				$asset_external_id = sanitize_text_field( (string) $sound['asset'] );
-				if ( isset( $document_assets[ $asset_external_id ] ) ) {
-					$existing_asset_id = $this->find_existing( 'worldgraph_asset', $asset_external_id );
-					$asset_is_audio    = $existing_asset_id && ! $this->overwrite
-						? \WorldGraph\Utils\worldgraph_is_audio_asset( $existing_asset_id )
-						: 'audio' === sanitize_title( (string) ( $document_assets[ $asset_external_id ]['asset_type'] ?? $document_assets[ $asset_external_id ]['type'] ?? '' ) );
-					if ( ! $asset_is_audio ) {
-						$errors[] = sprintf( '%s asset "%s" is not classified as Audio.', $context, $asset_external_id );
-					}
-				} else {
-					$asset_id = $this->find_existing( 'worldgraph_asset', $asset_external_id );
-					if ( $asset_external_id !== (string) $sound['asset'] || ! $asset_id ) {
-						$errors[] = sprintf( '%s references unknown asset id "%s".', $context, $asset_external_id );
-					} elseif ( ! \WorldGraph\Utils\worldgraph_is_audio_asset( $asset_id ) ) {
-						$errors[] = sprintf( '%s asset "%s" is not classified as Audio.', $context, $asset_external_id );
-					}
-				}
+				$this->validate_asset_reference( $sound['asset'], $context . ' asset', $id_sets, $errors, $document_assets, [ 'audio' ] );
 			}
 		}
 
@@ -791,7 +777,7 @@ class WorldGraph_Importer {
 				}
 			}
 			if ( ! empty( $frame['image_asset'] ) ) {
-				$this->validate_asset_reference( $frame['image_asset'], $context . ' image_asset', $id_sets, $errors );
+				$this->validate_asset_reference( $frame['image_asset'], $context . ' image_asset', $id_sets, $errors, $document_assets, $visual_asset_types );
 			}
 		}
 
@@ -841,8 +827,8 @@ class WorldGraph_Importer {
 	 * @param array  $errors    Validation errors, passed by reference.
 	 */
 	private function validate_reference( $reference, string $section, string $context, array $id_sets, array &$errors ): void {
-		if ( ! is_scalar( $reference ) ) {
-			$errors[] = sprintf( '%s must be a scalar external id.', $context );
+		if ( ! is_string( $reference ) ) {
+			$errors[] = sprintf( '%s must be a string external id.', $context );
 			return;
 		}
 
@@ -863,10 +849,12 @@ class WorldGraph_Importer {
 	 * @param string $context   Human-readable reference context.
 	 * @param array  $id_sets   External IDs keyed by document section.
 	 * @param array  $errors    Validation errors, passed by reference.
+	 * @param array  $document_assets Asset records keyed by external ID.
+	 * @param array  $allowed_types Optional allowed Asset type slugs.
 	 */
-	private function validate_asset_reference( $reference, string $context, array $id_sets, array &$errors ): void {
-		if ( ! is_scalar( $reference ) ) {
-			$errors[] = sprintf( '%s must be a scalar external id.', $context );
+	private function validate_asset_reference( $reference, string $context, array $id_sets, array &$errors, array $document_assets = [], array $allowed_types = [] ): void {
+		if ( ! is_string( $reference ) ) {
+			$errors[] = sprintf( '%s must be a string external id.', $context );
 			return;
 		}
 
@@ -876,12 +864,27 @@ class WorldGraph_Importer {
 			return;
 		}
 
-		if ( isset( $id_sets['assets'][ $external_id ] ) ) {
+		$in_document      = isset( $id_sets['assets'][ $external_id ], $document_assets[ $external_id ] );
+		$existing_asset_id = $this->find_existing( 'worldgraph_asset', $external_id );
+		if ( '' === $external_id || ( ! $in_document && ! $existing_asset_id ) ) {
+			$errors[] = sprintf( '%s references unknown asset id "%s".', $context, $external_id );
 			return;
 		}
 
-		if ( '' === $external_id || ! $this->find_existing( 'worldgraph_asset', $external_id ) ) {
-			$errors[] = sprintf( '%s references unknown asset id "%s".', $context, $external_id );
+		if ( empty( $allowed_types ) ) {
+			return;
+		}
+
+		$matches_type = false;
+		if ( $existing_asset_id && ( ! $in_document || ! $this->overwrite ) ) {
+			$matches_type = has_term( $allowed_types, 'worldgraph_asset_type', $existing_asset_id );
+		} elseif ( $in_document ) {
+			$asset_type   = sanitize_title( (string) ( $document_assets[ $external_id ]['asset_type'] ?? $document_assets[ $external_id ]['type'] ?? '' ) );
+			$matches_type = in_array( $asset_type, $allowed_types, true );
+		}
+
+		if ( ! $matches_type ) {
+			$errors[] = sprintf( '%s asset "%s" must use one of these types: %s.', $context, $external_id, implode( ', ', $allowed_types ) );
 		}
 	}
 
@@ -908,19 +911,19 @@ class WorldGraph_Importer {
 			'post_content' => $this->post_content_value( $post_id, $project, 'description' ),
 		];
 
+		$operation = $post_id ? 'updated' : 'created';
 		if ( $post_id ) {
 			$post_data['ID'] = $post_id;
 			$post_id = wp_update_post( $post_data, true );
-			$this->report['updated'][] = "Project {$external_id}";
 		} else {
 			$post_id = wp_insert_post( $post_data, true );
-			$this->report['created'][] = "Project {$external_id}";
 		}
 
 		if ( is_wp_error( $post_id ) ) {
 			$this->report['errors'][] = 'Project: ' . $post_id->get_error_message();
 			return;
 		}
+		$this->report[ $operation ][] = "Project {$external_id}";
 
 		$this->id_map[ $external_id ] = $post_id;
 
@@ -987,19 +990,19 @@ class WorldGraph_Importer {
 			'post_content' => $this->post_content_value( $post_id, $world, 'description' ),
 		];
 
+		$operation = $post_id ? 'updated' : 'created';
 		if ( $post_id ) {
 			$post_data['ID'] = $post_id;
 			$post_id = wp_update_post( $post_data, true );
-			$this->report['updated'][] = "World {$external_id}";
 		} else {
 			$post_id = wp_insert_post( $post_data, true );
-			$this->report['created'][] = "World {$external_id}";
 		}
 
 		if ( is_wp_error( $post_id ) ) {
 			$this->report['errors'][] = 'World: ' . $post_id->get_error_message();
 			return;
 		}
+		$this->report[ $operation ][] = "World {$external_id}";
 
 		$this->id_map[ $external_id ] = $post_id;
 
@@ -1044,19 +1047,19 @@ class WorldGraph_Importer {
 				'post_content' => $this->post_content_value( $post_id, $character, 'description' ),
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Character {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Character {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
 				$this->report['errors'][] = "Character {$external_id}: " . $post_id->get_error_message();
 				continue;
 			}
+			$this->report[ $operation ][] = "Character {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 
@@ -1111,19 +1114,19 @@ class WorldGraph_Importer {
 				'post_content' => $this->post_content_value( $post_id, $location, 'description' ),
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Location {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Location {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
 				$this->report['errors'][] = "Location {$external_id}: " . $post_id->get_error_message();
 				continue;
 			}
+			$this->report[ $operation ][] = "Location {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 
@@ -1167,19 +1170,19 @@ class WorldGraph_Importer {
 				'post_content' => $this->post_content_value( $post_id, $prop, 'description' ),
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Prop {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Prop {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
 				$this->report['errors'][] = "Prop {$external_id}: " . $post_id->get_error_message();
 				continue;
 			}
+			$this->report[ $operation ][] = "Prop {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 
@@ -1335,13 +1338,12 @@ class WorldGraph_Importer {
 				'menu_order'   => $scene_number,
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Scene {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Scene {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
@@ -1349,6 +1351,7 @@ class WorldGraph_Importer {
 				$scene_index++;
 				continue;
 			}
+			$this->report[ $operation ][] = "Scene {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 
@@ -1440,13 +1443,12 @@ class WorldGraph_Importer {
 				'menu_order'   => $shot_number,
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Shot {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Shot {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
@@ -1454,6 +1456,7 @@ class WorldGraph_Importer {
 				$shot_index++;
 				continue;
 			}
+			$this->report[ $operation ][] = "Shot {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 
@@ -1597,13 +1600,12 @@ class WorldGraph_Importer {
 				'menu_order'   => $frame_number,
 			];
 
+			$operation = $post_id ? 'updated' : 'created';
 			if ( $post_id ) {
 				$post_data['ID'] = $post_id;
 				$post_id = wp_update_post( $post_data, true );
-				$this->report['updated'][] = "Storyboard frame {$external_id}";
 			} else {
 				$post_id = wp_insert_post( $post_data, true );
-				$this->report['created'][] = "Storyboard frame {$external_id}";
 			}
 
 			if ( is_wp_error( $post_id ) ) {
@@ -1611,6 +1613,7 @@ class WorldGraph_Importer {
 				$frame_index++;
 				continue;
 			}
+			$this->report[ $operation ][] = "Storyboard frame {$external_id}";
 
 			$this->id_map[ $external_id ] = $post_id;
 
@@ -1752,6 +1755,7 @@ class WorldGraph_Importer {
 		$sequence = $this->document['sequence'];
 		$sequence_external_id = sanitize_text_field( (string) $sequence['id'] );
 		$sequence_title = sanitize_text_field( $sequence['title'] ?? $sequence['name'] ?? 'Sequence' );
+		$is_legacy_document = version_compare( (string) $this->document['worldgraph_version'], '1.2', '<' );
 
 		// Resolve the portable identity before falling back to the display title.
 		$matching_terms = get_terms(
@@ -1770,7 +1774,7 @@ class WorldGraph_Importer {
 		if ( $term ) {
 			$term_id          = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
 			$term_external_id = (string) get_term_meta( $term_id, 'external_id', true );
-			if ( '' === $term_external_id && ! $this->overwrite ) {
+			if ( '' === $term_external_id && ! $this->overwrite && ! $is_legacy_document ) {
 				$this->report['errors'][] = sprintf( 'Sequence title "%s" already exists without an external id; enable overwrite to claim it.', $sequence_title );
 				return;
 			}
@@ -1789,7 +1793,7 @@ class WorldGraph_Importer {
 		}
 
 		$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
-		if ( ! $sequence_term_was_existing || $this->overwrite ) {
+		if ( ! $sequence_term_was_existing || $this->overwrite || ( $is_legacy_document && '' === (string) get_term_meta( $term_id, 'external_id', true ) ) ) {
 			update_term_meta( $term_id, 'external_id', $sequence_external_id );
 		}
 		if ( $this->overwrite ) {
@@ -2283,6 +2287,9 @@ class WorldGraph_Importer {
 				$post_id = (int) ( $this->id_map[ $external_id ] ?? 0 );
 				if ( $post_id && $cpt === get_post_type( $post_id ) ) {
 					$totals[ $cpt ]++;
+					if ( $external_id !== (string) get_post_meta( $post_id, 'external_id', true ) ) {
+						$this->report['errors'][] = sprintf( '%s did not retain external id "%s".', $cpt, $external_id );
+					}
 				}
 			}
 
@@ -2320,13 +2327,13 @@ class WorldGraph_Importer {
 		}
 
 		foreach ( $this->document['props'] as $prop ) {
-			if ( empty( $prop['owner_character'] ) ) {
+			if ( ! array_key_exists( 'owner_character', $prop ) ) {
 				continue;
 			}
 
 			$prop_id      = (int) ( $this->id_map[ (string) $prop['id'] ] ?? 0 );
-			$character_id = (int) ( $this->id_map[ (string) $prop['owner_character'] ] ?? 0 );
-			if ( ! $this->relationship_slot_matches( $prop_id, 'worldgraph_prop', 'owner_character', $character_id, 'worldgraph_character' ) ) {
+			$character_id = (int) ( $this->id_map[ (string) ( $prop['owner_character'] ?? '' ) ] ?? 0 );
+			if ( ! $this->relationship_field_targets_match( $prop_id, 'worldgraph_prop', 'owner_character', array_filter( [ $character_id ] ), 'worldgraph_character' ) ) {
 				$this->report['errors'][] = sprintf( 'Prop %s did not retain its owner Character relationship.', $prop['id'] );
 			}
 		}
@@ -2358,9 +2365,9 @@ class WorldGraph_Importer {
 				$this->report['errors'][] = sprintf( 'Sound %s did not retain its required Scene relationship.', $sound['id'] );
 			}
 
-			if ( ! empty( $sound['shot'] ) ) {
-				$shot_id = (int) ( $this->id_map[ (string) $sound['shot'] ] ?? 0 );
-				if ( ! $this->relationship_slot_matches( $sound_id, 'worldgraph_sound', 'shot', $shot_id, 'worldgraph_shot' ) ) {
+			if ( array_key_exists( 'shot', $sound ) ) {
+				$shot_id = (int) ( $this->id_map[ (string) ( $sound['shot'] ?? '' ) ] ?? 0 );
+				if ( ! $this->relationship_field_targets_match( $sound_id, 'worldgraph_sound', 'shot', array_filter( [ $shot_id ] ), 'worldgraph_shot' ) ) {
 					$this->report['errors'][] = sprintf( 'Sound %s did not retain its Shot relationship.', $sound['id'] );
 				}
 			}
@@ -2383,6 +2390,178 @@ class WorldGraph_Importer {
 			$shot_id  = (int) ( $this->id_map[ (string) $frame['shot'] ] ?? 0 );
 			if ( ! $this->relationship_slot_matches( $frame_id, 'worldgraph_board', 'shot', $shot_id, 'worldgraph_shot' ) ) {
 				$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Shot relationship.', $frame['id'] );
+			}
+		}
+
+		if ( array_key_exists( 'team_members', $this->document['project'] ) ) {
+			$team_member_ids = array_map(
+				fn( string $external_id ): int => (int) ( $this->id_map[ $external_id ] ?? 0 ),
+				array_map( 'strval', $this->document['project']['team_members'] )
+			);
+			if ( ! $this->relationship_field_targets_match( $project_id, 'worldgraph_project', 'team_members', $team_member_ids, 'worldgraph_character' ) ) {
+				$this->report['errors'][] = 'Project did not retain its Team Members relationships.';
+			}
+		}
+
+		foreach ( $this->document['characters'] as $character ) {
+			if ( ! array_key_exists( 'avatar_asset', $character ) ) {
+				continue;
+			}
+			$character_id = (int) ( $this->id_map[ (string) $character['id'] ] ?? 0 );
+			$asset_id     = empty( $character['avatar_asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $character['avatar_asset'] );
+			if ( ! $this->relationship_field_targets_match( $character_id, 'worldgraph_character', 'avatar_asset', array_filter( [ $asset_id ] ), 'worldgraph_asset' ) ) {
+				$this->report['errors'][] = sprintf( 'Character %s did not retain its Avatar Asset relationship.', $character['id'] );
+			}
+		}
+
+		foreach ( $this->document['locations'] as $location ) {
+			if ( ! array_key_exists( 'visual_reference', $location ) ) {
+				continue;
+			}
+			$location_id = (int) ( $this->id_map[ (string) $location['id'] ] ?? 0 );
+			$asset_id    = empty( $location['visual_reference'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $location['visual_reference'] );
+			if ( ! $this->relationship_field_targets_match( $location_id, 'worldgraph_location', 'visual_reference', array_filter( [ $asset_id ] ), 'worldgraph_asset' ) ) {
+				$this->report['errors'][] = sprintf( 'Location %s did not retain its Visual Reference relationship.', $location['id'] );
+			}
+		}
+
+		foreach ( $this->document['organizations'] as $organization ) {
+			$organization_id = (int) ( $this->id_map[ (string) $organization['id'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $organization_id, 'worldgraph_org', 'story_world', $world_id, 'worldgraph_world' ) ) {
+				$this->report['errors'][] = sprintf( 'Organization %s did not retain its Story World relationship.', $organization['id'] );
+			}
+			foreach ( [ 'leadership' => 'worldgraph_character' ] as $field => $target_cpt ) {
+				if ( array_key_exists( $field, $organization ) ) {
+					$target_id = (int) ( $this->id_map[ (string) ( $organization[ $field ] ?? '' ) ] ?? 0 );
+					if ( ! $this->relationship_field_targets_match( $organization_id, 'worldgraph_org', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {
+						$this->report['errors'][] = sprintf( 'Organization %s did not retain its %s relationship.', $organization['id'], $field );
+					}
+				}
+			}
+			if ( array_key_exists( 'members', $organization ) ) {
+				$member_ids = array_map( fn( string $external_id ): int => (int) ( $this->id_map[ $external_id ] ?? 0 ), array_map( 'strval', $organization['members'] ) );
+				if ( ! $this->relationship_field_targets_match( $organization_id, 'worldgraph_org', 'members', $member_ids, 'worldgraph_character' ) ) {
+					$this->report['errors'][] = sprintf( 'Organization %s did not retain its Members relationships.', $organization['id'] );
+				}
+			}
+		}
+
+		foreach ( $this->document['episodes'] as $episode ) {
+			$episode_id = (int) ( $this->id_map[ (string) $episode['id'] ] ?? 0 );
+			if ( ! $this->relationship_slot_matches( $episode_id, 'worldgraph_episode', 'project', $project_id, 'worldgraph_project' ) ) {
+				$this->report['errors'][] = sprintf( 'Episode %s did not retain its Project relationship.', $episode['id'] );
+			}
+			if ( array_key_exists( 'scenes', $episode ) ) {
+				$scene_ids = array_map( fn( string $external_id ): int => (int) ( $this->id_map[ $external_id ] ?? 0 ), array_map( 'strval', $episode['scenes'] ) );
+				if ( ! $this->relationship_field_targets_match( $episode_id, 'worldgraph_episode', 'scenes', $scene_ids, 'worldgraph_scene' ) ) {
+					$this->report['errors'][] = sprintf( 'Episode %s did not retain its Scenes relationships.', $episode['id'] );
+				}
+			}
+		}
+
+		foreach ( $this->document['scenes'] as $scene ) {
+			$scene_id = (int) ( $this->id_map[ (string) $scene['id'] ] ?? 0 );
+			foreach ( [ 'episode' => 'worldgraph_episode', 'location' => 'worldgraph_location' ] as $field => $target_cpt ) {
+				if ( array_key_exists( $field, $scene ) ) {
+					$target_id = (int) ( $this->id_map[ (string) ( $scene[ $field ] ?? '' ) ] ?? 0 );
+					if ( ! $this->relationship_field_targets_match( $scene_id, 'worldgraph_scene', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {
+						$this->report['errors'][] = sprintf( 'Scene %s did not retain its %s relationship.', $scene['id'], $field );
+					}
+				}
+			}
+			foreach ( [ 'characters' => 'worldgraph_character', 'props' => 'worldgraph_prop' ] as $field => $target_cpt ) {
+				if ( array_key_exists( $field, $scene ) ) {
+					$target_ids = array_map( fn( string $external_id ): int => (int) ( $this->id_map[ $external_id ] ?? 0 ), array_map( 'strval', $scene[ $field ] ) );
+					if ( ! $this->relationship_field_targets_match( $scene_id, 'worldgraph_scene', $field, $target_ids, $target_cpt ) ) {
+						$this->report['errors'][] = sprintf( 'Scene %s did not retain its %s relationships.', $scene['id'], $field );
+					}
+				}
+			}
+		}
+
+		foreach ( $this->document['sounds'] as $sound ) {
+			$sound_id = (int) ( $this->id_map[ (string) $sound['id'] ] ?? 0 );
+			foreach ( [ 'character' => 'worldgraph_character', 'asset' => 'worldgraph_asset' ] as $field => $target_cpt ) {
+				if ( array_key_exists( $field, $sound ) ) {
+					$target_id = (int) ( $this->id_map[ (string) ( $sound[ $field ] ?? '' ) ] ?? 0 );
+					if ( ! $this->relationship_field_targets_match( $sound_id, 'worldgraph_sound', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {
+						$this->report['errors'][] = sprintf( 'Sound %s did not retain its %s relationship.', $sound['id'], $field );
+					}
+				}
+			}
+		}
+
+		foreach ( $this->document['storyboards'] as $frame ) {
+			$frame_id = (int) ( $this->id_map[ (string) $frame['id'] ] ?? 0 );
+			$scene_id = (int) ( $this->id_map[ (string) ( $frame['scene'] ?? '' ) ] ?? 0 );
+			if ( $scene_id && ! $this->relationship_slot_matches( $frame_id, 'worldgraph_board', 'scene', $scene_id, 'worldgraph_scene' ) ) {
+				$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Scene relationship.', $frame['id'] );
+			}
+			if ( array_key_exists( 'image_asset', $frame ) ) {
+				$asset_id = (int) ( $this->id_map[ (string) ( $frame['image_asset'] ?? '' ) ] ?? 0 );
+				if ( ! $this->relationship_field_targets_match( $frame_id, 'worldgraph_board', 'image_asset', array_filter( [ $asset_id ] ), 'worldgraph_asset' ) ) {
+					$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Image Asset relationship.', $frame['id'] );
+				}
+			}
+		}
+
+		foreach ( $this->document['assets'] as $asset ) {
+			$asset_id = (int) ( $this->id_map[ (string) $asset['id'] ] ?? 0 );
+			if ( ! $this->relationship_exists( $project_id, 'worldgraph_project', $asset_id, 'worldgraph_asset', 'contains' ) ) {
+				$this->report['errors'][] = sprintf( 'Asset %s did not retain its Project membership.', $asset['id'] );
+			}
+			foreach ( [ 'character' => 'worldgraph_character', 'location' => 'worldgraph_location', 'scene' => 'worldgraph_scene', 'storyboard' => 'worldgraph_board' ] as $field => $target_cpt ) {
+				if ( array_key_exists( $field, $asset ) ) {
+					$target_id = (int) ( $this->id_map[ (string) ( $asset[ $field ] ?? '' ) ] ?? 0 );
+					if ( ! $this->relationship_field_targets_match( $asset_id, 'worldgraph_asset', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {
+						$this->report['errors'][] = sprintf( 'Asset %s did not retain its %s relationship.', $asset['id'], $field );
+					}
+				}
+			}
+		}
+
+		foreach ( $this->document['editorial_artifacts'] as $artifact ) {
+			$artifact_id = (int) ( $this->id_map[ (string) $artifact['id'] ] ?? 0 );
+			foreach ( [ 'project' => 'worldgraph_project', 'source_scene' => 'worldgraph_scene', 'source_shot' => 'worldgraph_shot' ] as $field => $target_cpt ) {
+				if ( 'project' !== $field && ! array_key_exists( $field, $artifact ) ) {
+					continue;
+				}
+				$target_id = (int) ( $this->id_map[ (string) ( $artifact[ $field ] ?? '' ) ] ?? 0 );
+				if ( ! $this->relationship_field_targets_match( $artifact_id, 'worldgraph_editorial', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {
+					$this->report['errors'][] = sprintf( 'Editorial Artifact %s did not retain its %s relationship.', $artifact['id'], $field );
+				}
+			}
+		}
+
+		if ( $sequence_term && ! is_wp_error( $sequence_term ) ) {
+			if ( (string) get_term_meta( $sequence_term_id, 'external_id', true ) !== (string) $this->document['sequence']['id'] ) {
+				$this->report['errors'][] = 'Sequence did not retain its external id.';
+			}
+			$expected_scene_ids = array_map( fn( string $external_id ): int => (int) ( $this->id_map[ $external_id ] ?? 0 ), array_map( 'strval', $this->document['sequence']['order'] ) );
+			$actual_scene_ids   = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( $sequence_term_id, 'worldgraph_scene' );
+			sort( $expected_scene_ids );
+			sort( $actual_scene_ids );
+			if ( $expected_scene_ids !== $actual_scene_ids ) {
+				$this->report['errors'][] = 'Sequence did not retain its exact Scene membership.';
+			}
+			$expected_shot_ids = [];
+			foreach ( $this->document['shots'] as $shot ) {
+				if ( in_array( (string) ( $shot['scene'] ?? '' ), (array) $this->document['sequence']['order'], true ) ) {
+					$expected_shot_ids[] = (int) ( $this->id_map[ (string) $shot['id'] ] ?? 0 );
+				}
+			}
+			$actual_shot_ids = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( $sequence_term_id, 'worldgraph_shot' );
+			$expected_shot_ids = array_values( array_filter( $expected_shot_ids ) );
+			sort( $expected_shot_ids );
+			sort( $actual_shot_ids );
+			if ( $expected_shot_ids !== $actual_shot_ids ) {
+				$this->report['errors'][] = 'Sequence did not retain its exact Shot membership.';
+			}
+			foreach ( $this->document['sequence']['order'] as $index => $scene_external_id ) {
+				$scene_id = (int) ( $this->id_map[ (string) $scene_external_id ] ?? 0 );
+				if ( $scene_id && $index + 1 !== (int) get_post_meta( $scene_id, 'sequence_order', true ) ) {
+					$this->report['errors'][] = sprintf( 'Scene %s did not retain Sequence order %d.', $scene_external_id, $index + 1 );
+				}
 			}
 		}
 
@@ -2417,6 +2596,56 @@ class WorldGraph_Importer {
 				$target_id === (int) ( $relationship['to_id'] ?? 0 ) &&
 				$to_type === (string) ( $relationship['to_type'] ?? '' ) &&
 				$field === (string) ( $relationship['metadata']['field'] ?? '' )
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Compare all targets stored for a named relationship field.
+	 *
+	 * @param int        $from_id    Source post ID.
+	 * @param string     $from_type  Source CPT.
+	 * @param string     $field      Relationship field name.
+	 * @param array<int> $target_ids Expected target post IDs.
+	 * @param string     $to_type    Target CPT.
+	 * @return bool
+	 */
+	private function relationship_field_targets_match( int $from_id, string $from_type, string $field, array $target_ids, string $to_type ): bool {
+		$actual_ids = [];
+		foreach ( \WorldGraph\Utils\get_relationships( $from_id, $from_type, 'outgoing' ) as $relationship ) {
+			if ( $to_type === (string) ( $relationship['to_type'] ?? '' ) && $field === (string) ( $relationship['metadata']['field'] ?? '' ) ) {
+				$actual_ids[] = (int) ( $relationship['to_id'] ?? 0 );
+			}
+		}
+
+		$target_ids = array_values( array_unique( array_filter( array_map( 'absint', $target_ids ) ) ) );
+		$actual_ids = array_values( array_unique( array_filter( $actual_ids ) ) );
+		sort( $target_ids );
+		sort( $actual_ids );
+
+		return $target_ids === $actual_ids;
+	}
+
+	/**
+	 * Check for one graph edge without requiring named-field metadata.
+	 *
+	 * @param int    $from_id Source post ID.
+	 * @param string $from_type Source CPT.
+	 * @param int    $to_id Target post ID.
+	 * @param string $to_type Target CPT.
+	 * @param string $relationship_type Relationship verb.
+	 * @return bool
+	 */
+	private function relationship_exists( int $from_id, string $from_type, int $to_id, string $to_type, string $relationship_type ): bool {
+		foreach ( \WorldGraph\Utils\get_relationships( $from_id, $from_type, 'outgoing' ) as $relationship ) {
+			if (
+				$to_id === (int) ( $relationship['to_id'] ?? 0 ) &&
+				$to_type === (string) ( $relationship['to_type'] ?? '' ) &&
+				$relationship_type === (string) ( $relationship['type'] ?? '' )
 			) {
 				return true;
 			}

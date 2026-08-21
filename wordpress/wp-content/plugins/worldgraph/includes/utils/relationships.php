@@ -96,6 +96,7 @@ function add_relationship( int $from_id, string $from_type, int $to_id, string $
 
 	$existing[] = $relationship;
 	update_post_meta( $from_id, $meta_key, $existing );
+	invalidate_relationship_index();
 
 	worldgraph_log( "Relationship added: {$from_type}({$from_id}) -> {$type} -> {$to_type}({$to_id})" );
 
@@ -177,6 +178,7 @@ function set_relationship( int $from_id, string $from_type, int $to_id, string $
 	);
 
 	update_post_meta( $from_id, $meta_key, $existing );
+	invalidate_relationship_index();
 
 	if ( 0 === $to_id ) {
 		if ( '' !== $field_name ) {
@@ -274,6 +276,7 @@ function set_relationships_for_field( int $from_id, string $from_type, array $ta
 		)
 	);
 	update_post_meta( $from_id, $meta_key, $existing );
+	invalidate_relationship_index();
 
 	foreach ( $target_ids as $target_id ) {
 		$result = add_relationship(
@@ -321,6 +324,68 @@ function validate_relationship_entities( int $from_id, string $from_type, int $t
 }
 
 /**
+ * Clear the request-local incoming relationship index after a graph write.
+ */
+function invalidate_relationship_index(): void {
+	unset( $GLOBALS['worldgraph_incoming_relationship_index'] );
+}
+
+/**
+ * Build a request-local index of incoming Story Graph relationships.
+ *
+ * Incoming traversal otherwise scans every relationship-bearing post once per
+ * requested entity. Collection endpoints compute several counts per item, so
+ * indexing the graph once avoids repeated full-CPT queries.
+ *
+ * @return array<string, array<int, array<int, array<string, mixed>>>>
+ */
+function get_incoming_relationship_index(): array {
+	if ( isset( $GLOBALS['worldgraph_incoming_relationship_index'] ) && is_array( $GLOBALS['worldgraph_incoming_relationship_index'] ) ) {
+		return $GLOBALS['worldgraph_incoming_relationship_index'];
+	}
+
+	$index    = [];
+	$meta_key = WORLDGRAPH_CPT_PREFIX . 'relationships';
+	foreach ( array_keys( worldgraph_get_all_cpts() ) as $cpt ) {
+		$posts = get_posts(
+			[
+				'post_type'      => $cpt,
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'meta_query'     => [
+					[
+						'key'     => $meta_key,
+						'compare' => 'EXISTS',
+					],
+				],
+			]
+		);
+
+		foreach ( $posts as $post ) {
+			$relationships = get_post_meta( $post->ID, $meta_key, true );
+			if ( ! is_array( $relationships ) ) {
+				continue;
+			}
+
+			foreach ( $relationships as $relationship ) {
+				$to_id   = absint( $relationship['to_id'] ?? 0 );
+				$to_type = (string) ( $relationship['to_type'] ?? '' );
+				if ( ! $to_id || '' === $to_type ) {
+					continue;
+				}
+
+				$relationship['from_id']   = (int) $post->ID;
+				$relationship['from_type'] = $cpt;
+				$index[ $to_type ][ $to_id ][] = $relationship;
+			}
+		}
+	}
+
+	$GLOBALS['worldgraph_incoming_relationship_index'] = $index;
+	return $index;
+}
+
+/**
  * Get all relationships for an entity.
  *
  * @param int    $entity_id The entity ID.
@@ -343,34 +408,8 @@ function get_relationships( int $entity_id, string $entity_type = '', string $di
 			}
 		}
 	} else {
-		// Incoming: search all entities for relationships pointing to this one.
-		$all_cpts = worldgraph_get_all_cpts();
-		foreach ( $all_cpts as $cpt => $label ) {
-			$posts = get_posts( [
-				'post_type'      => $cpt,
-				'post_status'    => 'any',
-				'posts_per_page' => -1,
-				'meta_query'     => [
-					[
-						'key'     => WORLDGRAPH_CPT_PREFIX . 'relationships',
-						'compare' => 'EXISTS',
-					],
-				],
-			] );
-
-			foreach ( $posts as $post ) {
-				$rels = get_post_meta( $post->ID, WORLDGRAPH_CPT_PREFIX . 'relationships', true );
-				if ( is_array( $rels ) ) {
-					foreach ( $rels as $rel ) {
-						if ( (int) ( $rel['to_id'] ?? 0 ) === $entity_id && (string) ( $rel['to_type'] ?? '' ) === $entity_type ) {
-							$rel['from_id'] = $post->ID;
-							$rel['from_type'] = $cpt;
-							$relationships[] = $rel;
-						}
-					}
-				}
-			}
-		}
+		$index         = get_incoming_relationship_index();
+		$relationships = $index[ $entity_type ][ $entity_id ] ?? [];
 	}
 
 	return $relationships;
@@ -411,6 +450,7 @@ function remove_relationship( int $from_id, int $to_id, string $from_type = '', 
 	$removed = $original_count !== count( $rels );
 	if ( $removed ) {
 		update_post_meta( $from_id, $meta_key, $rels );
+		invalidate_relationship_index();
 		worldgraph_log( "Relationship removed: {$from_type}({$from_id}) -> {$to_type}({$to_id})" );
 	}
 
@@ -470,6 +510,7 @@ function cleanup_relationships_for_deleted_post( int $post_id ): void {
 				} else {
 					update_post_meta( $source_id, $meta_key, $remaining );
 				}
+				invalidate_relationship_index();
 			}
 		}
 	}

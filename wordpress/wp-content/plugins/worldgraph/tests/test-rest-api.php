@@ -731,6 +731,7 @@ final class Test_WorldGraph_REST_API extends TestCase {
 
 	/** Reset shared WordPress-stub state between tests and data-provider cases. */
 	private function reset_rest_state(): void {
+		unset( $GLOBALS['worldgraph_incoming_relationship_index'] );
 		$GLOBALS['worldgraph_rest_api_posts']        = [];
 		$GLOBALS['worldgraph_rest_api_post_objects'] = [];
 		$GLOBALS['worldgraph_rest_api_post_meta']    = [];
