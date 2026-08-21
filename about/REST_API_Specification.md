@@ -283,13 +283,18 @@ POST /wp-json/worldgraph/v1/assets/generate/batches/{id}/cancel
 Graph item. `scope=project` requires a Project and traverses its canonical
 ownership graph to plan the Project plus supported World, Character, Prop,
 Location, Episode, Scene, and Shot descendants. Planning is read-only and does
-not reserve provider capacity or spend provider budget.
+not reserve provider capacity or spend provider budget. Plan and start require
+`edit_post` for the root, `upload_files`, and permission for every expanded
+source. Batch status and cancellation are limited to the requester or an editor
+of the root who also has upload permission.
 
 The plan response includes `workflow`, `sources`, `total_jobs`, image/video
 `counts`, and a `tasks` array. Each task identifies its source, workflow,
-creative `intent`, output `type`, featured-image behavior, and composed prompt.
-It also returns the Templates runnable across the plan as `image_templates`
-and `video_templates`, resolved `defaults`, and `latest_batch` when one exists.
+creative `intent`, output `type`, featured-image behavior, and `prompt_hash`;
+long provider prompts are intentionally omitted from expanded plan lists. It
+also returns `ready`, any Template `blockers`, the Templates runnable across
+the plan as `image_templates` and `video_templates`, resolved
+`default_template_ids`, and `latest_batch` when one exists.
 
 Starting a batch accepts:
 
@@ -304,20 +309,25 @@ Starting a batch accepts:
 }
 ```
 
-`base_prompt` is an optional author override for item-scoped generation. The
-image and video Template IDs are optional explicit overrides shared by outputs
+`base_prompt` is an optional additional author direction for item-scoped
+generation; saved CPT/SCF context and `generation_prompt` remain in the final
+prompt. The image and video Template IDs are optional explicit overrides shared by outputs
 of that type; without them, the server applies the registered preference and
-fallback cascade. Starting fails before any child is queued if any task lacks a
-runnable Template or the requester cannot edit every source. A non-empty
-`idempotency_key` is scoped to the requester, root post, and batch operation;
-repeating it returns the existing batch instead of duplicating work.
+fallback cascade. `idempotency_key` is a required request member; a non-empty
+value is scoped to the requester and root post, and repeating it returns the
+existing batch instead of duplicating work. Starting fails before any child is
+queued if any task lacks a runnable Template or the requester cannot edit every
+source. A successful start returns `202 Accepted` and a `Location` header for
+the batch status route.
 
 Batch status includes `batch_id`, root `post_id`, `scope`, aggregate `status`,
 `total`, `active`, `completed`, `failed`, `cancelled`, per-state `counts`,
 creation time, and child `jobs`. Each job reports its source, intent, output
-type, status, attachment ID, and error. Cancellation acts on cancellable child
-jobs and returns the refreshed aggregate status; provider work already running
-or terminal may remain visible until its normal lifecycle settles.
+type, status, attachment ID, and error. Cancellation changes only children that
+are still `queued`; submitted work continues polling and importing because a
+local request cannot reliably revoke paid work across every provider. The
+response adds `stopped_queued` and a `cancel_note` to the refreshed aggregate
+status.
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
 fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP,

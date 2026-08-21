@@ -95,9 +95,9 @@ When no author-edited base prompt is supplied, the prompt composer combines:
 
 Markup is removed, select values and relationship titles are made readable,
 and the final provider prompt has a global 2,400-word bound. An item-scoped
-`base_prompt` replaces the assembled Story Graph context but retains the intent
-objective and output constraints. The `worldgraph_generate_asset_prompt` filter
-runs last and receives the prompt, source post, and intent.
+`base_prompt` adds author direction without removing saved Story Graph context
+or `generation_prompt`. The `worldgraph_generate_asset_prompt` filter runs last
+and receives the prompt, source post, and intent.
 
 `WorldGraph\Utils\Generation_Workflows` defines the delivered representative
 recipes:
@@ -285,7 +285,7 @@ snapshot containing each source/intent/type/Template and prompt hash, child
 IDs, total, and aggregate status. Child jobs store
 `_worldgraph_gen_batch_id` and `_worldgraph_gen_intent`. This separation lets a
 Project batch run for hours or days while every child remains independently
-observable and retryable through the ordinary worker lifecycle.
+observable through the ordinary worker lifecycle.
 
 Planning performs no writes. Starting validates edit permission for every
 source and resolves all required Templates before creating the batch. A
@@ -312,9 +312,10 @@ The durable states are:
 | `failed` | Validation, provider execution, or media import failed |
 | `cancelled` | Cancelled in World Graph Studio |
 
-Cancelling a representative batch cancels child jobs that remain cancellable;
-already running or terminal children retain their real state and continue to
-contribute to the aggregate summary.
+Cancelling a representative batch cancels child jobs that remain `queued`;
+already submitted or terminal children retain their real state and continue to
+contribute to the aggregate summary. The response reports how many queued jobs
+were stopped.
 
 ElevenLabs and VideoDraft audio may return completed results synchronously.
 ComfyUI, fal, Suno, and VideoDraft image/video tools can return asynchronous

@@ -334,6 +334,7 @@ function init(): void {
 	Admin\Export::init();
 	Admin\Editorial_Cut::init();
 	Admin\Generation_Log_Viewer::init();
+	Utils\Generation_Workflows::init();
 	Utils\Generation_Batch::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).

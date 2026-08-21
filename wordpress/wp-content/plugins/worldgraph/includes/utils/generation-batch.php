@@ -287,6 +287,9 @@ class Generation_Batch {
 			if ( 'videodraft' === $provider_type ) {
 				$params['_worldgraph_job_id'] = $job_id;
 			}
+			if ( Local_ComfyUI::class === $client ) {
+				$params['_worldgraph_job_id'] = $job_id;
+			}
 
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Submitting job %d via %s.', $job_id, $provider_type ), [], (string) $job_id );
 			$result = $client::run_template(
@@ -310,10 +313,12 @@ class Generation_Batch {
 					(string) $job_id
 				);
 
+				$fallback_params = $params;
+				$fallback_params['_worldgraph_job_id'] = $job_id;
 				$fallback = Local_ComfyUI::run_template(
 					$template_ref,
 					(string) get_post_meta( $job_id, '_worldgraph_gen_prompt', true ),
-					$params,
+					$fallback_params,
 					$connection_id
 				);
 

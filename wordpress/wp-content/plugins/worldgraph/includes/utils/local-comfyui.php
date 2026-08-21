@@ -7,6 +7,7 @@
 
 namespace WorldGraph\Utils;
 
+use WorldGraph\REST\Generation_Authorization;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -55,7 +56,8 @@ class Local_ComfyUI {
 			$inputs['prompt'] = $prompt;
 		}
 
-		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id );
+		$job_id   = absint( $parameters['_worldgraph_job_id'] ?? 0 );
+		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id, $job_id );
 		if ( is_wp_error( $resolved ) ) {
 			Generation_Log::add( 'error', 'local_comfyui', $resolved->get_error_message(), [], '', $connection_id );
 			return $resolved;
@@ -335,7 +337,7 @@ class Local_ComfyUI {
 	 * @param int    $connection_id Connection post ID, for log correlation.
 	 * @return array<string, string>|WP_Error
 	 */
-	private static function resolve_inputs( string $modality, array $inputs, int $connection_id ) {
+	private static function resolve_inputs( string $modality, array $inputs, int $connection_id, int $job_id = 0 ) {
 		$resolved = [];
 		foreach ( Generation_Modality::inputs( $modality ) as $slot => $definition ) {
 			$value = $inputs[ $slot ] ?? '';
@@ -358,12 +360,12 @@ class Local_ComfyUI {
 				continue;
 			}
 
-			if ( ! in_array( $definition['type'], [ 'image', 'video', 'audio' ], true ) ) {
+			if ( 'media' !== ( $definition['type'] ?? '' ) ) {
 				$resolved[ $slot ] = $value;
 				continue;
 			}
 
-			$uploaded = self::upload_input( $value, $connection_id );
+			$uploaded = self::upload_input( $value, $connection_id, $job_id );
 			if ( is_wp_error( $uploaded ) ) {
 				return $uploaded;
 			}
@@ -378,17 +380,24 @@ class Local_ComfyUI {
 	 * Push a media input into ComfyUI's input directory and return the name
 	 * its Load* nodes should reference.
 	 *
-	 * @param string $reference     Attachment ID, URL, or absolute file path.
+	 * @param string $reference     Attachment ID or validated HTTPS URL.
 	 * @param int    $connection_id Connection post ID, for log correlation.
+	 * @param int    $job_id        Queued job ID, for background authorization.
 	 * @return string|WP_Error
 	 */
-	private static function upload_input( string $reference, int $connection_id ) {
+	private static function upload_input( string $reference, int $connection_id, int $job_id = 0 ) {
 		$path    = '';
 		$cleanup = false;
 
 		if ( ctype_digit( $reference ) ) {
+			if ( $job_id ) {
+				$authorized = Generation_Authorization::authorize_background_media( $job_id, (int) $reference );
+				if ( is_wp_error( $authorized ) ) {
+					return $authorized;
+				}
+			}
 			$path = (string) get_attached_file( (int) $reference );
-		} elseif ( preg_match( '#^https?://#', $reference ) ) {
+		} elseif ( 0 === stripos( $reference, 'https://' ) && wp_http_validate_url( $reference ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
 			$path = download_url( $reference, 60 );
 			if ( is_wp_error( $path ) ) {
@@ -396,7 +405,7 @@ class Local_ComfyUI {
 			}
 			$cleanup = true;
 		} else {
-			$path = $reference;
+			return new WP_Error( 'local_comfyui_input_invalid', __( 'A generation input must be a WordPress attachment ID or a validated HTTPS URL.', 'worldgraph' ) );
 		}
 
 		if ( '' === $path || ! is_readable( $path ) ) {

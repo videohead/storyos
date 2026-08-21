@@ -29,9 +29,14 @@ class Generation_Workflows {
 	const BATCH_ID_META         = '_worldgraph_gen_batch_id';
 	const BATCH_SCOPE_META      = '_worldgraph_gen_batch_scope';
 	const BATCH_PLAN_META       = '_worldgraph_gen_batch_plan';
+	const BATCH_CURSOR_META     = '_worldgraph_gen_batch_cursor';
 	const IDEMPOTENCY_META      = '_worldgraph_gen_idempotency_key';
 	const INTENT_META           = '_worldgraph_gen_intent';
+	const STEP_META             = '_worldgraph_gen_batch_step';
 	const REPRESENTATIVE_BATCH = 'representative_media';
+	const WORKFLOW_VERSION      = 1;
+	const MATERIALIZE_PER_TICK  = 20;
+	const ACTIVATE_PER_TICK     = 50;
 
 	/** Maximum number of child jobs one request may persist. */
 	const MAX_BATCH_TASKS = 5000;
@@ -41,6 +46,7 @@ class Generation_Workflows {
 
 	/** Job states that mean a batch is still doing work. */
 	const ACTIVE_JOB_STATES = [
+		'staged',
 		'queued',
 		'submitting',
 		'submitted',
@@ -65,6 +71,11 @@ class Generation_Workflows {
 
 	/** Request-local Template lookup cache, keyed by source post and output. */
 	private static array $template_cache = [];
+
+	/** Register the bounded parent-batch coordinator before the job worker. */
+	public static function init(): void {
+		add_action( Generation_Batch::HOOK, [ __CLASS__, 'process_batches' ], 5 );
+	}
 
 	/**
 	 * Core representative-media workflow definitions.

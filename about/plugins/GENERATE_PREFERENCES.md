@@ -16,8 +16,9 @@ The **World Graph Studio Assets** Generate surface supports two related paths:
   it starts a durable, potentially long-running batch.
 
 Planning reports the number of image and video jobs, every source and creative
-intent, composed prompts, Templates runnable across the plan, resolved defaults,
-and the latest batch. It performs no writes and spends no provider budget.
+intent, prompt fingerprints, Templates runnable across the plan, resolved
+defaults, and the latest batch. It performs no writes and spends no provider
+budget.
 Starting a batch revalidates permissions, Templates, Connections, and bindings
 before any child job is queued.
 
@@ -55,14 +56,15 @@ When no author-edited base prompt is supplied, composition order is:
 2. non-duplicate excerpt and post content;
 3. labeled detailed fields;
 4. dependent Scene-shot or Episode-bookend context where applicable;
-5. the representative intent's creative objective;
-6. `generation_prompt`; and
-7. common continuity, detail, and no-watermark constraints.
+5. optional item-scoped `base_prompt` author direction;
+6. the representative intent's creative objective;
+7. `generation_prompt`; and
+8. common continuity, detail, and no-watermark constraints.
 
 The composer removes markup, renders select values and relationships readably,
 deduplicates repeated core/SCF text, and applies one global 2,400-word bound.
-An item-scoped `base_prompt` replaces the assembled Story Graph context while
-retaining the intent objective and output constraints. The
+An item-scoped `base_prompt` adds instructions without removing the assembled
+Story Graph context or saved `generation_prompt`. The
 `worldgraph_generate_asset_prompt` filter runs last with the prompt, source
 post, and intent.
 
@@ -144,17 +146,18 @@ include the Project and each supported descendant once. A plan returns:
 
 - `workflow`, `sources`, `total_jobs`, and image/video `counts`;
 - `tasks` with source identity, workflow, intent, label, type, featured flag,
-  and composed prompt;
+  and `prompt_hash`, while omitting long provider prompts;
+- `ready` and any Template `blockers`;
 - `image_templates` and `video_templates` runnable across that plan;
-- resolved `defaults`; and
+- resolved `default_template_ids`; and
 - `latest_batch`, when one exists for the same root and scope.
 
 The start payload accepts `post_id`, `scope`, optional item `base_prompt`,
-optional `image_template_id` and `video_template_id`, and optional
-`idempotency_key`. The server refuses to start unless the requester can edit
-every source and every image/video task resolves a runnable Template. Plans are
-limited to 5,000 jobs by default; `worldgraph_generation_batch_max_tasks` may
-change that bound.
+optional `image_template_id` and `video_template_id`, and the required
+`idempotency_key` member. The server refuses to start unless the requester can
+edit every source and every image/video task resolves a runnable Template.
+Plans are limited to 5,000 jobs by default;
+`worldgraph_generation_batch_max_tasks` may change that bound.
 
 A non-empty idempotency key is scoped to the requester and root batch request.
 Repeating it returns the existing batch. This protects clients from duplicate
@@ -179,14 +182,15 @@ attachment, and error details.
 
 WP-Cron continues to submit and poll bounded numbers of child jobs, so a large
 Project batch may run for hours or days without one HTTP request remaining
-open. Cancellation cancels children that are still cancellable. Running or
-terminal provider work retains its actual lifecycle state and remains in the
-aggregate report.
+open. Cancellation changes only children that are still `queued` and reports
+`stopped_queued` plus a human-readable `cancel_note`. Submitted or terminal
+provider work retains its actual lifecycle state and remains in the aggregate
+report.
 
 ## Security and operating boundaries
 
-- Planning and batch operations use WordPress authentication and source-post
-  edit capabilities.
+- Planning and batch operations use WordPress authentication, `upload_files`,
+  and source-post edit capabilities.
 - Starting a batch is the explicit budget-spending action; preview is read-only.
 - Provider credentials remain on Connections or in environment references.
 - Disabled Connections, output mismatches, and unresolved Template bindings

@@ -194,8 +194,9 @@ final class Generation_Authorization {
 	/**
 	 * Extract positive integer attachment IDs from known media slots.
 	 *
-	 * Non-numeric values are provider URLs. Numeric values that are not positive
-	 * integer IDs fail instead of being silently coerced to another attachment.
+	 * Media values may only be positive attachment IDs or validated HTTPS URLs.
+	 * Rejecting arbitrary strings prevents a bound meta value from becoming a
+	 * local filesystem path inside a background provider adapter.
 	 *
 	 * @param array<string, mixed> $inputs Generation inputs.
 	 * @return array<int, int>|WP_Error
@@ -203,20 +204,36 @@ final class Generation_Authorization {
 	private static function attachment_ids( array $inputs ) {
 		$attachment_ids = [];
 		foreach ( \WorldGraph\Utils\Generation_Modality::MEDIA_SLOTS as $slot ) {
-			if ( ! array_key_exists( $slot, $inputs ) || ! is_scalar( $inputs[ $slot ] ) || ! is_numeric( $inputs[ $slot ] ) ) {
+			if ( ! array_key_exists( $slot, $inputs ) ) {
 				continue;
+			}
+			if ( ! is_scalar( $inputs[ $slot ] ) ) {
+				return new WP_Error( 'worldgraph_generation_media_input_invalid', __( 'Media inputs must be WordPress attachment IDs or validated HTTPS URLs.', 'worldgraph' ), [ 'status' => 400 ] );
 			}
 
 			$value = trim( (string) $inputs[ $slot ] );
-			if ( ! ctype_digit( $value ) || 0 === absint( $value ) ) {
+			if ( '' === $value ) {
+				continue;
+			}
+			if ( is_numeric( $value ) ) {
+				if ( ! ctype_digit( $value ) || 0 === absint( $value ) ) {
+					return new WP_Error(
+						'worldgraph_generation_attachment_invalid',
+						__( 'Numeric media inputs must be positive WordPress attachment IDs.', 'worldgraph' ),
+						[ 'status' => 400 ]
+					);
+				}
+				$attachment_ids[] = absint( $value );
+				continue;
+			}
+
+			if ( 0 !== stripos( $value, 'https://' ) || ! wp_http_validate_url( $value ) ) {
 				return new WP_Error(
-					'worldgraph_generation_attachment_invalid',
-					__( 'Numeric media inputs must be positive WordPress attachment IDs.', 'worldgraph' ),
+					'worldgraph_generation_media_input_invalid',
+					__( 'Media inputs must be WordPress attachment IDs or validated HTTPS URLs.', 'worldgraph' ),
 					[ 'status' => 400 ]
 				);
 			}
-
-			$attachment_ids[] = absint( $value );
 		}
 
 		return array_values( array_unique( $attachment_ids ) );
