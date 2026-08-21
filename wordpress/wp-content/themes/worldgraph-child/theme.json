@@ -1,0 +1,195 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/theme.json",
+	"version": 3,
+	"settings": {
+		"appearanceTools": true,
+		"color": {
+			"defaultDuotone": false,
+			"defaultGradients": false,
+			"defaultPalette": false,
+			"palette": [
+				{
+					"color": "#F2EAD7",
+					"name": "Warm Ivory",
+					"slug": "warm-ivory"
+				},
+				{
+					"color": "#B68D40",
+					"name": "Sepia",
+					"slug": "sepia"
+				},
+				{
+					"color": "#3A2A1D",
+					"name": "Dark Espresso",
+					"slug": "dark-espresso"
+				},
+				{
+					"color": "#2B2B2B",
+					"name": "Charcoal",
+					"slug": "charcoal"
+				},
+				{
+					"color": "#3F5D7D",
+					"name": "Blueprint Blue",
+					"slug": "blueprint-blue"
+				},
+				{
+					"color": "#F2EAD7",
+					"name": "Base",
+					"slug": "base"
+				},
+				{
+					"color": "#2B2B2B",
+					"name": "Contrast",
+					"slug": "contrast"
+				},
+				{
+					"color": "#B68D40",
+					"name": "Primary",
+					"slug": "primary"
+				},
+				{
+					"color": "#3F5D7D",
+					"name": "Secondary",
+					"slug": "secondary"
+				},
+				{
+					"color": "#3A2A1D",
+					"name": "Neutral",
+					"slug": "neutral"
+				}
+			]
+		},
+		"layout": {
+			"contentSize": "720px",
+			"wideSize": "1200px"
+		},
+		"typography": {
+			"fontFamilies": [
+				{
+					"fontFace": [
+						{
+							"fontDisplay": "swap",
+							"fontFamily": "Oswald",
+							"fontStyle": "normal",
+							"fontWeight": "200 700",
+							"src": [
+								"file:./assets/fonts/Oswald-VariableFont_wght.ttf"
+							]
+						}
+					],
+					"fontFamily": "Oswald, 'Bebas Neue', 'League Gothic', sans-serif",
+					"name": "Headline",
+					"slug": "headline"
+				},
+				{
+					"fontFace": [
+						{
+							"fontDisplay": "swap",
+							"fontFamily": "Inter",
+							"fontStyle": "normal",
+							"fontWeight": "200 900",
+							"src": [
+								"file:./assets/fonts/Inter-VariableFont_slnt,wght.ttf"
+							]
+						}
+					],
+					"fontFamily": "Inter, 'Source Sans Pro', Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+					"name": "Body",
+					"slug": "body"
+				}
+			]
+		}
+	},
+	"styles": {
+		"blocks": {
+			"core/button": {
+				"typography": {
+					"fontFamily": "var(--wp--preset--font-family--headline)",
+					"fontWeight": "600",
+					"letterSpacing": "0.04em"
+				}
+			},
+			"core/heading": {
+				"typography": {
+					"fontFamily": "var(--wp--preset--font-family--headline)",
+					"fontWeight": "600",
+					"letterSpacing": "0.02em",
+					"lineHeight": "1.15"
+				}
+			},
+			"core/navigation": {
+				"typography": {
+					"fontFamily": "var(--wp--preset--font-family--headline)",
+					"fontWeight": "600",
+					"letterSpacing": "0.04em"
+				}
+			},
+			"core/site-title": {
+				"typography": {
+					"fontFamily": "var(--wp--preset--font-family--headline)",
+					"fontWeight": "600",
+					"letterSpacing": "0.03em"
+				}
+			}
+		},
+		"color": {
+			"background": "var(--wp--preset--color--warm-ivory)",
+			"text": "var(--wp--preset--color--charcoal)"
+		},
+		"elements": {
+			"button": {
+				"border": {
+					"color": "var(--wp--preset--color--dark-espresso)",
+					"radius": "2px",
+					"style": "solid",
+					"width": "2px"
+				},
+				"color": {
+					"background": "var(--wp--preset--color--dark-espresso)",
+					"text": "var(--wp--preset--color--warm-ivory)"
+				},
+				":hover": {
+					"color": {
+						"background": "var(--wp--preset--color--sepia)",
+						"text": "var(--wp--preset--color--charcoal)"
+					}
+				}
+			},
+			"link": {
+				"color": {
+					"text": "var(--wp--preset--color--blueprint-blue)"
+				},
+				":hover": {
+					"color": {
+						"text": "var(--wp--preset--color--dark-espresso)"
+					}
+				}
+			}
+		},
+		"spacing": {
+			"padding": {
+				"bottom": "0",
+				"left": "0",
+				"right": "0",
+				"top": "0"
+			}
+		},
+		"typography": {
+			"fontFamily": "var(--wp--preset--font-family--body)",
+			"lineHeight": "1.65"
+		}
+	},
+	"templateParts": [
+		{
+			"area": "header",
+			"name": "header",
+			"title": "Site Header"
+		},
+		{
+			"area": "footer",
+			"name": "footer",
+			"title": "Site Footer"
+		}
+	]
+}

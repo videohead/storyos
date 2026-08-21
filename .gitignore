@@ -54,6 +54,8 @@ eggs/
 lib/
 lib64/
 parts/
+!wordpress/wp-content/themes/worldgraph-child/parts/
+!wordpress/wp-content/themes/worldgraph-child/parts/*.html
 sdist/
 var/
 wheels/
