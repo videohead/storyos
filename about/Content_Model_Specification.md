@@ -41,12 +41,12 @@ All entities must be queryable by AI advisors and workflows.
 ## Interoperability
 
 Entities expose WordPress and World Graph Studio API surfaces where appropriate.
-The delivered interchange formats are World Graph Studio JSON, Final Draft
-FDX and Fountain import, Markdown screenplay/storyboard export, optional Celtx
-and VideoDraft synchronization, EDL tooling, and the related editorial views.
-Bundled Google Web Stories source is an extension prototype rather than part
-of the delivered interchange contract. Further professional script-file
-formats can be added as adapters without changing the entity model.
+The delivered interchange formats are World Graph Studio JSON and Final Draft
+FDX import, Markdown screenplay/storyboard export, and optional VideoDraft
+structural synchronization. Fountain, Celtx, Descript, the EDL admin workflow,
+and Google Web Stories remain scaffold or prototype surfaces; EDL PHP format
+functions are available to custom adapters. Further professional script-file
+formats can be added without changing the entity model.
 
 ---
 
@@ -593,23 +593,22 @@ remote Celtx record.
 - `GET /wp-json/worldgraph/v1/celtx/mapping/{type}/{id}`
 - `DELETE /wp-json/worldgraph/v1/celtx/unsync/{type}/{id}`
 
-### Delivered Interchange
+### Interchange Status
 
 - World Graph Studio JSON import creates and links the supported Story Graph
   entities. Validation can run without committing changes.
-- Final Draft FDX and Fountain import adapters normalize screenplay structures
-  into the canonical JSON contract and reuse the same entity and relationship
-  persistence.
+- Final Draft FDX import normalizes screenplay structure into the canonical
+  JSON contract and reuses the same entity and relationship persistence.
 - Markdown export produces screenplay and storyboard views from live project
   data.
-- Celtx synchronization remains a separate, optional integration.
 - VideoDraft synchronization optionally pushes and pulls its shared structural
   Project subset with persistent mapping and conflict checks.
+- Fountain and Celtx target these contracts but remain non-delivered scaffolds
+  until their documented runtime blockers are repaired.
 
 Fade In, Highland, Story Architect, format-specific preview/merge workflows,
 and additional professional script exporters are possible extensions. They are
-not current API or schema contracts and do not make the delivered interchange
-milestone incomplete.
+not current API or schema contracts and do not reopen the closed roadmap item.
 
 ---
 
@@ -619,8 +618,8 @@ Story Graph → Editorial Outputs
 
 Supported Targets:
 
-- CMX 3600 EDL parsing/preview and export
-- SMPTE 436m XML EDL parsing/preview and export
+- CMX 3600 EDL PHP parsing and formatting
+- SMPTE 436m XML EDL PHP parsing and formatting
 - Timeline Metadata
 - Storyboard
 

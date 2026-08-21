@@ -395,7 +395,6 @@ class Generation_Controller extends Base_Controller {
 	}
 
 	/**
-	/**
 	 * Get generation status.
 	 *
 	 * @param WP_REST_Request $request

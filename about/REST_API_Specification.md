@@ -182,11 +182,11 @@ Markdown screenplay and storyboard export is delivered through the WordPress
 admin export action and exporter class; there is no `/scripts/export` REST
 route in v1.
 
-The bundled Final Draft FDX and Fountain integrations run through
-capability- and nonce-protected WordPress admin actions. They parse locally in
-the browser, normalize supported screenplay structure into the World Graph
-Studio JSON contract, and delegate persistence to the importer above. They do
-not add REST routes.
+The bundled Final Draft FDX integration runs through a capability- and nonce-
+protected WordPress admin action. It parses locally in the browser, normalizes
+supported screenplay structure into the World Graph Studio JSON contract, and
+delegates persistence to the importer above. Fountain source targets the same
+pattern but is currently bootstrap-blocked. Neither adds REST routes.
 
 Fade In, Highland, Story Architect, format-specific preview/merge, and
 professional script-export routes are not registered in v1. Consumers must
@@ -342,15 +342,15 @@ POST /wp-json/worldgraph/v1/editorial/{project_id}/reviews
 GET  /wp-json/worldgraph/v1/editorial/{project_id}/storyboard
 ```
 
-The optional EDL plugin delivers CMX 3600 and SMPTE 436m XML formatters and
-downloads plus import parsing and preview through its nonce- and
-capability-protected WordPress admin/AJAX workflow. Its current export resolver
-uses fixed sample clips rather than a live Project/Episode timeline, and its
-advanced export controls are not wired through to the formatter. Confirmed
-previews are not persisted as Story Graph timeline records. The plugin does not
-register the speculative `/editorial/edl/generate` REST path.
+The optional EDL plugin contains CMX 3600 and SMPTE 436m XML PHP parsing,
+timecode, and formatting functions plus a nonce- and capability-protected admin
+scaffold. The admin page references missing assets and its AJAX action contract
+conflicts; its export resolver also uses fixed sample clips, and confirmed
+previews persist no Story Graph timeline records. The admin workflow is not
+delivered, and the plugin does not register the speculative
+`/editorial/edl/generate` REST path.
 
-## Optional Celtx Synchronization
+## Celtx Connector Routes (Scaffold)
 
 When the bundled Celtx plugin is enabled and configured, it registers these
 administrator-only routes in the core namespace:
@@ -365,10 +365,10 @@ GET    /wp-json/worldgraph/v1/celtx/mapping/{type}/{id}
 DELETE /wp-json/worldgraph/v1/celtx/unsync/{type}/{id}
 ```
 
-Celtx synchronization sends supported Project, Character, Location, Scene, and
-Shot data from World Graph Studio to Celtx and stores persistent external ID
-mappings in `_worldgraph_celtx_mapping`. The current sync service does not
-import remote Celtx changes into WordPress.
+The routes target outbound Project, Character, Location, Scene, and Shot work
+and persistent `_worldgraph_celtx_mapping` metadata. Current response handling
+and Scene-call defects block verified synchronization; the source also does not
+implement remote-to-WordPress reconciliation.
 
 ## Optional VideoDraft Synchronization
 

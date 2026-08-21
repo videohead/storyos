@@ -43,6 +43,9 @@ Media Library before the generation record is marked complete. Template media
 bindings that resolve to local attachments use VideoDraft's presigned upload
 flow. Seed Audio imports support MP3, WAV, and Ogg/Opus; raw PCM is rejected
 before submission because WordPress does not provide a portable PCM media type.
+Transient Seed Audio reconciliation reuses one persisted idempotency key and
+the exact resolved tool request. Attachment permissions are checked again on
+every retry without re-uploading the same references.
 
 ## Sync setup
 
@@ -120,9 +123,10 @@ commit after reviewing the preview. All routes require `manage_options`.
 
 ## Upstream basis
 
-The adapter follows the public VideoDraft CLI implementation:
+The adapter follows VideoDraft CLI `0.14.0` at commit
+`78914d58d1f46d4c4e26cdec7df3304f1bed5af8`:
 
-- [JSON-RPC transport](https://github.com/videodraft-ai/cli/blob/main/src/core/rpc.ts)
-- [generation commands](https://github.com/videodraft-ai/cli/blob/main/src/commands/generate.ts)
-- [project commands](https://github.com/videodraft-ai/cli/blob/main/src/commands/projects.ts)
-- [project update and checkpoint guidance](https://github.com/videodraft-ai/cli/blob/main/skills/videodraft/references/pipeline.md)
+- [JSON-RPC transport](https://github.com/videodraft-ai/cli/blob/78914d58d1f46d4c4e26cdec7df3304f1bed5af8/src/core/rpc.ts)
+- [generation commands](https://github.com/videodraft-ai/cli/blob/78914d58d1f46d4c4e26cdec7df3304f1bed5af8/src/commands/generate.ts)
+- [project commands](https://github.com/videodraft-ai/cli/blob/78914d58d1f46d4c4e26cdec7df3304f1bed5af8/src/commands/projects.ts)
+- [project update and checkpoint guidance](https://github.com/videodraft-ai/cli/blob/78914d58d1f46d4c4e26cdec7df3304f1bed5af8/skills/videodraft/references/pipeline.md)

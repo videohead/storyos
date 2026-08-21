@@ -128,7 +128,7 @@ Sync](../plugins/VIDEODRAFT.md).
 
 ## 7. Export and exchange work
 
-The current release provides these portable workflows:
+The current release provides and catalogs these portable surfaces:
 
 - **World Graph Studio JSON import** for structured project data.
 - **Final Draft FDX import** for screenplay scenes, locations, characters,

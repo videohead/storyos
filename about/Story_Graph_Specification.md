@@ -51,7 +51,8 @@ core:
 - Storyboard records and Asset collections such as lookbooks
 - Shot lists
 - Production pipeline, task, and timeline views
-- CMX/XML EDL formatting and downloads (currently using sample clip input)
+- CMX/XML EDL PHP format functions (the bundled admin download workflow remains
+  incomplete and uses sample clip input)
 - Editorial metadata
 - Generated Assets and their provenance
 

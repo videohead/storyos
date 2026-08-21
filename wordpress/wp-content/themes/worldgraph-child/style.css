@@ -553,6 +553,7 @@ textarea:focus {
 	font-size: clamp(1.7rem, 4vw, 3rem);
 	line-height: 1;
 	margin-bottom: 0.7rem;
+	white-space: nowrap;
 }
 
 .wg-stat__label {
@@ -651,22 +652,32 @@ textarea:focus {
 	border: 1px solid rgba(58, 42, 29, 0.3);
 	box-shadow: var(--wg-shadow);
 	margin: 0;
-	overflow-x: auto;
+	overflow: visible;
 }
 
 .wg-integration-table table {
 	border-collapse: collapse;
 	margin: 0;
-	min-width: 48rem;
+	min-width: 0;
+	table-layout: fixed;
 	width: 100%;
 }
 
 .wg-integration-table th,
 .wg-integration-table td {
 	line-height: 1.45;
+	overflow-wrap: anywhere;
 	padding: 0.9rem 1rem;
 	text-align: left;
 	vertical-align: top;
+}
+
+.wg-integration-table th:first-child {
+	width: 22%;
+}
+
+.wg-integration-table th:nth-child(2) {
+	width: 25%;
 }
 
 .wg-integration-table th {
@@ -921,6 +932,16 @@ textarea:focus {
 	.wg-stat:nth-child(3) {
 		border-left: 0;
 		border-top: 1px solid rgba(58, 42, 29, 0.3);
+	}
+
+	.wg-integration-table th,
+	.wg-integration-table td {
+		font-size: 0.76rem;
+		padding: 0.65rem 0.5rem;
+	}
+
+	.wg-integration-table th {
+		letter-spacing: 0.035em;
 	}
 }
 

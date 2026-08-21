@@ -34,9 +34,9 @@ Story Graph + SCF + Media Library
 AI Editor    Generation Engine   Interchange
     |             |              |
     v             v              v
-Configured     Comfy / fal /        JSON / FDX / Fountain /
-LLM endpoint   ElevenLabs / Suno /  Markdown / Celtx /
-               VideoDraft           VideoDraft / EDL
+Configured     Comfy / fal /        JSON / FDX / Markdown /
+LLM endpoint   ElevenLabs / Suno /  VideoDraft
+               VideoDraft           + cataloged scaffolds
 ```
 
 Core Story Graph work has no AI dependency. An unavailable connection should
@@ -52,7 +52,7 @@ The standard deployment contains:
 | MariaDB | WordPress content, SCF values, relationships, settings, job state, and integration mappings |
 | WordPress Media Library | Uploaded, imported, and generated media |
 | WP-Cron | Generation queue submission, polling, and scheduled provider work |
-| Optional external services | LLM inference, generative workflows, Celtx synchronization, and other configured integrations |
+| Optional external services | LLM inference, generative workflows, VideoDraft synchronization, and other configured delivered integrations |
 
 The local development environment uses Lando, but Lando is not a production
 dependency. No separate Python API, router, queue server, or orchestration
@@ -72,7 +72,7 @@ is divided by responsibility:
 | AI Editor | `includes/ai-editor/`, `assets/ai-editor/` | Context assembly, LLM access, specialist advisors, Abilities, and Gutenberg UI |
 | Administration | `includes/admin/`, `assets/` | Setup, dashboards, metaboxes, connections, import/export, intelligence panels, and logs |
 | Core interchange | `includes/importer/`, `includes/exporter/` | World Graph Studio JSON import and Markdown screenplay/storyboard export |
-| Optional integrations | `plugins/` | FDX and Fountain import, Celtx and VideoDraft synchronization, EDL utilities, plus Web Stories prototype source |
+| Bundled integrations | `plugins/` | Delivered FDX import and VideoDraft sync plus Fountain, Celtx, Descript, EDL admin, and Web Stories scaffolds/prototypes |
 | Verification | `tests/` | Unit, schema-contract, migration, and behavior coverage |
 
 SCF is a plugin dependency. Local JSON archives seed portable field groups;
@@ -220,20 +220,22 @@ Suno contract is detailed in [Suno Integration](plugins/SUNO.md).
 
 Interchange is deliberately adapter-based:
 
-| Workflow | Owner | Delivered behavior |
+| Workflow | Owner | Status / behavior |
 | --- | --- | --- |
 | Project JSON | Main plugin | Validate and import the World Graph Studio document format |
 | Final Draft FDX | Bundled import integration | Parse supported screenplay structure in the browser, normalize it to World Graph Studio JSON, and delegate to the core importer |
-| Fountain | Bundled import integration | Convert supported Fountain screenplay structure through the FDX normalization path and delegate to the core importer |
+| Fountain | Bundled import source | Intended to convert supported Fountain structure through FDX normalization; browser bootstrap currently blocks the workflow |
 | Markdown | Main plugin | Export screenplay and storyboard views from live project data |
-| Celtx | Optional child integration | Outbound synchronization and persistent entity mapping |
+| Celtx | Bundled connector source | Intended outbound synchronization and persistent mapping; response and Scene-call repair required |
 | VideoDraft | Optional child integration | Bidirectional structural Project sync, preview, checkpointed push, conflict hashes, and per-Connection mapping |
-| EDL | Optional child integration | CMX 3600 and SMPTE 436m XML parsing, preview, timecode, and format helpers; persistence/live timeline adapters are extension boundaries |
+| Descript | Experimental source | Intended transcript import and bound-media export; relationship, callback, binary-format, wizard, and runtime work remains |
+| EDL | Bundled PHP library and admin scaffold | CMX 3600 and SMPTE 436m XML parsing, timecode, and format helpers are implemented; the admin workflow is incomplete |
 | Google Web Stories | Prototype source | Bundled design/implementation scaffold; not loaded or supported as a current workflow |
 
-This completes the current script-software integration milestone. Additional
-file formats can be added as focused adapters, but they must not be implied by
-the generic import/export surfaces until implemented. See [Script and
+This closes the former blanket roadmap hold for a defined scope: FDX is the
+accepted delivered script-file addition, while other formats are extensions or
+explicitly classified scaffolds. Additional formats must not be implied by the
+generic import/export surfaces until implemented. See [Script and
 Editorial Interchange](Script_EDL_Integration.md).
 
 ## Trust boundaries

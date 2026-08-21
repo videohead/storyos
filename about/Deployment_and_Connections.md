@@ -4,13 +4,14 @@ World Graph Studio keeps stories, Story Graph data, and specialist creative
 advisors in WordPress. Generative media workflows can run through configured
 tools including ComfyUI, fal, ElevenLabs, Suno, and VideoDraft. Neither a GPU nor a
 generation connection is required for writing, planning, continuity,
-collaboration, asset tracking, JSON/FDX/Fountain import, or Markdown export.
+collaboration, asset tracking, JSON/FDX import, or Markdown export.
 AI-assisted and generated-media features require the corresponding configured
 service.
 
-The repository implementation is complete for the connections documented here.
-Credentials, reachable services, models, quotas, and provider accounts remain
-deployment concerns. See [Delivery Status](Delivery_Status.md).
+Delivered Connection implementations are complete within their documented
+boundaries. Credentials, reachable services, models, quotas, and provider
+accounts remain deployment concerns; experimental and scaffold integrations
+are classified separately in [Delivery Status](Delivery_Status.md).
 
 ## Before You Start
 

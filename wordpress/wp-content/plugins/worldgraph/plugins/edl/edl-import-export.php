@@ -490,10 +490,10 @@ function handle_confirm_import(): void {
  *
  * @param string $content EDL file content.
  * @param string $format  EDL format (cmx3600 or xml).
- * @param int    $fps     Frame rate.
+ * @param float  $fps     Frame rate.
  * @return array|\WP_Error Parsed EDL data or error.
  */
-function parse_edl( string $content, string $format, int $fps ) {
+function parse_edl( string $content, string $format, float $fps ) {
 	$content = trim( $content );
 	if ( 'xml' === $format ) {
 		return parse_edl_xml( $content, $fps );
@@ -504,47 +504,105 @@ function parse_edl( string $content, string $format, int $fps ) {
 /**
  * Parse ASCII/CMX 3600 EDL format.
  *
+ * Recognizes numbered event lines, `*`-prefixed comment lines (FROM CLIP NAME,
+ * SOURCE FILE, LOC, EFFECT NAME) that annotate the preceding event, and the
+ * TITLE/FCM header. Any other non-blank line is reported as a parse warning
+ * with its 1-based line number and raw text instead of being silently dropped.
+ *
  * @param string $content EDL content.
- * @param int    $fps Frame rate.
- * @return array|\WP_Error Parsed clips or error.
+ * @param float  $fps Frame rate.
+ * @return array|\WP_Error Parsed clips (with any warnings) or error.
  */
-function parse_edl_ascii( string $content, int $fps ) {
-	$clips = [];
-	$lines = explode( "\n", $content );
+function parse_edl_ascii( string $content, float $fps ) {
+	$clips  = [];
+	$errors = [];
+	$lines  = explode( "\n", str_replace( "\r\n", "\n", $content ) );
 
-	foreach ( $lines as $line ) {
-		$line = trim( $line );
+	$tc = '\d{2}[:;]\d{2}[:;]\d{2}[:;]\d{2}';
+	// event# reel track edit-type [transition-duration] src-in src-out rec-in rec-out.
+	$event_pattern = '/^(\d{1,3})\s+(\S{1,8})\s+([A-Z0-9\/]+)\s+([CDW])\s*(\d+)?\s+(' . $tc . ')\s+(' . $tc . ')\s+(' . $tc . ')\s+(' . $tc . ')\s*$/i';
 
-		// Match reel/line entries: "REEL  NAME   V C 1001 01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00 * CLIP NAME"
-		if ( preg_match( '/^(\w+)\s+(\S+)\s+V?\s*C?\s+(\d+)\s+(\d{2}:\d{2}:\d{2}:\d{2})\s+(\d{2}:\d{2}:\d{2}:\d{2})\s+(\d{2}:\d{2}:\d{2}:\d{2})\s+(\d{2}:\d{2}:\d{2}:\d{2})/', $line, $matches ) ) {
-			$clips[] = [
-				'reel'      => $matches[1],
-				'clip_name' => $matches[2],
-				'tc_in'     => $matches[4],
-				'tc_out'    => $matches[5],
-				'film_in'   => $matches[6],
-				'film_out'  => $matches[7],
-				'frame_in'  => timecode_to_frames( $matches[4], $fps ),
-				'frame_out' => timecode_to_frames( $matches[5], $fps ),
-			];
+	$last_clip_index = null;
+
+	foreach ( $lines as $i => $raw_line ) {
+		$line_number = $i + 1;
+		$line        = trim( $raw_line );
+
+		if ( '' === $line ) {
+			continue;
 		}
+
+		// Header lines.
+		if ( 0 === stripos( $line, 'TITLE:' ) || 0 === stripos( $line, 'FCM:' ) ) {
+			continue;
+		}
+
+		// Comment/metadata lines annotate the most recently parsed event.
+		if ( '*' === $line[0] ) {
+			if ( null === $last_clip_index ) {
+				continue;
+			}
+			if ( preg_match( '/^\*\s*FROM CLIP NAME:\s*(.+)$/i', $line, $m ) ) {
+				$clips[ $last_clip_index ]['clip_name'] = trim( $m[1] );
+			} elseif ( preg_match( '/^\*\s*SOURCE FILE:\s*(.+)$/i', $line, $m ) ) {
+				$clips[ $last_clip_index ]['source_file'] = trim( $m[1] );
+			} elseif ( preg_match( '/^\*\s*LOC:\s*(.+)$/i', $line, $m ) ) {
+				$clips[ $last_clip_index ]['locators'][] = trim( $m[1] );
+			} elseif ( preg_match( '/^\*\s*EFFECT NAME:\s*(.+)$/i', $line, $m ) ) {
+				$clips[ $last_clip_index ]['effect_name'] = trim( $m[1] );
+			}
+			continue;
+		}
+
+		if ( preg_match( $event_pattern, $line, $matches ) ) {
+			$clips[] = [
+				'event'               => $matches[1],
+				'reel'                => $matches[2],
+				'track'               => $matches[3],
+				'edit_type'           => strtoupper( $matches[4] ),
+				'transition_duration' => isset( $matches[5] ) && '' !== $matches[5] ? intval( $matches[5] ) : null,
+				'clip_name'           => $matches[2],
+				'tc_in'               => $matches[6],
+				'tc_out'              => $matches[7],
+				'film_in'             => $matches[8],
+				'film_out'            => $matches[9],
+				'frame_in'            => timecode_to_frames( $matches[6], $fps ),
+				'frame_out'           => timecode_to_frames( $matches[7], $fps ),
+			];
+			$last_clip_index = count( $clips ) - 1;
+			continue;
+		}
+
+		// Line looked like data but did not match the expected event shape.
+		$errors[] = [
+			'line'    => $line_number,
+			'content' => $line,
+		];
 	}
 
 	if ( empty( $clips ) ) {
+		if ( ! empty( $errors ) ) {
+			return new \WP_Error( 'parse_error', sprintf( 'No valid EDL entries found in ASCII content; %d line(s) could not be parsed.', count( $errors ) ), $errors );
+		}
 		return new \WP_Error( 'parse_error', 'No valid EDL entries found in ASCII content.' );
 	}
 
-	return [ 'format' => 'cmx3600', 'fps' => $fps, 'clips' => $clips ];
+	return [
+		'format' => 'cmx3600',
+		'fps'    => $fps,
+		'clips'  => $clips,
+		'errors' => $errors,
+	];
 }
 
 /**
  * Parse XML EDL format.
  *
  * @param string $content EDL content.
- * @param int    $fps Frame rate.
+ * @param float  $fps Frame rate.
  * @return array|\WP_Error Parsed clips or error.
  */
-function parse_edl_xml( string $content, int $fps ) {
+function parse_edl_xml( string $content, float $fps ) {
 	$dom = new \DOMDocument();
 	$dom->loadXML( $content, LIBXML_NOERROR );
 
@@ -596,12 +654,13 @@ function parse_edl_xml( string $content, int $fps ) {
 /**
  * Generate EDL output from timeline data.
  *
- * @param array  $data   Timeline data.
- * @param string $format EDL format (cmx3600 or xml).
- * @param int    $fps    Frame rate.
+ * @param array  $data    Timeline data.
+ * @param string $format  EDL format (cmx3600 or xml).
+ * @param float  $fps     Frame rate.
+ * @param array  $options Export options (reel, pre_roll, post_roll, etc.).
  * @return string|\WP_Error EDL content or error.
  */
-function generate_edl( array $data, string $format, int $fps ) {
+function generate_edl( array $data, string $format, float $fps, array $options = [] ) {
 	$clips = $data['clips'] ?? [];
 
 	if ( empty( $clips ) ) {
@@ -612,7 +671,7 @@ function generate_edl( array $data, string $format, int $fps ) {
 		return generate_edl_xml( $clips, $fps );
 	}
 
-	return generate_edl_ascii( $clips, $fps );
+	return generate_edl_ascii( $clips, $fps, $options );
 }
 
 /**
@@ -622,11 +681,11 @@ function generate_edl( array $data, string $format, int $fps ) {
  * DaVinci Resolve, and other NLEs that import EDL files.
  *
  * @param array  $clips        Parsed clip data.
- * @param int    $fps          Frame rate.
+ * @param float  $fps          Frame rate.
  * @param array  $options      Export options.
  * @return string EDL content.
  */
-function generate_edl_ascii( array $clips, int $fps, array $options = [] ): string {
+function generate_edl_ascii( array $clips, float $fps, array $options = [] ): string {
 	$title       = $options['title']       ?? 'World Graph Studio EDL';
 	$reel_name   = $options['reel']        ?? 'REEL 001';
 	$pre_roll    = $options['pre_roll']    ?? 0;  // Frames of pre-roll (handles) for Unreal Engine compatibility.
@@ -721,12 +780,12 @@ function generate_edl_ascii( array $clips, int $fps, array $options = [] ): stri
  * to stay within 1 minute of real time. This function returns the cumulative drop count
  * for a given frame number.
  *
- * @param int $fps Frame rate.
+ * @param float $fps Frame rate.
  * @return int Drop frame correction.
  */
-function calculate_drop_frame_correction( int $fps ): int {
-	// Only applicable to 29.97fps (and its variants).
-	if ( abs( $fps - 29.97 ) > 0.01 && abs( $fps - 23.976 ) > 0.001 ) {
+function calculate_drop_frame_correction( float $fps ): int {
+	// Only applicable to 29.97/59.94fps (and 23.976, which shares the same drop math).
+	if ( ! is_ntsc_rate( $fps ) ) {
 		return 0;
 	}
 
@@ -740,10 +799,10 @@ function calculate_drop_frame_correction( int $fps ): int {
  * Generate XML EDL string.
  *
  * @param array $clips Parsed clip data.
- * @param int   $fps Frame rate.
+ * @param float $fps Frame rate.
  * @return string EDL content.
  */
-function generate_edl_xml( array $clips, int $fps ): string {
+function generate_edl_xml( array $clips, float $fps ): string {
 	$xml = new \DOMDocument( '1.0', 'UTF-8' );
 	$xml->formatOutput = true;
 
@@ -791,15 +850,46 @@ function generate_edl_xml( array $clips, int $fps ): string {
 }
 
 /**
+ * Normalize a form/select frame-rate code into an actual frame rate.
+ *
+ * The admin UI submits fractional rates as scaled integer codes (e.g. 23976,
+ * 2997, 5994) so they survive a plain `<select>`. Whole rates (24, 25, 30, 50,
+ * 60, 120) are passed through unchanged.
+ *
+ * @param int $code Raw fps value submitted by the form.
+ * @return float Actual frame rate.
+ */
+function normalize_fps( int $code ): float {
+	$fractional = [ 23976, 2997, 5994 ];
+	return in_array( $code, $fractional, true ) ? $code / 1000 : (float) $code;
+}
+
+/**
+ * Whether a frame rate is one of the NTSC fractional rates that support
+ * drop-frame timecode (23.976, 29.97, 59.94).
+ *
+ * @param float $fps Frame rate.
+ * @return bool
+ */
+function is_ntsc_rate( float $fps ): bool {
+	foreach ( [ 23.976, 29.97, 59.94 ] as $ntsc_rate ) {
+		if ( abs( $fps - $ntsc_rate ) < 0.01 ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
  * Convert timecode string to frame number.
  *
- * @param string $timecode HH:MM:SS:FF
- * @param int    $fps Frame rate.
+ * @param string $timecode HH:MM:SS:FF (or HH:MM:SS;FF for drop-frame).
+ * @param float  $fps Frame rate.
  * @return int Frame number.
  */
-function timecode_to_frames( string $timecode, int $fps ): int {
-	$parts = explode( ':', $timecode );
-	if ( 4 !== count( $parts ) ) {
+function timecode_to_frames( string $timecode, float $fps ): int {
+	$parts = preg_split( '/[:;]/', $timecode );
+	if ( ! $parts || 4 !== count( $parts ) ) {
 		return 0;
 	}
 	$hours   = intval( $parts[0] );
@@ -807,25 +897,31 @@ function timecode_to_frames( string $timecode, int $fps ): int {
 	$seconds = intval( $parts[2] );
 	$frames  = intval( $parts[3] );
 
-	return ( ( ( $hours * 60 + $minutes ) * 60 + $seconds ) * $fps ) + $frames;
+	// Frame arithmetic always uses the nominal integer frame count per second
+	// (e.g. 30 for both 29.97 and 30fps); the fractional value only marks drop-frame rates.
+	$nominal_fps = (int) round( $fps );
+
+	return ( ( ( $hours * 60 + $minutes ) * 60 + $seconds ) * $nominal_fps ) + $frames;
 }
 
 /**
  * Convert frame number to timecode string.
  *
  * @param int   $frames     Frame number.
- * @param int   $fps        Frame rate.
- * @param bool  $drop_frame Use drop-frame timecode (for 29.97/23.976fps).
+ * @param float $fps        Frame rate.
+ * @param bool  $drop_frame Use drop-frame timecode (for 29.97/59.94/23.976fps).
  * @return string HH:MM:SS:FF
  */
-function frames_to_timecode( int $frames, int $fps, bool $drop_frame = false ): string {
+function frames_to_timecode( int $frames, float $fps, bool $drop_frame = false ): string {
 	// For drop-frame, we need to account for dropped frames.
-	if ( $drop_frame && ( abs( $fps - 29.97 ) < 0.01 || abs( $fps - 23.976 ) < 0.001 ) ) {
+	if ( $drop_frame && is_ntsc_rate( $fps ) ) {
 		return frames_to_timecode_drop( $frames, $fps );
 	}
 
-	$total_seconds = intdiv( $frames, $fps );
-	$remaining_frames = $frames % $fps;
+	$nominal_fps = (int) round( $fps );
+
+	$total_seconds = intdiv( $frames, $nominal_fps );
+	$remaining_frames = $frames % $nominal_fps;
 
 	$hours   = intdiv( $total_seconds, 3600 );
 	$minutes = intdiv( $total_seconds % 3600, 60 );
@@ -840,16 +936,17 @@ function frames_to_timecode( int $frames, int $fps, bool $drop_frame = false ): 
  * Drop-frame timecode skips frames 0 and 1 of every minute (except every 10th minute)
  * to keep the timecode within ~3.6 seconds of wall-clock time for 29.97fps video.
  *
- * @param int $frames Frame number.
- * @param int $fps    Frame rate (typically 29.97 or 23.976).
+ * @param int   $frames Frame number.
+ * @param float $fps    Frame rate (23.976, 29.97, or 59.94).
  * @return string HH:MM:SS:DF
  */
-function frames_to_timecode_drop( int $frames, int $fps ): string {
-	// Use 29.97 as the base rate for drop-frame calculations.
-	$df_fps = 29.97;
+function frames_to_timecode_drop( int $frames, float $fps ): string {
+	// Scale the drop-frame math to the nominal rate family (29.97 uses 30, 59.94 uses 60).
+	$df_fps      = abs( $fps - 59.94 ) < 0.01 ? 59.94 : 29.97;
+	$nominal_fps = abs( $fps - 59.94 ) < 0.01 ? 60 : 30;
 
 	// Calculate hours, minutes, seconds, frames manually for drop-frame.
-	$frames_per_minute = round( $df_fps * 60 );  // 1798 for 29.97
+	$frames_per_minute = (int) round( $df_fps * 60 );  // 1798 for 29.97
 	$frames_per_hour   = $frames_per_minute * 60; // 107880 for 29.97
 
 	// Drop frames per 10 minutes (except the 10th minute itself).
@@ -867,9 +964,9 @@ function frames_to_timecode_drop( int $frames, int $fps ): string {
 	$minutes = $full_10_min_blocks * 10 + intdiv( $remaining_after_10, $frames_per_minute );
 
 	// Calculate seconds.
-	$frames = $frames - ( $minutes * $frames_per_minute ) - ( $full_10_min_blocks * $drops_per_10_min );
-	$seconds = intdiv( $frames, $df_fps );
-	$frames  = $frames % $df_fps;
+	$frames  = $frames - ( $minutes * $frames_per_minute ) - ( $full_10_min_blocks * $drops_per_10_min );
+	$seconds = intdiv( $frames, $nominal_fps );
+	$frames  = $frames % $nominal_fps;
 
 	// Frame number.
 	$frame = intval( round( $frames ) );
@@ -880,29 +977,94 @@ function frames_to_timecode_drop( int $frames, int $fps ): string {
 /**
  * Get timeline data from World Graph Studio.
  *
+ * Resolves the live Shot timeline for a Project or Episode by walking the
+ * Story Graph relationships (Episode -> Scene -> Shot), ordered by Scene
+ * number then Shot number. Each Shot's `duration` field is read as seconds
+ * when numeric; non-numeric or empty durations fall back to a 2-second clip.
+ *
  * @param string $target_type Target type (project or episode).
  * @param int    $target_id   Target post ID.
- * @return array Timeline data.
+ * @return array|\WP_Error Timeline data or error.
  */
-function get_timeline_data( string $target_type, int $target_id ): array {
-	// TODO: Implement actual World Graph Studio timeline data retrieval.
-	// This is a placeholder that returns sample data for development.
+function get_timeline_data( string $target_type, int $target_id ) {
+	if ( ! in_array( $target_type, [ 'project', 'episode' ], true ) || $target_id <= 0 ) {
+		return new \WP_Error( 'invalid_target', 'A valid Project or Episode ID is required.' );
+	}
+
+	$target_cpt = 'project' === $target_type ? 'worldgraph_project' : 'worldgraph_episode';
+	$target     = get_post( $target_id );
+
+	if ( ! $target || $target_cpt !== $target->post_type ) {
+		return new \WP_Error( 'target_not_found', 'The requested Project or Episode could not be found.' );
+	}
+
+	$episode_ids = [];
+	if ( 'episode' === $target_type ) {
+		$episode_ids = [ $target_id ];
+	} else {
+		foreach ( \WorldGraph\Utils\get_relationships( $target_id, 'worldgraph_project', 'incoming' ) as $rel ) {
+			if ( 'worldgraph_episode' === ( $rel['from_type'] ?? '' ) ) {
+				$episode_ids[] = (int) $rel['from_id'];
+			}
+		}
+	}
+
+	$scenes = [];
+	foreach ( $episode_ids as $episode_id ) {
+		foreach ( \WorldGraph\Utils\get_relationships( $episode_id, 'worldgraph_episode', 'incoming' ) as $rel ) {
+			if ( 'worldgraph_scene' === ( $rel['from_type'] ?? '' ) ) {
+				$scenes[ (int) $rel['from_id'] ] = (int) get_post_meta( (int) $rel['from_id'], 'scene_number', true );
+			}
+		}
+	}
+	asort( $scenes );
+
+	$shots = [];
+	foreach ( array_keys( $scenes ) as $scene_id ) {
+		$scene_shots = [];
+		foreach ( \WorldGraph\Utils\get_relationships( $scene_id, 'worldgraph_scene', 'incoming' ) as $rel ) {
+			if ( 'worldgraph_shot' === ( $rel['from_type'] ?? '' ) ) {
+				$scene_shots[ (int) $rel['from_id'] ] = (int) get_post_meta( (int) $rel['from_id'], 'shot_number', true );
+			}
+		}
+		asort( $scene_shots );
+		$shots = $shots + $scene_shots;
+	}
+
+	if ( empty( $shots ) ) {
+		return new \WP_Error( 'no_shots', 'No Shots were found for the selected Project or Episode.' );
+	}
+
+	$clips    = [];
+	$frame_in = 0;
+	foreach ( array_keys( $shots ) as $shot_id ) {
+		$shot = get_post( $shot_id );
+		if ( ! $shot ) {
+			continue;
+		}
+
+		$duration_raw    = get_post_meta( $shot_id, 'duration', true );
+		$duration_secs   = is_numeric( $duration_raw ) ? (float) $duration_raw : 2.0;
+		$duration_frames = max( 1, (int) round( $duration_secs * 24 ) );
+
+		$clip_name = get_post_meta( $shot_id, 'shot_name', true );
+		if ( ! $clip_name ) {
+			$clip_name = $shot->post_title ?: ( 'SHOT' . $shot_id );
+		}
+
+		$clips[] = [
+			'reel'      => 'REEL 001',
+			'clip_name' => $clip_name,
+			'frame_in'  => $frame_in,
+			'frame_out' => $frame_in + $duration_frames,
+		];
+
+		$frame_in += $duration_frames;
+	}
+
 	return [
 		'format' => 'cmx3600',
 		'fps'    => 24,
-		'clips'  => [
-			[
-				'reel'      => 'REEL 001',
-				'clip_name' => 'SC001_SH001',
-				'frame_in'  => 0,
-				'frame_out' => 72,
-			],
-			[
-				'reel'      => 'REEL 001',
-				'clip_name' => 'SC001_SH002',
-				'frame_in'  => 72,
-				'frame_out' => 144,
-			],
-		],
+		'clips'  => $clips,
 	];
 }

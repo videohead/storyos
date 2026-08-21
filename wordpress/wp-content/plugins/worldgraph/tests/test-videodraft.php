@@ -105,6 +105,14 @@ class Test_VideoDraft extends TestCase {
 		$this->assertSame( [ 'https://cdn.example/audio' ], $urls->invoke( null, [ 'speech_url' => 'https://cdn.example/audio' ] ) );
 	}
 
+	/** Seed Audio retries match the CLI's transport and reconciliation signals. */
+	public function test_seed_audio_retry_contract(): void {
+		$this->assertTrue( VideoDraft_API::is_retryable_audio_error( new WP_Error( 'videodraft_rpc_error', 'Transient RPC failure.', [ 'rpc_code' => 0 ] ) ) );
+		$this->assertTrue( VideoDraft_API::is_retryable_audio_error( new WP_Error( 'videodraft_invalid_response', 'Non-JSON response.' ) ) );
+		$this->assertTrue( VideoDraft_API::is_retryable_audio_error( new WP_Error( 'videodraft_request_failed', 'Gateway timeout.', [ 'status' => 504 ] ) ) );
+		$this->assertFalse( VideoDraft_API::is_retryable_audio_error( new WP_Error( 'videodraft_tool_error', 'Permanent validation error.' ) ) );
+	}
+
 	/** Live schemas provision one provider-neutral Template per supported tool. */
 	public function test_catalog_modality_mapping_and_defaults(): void {
 		$definitions = new ReflectionMethod( VideoDraft_Catalog::class, 'template_definitions' );
@@ -355,6 +363,10 @@ class Test_VideoDraft extends TestCase {
 		$this->assertStringContainsString( "\$arguments['image_urls'] = [ \$media['image'] ]", $api );
 		$this->assertStringContainsString( "'structured_content'", $api );
 		$this->assertStringContainsString( "'rpc_data'", $api );
+		$this->assertStringContainsString( "'_worldgraph_videodraft_resolved_request'", $api );
+		$this->assertStringContainsString( "'attachment_ids' => array_values( array_unique( \$attachment_ids ) )", $api );
+		$this->assertStringContainsString( 'clear_videodraft_submission_cache', $batch );
+		$this->assertStringContainsString( "maybe_serialize( \$current )", $batch );
 		$this->assertStringContainsString( "'videodraft' === \$provider || 'videodraft' === \$adapter", $assets );
 		$this->assertStringContainsString( '$is_videodraft ? $typed_audio_urls', $assets );
 		$this->assertStringContainsString( "plugins/videodraft/videodraft-sync.php", $bootstrap );
