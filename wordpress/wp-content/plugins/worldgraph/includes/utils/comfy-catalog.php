@@ -264,7 +264,7 @@ class Comfy_Catalog {
 				if ( ! is_array( $template ) ) {
 					continue;
 				}
-				$entry = Comfy_Manifest::normalize_entry( $template );
+				$entry = Comfy_Manifest::normalize_entry( $template, $connection_id );
 				if ( null === $entry ) {
 					continue;
 				}

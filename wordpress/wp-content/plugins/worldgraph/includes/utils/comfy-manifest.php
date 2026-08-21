@@ -302,21 +302,37 @@ class Comfy_Manifest {
 	 * @param array $template Raw MCP template descriptor.
 	 * @return array|null Catalog entry, or null when the descriptor has no usable ID.
 	 */
-	public static function normalize_entry( array $template ): ?array {
+	public static function normalize_entry( array $template, int $connection_id = 0 ): ?array {
 		$id = (string) ( $template['id'] ?? $template['template_id'] ?? $template['name'] ?? '' );
 		if ( '' === trim( $id ) ) {
 			return null;
 		}
 
+		$template = self::enrich_template_descriptor( $template, $connection_id );
+
 		$workflow  = is_array( $template['workflow'] ?? null ) ? $template['workflow'] : [];
 		$task_type = (string) ( $template['task_type'] ?? '' );
 		$modality  = self::modality_for_task_type( $task_type );
 
+		$required_nodes = array_map( 'strval', (array) ( $template['required_nodes'] ?? [] ) );
+		if ( empty( $required_nodes ) && is_array( $template['requirements']['node_classes'] ?? null ) ) {
+			$required_nodes = array_map( 'strval', (array) $template['requirements']['node_classes'] );
+		}
+
 		$nodes = array_values( array_unique( array_merge(
-			array_map( 'strval', (array) ( $template['required_nodes'] ?? [] ) ),
+			$required_nodes,
 			$workflow ? self::extract_nodes( $workflow, $modality ?? Generation_Modality::TEXT_TO_IMAGE, true ) : []
 		) ) );
 		sort( $nodes );
+
+		if ( null === $modality ) {
+			$modality = self::infer_modality( $template, $nodes );
+		}
+
+		$models = $workflow ? self::extract_models( $workflow ) : [];
+		if ( empty( $models ) ) {
+			$models = self::extract_requirement_models( $template );
+		}
 
 		return [
 			'id'             => $id,
@@ -327,7 +343,7 @@ class Comfy_Manifest {
 			'modality'       => $modality,
 			'model_family'   => Model_Family::for_nodes( $nodes ),
 			'required_nodes' => $nodes,
-			'models'         => $workflow ? self::extract_models( $workflow ) : [],
+			'models'         => $models,
 			'model_urls'     => self::extract_model_urls( $template ),
 			'parameters'     => is_array( $template['parameters'] ?? null ) ? $template['parameters'] : [],
 			'workflow_hash'  => $workflow ? 'sha1:' . sha1( (string) wp_json_encode( $workflow ) ) : '',
@@ -342,10 +358,18 @@ class Comfy_Manifest {
 	 * @return string|null
 	 */
 	public static function modality_for_task_type( string $task_type ): ?string {
-		$task_type = strtolower( trim( $task_type ) );
+		$task_type = strtolower( trim( str_replace( [ '_', ' ' ], '-', $task_type ) ) );
 		if ( '' === $task_type ) {
 			return null;
 		}
+
+		$aliases = [
+			'txt2video' => 'text-to-video',
+			'img2video' => 'image-to-video',
+			'vid2video' => 'video-to-video',
+			'txt2speech' => 'text-to-speech',
+		];
+		$task_type = $aliases[ $task_type ] ?? $task_type;
 
 		foreach ( Generation_Modality::all() as $slug => $modality ) {
 			if ( strtolower( (string) $modality['task_type'] ) === $task_type ) {
@@ -371,7 +395,25 @@ class Comfy_Manifest {
 
 		$urls = self::extract_model_urls( $template );
 		if ( empty( $urls ) ) {
-			return new WP_Error( 'worldgraph_comfy_template_no_downloads', __( 'The provider Template did not advertise downloadable requirements.', 'worldgraph' ) );
+			$missing = array_values( array_filter( array_map( 'strval', (array) ( $template['requirements']['missing_models'] ?? [] ) ) ) );
+			if ( empty( $missing ) ) {
+				foreach ( (array) ( $template['requirements']['models'] ?? [] ) as $model ) {
+					if ( is_array( $model ) && ! empty( $model['filename'] ) && empty( $model['installed'] ) ) {
+						$missing[] = (string) $model['filename'];
+					}
+				}
+			}
+
+			$message = __( 'The provider Template did not advertise downloadable requirements.', 'worldgraph' );
+			if ( ! empty( $missing ) ) {
+				$message = sprintf(
+					/* translators: %s: comma-separated list of model filenames. */
+					__( 'The provider Template did not advertise downloadable requirements. Install manually: %s', 'worldgraph' ),
+					implode( ', ', array_unique( $missing ) )
+				);
+			}
+
+			return new WP_Error( 'worldgraph_comfy_template_no_downloads', $message );
 		}
 
 		$result = Comfy_Cloud_MCP::download_models( $urls, $connection_id );
@@ -550,12 +592,110 @@ class Comfy_Manifest {
 	private static function extract_model_urls( array $template ): array {
 		$urls = [];
 		array_walk_recursive( $template, static function ( $value, $key ) use ( &$urls ): void {
-			if ( is_string( $value ) && preg_match( '#^https?://#', $value ) && in_array( $key, [ 'url', 'models', 'model_url', 'download_url' ], true ) ) {
+			if ( is_string( $value ) && preg_match( '#^https?://#', $value ) && in_array( $key, [ 'url', 'models', 'model_url', 'download_url', 'source_url' ], true ) ) {
 				$urls[] = $value;
 			}
 		} );
 
 		return array_values( array_unique( $urls ) );
+	}
+
+	/**
+	 * Enrich lightweight list_templates entries by resolving the full template
+	 * descriptor from get_template when the provider supports it.
+	 *
+	 * @param array $template Raw MCP list_templates entry.
+	 * @param int   $connection_id Connection post ID.
+	 * @return array
+	 */
+	private static function enrich_template_descriptor( array $template, int $connection_id ): array {
+		$has_workflow = is_array( $template['workflow'] ?? null ) && ! empty( $template['workflow'] );
+		$has_requirements = is_array( $template['requirements'] ?? null ) || is_array( $template['required_nodes'] ?? null );
+		if ( $has_workflow || $has_requirements ) {
+			return $template;
+		}
+
+		$id = (string) ( $template['id'] ?? $template['template_id'] ?? '' );
+		if ( '' === trim( $id ) ) {
+			return $template;
+		}
+
+		$resolved = Comfy_Cloud_MCP::get_template( $id, [], $connection_id );
+		if ( is_wp_error( $resolved ) || ! is_array( $resolved ) ) {
+			return $template;
+		}
+
+		$resolved['id'] = (string) ( $resolved['id'] ?? $id );
+		$resolved['name'] = (string) ( $resolved['name'] ?? $template['name'] ?? $resolved['id'] );
+
+		return $resolved;
+	}
+
+	/**
+	 * Infer modality when the provider omits explicit task_type metadata.
+	 *
+	 * @param array               $template Provider template descriptor.
+	 * @param array<int, string>  $nodes    Required node classes.
+	 * @return string|null
+	 */
+	private static function infer_modality( array $template, array $nodes ): ?string {
+		$name = strtolower( trim( (string) ( $template['name'] ?? $template['id'] ?? '' ) ) );
+		if ( '' !== $name ) {
+			if ( false !== strpos( $name, 'text to video' ) || false !== strpos( $name, 'text-to-video' ) || false !== strpos( $name, 'txt2video' ) ) {
+				return Generation_Modality::TEXT_TO_VIDEO;
+			}
+			if ( false !== strpos( $name, 'image to video' ) || false !== strpos( $name, 'image-to-video' ) || false !== strpos( $name, 'img2video' ) ) {
+				return Generation_Modality::TEXT_IMAGE_TO_VIDEO;
+			}
+			if ( false !== strpos( $name, 'video to video' ) || false !== strpos( $name, 'video-to-video' ) || false !== strpos( $name, 'vid2video' ) ) {
+				return Generation_Modality::VIDEO_TO_VIDEO;
+			}
+		}
+
+		$has_video_nodes = in_array( 'SaveVideo', $nodes, true ) || in_array( 'CreateVideo', $nodes, true );
+		if ( ! $has_video_nodes ) {
+			return null;
+		}
+
+		if ( in_array( 'LoadImage', $nodes, true ) || in_array( 'LTXVImgToVideo', $nodes, true ) || in_array( 'LTXVImgToVideoInplace', $nodes, true ) ) {
+			return Generation_Modality::TEXT_IMAGE_TO_VIDEO;
+		}
+
+		return Generation_Modality::TEXT_TO_VIDEO;
+	}
+
+	/**
+	 * Model requirement hints from provider-supplied requirements metadata.
+	 *
+	 * @param array $template Provider template descriptor.
+	 * @return array<int, array<string, string>>
+	 */
+	private static function extract_requirement_models( array $template ): array {
+		$models = [];
+		foreach ( (array) ( $template['requirements']['models'] ?? [] ) as $model ) {
+			if ( ! is_array( $model ) ) {
+				continue;
+			}
+
+			$filename = trim( (string) ( $model['filename'] ?? '' ) );
+			if ( '' === $filename ) {
+				continue;
+			}
+
+			$folder = trim( (string) ( $model['expected_folder'] ?? '' ) );
+			if ( '' === $folder ) {
+				$folder = 'checkpoints';
+			}
+
+			$models[] = [
+				'node_class' => '',
+				'field'      => '',
+				'filename'   => $filename,
+				'folder'     => sanitize_key( $folder ),
+			];
+		}
+
+		return $models;
 	}
 
 	/**

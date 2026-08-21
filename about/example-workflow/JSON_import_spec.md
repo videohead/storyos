@@ -59,7 +59,8 @@ updating or skipping the legacy records.
 
 ### Taxonomies
 
-Taxonomy values are lowercase WordPress term slugs:
+Taxonomy values are lowercase WordPress term slugs. Numeric term IDs and term
+display names are installation-specific and are rejected:
 
 - `project.genres[]` -> `worldgraph_genre`
 - `project.production_status` -> `worldgraph_status`
@@ -156,11 +157,13 @@ Verification and import report
 When overwrite is disabled, an existing entity with the same external ID is
 resolved for references but is not mutated. When overwrite is enabled, the
 importer applies patch semantics to optional fields: omitted keys retain their
-stored value, while an explicitly empty string, `null`, or empty array clears
-the corresponding value or relationship. Required identity and relationship
-values present in the document are always applied. `sequence.order` is a
-snapshot: overwrite also removes stale Scene and Shot assignments from that
-Sequence.
+stored value, while an explicitly empty string or `null` clears a scalar field
+and an empty array clears an array-valued field or relationship. Required
+identity and relationship values present in the document are always applied.
+`sequence.order` is a snapshot: overwrite also removes stale Scene and Shot
+assignments from that Sequence. Other Project and World container relationships
+are additive: an omitted child section or omitted child record does not remove
+an existing container edge.
 
 ## Top-Level Document
 
@@ -477,7 +480,8 @@ describe a planned result whose `storage_uri` will be fulfilled later.
 
 Sound `asset` references must resolve to an Asset whose `asset_type` is `audio`.
 Character avatars, Location visual references, and Storyboard images must resolve
-to suitable visual Assets.
+to Assets typed `image`, `character`, `environment`, `prop`, `storyboard`,
+`lookbook`, or `concept-art`.
 
 ## Storyboard Frames
 
@@ -520,7 +524,7 @@ not an attached export file.
 | `source_scene` | string | `meta.source_scene`, relationship | Optional Scene external ID. |
 | `source_shot` | string | `meta.source_shot`, relationship | Optional Shot external ID; must belong to `source_scene` when both are present. |
 | `notes` | string | `meta.notes` | Editorial intent, review, or delivery notes. |
-| `project` | string | `meta.project`, relationship | Project external ID. |
+| `project` | string | `meta.project`, relationship | Required top-level Project external ID. |
 
 ## Sequence
 

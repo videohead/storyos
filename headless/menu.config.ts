@@ -1,6 +1,7 @@
 export const mainMenu = {
   home: "/",
   posts: "/posts",
+  connections: "/connections",
 };
 
 export const contentMenu = {

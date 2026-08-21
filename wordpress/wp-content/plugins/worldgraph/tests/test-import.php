@@ -104,7 +104,10 @@ class Test_WorldGraph_Import extends TestCase {
 		$this->assertNotFalse( $source );
 		$this->assertStringContainsString( "\$prop['owner_character']", $source );
 		$this->assertStringContainsString( "worldgraph_update_field_value( \$prop_id, 'owner_character', \$char_id )", $source );
-		$this->assertStringContainsString( "relationship_slot_matches( \$prop_id, 'worldgraph_prop', 'owner_character'", $source );
+		$this->assertStringContainsString(
+			"relationship_field_targets_match( \$prop_id, 'worldgraph_prop', 'owner_character', array_filter( [ \$character_id ] ), 'worldgraph_character' )",
+			$source
+		);
 		$this->assertStringContainsString( 'validate_references', $source );
 	}
 
@@ -156,7 +159,21 @@ class Test_WorldGraph_Import extends TestCase {
 		$this->assertStringContainsString( "! is_string( \$data[ \$section ]['id'] )", $source );
 		$this->assertStringContainsString( "! is_string( \$entity['id'] )", $source );
 		$this->assertStringContainsString( "! is_string( \$data['sequence']['id'] )", $source );
+		$this->assertStringContainsString( '$raw_data = json_decode( $json );', $source );
+		$this->assertStringContainsString( 'validate_field_values( $data, $raw_data )', $source );
 		$this->assertStringContainsString(
+			"property_exists( \$raw_asset, 'generation_parameters' )",
+			$source
+		);
+		$this->assertStringContainsString(
+			'! is_object( $raw_asset->generation_parameters )',
+			$source
+		);
+		$this->assertStringContainsString(
+			"\$asset['generation_parameters'] = \$raw_asset->generation_parameters;",
+			$source
+		);
+		$this->assertStringNotContainsString(
 			"array_key_exists( 'generation_parameters', \$asset ) && ! is_array( \$asset['generation_parameters'] )",
 			$source
 		);
@@ -166,6 +183,120 @@ class Test_WorldGraph_Import extends TestCase {
 		);
 		$this->assertStringContainsString( "! is_numeric( \$shot['take_number'] )", $source );
 		$this->assertStringContainsString( 'take_number must be at least 1.', $source );
+	}
+
+	/** Portable taxonomy fields accept only nonempty canonical slug strings. */
+	public function test_importer_enforces_canonical_taxonomy_slug_values() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString(
+			'private function validate_taxonomy_slug( $value, string $context, array &$errors ): void',
+			$source
+		);
+		$this->assertStringContainsString(
+			"! is_string( \$value ) || '' === \$value || is_numeric( \$value ) || sanitize_title( \$value ) !== \$value",
+			$source
+		);
+		$this->assertStringContainsString( 'values must be non-empty lowercase taxonomy slugs.', $source );
+		$this->assertStringContainsString(
+			"\$term = get_term_by( 'slug', (string) \$raw_term, \$taxonomy );",
+			$source
+		);
+		$this->assertStringNotContainsString( 'is_numeric( $raw_term )', $source );
+		$this->assertStringNotContainsString( 'get_term( absint( $raw_term ), $taxonomy )', $source );
+
+		foreach (
+			[
+				"[ \$data['project']['genres'] ?? [], 'Project genres' ]",
+				"\$character['roles'] ?? []",
+				"\$character['relations'] ?? []",
+				"\$scene['tags'] ?? []",
+				"\$data['project']['production_status']",
+				"\$episode['production_status']",
+				"\$sound['type'] ?? ''",
+				"\$sound['production_status']",
+				"[ 'type', 'asset_type' ]",
+			] as $taxonomy_validation
+		) {
+			$this->assertStringContainsString( $taxonomy_validation, $source );
+		}
+	}
+
+	/** Editorial records must explicitly name the document Project. */
+	public function test_importer_requires_editorial_project_reference() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$references_start = strpos( $source, 'private function validate_references( array $data )' );
+		$references_end   = strpos( $source, 'private function validate_reference(', $references_start );
+		$this->assertNotFalse( $references_start );
+		$this->assertNotFalse( $references_end );
+		$references = substr( $source, $references_start, $references_end - $references_start );
+
+		$editorial_start = strpos( $references, "foreach ( \$data['editorial_artifacts'] as \$artifact )" );
+		$editorial_end   = strpos( $references, "foreach ( \$data['sounds'] as \$sound )", $editorial_start );
+		$this->assertNotFalse( $editorial_start );
+		$this->assertNotFalse( $editorial_end );
+		$editorial_validation = substr( $references, $editorial_start, $editorial_end - $editorial_start );
+
+		$this->assertStringContainsString( "if ( empty( \$artifact['project'] ) )", $editorial_validation );
+		$this->assertStringContainsString( "\$errors[] = \$context . ' must reference its Project.';", $editorial_validation );
+		$this->assertStringContainsString(
+			"(string) \$artifact['project'] !== (string) \$data['project']['id']",
+			$editorial_validation
+		);
+	}
+
+	/** Episode Scene lists are ordered sets and may not repeat an external ID. */
+	public function test_importer_rejects_duplicate_episode_scene_ids() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString( '$seen_scene_ids = [];', $source );
+		$this->assertStringContainsString( 'isset( $seen_scene_ids[ $scene_id ] )', $source );
+		$this->assertStringContainsString( '%s lists Scene "%s" more than once.', $source );
+		$this->assertStringContainsString( '$seen_scene_ids[ $scene_id ] = true;', $source );
+	}
+
+	/** Verification must resolve Asset references that were not imported in this run. */
+	public function test_import_verification_resolves_existing_library_assets() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$verification_start = strpos( $source, 'private function verify_import(): void' );
+		$verification_end   = strpos( $source, 'private function relationship_slot_matches(', $verification_start );
+		$this->assertNotFalse( $verification_start );
+		$this->assertNotFalse( $verification_end );
+		$verification = substr( $source, $verification_start, $verification_end - $verification_start );
+
+		$this->assertStringContainsString(
+			"? \$this->resolve_external_id( 'worldgraph_asset', (string) \$sound[ \$field ] )",
+			$verification
+		);
+		$this->assertStringContainsString(
+			"\$asset_id = empty( \$frame['image_asset'] ) ? 0 : \$this->resolve_external_id( 'worldgraph_asset', (string) \$frame['image_asset'] );",
+			$verification
+		);
+	}
+
+	/** Legacy storyboard cleanup must not alter a Shot skipped by no-overwrite import. */
+	public function test_storyboard_cleanup_does_not_mutate_skipped_shots() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString(
+			"if ( ! \$this->entity_was_skipped( (string) \$frame['shot'] ) )",
+			$source
+		);
+		$this->assertStringContainsString(
+			"\$shot_id === (int) ( \$relationship['from_id'] ?? 0 )",
+			$source
+		);
+		$this->assertStringContainsString(
+			"remove_relationship( \$shot_id, \$frame_id, 'worldgraph_shot', 'worldgraph_board', 'contains' )",
+			$source
+		);
 	}
 
 	/**

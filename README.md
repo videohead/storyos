@@ -191,6 +191,23 @@ variables use `WORLDGRAPH_`.
 
 ## Development
 
+### Node and npm usage
+
+Use container-managed Node.js by default. For this repository, run Node/npm
+commands in the Lando `cli` service (or the `headless` service when running
+the optional Next.js frontend). This avoids host-version drift and ad-hoc local
+toolchain installs.
+
+Examples:
+
+```bash
+lando exec cli -- sh -lc 'node -v && npm -v'
+lando exec cli -- sh -lc 'cd /app/headless && npm run build'
+```
+
+Only use host-installed Node/npm when you intentionally run the headless app
+outside Lando.
+
 Run the PHP test suite without writing PHPUnit's result cache:
 
 ```bash

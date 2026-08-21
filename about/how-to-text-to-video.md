@@ -1,29 +1,59 @@
-To enable both WAN 2.2 and LTX 2.5 through local ComfyUI MCP, use this flow:
+# Text to Video with Local ComfyUI MCP
 
-Set local generation mode in Setup Wizard
-Go to WordPress Admin → World Graph Studio → Setup & Settings.
-In Generation Connection, choose Local ComfyUI HTTP API + MCP.
+Use this sequence to enable WAN and LTX local templates through the ComfyUI
+Connection.
 
-Enter both local endpoints
-Local ComfyUI API URL: http://host.lando.internal:8188
-Local ComfyUI MCP URL: http://host.lando.internal:9000/mcp
-Use your actual MCP port/path if different.
+## 1. Configure local endpoints
 
-Save setup
-This creates/updates the managed local ComfyUI connection with both endpoint_url and mcp_endpoint_url.
+In WordPress Admin, open World Graph Studio > Setup & Settings and select
+Local ComfyUI HTTP API + MCP.
 
-Sync provider catalog from the connection
-Open the managed ComfyUI connection and run Sync Catalog.
-For automatic template provisioning, your MCP must advertise:
+- Local ComfyUI API URL: `http://host.lando.internal:8188`
+- Local ComfyUI MCP URL: `http://host.lando.internal:9000/mcp`
 
-list_templates
-get_template
-download_models
-Enable and materialize both families
-In the catalog UI, enable and materialize entries for:
-WAN 2.2 workflows
-LTX 2.5 workflows
-This creates separate World Graph Studio templates linked to the same local connection.
-Validate each template and install requirements
-Open each materialized template and run the ComfyUI requirement check.
-If models/nodes are missing, use Install missing models (if download_models is available) or install manually in ComfyUI, then re-check.
+If your MCP service runs on a different host/port/path, use that real value.
+
+## 2. Save and open the managed Connection
+
+Saving setup creates or updates the managed local ComfyUI Connection with both:
+
+- `endpoint_url` (ComfyUI HTTP API)
+- `mcp_endpoint_url` (separate MCP service)
+
+## 3. Prepare provider templates
+
+From the Connection configurator:
+
+1. Click Sync Catalog.
+2. Click Auto-Prepare Mappable Templates.
+
+This performs a guided flow: sync, enable, then materialize every mappable
+entry.
+
+For this to be fully automatic, the MCP server should advertise:
+
+- `list_templates`
+- `get_template`
+- `download_models`
+
+## 4. Validate requirements
+
+Open each generated Template and run Check ComfyUI requirements.
+
+- If download URLs are available, use Download Requirements.
+- If URLs are not advertised, install missing files manually in ComfyUI and
+	re-check.
+
+## 5. Headless workflow (optional)
+
+The same flow is available through REST for headless UIs:
+
+- `POST /wp-json/worldgraph/v1/connections/{id}/catalog/sync`
+- `POST /wp-json/worldgraph/v1/connections/{id}/catalog/prepare`
+- `POST /wp-json/worldgraph/v1/connections/{id}/catalog/entries/{entry_id}/materialize`
+
+## Node and npm note
+
+Use container-managed Node/npm for project commands (Lando `cli` or `headless`
+services). Avoid installing or changing host Node versions unless you are
+intentionally running the headless app outside Lando.

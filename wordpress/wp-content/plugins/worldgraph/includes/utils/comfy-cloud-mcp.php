@@ -15,11 +15,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Comfy_Cloud_MCP {
 	const ENDPOINT = 'https://cloud.comfy.org/mcp';
+	const PROTOCOL_VERSIONS = [ '2026-07-28', '2025-03-26' ];
 
 	/**
 	 * Transient holding the MCP server's advertised tool names.
 	 */
 	const TOOLS_TRANSIENT = 'worldgraph_comfy_mcp_tools';
+
+	/**
+	 * Transient holding full MCP tool descriptors (name, input schema, output schema).
+	 */
+	const TOOL_DEFS_TRANSIENT = 'worldgraph_comfy_mcp_tool_defs';
 
 	/**
 	 * Whether Comfy Cloud MCP credentials are available to WordPress.
@@ -79,18 +85,13 @@ class Comfy_Cloud_MCP {
 			return $cached;
 		}
 
-		$session = self::initialize( $connection_id );
-		if ( is_wp_error( $session ) ) {
-			return $session;
-		}
-
-		$result = self::request( 'tools/list', [], $session, $connection_id );
+		$result = self::available_tool_definitions( $connection_id );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}
 
 		$tools = [];
-		foreach ( (array) ( $result['tools'] ?? [] ) as $tool ) {
+		foreach ( (array) $result as $tool ) {
 			if ( is_array( $tool ) && ! empty( $tool['name'] ) ) {
 				$tools[] = (string) $tool['name'];
 			}
@@ -183,9 +184,11 @@ class Comfy_Cloud_MCP {
 	 * @return array|WP_Error
 	 */
 	public static function list_templates( array $filters = [], int $connection_id = 0 ) {
-		return self::call_discovery_tool( 'list_templates', array_filter( $filters, static function ( $value ) {
+		$filters = self::normalize_list_template_filters( array_filter( $filters, static function ( $value ) {
 			return null !== $value && '' !== $value;
 		} ), $connection_id );
+
+		return self::call_discovery_tool( 'list_templates', $filters, $connection_id );
 	}
 
 	/**
@@ -198,10 +201,13 @@ class Comfy_Cloud_MCP {
 	 * @return array|WP_Error
 	 */
 	public static function get_template( string $template_id, array $parameters = [], int $connection_id = 0 ) {
-		return self::call_discovery_tool( 'get_template', [
-			'templateId' => $template_id,
+		$arguments = [
 			'parameters' => (object) $parameters,
-		], $connection_id );
+		];
+		$argument_name = self::tool_argument_name( 'get_template', [ 'templateId', 'template_id', 'id', 'name' ], $connection_id );
+		$arguments[ $argument_name ?: ( self::is_local_connection( $connection_id ) ? 'template_id' : 'templateId' ) ] = $template_id;
+
+		return self::call_discovery_tool( 'get_template', $arguments, $connection_id );
 	}
 
 	/**
@@ -217,7 +223,9 @@ class Comfy_Cloud_MCP {
 			return new WP_Error( 'comfy_mcp_no_models', 'No model download URLs were supplied.' );
 		}
 
-		return self::call_discovery_tool( 'download_models', [ 'urls' => $urls ], $connection_id );
+		$argument_name = self::tool_argument_name( 'download_models', [ 'urls', 'model_urls', 'models' ], $connection_id );
+
+		return self::call_discovery_tool( 'download_models', [ ( $argument_name ?: 'urls' ) => $urls ], $connection_id );
 	}
 
 	/**
@@ -253,10 +261,14 @@ class Comfy_Cloud_MCP {
 
 		$result = self::request( 'tools/call', [
 			'name'      => $name,
-			'arguments' => $arguments,
+			'arguments' => (object) $arguments,
 		], $session, $connection_id );
 		if ( is_wp_error( $result ) ) {
 			return $result;
+		}
+
+		if ( isset( $result['structuredContent'] ) && is_array( $result['structuredContent'] ) ) {
+			return $result['structuredContent'];
 		}
 
 		if ( isset( $result['content'] ) && is_array( $result['content'] ) ) {
@@ -274,24 +286,31 @@ class Comfy_Cloud_MCP {
 	}
 
 	private static function initialize( int $connection_id = 0 ) {
-		$result = self::request( 'initialize', [
-			'protocolVersion' => '2025-03-26',
-			'capabilities'    => new \stdClass(),
-			'clientInfo'      => [
-				'name'    => 'World Graph Studio WordPress',
-				'version' => defined( 'WORLDGRAPH_VERSION' ) ? WORLDGRAPH_VERSION : '1.0.0',
-			],
-		], '', $connection_id );
+		$last_error = null;
+		foreach ( self::PROTOCOL_VERSIONS as $protocol_version ) {
+			$result = self::request( 'initialize', [
+				'protocolVersion' => $protocol_version,
+				'capabilities'    => new \stdClass(),
+				'clientInfo'      => [
+					'name'    => 'World Graph Studio WordPress',
+					'version' => defined( 'WORLDGRAPH_VERSION' ) ? WORLDGRAPH_VERSION : '1.0.0',
+				],
+			], '', $connection_id );
 
-		if ( is_wp_error( $result ) ) {
-			return $result;
+			if ( is_wp_error( $result ) ) {
+				$last_error = $result;
+				continue;
+			}
+
+			if ( empty( $result['_session_id'] ) ) {
+				$last_error = new WP_Error( 'comfy_mcp_session_missing', 'Comfy Cloud MCP did not establish a session.' );
+				continue;
+			}
+
+			return $result['_session_id'];
 		}
 
-		if ( empty( $result['_session_id'] ) ) {
-			return new WP_Error( 'comfy_mcp_session_missing', 'Comfy Cloud MCP did not establish a session.' );
-		}
-
-		return $result['_session_id'];
+		return $last_error ?: new WP_Error( 'comfy_mcp_initialize_failed', 'Comfy MCP initialization failed.' );
 	}
 
 	private static function request( string $method, array $params, string $session_id = '', int $connection_id = 0 ) {
@@ -401,5 +420,122 @@ class Comfy_Cloud_MCP {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Full tools/list payload for this endpoint, cached for one hour.
+	 *
+	 * @param int $connection_id Connection post ID.
+	 * @return array<int, array>|WP_Error
+	 */
+	private static function available_tool_definitions( int $connection_id = 0 ) {
+		$key = self::TOOL_DEFS_TRANSIENT . md5( self::endpoint( $connection_id ) );
+		$cached = get_transient( $key );
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$session = self::initialize( $connection_id );
+		if ( is_wp_error( $session ) ) {
+			return $session;
+		}
+
+		$result = self::request( 'tools/list', [], $session, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$tools = array_values( array_filter( (array) ( $result['tools'] ?? [] ), 'is_array' ) );
+		set_transient( $key, $tools, HOUR_IN_SECONDS );
+
+		return $tools;
+	}
+
+	/**
+	 * Pick the first candidate argument name a tool's input schema advertises.
+	 *
+	 * @param string            $tool_name Tool name.
+	 * @param array<int, string> $candidates Candidate argument names in preference order.
+	 * @param int               $connection_id Connection post ID.
+	 * @return string|null
+	 */
+	private static function tool_argument_name( string $tool_name, array $candidates, int $connection_id ): ?string {
+		$definitions = self::available_tool_definitions( $connection_id );
+		if ( is_wp_error( $definitions ) ) {
+			return null;
+		}
+
+		foreach ( $definitions as $tool ) {
+			if ( (string) ( $tool['name'] ?? '' ) !== $tool_name ) {
+				continue;
+			}
+
+			$properties = $tool['inputSchema']['properties'] ?? [];
+			if ( ! is_array( $properties ) ) {
+				return null;
+			}
+
+			foreach ( $candidates as $candidate ) {
+				if ( array_key_exists( $candidate, $properties ) ) {
+					return $candidate;
+				}
+			}
+
+			return null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Adapt list_templates filter key casing to the provider's declared schema.
+	 *
+	 * @param array<string, mixed> $filters Requested filters.
+	 * @param int                  $connection_id Connection post ID.
+	 * @return array<string, mixed>
+	 */
+	private static function normalize_list_template_filters( array $filters, int $connection_id ): array {
+		if ( empty( $filters ) ) {
+			return [];
+		}
+
+		$definitions = self::available_tool_definitions( $connection_id );
+		if ( is_wp_error( $definitions ) ) {
+			return $filters;
+		}
+
+		$properties = [];
+		foreach ( $definitions as $tool ) {
+			if ( 'list_templates' !== (string) ( $tool['name'] ?? '' ) ) {
+				continue;
+			}
+			$properties = is_array( $tool['inputSchema']['properties'] ?? null ) ? $tool['inputSchema']['properties'] : [];
+			break;
+		}
+
+		if ( empty( $properties ) ) {
+			return [];
+		}
+
+		$mapped = [];
+		$aliases = [
+			'task_type'  => [ 'task_type', 'taskType' ],
+			'model_type' => [ 'model_type', 'modelType' ],
+			'search'     => [ 'search', 'query' ],
+		];
+
+		foreach ( $aliases as $source => $targets ) {
+			if ( ! array_key_exists( $source, $filters ) ) {
+				continue;
+			}
+			foreach ( $targets as $target ) {
+				if ( array_key_exists( $target, $properties ) ) {
+					$mapped[ $target ] = $filters[ $source ];
+					break;
+				}
+			}
+		}
+
+		return empty( $mapped ) ? $filters : $mapped;
 	}
 }

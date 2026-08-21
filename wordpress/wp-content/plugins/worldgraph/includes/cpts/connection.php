@@ -612,6 +612,7 @@ class Connection {
 		<p class="description"><?php echo esc_html__( 'Sync this Connection against its MCP-advertised capabilities, then enable and materialize provider templates into World Graph Studio Templates. Download actions trigger provider-side model fetches where available.', 'worldgraph' ); ?></p>
 		<p>
 			<button type="button" class="button" id="worldgraph-connection-sync-catalog"><?php echo esc_html__( 'Sync Catalog', 'worldgraph' ); ?></button>
+			<button type="button" class="button button-primary" id="worldgraph-connection-guided-setup" style="margin-left:6px;"><?php echo esc_html__( 'Auto-Prepare Mappable Templates', 'worldgraph' ); ?></button>
 			<span class="description" style="margin-left:8px;"><?php
 			printf(
 				/* translators: %s: catalog timestamp. */
@@ -620,14 +621,46 @@ class Connection {
 			);
 			?></span>
 		</p>
+		<p class="description" id="worldgraph-connection-process-guide"><?php echo esc_html__( 'Recommended flow: 1) Sync Catalog, 2) Auto-Prepare Mappable Templates, 3) Download Requirements for templates that advertise URLs.', 'worldgraph' ); ?></p>
 		<div id="worldgraph-connection-configurator-status" aria-live="polite" class="description"></div>
+		<div id="worldgraph-connection-configurator-summary" class="description" style="margin:6px 0 10px;"></div>
+		<div id="worldgraph-connection-configurator-log" class="description" style="margin:6px 0 10px;"></div>
 		<div id="worldgraph-connection-configurator-results"></div>
 		<script>
 			(function () {
 				var nonce = '<?php echo esc_js( wp_create_nonce( 'worldgraph_conn_configurator' ) ); ?>';
 				var connectionId = '<?php echo esc_js( (string) $post->ID ); ?>';
 				var status = document.getElementById('worldgraph-connection-configurator-status');
+				var summary = document.getElementById('worldgraph-connection-configurator-summary');
+				var log = document.getElementById('worldgraph-connection-configurator-log');
 				var results = document.getElementById('worldgraph-connection-configurator-results');
+				var syncButton = document.getElementById('worldgraph-connection-sync-catalog');
+				var guidedButton = document.getElementById('worldgraph-connection-guided-setup');
+				var isBusy = false;
+				var actionLog = [];
+
+				function timestamp() {
+					var now = new Date();
+					return now.toLocaleTimeString();
+				}
+
+				function pushLog(message) {
+					actionLog.unshift('[' + timestamp() + '] ' + message);
+					actionLog = actionLog.slice(0, 8);
+					log.textContent = actionLog.join(' | ');
+				}
+
+				function setBusy(flag, message) {
+					isBusy = flag;
+					if (message) {
+						status.textContent = message;
+					}
+					syncButton.disabled = flag;
+					guidedButton.disabled = flag;
+					Array.prototype.forEach.call(results.querySelectorAll('button'), function (button) {
+						button.disabled = flag;
+					});
+				}
 
 				function post(action, extra) {
 					var payload = { action: action, nonce: nonce, connection_id: connectionId };
@@ -639,35 +672,110 @@ class Connection {
 					}).then(function (response) { return response.json(); });
 				}
 
+				function badgeText(entry) {
+					var modality = entry.modality || 'unmappable';
+					var state = entry.status || 'unknown';
+					return modality + ' | ' + state;
+				}
+
+				function setSummary(entries) {
+					var total = entries.length;
+					var mappable = entries.filter(function (entry) { return !!entry.modality; }).length;
+					var enabled = entries.filter(function (entry) { return !!entry.enabled; }).length;
+					var materialized = entries.filter(function (entry) { return !!entry.template_id; }).length;
+					summary.textContent = 'Templates: ' + total + ' total, ' + mappable + ' mappable, ' + enabled + ' enabled, ' + materialized + ' materialized.';
+				}
+
+				function withResponseMessage(response, fallback) {
+					if (response && response.data && response.data.message) {
+						return response.data.message;
+					}
+
+					return fallback;
+				}
+
 				function render(entries) {
 					results.replaceChildren();
 					if (!entries || !entries.length) {
+						setSummary([]);
 						results.textContent = '<?php echo esc_js( __( 'No provider templates discovered yet. Sync the catalog first.', 'worldgraph' ) ); ?>';
 						return;
 					}
 
+					setSummary(entries);
+
 					entries.forEach(function (entry) {
 						var row = document.createElement('p');
+						row.style.margin = '0 0 10px';
 						var title = document.createElement('strong');
-						title.textContent = (entry.name || entry.id) + ' '; 
+						title.textContent = (entry.name || entry.id) + ' ';
 						row.appendChild(title);
-						row.appendChild(document.createTextNode('(' + (entry.modality || 'unmappable') + ', ' + (entry.status || 'unknown') + ') '));
+
+						var badge = document.createElement('span');
+						badge.textContent = '[' + badgeText(entry) + '] ';
+						badge.className = 'description';
+						row.appendChild(badge);
 
 						var enable = document.createElement('button');
 						enable.type = 'button';
 						enable.className = 'button button-small';
 						enable.textContent = entry.enabled ? '<?php echo esc_js( __( 'Disable', 'worldgraph' ) ); ?>' : '<?php echo esc_js( __( 'Enable', 'worldgraph' ) ); ?>';
 						enable.addEventListener('click', function () {
+							if (isBusy) {
+								return;
+							}
 							var action = entry.enabled ? 'worldgraph_disable_connection_catalog_entry' : 'worldgraph_enable_connection_catalog_entry';
-							status.textContent = '<?php echo esc_js( __( 'Updating catalog entry…', 'worldgraph' ) ); ?>';
+							setBusy(true, '<?php echo esc_js( __( 'Updating catalog entry…', 'worldgraph' ) ); ?>');
 							post(action, { entry_id: entry.id }).then(function (response) {
-								status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Catalog entry updated.', 'worldgraph' ) ); ?>';
+								status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Catalog entry updated.', 'worldgraph' ) ); ?>');
+								pushLog(status.textContent);
 								if (response.success && response.data && response.data.snapshot) {
 									render(response.data.snapshot.entries || []);
 								}
+							}).finally(function () {
+								setBusy(false);
 							});
 						});
 						row.appendChild(enable);
+
+						var prepare = document.createElement('button');
+						prepare.type = 'button';
+						prepare.className = 'button button-small';
+						prepare.style.marginLeft = '6px';
+						prepare.textContent = '<?php echo esc_js( __( 'Enable + Materialize', 'worldgraph' ) ); ?>';
+						prepare.disabled = !entry.modality;
+						prepare.addEventListener('click', function () {
+							if (isBusy || !entry.modality) {
+								return;
+							}
+
+							setBusy(true, '<?php echo esc_js( __( 'Preparing provider template…', 'worldgraph' ) ); ?>');
+							var sequence = Promise.resolve();
+							if (!entry.enabled) {
+								sequence = sequence.then(function () {
+									return post('worldgraph_enable_connection_catalog_entry', { entry_id: entry.id });
+								});
+							}
+							sequence
+								.then(function () {
+									return post('worldgraph_materialize_connection_catalog_entry', { entry_id: entry.id });
+								})
+								.then(function (response) {
+									status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Template prepared.', 'worldgraph' ) ); ?>');
+									pushLog(status.textContent);
+									if (response.success && response.data && response.data.snapshot) {
+										render(response.data.snapshot.entries || []);
+									}
+								})
+								.catch(function () {
+									status.textContent = '<?php echo esc_js( __( 'Template preparation failed.', 'worldgraph' ) ); ?>';
+									pushLog(status.textContent);
+								})
+								.finally(function () {
+									setBusy(false);
+								});
+						});
+						row.appendChild(prepare);
 
 						var materialize = document.createElement('button');
 						materialize.type = 'button';
@@ -675,12 +783,18 @@ class Connection {
 						materialize.style.marginLeft = '6px';
 						materialize.textContent = '<?php echo esc_js( __( 'Materialize Template', 'worldgraph' ) ); ?>';
 						materialize.addEventListener('click', function () {
-							status.textContent = '<?php echo esc_js( __( 'Materializing Template…', 'worldgraph' ) ); ?>';
+							if (isBusy) {
+								return;
+							}
+							setBusy(true, '<?php echo esc_js( __( 'Materializing Template…', 'worldgraph' ) ); ?>');
 							post('worldgraph_materialize_connection_catalog_entry', { entry_id: entry.id }).then(function (response) {
-								status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Template materialized.', 'worldgraph' ) ); ?>';
+								status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Template materialized.', 'worldgraph' ) ); ?>');
+								pushLog(status.textContent);
 								if (response.success && response.data && response.data.snapshot) {
 									render(response.data.snapshot.entries || []);
 								}
+							}).finally(function () {
+								setBusy(false);
 							});
 						});
 						row.appendChild(materialize);
@@ -691,9 +805,15 @@ class Connection {
 						download.style.marginLeft = '6px';
 						download.textContent = '<?php echo esc_js( __( 'Download Requirements', 'worldgraph' ) ); ?>';
 						download.addEventListener('click', function () {
-							status.textContent = '<?php echo esc_js( __( 'Requesting provider downloads…', 'worldgraph' ) ); ?>';
+							if (isBusy) {
+								return;
+							}
+							setBusy(true, '<?php echo esc_js( __( 'Requesting provider downloads…', 'worldgraph' ) ); ?>');
 							post('worldgraph_download_connection_catalog_entry', { entry_id: entry.id }).then(function (response) {
-								status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Download request sent.', 'worldgraph' ) ); ?>';
+								status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Download request sent.', 'worldgraph' ) ); ?>');
+								pushLog(status.textContent);
+							}).finally(function () {
+								setBusy(false);
 							});
 						});
 						row.appendChild(download);
@@ -702,19 +822,100 @@ class Connection {
 					});
 				}
 
-				document.getElementById('worldgraph-connection-sync-catalog').addEventListener('click', function () {
-					status.textContent = '<?php echo esc_js( __( 'Syncing provider catalog…', 'worldgraph' ) ); ?>';
+				syncButton.addEventListener('click', function () {
+					if (isBusy) {
+						return;
+					}
+					setBusy(true, '<?php echo esc_js( __( 'Syncing provider catalog…', 'worldgraph' ) ); ?>');
 					post('worldgraph_sync_connection_catalog').then(function (response) {
 						if (!response.success) {
-							status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Catalog sync failed.', 'worldgraph' ) ); ?>';
+							status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Catalog sync failed.', 'worldgraph' ) ); ?>');
+							pushLog(status.textContent);
 							return;
 						}
-						status.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'Catalog synced.', 'worldgraph' ) ); ?>';
+						status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Catalog synced.', 'worldgraph' ) ); ?>');
+						pushLog(status.textContent);
 						render((response.data.snapshot && response.data.snapshot.entries) || []);
+					}).finally(function () {
+						setBusy(false);
+					});
+				});
+
+				guidedButton.addEventListener('click', function () {
+					if (isBusy) {
+						return;
+					}
+
+					setBusy(true, '<?php echo esc_js( __( 'Starting guided setup: syncing catalog…', 'worldgraph' ) ); ?>');
+					post('worldgraph_sync_connection_catalog').then(function (response) {
+						if (!response.success) {
+							status.textContent = withResponseMessage(response, '<?php echo esc_js( __( 'Catalog sync failed.', 'worldgraph' ) ); ?>');
+							pushLog(status.textContent);
+							return Promise.reject();
+						}
+
+						var entries = (response.data.snapshot && response.data.snapshot.entries) || [];
+						render(entries);
+						pushLog('<?php echo esc_js( __( 'Catalog synced. Preparing mappable templates…', 'worldgraph' ) ); ?>');
+
+						var queue = entries.filter(function (entry) { return !!entry.modality; });
+						if (!queue.length) {
+							status.textContent = '<?php echo esc_js( __( 'No mappable templates were discovered.', 'worldgraph' ) ); ?>';
+							pushLog(status.textContent);
+							return Promise.resolve(response);
+						}
+
+						var prepared = 0;
+						var failures = 0;
+
+						return queue.reduce(function (promise, entry, index) {
+							return promise.then(function () {
+								status.textContent = 'Preparing template ' + (index + 1) + ' of ' + queue.length + ': ' + (entry.name || entry.id);
+								var sequence = Promise.resolve();
+								if (!entry.enabled) {
+									sequence = sequence.then(function () {
+										return post('worldgraph_enable_connection_catalog_entry', { entry_id: entry.id });
+									});
+								}
+
+								sequence = sequence.then(function () {
+									return post('worldgraph_materialize_connection_catalog_entry', { entry_id: entry.id });
+								});
+
+								return sequence.then(function (opResponse) {
+									if (opResponse && opResponse.success) {
+										prepared++;
+									} else {
+										failures++;
+									}
+									if (opResponse && opResponse.data && opResponse.data.snapshot) {
+										render(opResponse.data.snapshot.entries || []);
+									}
+								}).catch(function () {
+									failures++;
+								});
+							});
+						}, Promise.resolve()).then(function () {
+							status.textContent = 'Guided setup finished. Prepared ' + prepared + ' template(s); ' + failures + ' failed.';
+							pushLog(status.textContent);
+							return post('worldgraph_sync_connection_catalog').then(function (finalResponse) {
+								if (finalResponse && finalResponse.success && finalResponse.data && finalResponse.data.snapshot) {
+									render(finalResponse.data.snapshot.entries || []);
+								}
+							});
+						});
+					}).catch(function () {
+						if (!status.textContent) {
+							status.textContent = '<?php echo esc_js( __( 'Guided setup did not complete.', 'worldgraph' ) ); ?>';
+							pushLog(status.textContent);
+						}
+					}).finally(function () {
+						setBusy(false);
 					});
 				});
 
 				render(<?php echo wp_json_encode( (array) ( $snapshot['entries'] ?? [] ) ); ?>);
+				pushLog('<?php echo esc_js( __( 'Configurator ready.', 'worldgraph' ) ); ?>');
 			}());
 		</script>
 		<?php
@@ -723,15 +924,12 @@ class Connection {
 	/** Sync the selected Connection's provider catalog. */
 	public static function ajax_sync_catalog(): void {
 		$connection_id = self::authorize_configurator_request();
-		$result = \WorldGraph\Utils\Comfy_Catalog::sync( $connection_id );
+		$result = self::catalog_sync( $connection_id );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
 		}
 
-		wp_send_json_success( [
-			'message'  => sprintf( __( 'Catalog synced: %d provider templates discovered.', 'worldgraph' ), count( (array) ( $result['entries'] ?? [] ) ) ),
-			'snapshot' => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
-		] );
+		wp_send_json_success( $result );
 	}
 
 	/** Enable one provider catalog entry. */
@@ -742,15 +940,12 @@ class Connection {
 			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'worldgraph' ) ] );
 		}
 
-		$result = \WorldGraph\Utils\Comfy_Catalog::enable( $connection_id, $entry_id );
+		$result = self::catalog_enable_entry( $connection_id, $entry_id );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
 		}
 
-		wp_send_json_success( [
-			'message'  => sprintf( __( 'Enabled provider template %s.', 'worldgraph' ), $entry_id ),
-			'snapshot' => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
-		] );
+		wp_send_json_success( $result );
 	}
 
 	/** Disable one provider catalog entry. */
@@ -761,11 +956,12 @@ class Connection {
 			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'worldgraph' ) ] );
 		}
 
-		\WorldGraph\Utils\Comfy_Catalog::disable( $connection_id, $entry_id );
-		wp_send_json_success( [
-			'message'  => sprintf( __( 'Disabled provider template %s.', 'worldgraph' ), $entry_id ),
-			'snapshot' => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
-		] );
+		$result = self::catalog_disable_entry( $connection_id, $entry_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+		}
+
+		wp_send_json_success( $result );
 	}
 
 	/** Materialize one provider catalog entry into a World Graph Studio Template post. */
@@ -776,17 +972,12 @@ class Connection {
 			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'worldgraph' ) ] );
 		}
 
-		$template_id = self::materialize_catalog_entry( $connection_id, $entry_id );
-		if ( is_wp_error( $template_id ) ) {
-			wp_send_json_error( [ 'message' => $template_id->get_error_message() ] );
+		$result = self::catalog_materialize_entry( $connection_id, $entry_id );
+		if ( is_wp_error( $result ) ) {
+			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
 		}
 
-		wp_send_json_success( [
-			'message'     => sprintf( __( 'Materialized provider template %1$s as World Graph Studio Template #%2$d.', 'worldgraph' ), $entry_id, $template_id ),
-			'template_id' => (int) $template_id,
-			'edit_url'    => get_edit_post_link( (int) $template_id, '' ),
-			'snapshot'    => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
-		] );
+		wp_send_json_success( $result );
 	}
 
 	/** Request provider-side downloads for one catalog entry. */
@@ -797,15 +988,160 @@ class Connection {
 			wp_send_json_error( [ 'message' => __( 'Select a catalog entry first.', 'worldgraph' ) ] );
 		}
 
-		$result = \WorldGraph\Utils\Comfy_Manifest::request_provider_template_downloads( $entry_id, $connection_id );
+		$result = self::catalog_download_entry( $connection_id, $entry_id );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
 		}
 
-		wp_send_json_success( [
+		wp_send_json_success( $result );
+	}
+
+	/**
+	 * Sync provider catalog for a ComfyUI connection.
+	 *
+	 * @param int $connection_id Connection post ID.
+	 * @return array|\WP_Error
+	 */
+	public static function catalog_sync( int $connection_id ) {
+		$result = \WorldGraph\Utils\Comfy_Catalog::sync( $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return [
+			'message'  => sprintf( __( 'Catalog synced: %d provider templates discovered.', 'worldgraph' ), count( (array) ( $result['entries'] ?? [] ) ) ),
+			'snapshot' => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
+		];
+	}
+
+	/**
+	 * Enable one catalog entry.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id Catalog entry ID.
+	 * @return array|\WP_Error
+	 */
+	public static function catalog_enable_entry( int $connection_id, string $entry_id ) {
+		$result = \WorldGraph\Utils\Comfy_Catalog::enable( $connection_id, $entry_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return [
+			'message'  => sprintf( __( 'Enabled provider template %s.', 'worldgraph' ), $entry_id ),
+			'snapshot' => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
+		];
+	}
+
+	/**
+	 * Disable one catalog entry.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id Catalog entry ID.
+	 * @return array|\WP_Error
+	 */
+	public static function catalog_disable_entry( int $connection_id, string $entry_id ) {
+		\WorldGraph\Utils\Comfy_Catalog::disable( $connection_id, $entry_id );
+
+		return [
+			'message'  => sprintf( __( 'Disabled provider template %s.', 'worldgraph' ), $entry_id ),
+			'snapshot' => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
+		];
+	}
+
+	/**
+	 * Materialize one catalog entry into a Template.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id Catalog entry ID.
+	 * @return array|\WP_Error
+	 */
+	public static function catalog_materialize_entry( int $connection_id, string $entry_id ) {
+		$template_id = self::materialize_catalog_entry( $connection_id, $entry_id );
+		if ( is_wp_error( $template_id ) ) {
+			return $template_id;
+		}
+
+		return [
+			'message'     => sprintf( __( 'Materialized provider template %1$s as World Graph Studio Template #%2$d.', 'worldgraph' ), $entry_id, $template_id ),
+			'template_id' => (int) $template_id,
+			'edit_url'    => get_edit_post_link( (int) $template_id, '' ),
+			'snapshot'    => \WorldGraph\Utils\Comfy_Catalog::get( $connection_id ),
+		];
+	}
+
+	/**
+	 * Trigger provider-side requirement downloads for one catalog entry.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id Catalog entry ID.
+	 * @return array|\WP_Error
+	 */
+	public static function catalog_download_entry( int $connection_id, string $entry_id ) {
+		$result = \WorldGraph\Utils\Comfy_Manifest::request_provider_template_downloads( $entry_id, $connection_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		return [
 			'message' => sprintf( __( 'Requested %d provider requirement download(s).', 'worldgraph' ), count( (array) ( $result['requested'] ?? [] ) ) ),
 			'result'  => $result,
-		] );
+		];
+	}
+
+	/**
+	 * Sync, then auto-enable and materialize every mappable catalog entry.
+	 *
+	 * @param int $connection_id Connection post ID.
+	 * @return array|\WP_Error
+	 */
+	public static function catalog_prepare_mappable( int $connection_id ) {
+		$sync = self::catalog_sync( $connection_id );
+		if ( is_wp_error( $sync ) ) {
+			return $sync;
+		}
+
+		$entries  = (array) ( $sync['snapshot']['entries'] ?? [] );
+		$prepared = [];
+		$failed   = [];
+
+		foreach ( $entries as $entry ) {
+			if ( ! is_array( $entry ) || empty( $entry['modality'] ) ) {
+				continue;
+			}
+
+			$entry_id = sanitize_text_field( (string) ( $entry['id'] ?? '' ) );
+			if ( '' === $entry_id ) {
+				continue;
+			}
+
+			if ( empty( $entry['enabled'] ) ) {
+				$enabled = self::catalog_enable_entry( $connection_id, $entry_id );
+				if ( is_wp_error( $enabled ) ) {
+					$failed[] = [ 'entry_id' => $entry_id, 'message' => $enabled->get_error_message() ];
+					continue;
+				}
+			}
+
+			$materialized = self::catalog_materialize_entry( $connection_id, $entry_id );
+			if ( is_wp_error( $materialized ) ) {
+				$failed[] = [ 'entry_id' => $entry_id, 'message' => $materialized->get_error_message() ];
+				continue;
+			}
+
+			$prepared[] = [
+				'entry_id'    => $entry_id,
+				'template_id' => (int) ( $materialized['template_id'] ?? 0 ),
+			];
+		}
+
+		$snapshot = \WorldGraph\Utils\Comfy_Catalog::get( $connection_id );
+		return [
+			'message'  => sprintf( __( 'Prepared %1$d mappable template(s). %2$d failed.', 'worldgraph' ), count( $prepared ), count( $failed ) ),
+			'prepared' => $prepared,
+			'failed'   => $failed,
+			'snapshot' => $snapshot,
+		];
 	}
 
 	/**

@@ -5,6 +5,7 @@ scripts/backup.sql
 scripts/backup.sql.gz
 scripts/wordpress.*
 backup.sql.gz
+wordpress.*
 
 # Wordpress
 wordpress/wp-admin/
@@ -263,3 +264,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+wordpress.2026-08-21-1787353708.sql.gz

@@ -130,7 +130,8 @@ class WorldGraph_Importer {
 	 * @return array|\WP_Error Parsed document or error.
 	 */
 	private function validate_json( string $json ) {
-		$data = json_decode( $json, true );
+		$raw_data = json_decode( $json );
+		$data     = json_decode( $json, true );
 
 		if ( JSON_ERROR_NONE !== json_last_error() ) {
 			return new \WP_Error(
@@ -200,7 +201,7 @@ class WorldGraph_Importer {
 			return new \WP_Error( 'worldgraph_invalid_sequence', 'Sequence must have id and order.' );
 		}
 
-		$fields_valid = $this->validate_field_values( $data );
+		$fields_valid = $this->validate_field_values( $data, $raw_data );
 		if ( is_wp_error( $fields_valid ) ) {
 			return $fields_valid;
 		}
@@ -210,16 +211,29 @@ class WorldGraph_Importer {
 			return $references_valid;
 		}
 
+		// Preserve JSON object semantics, including empty and nested objects, for
+		// canonical generation-parameter storage after associative decoding.
+		if ( is_object( $raw_data ) && isset( $raw_data->assets ) && is_array( $raw_data->assets ) ) {
+			foreach ( $data['assets'] as $index => &$asset ) {
+				$raw_asset = $raw_data->assets[ $index ] ?? null;
+				if ( array_key_exists( 'generation_parameters', $asset ) && is_object( $raw_asset ) && property_exists( $raw_asset, 'generation_parameters' ) ) {
+					$asset['generation_parameters'] = $raw_asset->generation_parameters;
+				}
+			}
+			unset( $asset );
+		}
+
 		return $data;
 	}
 
 	/**
 	 * Validate portable field shapes and canonical select values before writes.
 	 *
-	 * @param array $data Parsed World Graph Studio document.
+	 * @param array $data     Parsed World Graph Studio document.
+	 * @param mixed $raw_data Object-preserving JSON decode used for shape checks.
 	 * @return true|\WP_Error True when field values are valid.
 	 */
-	private function validate_field_values( array $data ) {
+	private function validate_field_values( array $data, $raw_data ) {
 		$errors = [];
 		foreach ( [ 'id', 'title', 'name', 'sequence_order' ] as $field ) {
 			if ( array_key_exists( $field, $data['sequence'] ) && null !== $data['sequence'][ $field ] && ! is_scalar( $data['sequence'][ $field ] ) ) {
@@ -320,6 +334,7 @@ class WorldGraph_Importer {
 			}
 		}
 
+		$raw_assets = is_object( $raw_data ) && isset( $raw_data->assets ) && is_array( $raw_data->assets ) ? $raw_data->assets : [];
 		foreach ( $data['assets'] as $index => $asset ) {
 			if ( empty( $asset['title'] ) && empty( $asset['asset_title'] ) ) {
 				$errors[] = sprintf( 'assets[%d] must have a title.', $index );
@@ -327,8 +342,11 @@ class WorldGraph_Importer {
 			if ( empty( $asset['type'] ) && empty( $asset['asset_type'] ) ) {
 				$errors[] = sprintf( 'assets[%d] must have a type.', $index );
 			}
-			if ( array_key_exists( 'generation_parameters', $asset ) && ! is_array( $asset['generation_parameters'] ) ) {
-				$errors[] = sprintf( 'Asset %s generation_parameters must be an object.', $asset['id'] ?? '#' . ( $index + 1 ) );
+			if ( array_key_exists( 'generation_parameters', $asset ) ) {
+				$raw_asset = $raw_assets[ $index ] ?? null;
+				if ( ! is_object( $raw_asset ) || ! property_exists( $raw_asset, 'generation_parameters' ) || ! is_object( $raw_asset->generation_parameters ) ) {
+					$errors[] = sprintf( 'Asset %s generation_parameters must be an object.', $asset['id'] ?? '#' . ( $index + 1 ) );
+				}
 			}
 			if (
 				! empty( $asset['type'] ) &&
@@ -371,6 +389,54 @@ class WorldGraph_Importer {
 					$errors[] = sprintf( '%s %s values must be scalar.', $context, $field );
 				}
 			}
+		}
+
+		$taxonomy_lists = [
+			[ $data['project']['genres'] ?? [], 'Project genres' ],
+		];
+		if ( ! empty( $data['project']['genre'] ) ) {
+			$taxonomy_lists[] = [ [ $data['project']['genre'] ], 'Project genre' ];
+		}
+		foreach ( $data['characters'] as $character ) {
+			$context = 'Character ' . ( $character['id'] ?? '(unknown)' );
+			$taxonomy_lists[] = [ $character['roles'] ?? [], $context . ' roles' ];
+			$taxonomy_lists[] = [ $character['relations'] ?? [], $context . ' relations' ];
+		}
+		foreach ( $data['scenes'] as $scene ) {
+			$taxonomy_lists[] = [ $scene['tags'] ?? [], 'Scene ' . ( $scene['id'] ?? '(unknown)' ) . ' tags' ];
+		}
+		foreach ( $taxonomy_lists as [ $values, $context ] ) {
+			foreach ( (array) $values as $value ) {
+				$this->validate_taxonomy_slug( $value, $context, $errors );
+			}
+		}
+
+		$taxonomy_values = [];
+		if ( ! empty( $data['project']['production_status'] ) ) {
+			$taxonomy_values[] = [ $data['project']['production_status'], 'Project production_status' ];
+		}
+		foreach ( $data['episodes'] as $episode ) {
+			if ( ! empty( $episode['production_status'] ) ) {
+				$taxonomy_values[] = [ $episode['production_status'], 'Episode ' . ( $episode['id'] ?? '(unknown)' ) . ' production_status' ];
+			}
+		}
+		foreach ( $data['sounds'] as $sound ) {
+			$context           = 'Sound ' . ( $sound['id'] ?? '(unknown)' );
+			$taxonomy_values[] = [ $sound['type'] ?? '', $context . ' type' ];
+			if ( ! empty( $sound['production_status'] ) ) {
+				$taxonomy_values[] = [ $sound['production_status'], $context . ' production_status' ];
+			}
+		}
+		foreach ( $data['assets'] as $asset ) {
+			$context = 'Asset ' . ( $asset['id'] ?? '(unknown)' );
+			foreach ( [ 'type', 'asset_type' ] as $field ) {
+				if ( array_key_exists( $field, $asset ) ) {
+					$taxonomy_values[] = [ $asset[ $field ], $context . ' ' . $field ];
+				}
+			}
+		}
+		foreach ( $taxonomy_values as [ $value, $context ] ) {
+			$this->validate_taxonomy_slug( $value, $context, $errors );
 		}
 
 		$choice_values = [
@@ -626,6 +692,7 @@ class WorldGraph_Importer {
 		$episodes_with_scene_list = [];
 		foreach ( $data['episodes'] as $episode ) {
 			$context = 'Episode ' . ( $episode['id'] ?? '(unknown)' );
+			$seen_scene_ids = [];
 			if ( array_key_exists( 'scenes', $episode ) ) {
 				$episodes_with_scene_list[ (string) ( $episode['id'] ?? '' ) ] = true;
 			}
@@ -638,6 +705,10 @@ class WorldGraph_Importer {
 				$this->validate_reference( $scene_id, 'scenes', $context . ' scene', $id_sets, $errors );
 				if ( is_scalar( $scene_id ) ) {
 					$scene_id = (string) $scene_id;
+					if ( isset( $seen_scene_ids[ $scene_id ] ) ) {
+						$errors[] = sprintf( '%s lists Scene "%s" more than once.', $context, $scene_id );
+					}
+					$seen_scene_ids[ $scene_id ] = true;
 					$episode_scenes[ $scene_id ][] = (string) ( $episode['id'] ?? '' );
 					if ( ! isset( $declared_scene_episodes[ $scene_id ] ) || (string) ( $episode['id'] ?? '' ) !== $declared_scene_episodes[ $scene_id ] ) {
 						$errors[] = sprintf( '%s scene "%s" disagrees with that Scene\'s episode relationship.', $context, $scene_id );
@@ -709,7 +780,9 @@ class WorldGraph_Importer {
 					$errors[] = sprintf( '%s source_shot "%s" does not belong to source_scene "%s".', $context, $artifact['source_shot'], $artifact['source_scene'] );
 				}
 			}
-			if ( ! empty( $artifact['project'] ) && (string) $artifact['project'] !== (string) $data['project']['id'] ) {
+			if ( empty( $artifact['project'] ) ) {
+				$errors[] = $context . ' must reference its Project.';
+			} elseif ( (string) $artifact['project'] !== (string) $data['project']['id'] ) {
 				$errors[] = sprintf( '%s references unknown project id "%s".', $context, $artifact['project'] );
 			}
 		}
@@ -843,6 +916,19 @@ class WorldGraph_Importer {
 	}
 
 	/**
+	 * Require portable taxonomy values to use their canonical lowercase slugs.
+	 *
+	 * @param mixed  $value   Candidate taxonomy slug.
+	 * @param string $context Human-readable field context.
+	 * @param array  $errors  Validation errors, passed by reference.
+	 */
+	private function validate_taxonomy_slug( $value, string $context, array &$errors ): void {
+		if ( ! is_string( $value ) || '' === $value || is_numeric( $value ) || sanitize_title( $value ) !== $value ) {
+			$errors[] = sprintf( '%s values must be non-empty lowercase taxonomy slugs.', $context );
+		}
+	}
+
+	/**
 	 * Validate an Asset external ID from this document or the existing library.
 	 *
 	 * @param mixed  $reference Referenced external ID.
@@ -864,7 +950,7 @@ class WorldGraph_Importer {
 			return;
 		}
 
-		$in_document      = isset( $id_sets['assets'][ $external_id ], $document_assets[ $external_id ] );
+		$in_document       = isset( $id_sets['assets'][ $external_id ], $document_assets[ $external_id ] );
 		$existing_asset_id = $this->find_existing( 'worldgraph_asset', $external_id );
 		if ( '' === $external_id || ( ! $in_document && ! $existing_asset_id ) ) {
 			$errors[] = sprintf( '%s references unknown asset id "%s".', $context, $external_id );
@@ -2193,9 +2279,15 @@ class WorldGraph_Importer {
 			if ( $shot_id ) {
 				// The Board owns the canonical Board → Shot slot. Remove only the
 				// redundant inverse containment edges written by older importers.
-				foreach ( \WorldGraph\Utils\get_relationships( $frame_id, 'worldgraph_board', 'incoming' ) as $relationship ) {
-					if ( 'worldgraph_shot' === ( $relationship['from_type'] ?? '' ) && 'contains' === ( $relationship['type'] ?? '' ) ) {
-						\WorldGraph\Utils\remove_relationship( (int) $relationship['from_id'], $frame_id, 'worldgraph_shot', 'worldgraph_board', 'contains' );
+				if ( ! $this->entity_was_skipped( (string) $frame['shot'] ) ) {
+					foreach ( \WorldGraph\Utils\get_relationships( $frame_id, 'worldgraph_board', 'incoming' ) as $relationship ) {
+						if (
+							$shot_id === (int) ( $relationship['from_id'] ?? 0 ) &&
+							'worldgraph_shot' === ( $relationship['from_type'] ?? '' ) &&
+							'contains' === ( $relationship['type'] ?? '' )
+						) {
+							\WorldGraph\Utils\remove_relationship( $shot_id, $frame_id, 'worldgraph_shot', 'worldgraph_board', 'contains' );
+						}
 					}
 				}
 				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'shot', $shot_id );
@@ -2264,7 +2356,7 @@ class WorldGraph_Importer {
 	private function verify_import(): void {
 		$entity_sets = [
 			'worldgraph_project'          => [ (string) $this->document['project']['id'] ],
-			'worldgraph_world'      => [ (string) $this->document['world']['id'] ],
+			'worldgraph_world'            => [ (string) $this->document['world']['id'] ],
 			'worldgraph_character'        => array_map( 'strval', array_column( $this->document['characters'], 'id' ) ),
 			'worldgraph_location'         => array_map( 'strval', array_column( $this->document['locations'], 'id' ) ),
 			'worldgraph_prop'             => array_map( 'strval', array_column( $this->document['props'], 'id' ) ),
@@ -2273,7 +2365,7 @@ class WorldGraph_Importer {
 			'worldgraph_scene'            => array_map( 'strval', array_column( $this->document['scenes'], 'id' ) ),
 			'worldgraph_shot'             => array_map( 'strval', array_column( $this->document['shots'], 'id' ) ),
 			'worldgraph_sound'            => array_map( 'strval', array_column( $this->document['sounds'], 'id' ) ),
-			'worldgraph_board'      => array_map( 'strval', array_column( $this->document['storyboards'], 'id' ) ),
+			'worldgraph_board'            => array_map( 'strval', array_column( $this->document['storyboards'], 'id' ) ),
 			'worldgraph_asset'            => array_map( 'strval', array_column( $this->document['assets'], 'id' ) ),
 			'worldgraph_editorial'        => array_map( 'strval', array_column( $this->document['editorial_artifacts'], 'id' ) ),
 		];
@@ -2483,7 +2575,9 @@ class WorldGraph_Importer {
 			$sound_id = (int) ( $this->id_map[ (string) $sound['id'] ] ?? 0 );
 			foreach ( [ 'character' => 'worldgraph_character', 'asset' => 'worldgraph_asset' ] as $field => $target_cpt ) {
 				if ( array_key_exists( $field, $sound ) ) {
-					$target_id = (int) ( $this->id_map[ (string) ( $sound[ $field ] ?? '' ) ] ?? 0 );
+					$target_id = 'asset' === $field && ! empty( $sound[ $field ] )
+						? $this->resolve_external_id( 'worldgraph_asset', (string) $sound[ $field ] )
+						: (int) ( $this->id_map[ (string) ( $sound[ $field ] ?? '' ) ] ?? 0 );
 					if ( ! $this->relationship_field_targets_match( $sound_id, 'worldgraph_sound', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {
 						$this->report['errors'][] = sprintf( 'Sound %s did not retain its %s relationship.', $sound['id'], $field );
 					}
@@ -2498,7 +2592,7 @@ class WorldGraph_Importer {
 				$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Scene relationship.', $frame['id'] );
 			}
 			if ( array_key_exists( 'image_asset', $frame ) ) {
-				$asset_id = (int) ( $this->id_map[ (string) ( $frame['image_asset'] ?? '' ) ] ?? 0 );
+				$asset_id = empty( $frame['image_asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $frame['image_asset'] );
 				if ( ! $this->relationship_field_targets_match( $frame_id, 'worldgraph_board', 'image_asset', array_filter( [ $asset_id ] ), 'worldgraph_asset' ) ) {
 					$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Image Asset relationship.', $frame['id'] );
 				}
@@ -2610,7 +2704,7 @@ class WorldGraph_Importer {
 	 * @param int        $from_id    Source post ID.
 	 * @param string     $from_type  Source CPT.
 	 * @param string     $field      Relationship field name.
-	 * @param array<int> $target_ids Expected target post IDs.
+	 * @param array<int, int> $target_ids Expected target post IDs.
 	 * @param string     $to_type    Target CPT.
 	 * @return bool
 	 */
@@ -2697,7 +2791,7 @@ class WorldGraph_Importer {
 	}
 
 	/**
-	 * Assign one or more taxonomy terms expressed as IDs, slugs, or names.
+	 * Assign one or more taxonomy terms expressed as canonical slugs.
 	 *
 	 * @param int          $post_id      Post ID.
 	 * @param string       $taxonomy     Taxonomy slug.
@@ -2714,9 +2808,7 @@ class WorldGraph_Importer {
 				continue;
 			}
 
-			$term = is_numeric( $raw_term )
-				? get_term( absint( $raw_term ), $taxonomy )
-				: get_term_by( 'slug', sanitize_title( (string) $raw_term ), $taxonomy );
+			$term = get_term_by( 'slug', (string) $raw_term, $taxonomy );
 			if ( ( ! $term || is_wp_error( $term ) ) && $create_terms ) {
 				$slug = sanitize_title( (string) $raw_term );
 				$term = wp_insert_term(
