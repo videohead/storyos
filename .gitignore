@@ -1,5 +1,6 @@
 .env
 .venv
+.lando/
 scripts/backup.sql
 scripts/backup.sql.gz
 scripts/wordpress.*

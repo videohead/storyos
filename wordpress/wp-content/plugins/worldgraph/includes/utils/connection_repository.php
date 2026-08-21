@@ -36,6 +36,7 @@ class Connection_Repository {
 		'provider_type',
 		'environment',
 		'status',
+		'is_default',
 		'endpoint_url',
 		'mcp_endpoint_url',
 		'credential_reference',
@@ -162,16 +163,30 @@ class Connection_Repository {
 	/**
 	 * Find the default connection for a provider type.
 	 *
-	 * The default is the first verified connection for the provider type,
-	 * falling back to the first available one.
+	 * The default is the Connection an operator explicitly marked active for
+	 * this provider type (and environment, when given), so Generate has an
+	 * unambiguous choice once multiple Connections exist for one provider.
+	 * Falls back to the first verified connection, then the first available
+	 * one, for accounts that have not set an active Connection yet.
 	 *
 	 * @param string $provider_type Provider type slug.
+	 * @param string $environment   Optional environment to scope the lookup to.
 	 * @return int|null Connection post ID, or null.
 	 */
-	public static function get_default( string $provider_type ): ?int {
-		$items = self::get_all( [ 'provider_type' => $provider_type ] );
+	public static function get_default( string $provider_type, string $environment = '' ): ?int {
+		$filters = [ 'provider_type' => $provider_type ];
+		if ( '' !== $environment ) {
+			$filters['environment'] = $environment;
+		}
+		$items = self::get_all( $filters );
 		if ( empty( $items ) ) {
 			return null;
+		}
+
+		foreach ( $items as $item ) {
+			if ( 'yes' === ( $item['is_default'] ?? '' ) && self::is_available( $item['id'] ) ) {
+				return $item['id'];
+			}
 		}
 
 		foreach ( $items as $item ) {

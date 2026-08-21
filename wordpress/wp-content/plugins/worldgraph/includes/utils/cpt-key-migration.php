@@ -474,6 +474,7 @@ function worldgraph_migrate_taxonomies( array &$errors ): void {
 		return;
 	}
 
+	$cache_term_ids = [];
 	foreach ( worldgraph_legacy_taxonomy_key_map() as $legacy => $canonical ) {
 		$rows = (array) $wpdb->get_results(
 			$wpdb->prepare(
@@ -486,6 +487,7 @@ function worldgraph_migrate_taxonomies( array &$errors ): void {
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$term_id_map = [];
 		foreach ( $rows as $row ) {
+			$cache_term_ids[] = (int) $row['term_id'];
 			$target = $wpdb->get_row(
 				$wpdb->prepare(
 					"SELECT tt.term_taxonomy_id, tt.term_id, tt.parent, tt.description, t.name
@@ -498,6 +500,7 @@ function worldgraph_migrate_taxonomies( array &$errors ): void {
 			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 			$old_term_id = (int) $row['term_id'];
 			if ( $target ) {
+				$cache_term_ids[] = (int) $target['term_id'];
 				if ( worldgraph_merge_term_taxonomy_rows( $row, $target, $errors ) ) {
 					$term_id_map[ $old_term_id ] = (int) $target['term_id'];
 				}
@@ -529,7 +532,9 @@ function worldgraph_migrate_taxonomies( array &$errors ): void {
 			}
 		}
 	}
-	clean_term_cache( [], '', true );
+	if ( ! empty( $cache_term_ids ) ) {
+		clean_term_cache( array_values( array_unique( $cache_term_ids ) ), '', true );
+	}
 }
 
 /** Merge an old taxonomy row into an already-created canonical term. */

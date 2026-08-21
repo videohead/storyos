@@ -120,6 +120,34 @@
             "save_options": 0
         },
         {
+            "key": "field_worldgraph_conn_is_default",
+            "label": "Active Connection",
+            "name": "is_default",
+            "aria-label": "",
+            "type": "select",
+            "instructions": "Marks this the active Connection Generate uses for its provider type and environment when a Template does not pin one. Only one Connection per provider type and environment can be active; setting this saves the others as No.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "choices": {
+                "no": "No",
+                "yes": "Yes"
+            },
+            "allow_null": 0,
+            "multiple": 0,
+            "ui": 1,
+            "return_format": "value",
+            "default_value": false,
+            "ajax": 0,
+            "placeholder": "",
+            "create_options": 0,
+            "save_options": 0
+        },
+        {
             "key": "field_worldgraph_conn_endpoint_url",
             "label": "Endpoint URL",
             "name": "endpoint_url",

@@ -109,6 +109,10 @@ class Connection {
 				$value = sanitize_key( (string) $value );
 				return in_array( $value, self::STATUSES, true ) ? $value : 'unverified';
 
+			case 'is_default':
+				$value = sanitize_key( (string) $value );
+				return 'yes' === $value ? 'yes' : 'no';
+
 			case 'endpoint_url':
 			case 'mcp_endpoint_url':
 				return esc_url_raw( trim( (string) $value ) );
@@ -163,6 +167,9 @@ class Connection {
 		if ( 'status' === $name && ! in_array( sanitize_key( (string) $value ), self::STATUSES, true ) ) {
 			return __( 'Select a supported connection status.', 'worldgraph' );
 		}
+		if ( 'is_default' === $name && ! in_array( sanitize_key( (string) $value ), [ 'yes', 'no' ], true ) ) {
+			return __( 'Select yes or no for the active connection flag.', 'worldgraph' );
+		}
 		if ( in_array( $name, [ 'max_tokens', 'temperature' ], true ) && '' !== trim( (string) $value ) && ! is_numeric( $value ) ) {
 			return __( 'Enter a numeric value.', 'worldgraph' );
 		}
@@ -187,6 +194,8 @@ class Connection {
 		$post_id       = (int) $post_id;
 		$provider_type = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'provider_type' );
 		$status        = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'status' );
+		$environment   = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'environment' );
+		self::enforce_single_default( $post_id, $provider_type, $environment );
 		if ( 'disabled' === $status ) {
 			return;
 		}
@@ -199,6 +208,46 @@ class Connection {
 			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
 		} elseif ( 'suno' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] ) ) {
 			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] );
+		}
+	}
+
+	/**
+	 * Only one Connection can be the active default per provider type and
+	 * environment, so Generate has an unambiguous choice when a Template
+	 * does not pin a Connection. Clear the flag on every sibling when a
+	 * Connection is saved as the active one.
+	 *
+	 * @param int    $post_id       Saved Connection post ID.
+	 * @param string $provider_type Provider type of the saved Connection.
+	 * @param string $environment   Environment of the saved Connection.
+	 */
+	private static function enforce_single_default( int $post_id, string $provider_type, string $environment ): void {
+		if ( 'yes' !== (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'is_default' ) || '' === $provider_type ) {
+			return;
+		}
+
+		$siblings = get_posts( [
+			'post_type'      => self::CPT,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'exclude'        => [ $post_id ],
+			'meta_query'     => [ // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				[
+					'key'   => 'provider_type',
+					'value' => $provider_type,
+				],
+				[
+					'key'   => 'environment',
+					'value' => $environment,
+				],
+			],
+		] );
+
+		foreach ( $siblings as $sibling_id ) {
+			if ( 'yes' === get_post_meta( $sibling_id, 'is_default', true ) ) {
+				update_post_meta( $sibling_id, 'is_default', 'no' );
+			}
 		}
 	}
 
@@ -257,6 +306,16 @@ class Connection {
 					'disabled'   => 'Disabled',
 				],
 				'description' => 'Status is normally maintained by connection validation; set manually only to disable a connection.',
+			],
+			'is_default'           => [
+				'type'        => 'select',
+				'label'       => 'Active Connection',
+				'required'    => false,
+				'options'     => [
+					'no'  => 'No',
+					'yes' => 'Yes',
+				],
+				'description' => 'Marks this the active Connection Generate uses for its provider type and environment when a Template does not pin one. Only one Connection per provider type and environment can be active; setting this saves the others as No.',
 			],
 			'endpoint_url'         => [
 				'type'        => 'text',

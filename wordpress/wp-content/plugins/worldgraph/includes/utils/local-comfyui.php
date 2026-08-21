@@ -162,10 +162,10 @@ class Local_ComfyUI {
 			return $url;
 		}
 
-		foreach ( Connection_Repository::get_all( [ 'provider_type' => 'comfyui', 'environment' => 'local' ] ) as $connection ) {
-			if ( '' !== $connection['endpoint_url'] ) {
-				return untrailingslashit( esc_url_raw( (string) $connection['endpoint_url'] ) );
-			}
+		$connection_id = Connection_Repository::get_default( 'comfyui', 'local' );
+		$connection    = $connection_id ? Connection_Repository::get( $connection_id ) : null;
+		if ( $connection && '' !== $connection['endpoint_url'] ) {
+			return untrailingslashit( esc_url_raw( (string) $connection['endpoint_url'] ) );
 		}
 
 		return '';

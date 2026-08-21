@@ -353,13 +353,7 @@ class Asset_Generator {
 	 * @return array<string, int|float|string>
 	 */
 	public static function project_media_profile( int $post_id ): array {
-		$project_id = 0;
-		foreach ( get_relationships( $post_id, get_post_type( $post_id ), 'incoming' ) as $relationship ) {
-			if ( 'worldgraph_project' === ( $relationship['from_type'] ?? '' ) && 'contains' === ( $relationship['type'] ?? '' ) ) {
-				$project_id = absint( $relationship['from_id'] ?? 0 );
-				break;
-			}
-		}
+		$project_id = self::resolve_project_id( $post_id );
 
 		$profile = [
 			'width'        => 1024,
@@ -381,6 +375,49 @@ class Asset_Generator {
 	}
 
 	/**
+	 * Walk a story element's "contains" ancestry (e.g. Character -> World ->
+	 * Project) to find its owning Project, since most elements are nested
+	 * under an intermediate entity rather than owned by the Project directly.
+	 *
+	 * @param int $post_id Source story element ID.
+	 * @return int Project post ID, or 0 when none is found.
+	 */
+	private static function resolve_project_id( int $post_id ): int {
+		$seen         = [];
+		$current_id   = $post_id;
+		$current_type = get_post_type( $post_id );
+
+		for ( $depth = 0; $depth < 6 && $current_id && $current_type; $depth++ ) {
+			if ( isset( $seen[ $current_id ] ) ) {
+				break;
+			}
+			$seen[ $current_id ] = true;
+
+			$parent_id   = 0;
+			$parent_type = '';
+			foreach ( get_relationships( $current_id, $current_type, 'incoming' ) as $relationship ) {
+				if ( 'contains' === ( $relationship['type'] ?? '' ) ) {
+					$parent_id   = absint( $relationship['from_id'] ?? 0 );
+					$parent_type = (string) ( $relationship['from_type'] ?? '' );
+					break;
+				}
+			}
+
+			if ( ! $parent_id ) {
+				break;
+			}
+			if ( 'worldgraph_project' === $parent_type ) {
+				return $parent_id;
+			}
+
+			$current_id   = $parent_id;
+			$current_type = $parent_type;
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Resolve the Connection record that owns a generation provider, so
 	 * generation jobs and their log entries can be traced back to their
 	 * parent Connection. Mirrors the connection lookup fallback used by
@@ -391,9 +428,8 @@ class Asset_Generator {
 	 */
 	private static function resolve_connection_id( string $provider ): int {
 		$environment = 'local_comfyui' === $provider ? 'local' : 'production';
-		$connections = Connection_Repository::get_all( [ 'provider_type' => 'comfyui', 'environment' => $environment ] );
 
-		return ! empty( $connections ) ? (int) $connections[0]['id'] : 0;
+		return (int) ( Connection_Repository::get_default( 'comfyui', $environment ) ?? 0 );
 	}
 
 	/**
@@ -506,6 +542,7 @@ class Asset_Generator {
 		}
 
 		$provider   = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
+		$adapter    = (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true );
 		$video_url  = self::find_result_video_url( $result );
 		$audio_urls = self::find_result_audio_urls( $result );
 		$audio_url  = (string) ( $audio_urls[0] ?? '' );
@@ -528,7 +565,7 @@ class Asset_Generator {
 		$media         = [];
 		$generated_attachment_ids = [];
 		if ( '' !== $image_url ) {
-			$download = self::download_bytes( $image_url, $provider );
+			$download = self::download_bytes( $image_url, $adapter );
 			if ( is_wp_error( $download ) ) {
 				return $download;
 			}
@@ -553,7 +590,7 @@ class Asset_Generator {
 		// Import the source video alongside its still frame, or on its own for
 		// a text-to-video Template that produces no separate frame.
 		if ( '' !== $video_url ) {
-			$video_download = self::download_bytes( $video_url, $provider );
+			$video_download = self::download_bytes( $video_url, $adapter );
 			if ( is_wp_error( $video_download ) ) {
 				return $video_download;
 			}
@@ -576,7 +613,7 @@ class Asset_Generator {
 		// Synchronous providers may return audio bytes directly; URL-based audio
 		// is downloaded through the same WordPress-owned media boundary.
 		if ( ! empty( $result['audio_data'] ) || '' !== $audio_url ) {
-			$audio_bytes = ! empty( $result['audio_data'] ) ? (string) $result['audio_data'] : self::download_bytes( $audio_url, $provider );
+			$audio_bytes = ! empty( $result['audio_data'] ) ? (string) $result['audio_data'] : self::download_bytes( $audio_url, $adapter );
 			if ( is_wp_error( $audio_bytes ) ) {
 				return $audio_bytes;
 			}
@@ -623,7 +660,7 @@ class Asset_Generator {
 		// media URL must become a WordPress attachment before the job completes.
 		$additional_urls = array_values( array_diff( self::find_result_urls( $result ), [ $image_url, $video_url, $audio_url, '' ] ) );
 		foreach ( $additional_urls as $additional_url ) {
-			$additional_download = self::download_bytes( $additional_url, $provider );
+			$additional_download = self::download_bytes( $additional_url, $adapter );
 			if ( is_wp_error( $additional_download ) ) {
 				return $additional_download;
 			}
@@ -835,13 +872,21 @@ class Asset_Generator {
 	/**
 	 * Download bytes from a generation provider's output URL.
 	 *
-	 * @param string $url      Output URL.
-	 * @param string $provider Generation provider type.
+	 * @param string $url     Output URL.
+	 * @param string $adapter Generation job adapter, e.g. 'local_comfyui'.
 	 * @return string|WP_Error Raw bytes, or an error.
 	 */
-	private static function download_bytes( string $url, string $provider ) {
-		$download = 'local_comfyui' === $provider ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
-		if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
+	private static function download_bytes( string $url, string $adapter ) {
+		// Local ComfyUI runs on a trusted, non-public host (e.g. host.lando.internal),
+		// which wp_safe_remote_get's SSRF check would otherwise reject.
+		$download = 'local_comfyui' === $adapter ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
+		if ( is_wp_error( $download ) ) {
+			Generation_Log::add( 'error', 'generation_batch', 'Download request failed: ' . $download->get_error_message(), [ 'url' => $url ], '', 0 );
+			return new WP_Error( 'worldgraph_gen_download_failed', __( 'The completed output could not be downloaded from the generation provider.', 'worldgraph' ) );
+		}
+		$code = wp_remote_retrieve_response_code( $download );
+		if ( $code < 200 || $code >= 300 ) {
+			Generation_Log::add( 'error', 'generation_batch', sprintf( 'Download request returned HTTP %d.', $code ), [ 'url' => $url ], '', 0 );
 			return new WP_Error( 'worldgraph_gen_download_failed', __( 'The completed output could not be downloaded from the generation provider.', 'worldgraph' ) );
 		}
 

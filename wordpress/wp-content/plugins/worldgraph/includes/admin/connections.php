@@ -30,6 +30,7 @@ class Connections {
 		add_action( 'admin_menu', [ __CLASS__, 'add_menu' ] );
 		add_action( 'admin_post_worldgraph_test_connection', [ __CLASS__, 'handle_test_connection' ] );
 		add_action( 'admin_post_worldgraph_sync_capabilities', [ __CLASS__, 'handle_sync_capabilities' ] );
+		add_action( 'admin_post_worldgraph_set_active_connection', [ __CLASS__, 'handle_set_active_connection' ] );
 		add_filter( 'redirect_post_location', [ __CLASS__, 'redirect_after_save' ], 10, 2 );
 	}
 
@@ -106,6 +107,33 @@ class Connections {
 	}
 
 	/**
+	 * Handle the "Set Active" admin post action, marking a Connection the
+	 * one Generate uses by default for its provider type and environment.
+	 */
+	public static function handle_set_active_connection(): void {
+		self::verify_action( 'worldgraph_set_active_connection' );
+
+		$connection_id = isset( $_GET['connection_id'] ) ? absint( $_GET['connection_id'] ) : 0;
+		$connection    = Connection_Repository::get( $connection_id );
+		if ( $connection ) {
+			update_post_meta( $connection_id, 'is_default', 'yes' );
+			\WorldGraph\CPT\Connection::after_scf_save( $connection_id );
+		}
+
+		$redirect = add_query_arg(
+			[
+				'worldgraph_conns' => 'activated',
+				'connection_id'    => $connection_id,
+				'success'          => $connection ? '1' : '0',
+				'message'          => rawurlencode( $connection ? __( 'Connection set as active.', 'worldgraph' ) : __( 'Connection not found.', 'worldgraph' ) ),
+			],
+			admin_url( 'admin.php?page=worldgraph-connections' )
+		);
+		wp_safe_redirect( $redirect );
+		exit;
+	}
+
+	/**
 	 * Verify nonce and capability for an admin post action.
 	 *
 	 * @param string $action Action slug.
@@ -164,6 +192,7 @@ class Connections {
 						<th><?php esc_html_e( 'Provider', 'worldgraph' ); ?></th>
 						<th><?php esc_html_e( 'Environment', 'worldgraph' ); ?></th>
 						<th><?php esc_html_e( 'Status', 'worldgraph' ); ?></th>
+						<th><?php esc_html_e( 'Active', 'worldgraph' ); ?></th>
 						<th><?php esc_html_e( 'Endpoint', 'worldgraph' ); ?></th>
 						<th><?php esc_html_e( 'Rate Limits', 'worldgraph' ); ?></th>
 						<th><?php esc_html_e( 'Cost Controls', 'worldgraph' ); ?></th>
@@ -172,7 +201,7 @@ class Connections {
 				</thead>
 				<tbody>
 					<?php if ( empty( $connections ) ) : ?>
-						<tr><td colspan="8"><?php esc_html_e( 'No connections yet. Add one to start routing generation jobs.', 'worldgraph' ); ?></td></tr>
+						<tr><td colspan="9"><?php esc_html_e( 'No connections yet. Add one to start routing generation jobs.', 'worldgraph' ); ?></td></tr>
 					<?php else : ?>
 						<?php foreach ( $connections as $connection ) : ?>
 							<?php
@@ -190,6 +219,17 @@ class Connections {
 								),
 								'worldgraph_test_connection'
 							);
+							$is_default   = 'yes' === ( $connection['is_default'] ?? '' );
+							$activate_url = wp_nonce_url(
+								add_query_arg(
+									[
+										'action'        => 'worldgraph_set_active_connection',
+										'connection_id' => $connection['id'],
+									],
+									admin_url( 'admin-post.php' )
+								),
+								'worldgraph_set_active_connection'
+							);
 							?>
 							<tr>
 								<td><?php echo esc_html( (string) $connection['id'] ); ?></td>
@@ -197,6 +237,13 @@ class Connections {
 								<td><?php echo esc_html( $connection['provider_type'] ?: '—' ); ?></td>
 								<td><?php echo esc_html( $connection['environment'] ?: '—' ); ?></td>
 								<td><span style="color:<?php echo esc_attr( $color ); ?>;font-weight:600;"><?php echo esc_html( $status ); ?></span></td>
+								<td>
+									<?php if ( $is_default ) : ?>
+										<span style="color:#00a32a;font-weight:600;">&#10003; <?php esc_html_e( 'Active', 'worldgraph' ); ?></span>
+									<?php else : ?>
+										<a href="<?php echo esc_url( $activate_url ); ?>"><?php esc_html_e( 'Set Active', 'worldgraph' ); ?></a>
+									<?php endif; ?>
+								</td>
 								<td><?php echo esc_html( $connection['endpoint_url'] ? wp_parse_url( $connection['endpoint_url'], PHP_URL_HOST ) : '—' ); ?></td>
 								<td><?php echo esc_html( $rate_limits ); ?></td>
 								<td><?php echo esc_html( $cost_controls ); ?></td>
