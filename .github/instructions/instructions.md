@@ -12,8 +12,9 @@ When Lando and docker containers are already running, use these service entry po
 validation:
 
 - WordPress app: http://worldgraph.lndo.site/ or https://worldgraph.lndo.site/
-- ComfyUI service: http://localhost:8188
-- ComfyUI MCP: http://localhost:8188
+- ComfyUI HTTP API: http://localhost:8188
+- Optional ComfyUI MCP: a deployment-specific, separate Streamable HTTP
+  endpoint (for example, http://localhost:9000/mcp); port 8188 is not MCP
 - Local LLM: http://localhost:11434
 
 If the environment is already running, prefer `lando info` to refresh the URLs
@@ -80,7 +81,9 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
 
 ### Root Level
 - `.github/` - GitHub configuration, including agent definitions and testing utilities
-  - `agents/` - VS Code Copilot Agent definitions (builder, code-reviewer, feature-builder, implementer, planner, researcher, thorough-reviewer)
+  - `agents/` - VS Code Copilot Agent definitions (builder, code-reviewer,
+    connection-builder, feature-builder, implementer, planner, researcher,
+    thorough-reviewer)
   - `instructions/` - Build and development instructions (this file)
   - `testing/` - Testing documentation and utilities
 - `about/` - Comprehensive documentation, specifications, and roadmap
@@ -137,6 +140,10 @@ integration catalog as the status sources of truth.
 - Provider Connection adapters register metadata, conditional loaders, and
   setup options through `worldgraph_conn_adapters`. Testing, discovery,
   Templates, execution, and polling remain provider-specific integration work.
+  Follow the
+  [provider Connection adapter specification](../../about/Connection_Adapter_Development_Specification.md)
+  for the exact REST API, MCP, Template, execution, security, and test
+  contracts.
 - Format integrations should normalize into the canonical World Graph Studio
   import contract or project an export from live Story Graph data rather than
   create a parallel data model.
@@ -292,11 +299,17 @@ Copilot. These agents are specialized for different development tasks:
 
 - `builder.agent.md` - Build and deployment tasks
 - `code-reviewer.agent.md` - Code review and quality checks
+- `connection-builder.agent.md` - REST API, MCP, and hybrid provider
+  Connection implementation
 - `feature-builder.agent.md` - Feature implementation
 - `implementer.agent.md` - Implementation details
 - `planner.agent.md` - Project planning and architecture
 - `researcher.agent.md` - Research and investigation
 - `thorough-reviewer.agent.md` - Comprehensive review and analysis
+
+The scoped `.github/instructions/connections.instructions.md` file also points
+agents editing the World Graph Studio plugin to the canonical provider
+Connection contract.
 
 See `AGENTS.md` in the project root for agent instructions and usage guidance.
 
@@ -316,6 +329,8 @@ Key testing principles:
 - Story Graph: `about/Story_Graph_Specification.md`
 - Content model: `about/Content_Model_Specification.md`
 - REST API: `about/REST_API_Specification.md`
+- Connection adapter development:
+  `about/Connection_Adapter_Development_Specification.md`
 - Delivery status: `about/Delivery_Status.md`
 - Roadmap: `about/ROADMAP_World_Graph_Studio.md`
 - AI Editor: `about/AI_Editor.md`

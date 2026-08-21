@@ -22,6 +22,8 @@ delivery status, then follow the path that matches what you are trying to do.
 ## Build and operate
 
 - [Deployment and connections](Deployment_and_Connections.md)
+- [Connection adapter development specification](Connection_Adapter_Development_Specification.md) —
+  implementation contract for REST API, MCP, and hybrid provider Connections.
 - [Plugin setup guide](../wordpress/wp-content/plugins/worldgraph/documentation/SETUP_GUIDE.md)
 - [Setup wizard guide](../wordpress/wp-content/plugins/worldgraph/documentation/SETUP_WIZARD_GUIDE.md)
 - [Contributor guide](CONTRIBUTING_World_Graph_Studio.md)

@@ -327,7 +327,7 @@
 			<!-- /wp:paragraph -->
 
 			<!-- wp:paragraph {"align":"center"} -->
-			<p class="has-text-align-center"><strong><?php echo esc_html__( 'The additional-script roadmap hold is closed.', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'Final Draft FDX import is delivered; formats outside the accepted current-release scope are extension opportunities rather than unfinished requirements. The catalog below separates operational integrations from scaffolds and prototypes.', 'worldgraph-child' ); ?></p>
+			<p class="has-text-align-center"><strong><?php echo esc_html__( 'Optional by design.', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'AI and generation features require a configured compatible service. Provider pricing, quotas, licenses, and availability still apply. AI responses are suggestions; you decide what is saved or published.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:group -->
@@ -387,7 +387,7 @@
 			<!-- /wp:table -->
 
 			<!-- wp:paragraph {"className":"wg-integration-note"} -->
-			<p class="wg-integration-note"><strong><?php echo esc_html__( 'How these surfaces fit:', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'OpenAI-compatible, OpenAI, Anthropic, and Dual serve the AI Editor rather than media generation. Google Gemini, Veo, and Nova Reel are registered provider placeholders. The 50+ specialist agents extend separately through profile files.', 'worldgraph-child' ); ?></p>
+			<p class="wg-integration-note"><strong><?php echo esc_html__( 'How these surfaces fit:', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'OpenAI-compatible, OpenAI, Anthropic, and Dual serve the AI Editor rather than media generation. The 50+ specialist agents extend separately through profile files.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:group -->
@@ -609,7 +609,7 @@
 		<!-- wp:group {"align":"wide","backgroundColor":"sepia","textColor":"dark-espresso","className":"wg-note wg-provider-caveat","layout":{"type":"constrained"}} -->
 		<div class="wp-block-group alignwide wg-note wg-provider-caveat has-dark-espresso-color has-sepia-background-color has-text-color has-background">
 			<!-- wp:paragraph -->
-			<p><strong><?php echo esc_html__( 'A clear boundary:', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'optional hosted providers can apply their own prices, credits, quotas, licenses, moderation rules, availability, data practices, and terms. Self-hosting controls deployment and data location; site privacy still depends on WordPress and hosting configuration.', 'worldgraph-child' ); ?></p>
+			<p><strong><?php echo esc_html__( 'Fully Extensible for free : ', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'The tools are free and all agentic work can be completed on local GPU resources. No need to pay for anything, ever. Add agent experts and new models anytime.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:group -->
