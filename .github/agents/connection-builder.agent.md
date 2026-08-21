@@ -41,8 +41,8 @@ in full before editing. Also follow the
 - `worldgraph_conn_adapters` is a metadata and conditional-loading registry;
   it is not a complete execution interface.
 - Outbound provider MCP is separate from inbound WordPress Abilities/MCP,
-  `.vscode` coding-tool MCP configuration, and `includes/agents/*.agent.md`
-  creative-advisor profiles.
+  `.mcp.json`/`.vscode` coding-tool MCP configuration, agent-host MCP tools,
+  and `includes/agents/*.agent.md` creative-advisor profiles.
 - A Connection identifies an account and endpoint. A Template identifies an
   executable provider operation. Do not collapse the two records.
 - Do not make live provider calls, create real credentials, or change external

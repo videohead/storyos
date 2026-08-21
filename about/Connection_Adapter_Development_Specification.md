@@ -58,6 +58,11 @@ exposure contract: it attempts registration outside
 `wp_abilities_api_categories_init`, and omits the required ability `category`.
 Treat those declarations as aspirational until repaired and tested, and note
 that World Graph Studio does not bundle or install the WordPress MCP Adapter.
+Use the current WordPress contracts for
+[`wp_register_ability()`](https://developer.wordpress.org/reference/functions/wp_register_ability/)
+and
+[`wp_register_ability_category()`](https://developer.wordpress.org/reference/functions/wp_register_ability_category/)
+when repairing that separate inbound surface.
 The current `.vscode/mcp.json` also contains extension settings rather than an
 MCP `servers` registry; do not use it as evidence that a coding-tool server is
 configured.
@@ -110,7 +115,7 @@ Select the closest shipped reference before writing code.
 | Asynchronous REST generation | Submit returns a remote ID and a later request returns status/results | `includes/utils/suno-api.php` for the REST lifecycle |
 | Non-generation REST exchange | The provider imports, exports, or synchronizes project data | `includes/utils/descript-api.php` and `plugins/descript/` |
 | Current Streamable HTTP MCP | The server supports the `2026-07-28` per-request metadata era | No protocol-complete bundled reference; implement the current specification and provider contract |
-| Initialization-based Streamable HTTP MCP | A legacy `2025-*` server requires `initialize` and may return `Mcp-Session-Id` | fal/Suno show provider request shapes; Comfy Cloud is the session-required reference, but see the protocol-debt warning in section 22 |
+| Initialization-based Streamable HTTP MCP | A legacy `2025-*` server requires `initialize` and may return `Mcp-Session-Id` | `includes/utils/fal-mcp.php` and `includes/utils/suno-mcp.php` show provider request shapes; `includes/utils/comfy-cloud-mcp.php` is session-required, but see the protocol-debt warning in section 22 |
 | Provider-specific MCP-shaped JSON-RPC | The provider explicitly permits direct `tools/list` and `tools/call` outside the standard lifecycle | `includes/utils/videodraft-api.php`; treat this as an exception, not generic stateless MCP |
 | REST and MCP in one operator-facing integration | One World Graph Studio Connection spans two transports, services, or credentials | the `suno` Connection spans SunoAPI.org REST and AceData Cloud MCP |
 | Local HTTP API plus optional MCP discovery | Execution and discovery use different processes/endpoints | local ComfyUI plus `comfy-cloud-mcp.php` |
@@ -159,6 +164,8 @@ provider-specific document:
 
 - stable provider slug and display name;
 - REST base URL, MCP URL, or both;
+- supported MCP protocol revision(s), transport era, and any explicit fallback
+  policy;
 - supported environments and local-container networking needs;
 - authentication scheme and recommended `env://VARIABLE_NAME`;
 - whether REST and MCP use the same credential;
@@ -233,7 +240,7 @@ add_filter(
 			'description' => 'Connect World Graph Studio to Acme Media.',
 			'icon'        => 'dashicons-format-video',
 			'endpoint'    => 'https://api.example.com/v1',
-			'loader'      => static function (): void {
+			'loader'      => static function ( string $_provider_type, array $_adapter ): void {
 				require_once __DIR__ . '/includes/class-acme-media-api.php';
 			},
 		];
@@ -254,7 +261,7 @@ add_filter(
 | `mcp_endpoint` | Optional distinct MCP endpoint |
 | `files` | Bundled plugin-relative PHP files, loaded in order |
 | `loader` | Callable loader, required for external-plugin-owned files |
-| `init` | Optional callable invoked once after files load |
+| `init` | Optional callable invoked once per provider per PHP request after files load |
 | `setup_options` | Optional guided Setup Wizard choices |
 | `show_in_plugins` | Set `false` to hide an executable adapter from the adapter table |
 
@@ -262,13 +269,21 @@ The registry provides metadata, provider-type choices, default endpoints, and
 lazy loading. It does not currently provide callbacks for health testing,
 catalog provisioning, generation submission, polling, or output import.
 
+The loader receives `( $provider_type, $adapter )`. Keep both arguments in an
+external loader's signature even if the first version does not use them.
+
 ### 7.4 Lazy-loading behavior
 
-`Connection_Adapters::load_configured()` loads adapters for every saved
-Connection whose Connection status is not `disabled`. `unverified` and `error`
-Connections can therefore load their adapter so an administrator can repair
-or retest them. `Connection_Adapters::load()` also runs when an administrator
-selects, saves, or tests a provider.
+`Connection_Adapters::load_configured()` asks
+`Connection_Repository::get_all()` for published Connections, currently capped
+at 100, and loads each one whose Connection status is not `disabled`. Draft and
+private records, and published records beyond that cap, are not loaded at
+startup. `unverified` and `error` published Connections can still load their
+adapter so an administrator can repair or retest them.
+
+`Connection_Adapters::load()` also runs from explicit save, test, setup, or
+provider-owned code paths. Merely changing a browser select without submitting
+it does not load PHP.
 
 Do not require all provider clients unconditionally from `worldgraph.php`.
 
@@ -284,8 +299,40 @@ reviewing and usually changing:
 - post-save Template provisioning;
 - Setup Wizard tests and documentation.
 
+Each `setup_options` entry is keyed by a globally unique, `sanitize_key()`-
+compatible submitted value. Duplicate values from later adapters overwrite
+earlier choices. Its supported data shape is:
+
+```php
+'setup_options' => [
+	'acme_media' => [
+		'label'                   => 'Acme Media',
+		'environment'             => 'production',
+		'mcp_endpoint'            => true,
+		'separate_mcp_credential' => true,
+	],
+],
+```
+
+`label` and `environment` are generic. The booleans signal an MCP endpoint and
+a separate MCP credential, but current wizard JavaScript and live testing are
+still provider-specific; inspect the rendered behavior rather than assuming
+the flags produce a complete UI.
+
 A provider can be fully supported on **World Graph Studio > Connections**
 without appearing in the first-run wizard.
+
+### 7.6 Extension hooks and their limits
+
+| Hook or filter | What it can do | What it cannot do |
+| --- | --- | --- |
+| `worldgraph_conn_adapters` | Register metadata, defaults, loader, and setup definitions | Supply generic test, catalog, submit, or poll callbacks |
+| `worldgraph_conn_provider_types` | Alter the provider select choices | Register or load an executable adapter |
+| `worldgraph_setup_connection_choices` | Alter full Setup Wizard choice data | Implement generic live testing or provisioning |
+| `worldgraph_setup_connection_options` | Alter displayed Setup Wizard labels | Register a provider implementation |
+| `worldgraph_after_rest_entity_save` | React to and, when necessary, correct custom REST persistence by post ID | Apply automatically outside custom REST or replace SCF schema alignment |
+| `worldgraph_conn_resolved` | Filter a resolved Connection for server-side consumers | Redact anything automatically; a callback must deliberately remove fields without breaking internal consumers |
+| `worldgraph_conn_tested` | Observe a test after status/timestamp/health persistence and update meta if needed | Supply dispatch or mutate the already-computed return payload through its by-value action arguments |
 
 ## 8. Connection Record Contract
 
@@ -318,6 +365,21 @@ administrator-only REST controller, not native WordPress CPT REST routes.
 JSON textarea values are persisted as JSON strings. `Connection_Repository::resolve()`
 decodes them for consumers and applies `worldgraph_conn_resolved`.
 
+Provider choices are injected dynamically through the exact SCF field hook
+`acf/load_field/key=field_worldgraph_conn_provider_type`. Registering a new
+provider does not require editing archived provider choices in the SCF JSON.
+
+Reuse `credential_reference`, `mcp_credential_reference`, and the existing
+JSON fields whenever possible. If the data model genuinely needs a new field,
+change all of these together:
+
+- `Connection::register_cpt()` and its SCF registration;
+- `Connection_Repository::PUBLIC_FIELDS` and resolution/output behavior;
+- `Connection::sanitize_scf_value()` and `validate_scf_value()`;
+- `acf-json/group_worldgraph_conn.json`, using one stable field key;
+- `about/CPT_and_SCF_Schema.md` and any REST/operator documentation;
+- `test-scf-alignment.php` plus persistence and response tests.
+
 `capabilities`, `mcp_configuration`, `rate_limits`, and `cost_controls` are
 descriptive unless provider code explicitly consumes them. Do not claim that
 merely filling these fields enforces a capability, starts an MCP process,
@@ -327,7 +389,10 @@ throttles a request, or stops spending.
 
 - A health test sets the Connection status to `verified` on success or `error`
   on failure and updates `last_validated_at`.
-- Only `disabled` is a hard load/availability stop in the current repository.
+- Among Connection meta statuses, only `disabled` blocks loading and
+  availability. Startup loading still requires a published record within the
+  100-record query, and `is_available()` also requires a provider type and
+  primary endpoint.
 - `Connection_Repository::get_default()` chooses the explicitly marked
   available default first, then the first verified Connection, then the first
   available non-disabled Connection.
@@ -336,13 +401,28 @@ throttles a request, or stops spending.
 - A Template that stores `connection_id` always pins that specific Connection;
   default selection is only a fallback for flows that do not pin one.
 
+Those uniqueness and lifecycle guarantees apply only through the common
+SCF/custom REST/admin save path. Raw meta writes can create multiple defaults.
+The verified fallback also does not currently rerun `is_available()`, so a
+historical verified record with an empty endpoint can be selected. Validate
+the resolved Connection at the execution boundary.
+
 ### 8.3 Credential handling
 
 Treat both credential-reference fields as sensitive administrative data.
-Most current API and MCP adapters accept either a literal credential or an uppercase
-`env://VARIABLE_NAME` reference, and the Setup Wizard can persist a literal
-value in post meta. Historical comments that imply an implemented encrypted
-credential store are not an implementation guarantee.
+Most current API and MCP adapters accept either a literal credential or an
+uppercase `env://VARIABLE_NAME` reference, and the Setup Wizard can persist a
+literal value in post meta. Historical comments that imply an implemented
+encrypted credential store are not an implementation guarantee.
+
+Current security limitation: both credential fields flow into repository
+records through `Connection_Repository::PUBLIC_FIELDS`; generic list/item REST
+serialization also includes them from the registered runtime field schema;
+and `/resolve` explicitly returns them. If a stored value is literal, these
+administrator-only responses contain the secret. Prefer `env://` so a response
+contains only a reference. Work that accepts literal credentials or changes
+these routes must add write-only/redacted response semantics before claiming
+that secrets never reach the browser.
 
 Requirements for new adapters:
 
@@ -385,6 +465,11 @@ mechanism.
 The outer `status` is the WordPress post status. `meta.status` is the
 Connection health status. They are deliberately different fields.
 
+Omitting the outer `status` creates a draft. Drafts do not appear in the
+published Connection list and are not considered by startup adapter loading.
+Route arguments also do not comprehensively enforce every readiness field, so
+a successful create response does not prove the Connection is executable.
+
 ```bash
 curl --user 'admin:APPLICATION_PASSWORD' \
   --request POST \
@@ -421,6 +506,16 @@ The generic `/connections/sync` route refreshes a fixed local provider
 capability descriptor. It is not a generic live provider catalog endpoint.
 Provider Template discovery currently belongs to the provider-specific
 save/test/admin lifecycle.
+
+Current collection and deletion caveats:
+
+- `GET /connections` returns published records only, is capped at 100, ignores
+  its registered `page` and `per_page` arguments, and reports one page;
+- `DELETE /connections/{id}` permanently calls `wp_delete_post( $id, true )`
+  without checking, detaching, or cascading dependent Templates;
+- disabling a Connection is therefore the safe operational stop; before
+  deletion, find and deliberately migrate or retire every Template whose
+  `connection_id` points to it.
 
 ## 10. Implement a REST/API Client
 
@@ -461,10 +556,18 @@ or operation argument in `get_job_status()`.
 
 ### 10.2 HTTP requirements
 
-- Use the WordPress HTTP API (`wp_remote_get()`, `wp_remote_post()`, or
-  `wp_remote_request()`).
+- Use the safe WordPress HTTP API (`wp_safe_remote_get()`,
+  `wp_safe_remote_post()`, or `wp_safe_remote_request()`) for administrator-
+  configured provider endpoints and provider-returned download URLs.
 - Normalize the configured base URL once and encode path identifiers with
   `rawurlencode()`.
+- Allowlist the required schemes, hosts, and ports; reject user-info and unsafe
+  IP ranges; revalidate DNS/IP targets after resolution and across redirects.
+- Set redirects to zero or a small reviewed limit. Validate every redirect
+  target before following it.
+- Use ordinary `wp_remote_*()` only for a narrow, documented exception that
+  intentionally permits a local/private endpoint, such as operator-configured
+  local ComfyUI. `esc_url_raw()` alone is not SSRF protection.
 - Preserve WordPress's TLS verification defaults.
 - Set a bounded timeout and, for large responses, a bounded response size or a
   streamed temporary-file workflow.
@@ -513,38 +616,94 @@ output has crossed the WordPress Media Library boundary successfully.
 World Graph Studio is the MCP client in this flow. Store the Streamable HTTP
 URL in `mcp_endpoint_url` and use the appropriate credential-reference field.
 
-### 11.1 Protocol sequence
+### 11.1 Select and implement the protocol era
 
-For a stateful Streamable HTTP server, the existing reference sequence is:
+“Streamable HTTP” does not identify one wire lifecycle. Revision `2026-07-28`
+removed the connection-scoped `initialize`/`initialized` exchange and
+`Mcp-Session-Id`; revisions `2025-03-26` through `2025-11-25` use the earlier
+initialization model. Verify the provider-supported revisions and implement
+that contract deliberately.
 
-1. POST JSON-RPC 2.0 `initialize` with the provider-supported protocol version,
-   client info, and client capabilities.
-2. Capture `Mcp-Session-Id` if the server returns it.
-3. Send `tools/list` for discovery or readiness checks.
-4. Send only allowlisted `tools/call` requests with a JSON object in
-   `arguments`.
-5. Carry the session ID on subsequent calls when the server requires it.
-6. Decode either a direct JSON response or Streamable HTTP `data:` frames.
-7. Treat JSON-RPC `error` and MCP tool-result `isError` as `WP_Error`.
-8. Decode tool content according to the provider's documented schema and
-   normalize it before returning to World Graph Studio.
+Normative references:
 
-Typical headers are:
+- [current MCP versioning and compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning);
+- [current Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http);
+- [current `server/discover`](https://modelcontextprotocol.io/specification/2026-07-28/server/discover);
+- [legacy `2025-11-25` lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle).
+
+For a current `2026-07-28` Streamable HTTP server:
+
+1. Optionally call `server/discover` to learn supported versions and
+   capabilities before normal requests. It is useful for discovery but is not
+   a required client preflight.
+2. Send every JSON-RPC request as its own HTTP POST. Do not send `initialize`,
+   `notifications/initialized`, or `Mcp-Session-Id` in this era.
+3. Put `io.modelcontextprotocol/protocolVersion`, client info, and client
+   capabilities in each request's `params._meta`.
+4. Mirror the body into required headers: `MCP-Protocol-Version` and
+   `Mcp-Method` on every request, plus `Mcp-Name` for `tools/call`,
+   `resources/read`, and `prompts/get`.
+5. If a discovered tool schema uses valid `x-mcp-header` annotations, mirror
+   only `string`, safe-range `integer`, or `boolean` arguments. `number` is not
+   permitted; omit missing/null arguments; and use the specified Base64
+   sentinel encoding for unsafe header values. Exclude a tool with an invalid
+   annotation rather than rejecting the whole catalog.
+6. Send `tools/list` and only allowlisted `tools/call` requests. Bound and
+   follow `nextCursor` pagination when completeness matters.
+7. Require `resultType: complete` for an ordinary result. If a call returns
+   `resultType: input_required`, either return a clear unsupported-capability
+   error or implement bounded Multi Round-Trip Request retries using a fresh
+   JSON-RPC ID, `inputResponses`, and the byte-for-byte opaque
+   `requestState`. Advertise only client capabilities that implementation can
+   actually service.
+
+Typical current-era headers for a tool call are:
 
 ```http
 Accept: application/json, text/event-stream
 Content-Type: application/json
-Authorization: Bearer <resolved credential>
-Mcp-Session-Id: <session id when supplied and required>
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: <allowlisted tool name>
+Authorization: <provider-specific scheme and resolved credential>
 ```
+
+For an initialization-based `2025-*` server:
+
+1. POST JSON-RPC 2.0 `initialize` with a supported version, client info, and
+   client capabilities.
+2. Validate the server-returned protocol version and required capabilities;
+   reject a version the client does not implement.
+3. Capture `Mcp-Session-Id` when the server supplies one.
+4. POST the `notifications/initialized` JSON-RPC notification without an `id`
+   and accept HTTP 202 with no body.
+5. On subsequent HTTP requests, send the negotiated `MCP-Protocol-Version`
+   header when that revision requires it and carry `Mcp-Session-Id` on every
+   request when one was issued.
+6. Send `tools/list`, following bounded `nextCursor` pagination when needed,
+   and only allowlisted `tools/call` requests.
+7. For a session-aware revision, recover an expired-session HTTP 404 through a
+   bounded new initialization and terminate an unused session with HTTP DELETE
+   when the server supports it.
+
+For either era, accept `application/json` or a request-scoped SSE response.
+Parse SSE events correctly, including multi-line `data` fields and multiple
+notifications; correlate the final JSON-RPC response by `id`; and bound the
+body, event count, and elapsed stream time. Treat JSON-RPC `error` and MCP
+tool-result `isError` as `WP_Error`, then decode tool content only according to
+the provider's documented schema.
 
 Authentication is provider-specific. Do not copy `Authorization: Bearer`,
 `X-API-Key`, or unauthenticated local behavior from another adapter without
-verifying the target server.
+verifying the target server. A provider that explicitly permits direct
+`tools/list`/`tools/call` outside either lifecycle is an MCP-shaped compatibility
+exception, not evidence that standard “stateless MCP” skips its protocol
+requirements.
 
-Some documented servers are stateless and accept direct `tools/list` and
-`tools/call`. Use that shorter path only when the provider contract and tests
-prove it; do not silently skip initialization as a generic optimization.
+If supporting both eras, attempt modern per-request metadata first and inspect
+structured HTTP/JSON-RPC errors before falling back. Do not mistake a modern
+unsupported-version, missing-capability, or header-mismatch error for a legacy
+server.
 
 ### 11.2 MCP client surface
 
@@ -571,7 +730,8 @@ must distinguish:
 - required tools present but catalog/schema invalid;
 - ready and provisioned.
 
-Do not report `verified` merely because `initialize` returned successfully.
+Do not report `verified` merely because protocol discovery or a legacy
+`initialize` exchange returned successfully.
 
 ### 11.4 Untrusted MCP content
 
@@ -670,6 +830,15 @@ readiness. A provisioning failure must be visible; decide explicitly whether
 it makes the whole Connection test fail or returns a verified transport with a
 separate provisioning warning, and cover that policy in tests.
 
+Do not substitute `Connection::upsert_managed()` or direct
+`update_post_meta()` for the common save lifecycle. `upsert_managed()` writes
+raw meta and does not run SCF sanitation, validation, single-default
+enforcement, or `after_scf_save()`; the current Setup Wizard compensates with
+explicit adapter loading and catalog scheduling. Likewise,
+`Connection::render_connection_meta_box()` and `Connection::save_meta()` are
+legacy, unhooked methods. SCF owns the fields, and only
+`render_configurator_meta_box()` is currently registered.
+
 ## 14. Wire Connection Testing
 
 `Connection_Tester::test()` currently dispatches by hard-coded provider slug.
@@ -690,6 +859,19 @@ For a bundled adapter:
 Do not let an unknown provider fall through to the historical Comfy Cloud
 credential-presence message. Either add a real test or return an accurate
 “adapter has no tester” result.
+
+An external plugin cannot currently inject a test into the generic
+`POST /connections/{id}/test` route: dispatch is hard-coded,
+`record_result()` is private, and `worldgraph_conn_tested` is a post-test
+notification. It must make a coordinated core change, introduce a reviewed
+generic test callback with compatibility tests, or expose its own
+administrator-only test action and clearly state that the generic Test button
+is unsupported.
+
+Current result recording only replaces `last_health_report` when a test
+returns non-empty health data, so an empty later failure can leave stale health
+from an earlier success. New work should clear or replace stale health and
+cover that behavior in tests.
 
 ## 15. Wire Generation Execution
 
@@ -730,7 +912,11 @@ Review `Generation_Batch` for all of the following:
 - `run_template()` arguments;
 - synchronous completion versus remote job-ID persistence;
 - `get_job_status()` argument shape;
-- retryable versus terminal errors;
+- bounded transient poll retries versus terminal errors;
+- permanent authentication/configuration failures becoming `failed`;
+- cancellation and provider-side not-found behavior;
+- recovery when a remote submission succeeds but its remote ID cannot be
+  persisted;
 - result persistence and final media import.
 
 Return normalized states only:
@@ -746,6 +932,12 @@ Do not retry an ambiguous, non-idempotent submit merely because the HTTP client
 timed out. Persist a provider idempotency key before submission when the
 provider supports one; otherwise fail with a message that tells the operator
 to verify the provider before retrying.
+
+There is no provider-neutral retry ceiling today. In particular, a polling
+`WP_Error` leaves most existing provider jobs in `submitted`; only selected
+providers have explicit permanent-error and retry-limit handling. A new async
+adapter must wire and test its own bounded transition policy so a dead job does
+not remain submitted forever.
 
 ### 15.4 Output import
 
@@ -792,6 +984,13 @@ without joining the generation worker. In that case:
 Do not add the provider to generation allowlists or provision generation
 Templates unless it actually generates supported outputs.
 
+Inbound Abilities are a separate feature. If that implementation is repaired
+and an MCP adapter is installed, expose an ability only through explicit
+`meta.public`/channel metadata and a least-privilege permission callback. For
+inputs containing post IDs, check object-level capabilities such as
+`edit_post`, not only a broad `edit_posts` capability. Runtime advisor `tools`
+metadata is not an authorization layer.
+
 ## 17. Admin and Operator Experience
 
 A completed Connection should be manageable from **World Graph Studio >
@@ -807,9 +1006,16 @@ Connections**:
   implemented;
 - credentials never appear in list tables, notices, URLs, or logs.
 
-The Plugins screen is informational for Connection adapters. Connection status,
-not a second plugin toggle, controls whether an adapter is configured for use.
-A separate feature plugin may still have its own enable switch.
+`Connection::render_configurator_meta_box()` contains hard-coded provider
+branches and has no manifest callback. A third-party provider needing custom
+controls must add its own capability-protected meta box/admin surface or
+introduce and test a reviewed core extension point.
+
+The Plugins screen is informational for Connection adapters. For a published
+Connection considered by the repository, its Connection meta status—not a
+second plugin toggle—controls whether the adapter is disabled. Other
+availability and query conditions still apply. A separate feature plugin may
+still have its own enable switch.
 
 ## 18. Security and Reliability Requirements
 
@@ -817,14 +1023,21 @@ Every new adapter must satisfy this checklist:
 
 - [ ] Provider endpoints are normalized and validated; dynamic path segments
       are encoded.
+- [ ] Administrator-configured endpoints and provider-returned download URLs
+      use safe HTTP calls, strict scheme/host/port policy, DNS/IP validation,
+      and bounded redirects; local-network exceptions are explicit and narrow.
 - [ ] Administrator-only Connection routes remain administrator-only.
 - [ ] Feature routes enforce the current user's object capability, not merely
       authentication.
 - [ ] Browser mutations use nonces; external callbacks use signatures or
       unguessable scoped tokens.
-- [ ] Credentials are resolved server-side and never returned resolved.
+- [ ] Credentials are resolved server-side and never returned resolved; literal
+      stored credentials are redacted/write-only or replaced by `env://`
+      references before browser responses.
 - [ ] Logs, errors, health data, and fixtures contain no live secret.
 - [ ] Provider parameters and MCP tools are allowlisted.
+- [ ] MCP protocol version, per-era lifecycle, request metadata, headers,
+      response IDs, pagination, and SSE framing are covered by fixtures.
 - [ ] Remote schemas, labels, errors, and MCP content are treated as untrusted
       data.
 - [ ] Request, response, collection, schema, and media sizes are bounded.
@@ -836,6 +1049,8 @@ Every new adapter must satisfy this checklist:
 - [ ] Rate and cost fields are not described as enforced unless code enforces
       them.
 - [ ] No live provider account is required by the unit suite.
+- [ ] Any public inbound Ability uses the required WordPress hooks/category and
+      enforces object-level authorization for supplied entity IDs.
 
 ## 19. Required Tests
 
@@ -848,7 +1063,7 @@ mock all external traffic. At minimum cover the applicable rows:
 | Connection | Provider choice, save normalization, environment/status, default uniqueness, and disabled behavior |
 | Credentials | Literal test fixture, valid `env://` resolution, invalid variable name, and no secret leakage |
 | REST/API transport | Authentication header, URL/path building, parameter allowlist, timeout/error, invalid JSON/binary |
-| MCP transport | Initialize/session behavior when required, JSON and SSE decoding, tools list, missing tools, tool `isError`, malformed result |
+| MCP transport | Current per-request metadata or complete legacy initialize/initialized lifecycle and, when a session ID is issued, session lifecycle; version/header validation; result types/MRTR policy; response-ID correlation; bounded JSON/SSE decoding; pagination; missing tools; tool `isError`; malformed result |
 | Tester | Success/error status, timestamp, bounded health report, and provisioning outcome |
 | Catalog | Discovery filtering, schema defaults, idempotent Template update, connection/provider identity, visible sync error |
 | Generation | Template/Connection agreement, modality/type agreement, submit shape, synchronous or async result, polling states |
@@ -905,7 +1120,8 @@ When a coding agent receives a Connection task, it should execute this order:
 1. Read this specification and the project build/testing instructions.
 2. Inspect the closest REST, MCP, or hybrid reference adapter and its tests.
 3. Write down the provider contract and claimed delivery boundary.
-4. Register the adapter and verify lazy loading.
+4. Register the adapter, change the Connection schema only if necessary, and
+   verify lazy loading.
 5. Implement the provider client and behavioral transport fixtures.
 6. Add a real Connection health test.
 7. Add idempotent catalog/Template provisioning if generation operations are
@@ -928,7 +1144,7 @@ A provider Connection is done for its claimed scope when:
 - credentials and remote data stay within the documented security boundary;
 - each claimed operation has an executable Template or feature-plugin action;
 - asynchronous work survives request boundaries and normalizes terminal
-  states;
+  states with bounded failure/retry behavior;
 - every claimed media output is imported into WordPress before success;
 - external traffic is mocked in deterministic tests;
 - operator and delivery documentation match the implementation.
@@ -949,11 +1165,29 @@ behavior that does not exist:
   executor.
 - Credential resolution is duplicated across clients; not every historical
   adapter supports every reference scheme.
-- The ComfyUI Connection configurator is provider-specific, not a generic
-  catalog UI.
+- Literal credential values are currently returned by administrator-only
+  Connection REST responses through the runtime field schema and explicit
+  resolve output; repository records also expose both credential fields.
+- Fal, Suno, and Comfy MCP clients are pinned to `2025-03-26` and do not
+  implement a complete lifecycle for that revision: they omit
+  `notifications/initialized`, negotiated-version/capability validation, and
+  expired-session recovery when a session is issued.
+- Those clients also do not support later `2025-*` revisions or the
+  `MCP-Protocol-Version` header those later revisions require; that header is
+  not required by their pinned `2025-03-26` revision.
+- Existing MCP SSE decoders process individual `data:` lines without complete
+  event framing or JSON-RPC response-ID correlation, and tool discovery does
+  not generally follow `nextCursor` pagination.
+- VideoDraft's direct tool calls are a provider-specific MCP-shaped exception,
+  not a protocol-complete stateless reference.
+- The Connection configurator is provider-specific and hard-coded, not a
+  generic catalog or third-party UI callback.
 - Runtime advisor `tools` metadata does not grant or dispatch provider tools.
-- World Graph Studio registers Abilities metadata but does not itself bundle a
+- The current Abilities implementation uses the wrong registration lifecycle
+  and lacks required categories; World Graph Studio also does not bundle a
   WordPress MCP server/adapter.
+- `.vscode/mcp.json` is not currently an MCP server registry; it contains
+  extension settings and no `servers` object.
 
 If a task introduces a generic callback or interface to remove one of these
 limits, specify the migration and backward-compatibility behavior, retain the
@@ -967,10 +1201,18 @@ in three places:
 - `AGENTS.md` points non-Copilot coding agents to the project instructions and
   this Connection contract;
 - `.github/instructions/connections.instructions.md` applies automatically to
-  Connection, MCP, Template, and generation integration files in supported
-  coding-agent environments;
+  plugin and `about/` documentation work, then tells agents when this
+  Connection contract is relevant;
 - `.github/agents/connection-builder.agent.md` provides a selectable and
   inferable Connection specialist that links here.
+
+The layout follows the current
+[VS Code custom-agent discovery contract](https://code.visualstudio.com/docs/agent-customization/custom-agents)
+and
+[file-based instruction contract](https://code.visualstudio.com/docs/agent-customization/custom-instructions).
+Both `.github` files must begin and end their YAML frontmatter with `---`.
+Keep that opening delimiter even if an older repository profile lacks one;
+otherwise metadata can be treated as prompt body instead of discovery data.
 
 Keep those links intact if this file moves. Do not copy this document into a
 runtime `includes/agents/*.agent.md` profile; WordPress creative advisors and

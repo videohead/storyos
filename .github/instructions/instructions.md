@@ -71,7 +71,9 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
   integrations live under `wordpress/wp-content/plugins/worldgraph/`.
 - ComfyUI integration lives in the relevant World Graph Studio plugin and should fail
   clearly when the optional service is unavailable.
-- ComfyUI MCP is the authority on what ComfyUI can do, WordPress and PHP should be aligned as closely with the MCP as possible.
+- When a separate ComfyUI MCP server is configured, its advertised tools are
+  authoritative for that MCP surface. Ordinary ComfyUI on port 8188 remains an
+  HTTP API and must not be treated as MCP.
 - The Story Graph is the canonical model for projects, story worlds,
   characters, locations, scenes, shots, and assets.
 - Keep architecture and API changes synchronized with the specifications in
@@ -171,7 +173,9 @@ layer and Story Graph context. Keep its boundary inside WordPress:
 - Chat, analysis, generation, and continuity-check REST endpoints.
 - A context builder that assembles data for the current post.
 - Local vLLM support with optional cloud fallback.
-- WordPress Abilities API registration for AI capabilities.
+- WordPress Abilities API declarations for future AI capability exposure; the
+  current registration lifecycle is incomplete and must not be treated as a
+  working inbound MCP surface.
 - Settings for backend selection, credentials, and model configuration.
 
 Do not add a router, framework bridge, or separate execution service to this
@@ -182,7 +186,8 @@ module. Implementation files are located in:
   - `class-ai-llm-client.php` - LLM communication
   - `class-ai-context-builder.php` - Story Graph context assembly
   - `class-ai-editor-rest.php` - REST API endpoints
-  - `class-ai-abilities.php` - Abilities API registration
+  - `class-ai-abilities.php` - Intended Abilities API declarations; current
+    registration lifecycle is incomplete
 - `assets/ai-editor/` - Frontend assets
   - `js/` - React Gutenberg sidebar components
   - `css/` - Panel and component styles
@@ -308,8 +313,8 @@ Copilot. These agents are specialized for different development tasks:
 - `thorough-reviewer.agent.md` - Comprehensive review and analysis
 
 The scoped `.github/instructions/connections.instructions.md` file also points
-agents editing the World Graph Studio plugin to the canonical provider
-Connection contract.
+agents editing the World Graph Studio plugin or repository documentation to
+the canonical provider Connection contract.
 
 See `AGENTS.md` in the project root for agent instructions and usage guidance.
 
