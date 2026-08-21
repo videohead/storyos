@@ -224,8 +224,8 @@ POST /wp-json/worldgraph/v1/assets/generate
 ```
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
-fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP, and
-VideoDraft MCP.
+fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP,
+VideoDraft MCP, and OpenRouter video generation REST.
 The Suno callback route is public because the provider calls it, but an HMAC
 query token binds it to one Suno Connection. It only schedules an authenticated
 poll; the worker still retrieves canonical status and imports every final track

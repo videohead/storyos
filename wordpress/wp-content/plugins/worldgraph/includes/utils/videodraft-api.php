@@ -143,7 +143,10 @@ class VideoDraft_API {
 					'arguments'      => $arguments,
 					'attachment_ids' => array_values( array_unique( $attachment_ids ) ),
 				];
-				update_post_meta( $job_id, '_worldgraph_videodraft_resolved_request', $request_cache );
+				update_post_meta( $job_id, '_worldgraph_videodraft_resolved_request', wp_slash( $request_cache ) );
+				if ( $request_cache !== get_post_meta( $job_id, '_worldgraph_videodraft_resolved_request', true ) ) {
+					return new WP_Error( 'videodraft_retry_state_unavailable', __( 'WordPress could not persist the recoverable VideoDraft audio request.', 'worldgraph' ) );
+				}
 			}
 		}
 

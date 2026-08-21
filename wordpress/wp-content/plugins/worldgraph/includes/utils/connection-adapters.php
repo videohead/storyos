@@ -141,6 +141,21 @@ class Connection_Adapters {
 					'includes/utils/descript-api.php',
 				],
 			],
+			'openrouter' => [
+				'label'         => 'OpenRouter',
+				'description'   => 'Generate video from text (and optional reference images) through the OpenRouter asynchronous Video Generation API.',
+				'icon'          => 'dashicons-video-alt2',
+				'endpoint'      => 'https://openrouter.ai/api/v1',
+				'setup_options' => [
+					'openrouter' => [
+						'label'       => 'OpenRouter Video Generation',
+						'environment' => 'production',
+					],
+				],
+				'files'         => [
+					'includes/utils/openrouter-api.php',
+				],
+			],
 			'openai_compatible' => [ 'label' => 'OpenAI-compatible', 'endpoint' => '', 'files' => [] ],
 			'openai'            => [ 'label' => 'OpenAI', 'endpoint' => 'https://api.openai.com/v1', 'files' => [] ],
 			'anthropic'         => [ 'label' => 'Anthropic', 'endpoint' => 'https://api.anthropic.com', 'files' => [] ],

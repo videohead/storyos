@@ -33,7 +33,7 @@ Story Graph post or REST client
          WP-Cron batch worker
               |
               v
- ComfyUI / fal / ElevenLabs / Suno / VideoDraft adapter
+ ComfyUI / fal / ElevenLabs / Suno / VideoDraft / OpenRouter adapter
               |
               v
  WordPress attachments / text results + provenance
@@ -49,8 +49,8 @@ release registers these modalities:
 | `text_to_image` | image | `prompt` | `negative_prompt` | ComfyUI or a compatible fal Template |
 | `image_to_image` | image | `image` | `prompt`, `negative_prompt` | Compatible ComfyUI or VideoDraft Template |
 | `image_text_to_image` | image | `image`, `prompt` | `negative_prompt` | Compatible ComfyUI or VideoDraft Template |
-| `text_to_video` | video | `prompt` | `negative_prompt` | VideoDraft |
-| `text_image_to_video` | video | `prompt`, `image` | `negative_prompt` | VideoDraft |
+| `text_to_video` | video | `prompt` | `negative_prompt` | VideoDraft or OpenRouter |
+| `text_image_to_video` | video | `prompt`, `image` | `negative_prompt` | VideoDraft or OpenRouter |
 | `video_to_video` | video | `start_frame` | `prompt`, `negative_prompt`, `end_frame` | Compatible ComfyUI Template |
 | `video_with_audio` | video | `audio` | `prompt`, `negative_prompt`, `video` | VideoDraft |
 | `text_to_speech` | audio | `prompt` | none | ElevenLabs |

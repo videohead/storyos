@@ -18,9 +18,9 @@ integration scaffolds:
 | Celtx synchronization | Bundled source; response and Scene-call repair required |
 | VideoDraft structural Project synchronization | Delivered optional bidirectional plugin |
 | Descript transcript/media exchange | Experimental scaffold; not a delivered workflow |
-| CMX 3600 EDL parser/formatter | Implemented PHP format code; admin workflow incomplete |
-| SMPTE 436m XML EDL parser/formatter | Implemented PHP format code; admin workflow incomplete |
-| CMX/XML EDL admin preview/download | Not delivered; missing assets, action conflict, no persistence, and sample export data |
+| CMX 3600 EDL parser/formatter | Delivered PHP format code and admin workflow |
+| SMPTE 436m XML EDL parser/formatter | Delivered PHP format code and admin workflow |
+| CMX/XML EDL admin preview/download | Delivered; persists confirmed imports, exports a live Project/Episode timeline, and reports unparsable lines |
 | Additional professional script-file adapters | Extension opportunity |
 
 See [Delivery Status](Delivery_Status.md) for the repository-wide status source

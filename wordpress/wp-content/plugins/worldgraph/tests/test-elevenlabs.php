@@ -76,7 +76,7 @@ class Test_ElevenLabs extends TestCase {
 		$this->assertStringContainsString( "[ 'image', 'video', 'audio' ]", $batch );
 		$this->assertStringContainsString( 'Asset_Generator::import_completed_job', $batch );
 		$this->assertLessThan(
-			strpos( $batch, "update_post_meta( \$job_id, '_worldgraph_gen_result', \$stored_result )" ),
+			strpos( $batch, "self::persist_job_meta( \$job_id, '_worldgraph_gen_result', \$stored_result )" ),
 			strpos( $batch, "unset( \$stored_result['audio_data'], \$stored_result['audio_items'] )" )
 		);
 		$this->assertStringContainsString( "'audio_data'", $assets );

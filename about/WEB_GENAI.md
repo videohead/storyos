@@ -54,21 +54,21 @@ The presence of `veo` or `nova_reel` in the connection form is an extension poin
    both a SunoAPI.org key and a separate AceData Cloud token for Suno.
 2. In the Setup Wizard or **World Graph Studio > Connections**, choose the matching provider.
 3. Use `env://FAL_KEY`, `env://ELEVENLABS_API_KEY`,
-   `env://VIDEODRAFT_API_KEY`, or the paired `env://SUNO_API_KEY` and
-   `env://ACEDATACLOUD_API_TOKEN` references in production when credentials
-   are supplied by the runtime.
+   `env://VIDEODRAFT_API_KEY`, `env://OPENROUTER_API_KEY`, or the paired
+   `env://SUNO_API_KEY` and `env://ACEDATACLOUD_API_TOKEN` references in
+   production when credentials are supplied by the runtime.
 4. Test the Connection so World Graph Studio can discover provider capabilities and create or update Templates.
 5. Select a provider Template and submit the generation from World Graph Studio.
 
-fal, Suno, and asynchronous VideoDraft image/video jobs are queued and polled
-through WP-Cron. ElevenLabs and synchronous VideoDraft audio responses are
-imported directly. Suno music completion imports every final track; the
-`text_to_lyrics` modality retains normalized text results without pretending
-they are media attachments.
+fal, Suno, and asynchronous VideoDraft and OpenRouter image/video jobs are
+queued and polled through WP-Cron. ElevenLabs and synchronous VideoDraft audio
+responses are imported directly. Suno music completion imports every final
+track; the `text_to_lyrics` modality retains normalized text results without
+pretending they are media attachments.
 
 These are first-party World Graph Studio execution paths. Provider model
 availability, quotas, pricing, regions, and terms remain controlled by fal,
-ElevenLabs, VideoDraft, SunoAPI.org, and AceData Cloud.
+ElevenLabs, VideoDraft, OpenRouter, SunoAPI.org, and AceData Cloud.
 
 ### Path C: Local or third-party web generation
 
@@ -85,8 +85,9 @@ A third-party extension can make another web platform a direct connector by
 implementing its authentication, capability validation, submission, polling or
 webhooks, cancellation where available, artifact download, and asset ingestion.
 The delivered generation batch already dispatches ComfyUI, fal, ElevenLabs,
-Suno, and VideoDraft jobs through their adapters; adding an arbitrary provider
-name or endpoint to a Connection record does not create an executable adapter.
+Suno, VideoDraft, and OpenRouter jobs through their adapters; adding an
+arbitrary provider name or endpoint to a Connection record does not create an
+executable adapter.
 
 Before an extension labels another provider supported, its maintainer should
 verify official API access and terms, implement the complete job lifecycle,

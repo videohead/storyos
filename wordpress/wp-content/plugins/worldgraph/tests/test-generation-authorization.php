@@ -200,8 +200,10 @@ class Test_Generation_Authorization extends TestCase {
 	public function test_generation_controller_wires_authorization_before_storage(): void {
 		$source = (string) file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/generation-controller.php' );
 		$this->assertStringContainsString( "'permission_callback' => [ \$this, 'check_generation_create_permission' ]", $source );
+		$this->assertStringContainsString( "'permission_callback' => [ \$this, 'check_generation_manage_permission' ]", $source );
 		$this->assertStringContainsString( 'Generation_Authorization::authorize_submission(', $source );
 		$this->assertStringContainsString( 'Generation_Authorization::REQUESTER_META, $requester_id', $source );
+		$this->assertStringContainsString( "update_post_meta( \$generation_id, '_worldgraph_gen_status', 'cancelled', \$current_status )", $source );
 		$this->assertLessThan( strpos( $source, 'wp_insert_post(' ), strpos( $source, '$authorization = Generation_Authorization::authorize_submission' ) );
 	}
 

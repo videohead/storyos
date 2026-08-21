@@ -300,8 +300,8 @@ class Test_Suno extends TestCase {
 	public function test_generation_batch_wires_both_suno_clients(): void {
 		$source = (string) file_get_contents( dirname( __DIR__ ) . '/includes/utils/generation-batch.php' );
 
-		$this->assertStringContainsString( "[ 'comfyui', 'fal', 'elevenlabs', 'suno', 'videodraft' ]", $source );
-		$this->assertStringContainsString( "[ 'comfyui', 'fal', 'suno', 'videodraft' ]", $source );
+		$this->assertMatchesRegularExpression( '/in_array\( \$provider_type, \[[^\]]*\'suno\'[^\]]*\], true \)/', $source );
+		$this->assertMatchesRegularExpression( '/in_array\( \$connection\[\'provider_type\'\], \[[^\]]*\'suno\'[^\]]*\], true \)/', $source );
 		$this->assertStringContainsString( "[ Fal_MCP::class, Suno_API::class, Suno_MCP::class, VideoDraft_API::class ]", $source );
 		$this->assertStringContainsString( "str_starts_with( \$template, 'mcp:' ) ? Suno_MCP::class : Suno_API::class", $source );
 		$this->assertStringContainsString( '$client::run_template(', $source );

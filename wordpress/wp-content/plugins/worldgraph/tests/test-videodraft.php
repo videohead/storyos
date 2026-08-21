@@ -366,7 +366,14 @@ class Test_VideoDraft extends TestCase {
 		$this->assertStringContainsString( "'_worldgraph_videodraft_resolved_request'", $api );
 		$this->assertStringContainsString( "'attachment_ids' => array_values( array_unique( \$attachment_ids ) )", $api );
 		$this->assertStringContainsString( 'clear_videodraft_submission_cache', $batch );
+		$this->assertStringContainsString( 'persist_job_meta', $batch );
+		$this->assertStringContainsString( 'wp_slash( $value )', $batch );
+		$this->assertStringContainsString( '$remote_id_persisted', $batch );
+		$this->assertStringContainsString( '$attachments_persisted', $batch );
+		$this->assertStringContainsString( "'worldgraph_gen_cleanup_failed'", $batch );
 		$this->assertStringContainsString( "maybe_serialize( \$current )", $batch );
+		$this->assertStringContainsString( 'private static function refresh_lock()', $batch );
+		$this->assertStringContainsString( 'const CLAIM_TTL = self::LOCK_TTL', $batch );
 		$this->assertStringContainsString( "'videodraft' === \$provider || 'videodraft' === \$adapter", $assets );
 		$this->assertStringContainsString( '$is_videodraft ? $typed_audio_urls', $assets );
 		$this->assertStringContainsString( "plugins/videodraft/videodraft-sync.php", $bootstrap );

@@ -20,7 +20,7 @@ not been configured.
 | AI assistance | Gutenberg AI Editor, Story Graph context, configured LLM access, WordPress Abilities, and 50+ specialist agents loaded from extensible profiles |
 | Story intelligence | Search, optional semantic assistance, continuity checks, relationship analytics, summaries, and admin panels |
 | Generation | Connection and template records, validation, queued generation jobs, WP-Cron processing, job state, cancellation, result import, and provenance |
-| Provider adapters | A filterable Connection adapter manifest plus local ComfyUI HTTP workflows, Comfy Cloud MCP, fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft MCP, and manually managed external-generator workflows where configured |
+| Provider adapters | A filterable Connection adapter manifest plus local ComfyUI HTTP workflows, Comfy Cloud MCP, fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft MCP, OpenRouter video generation REST, and manually managed external-generator workflows where configured |
 | Project interchange | World Graph Studio JSON and Final Draft FDX import, Markdown screenplay/storyboard export, and optional VideoDraft structural Project push/pull |
 | Synchronization | Optional bidirectional VideoDraft structural synchronization, with persistent remote-ID mappings |
 | Editorial format code | CMX 3600 and SMPTE 436m XML parsing, timecode, and format-generation functions; the bundled admin workflow remains incomplete |
@@ -79,10 +79,11 @@ commitments, and they do not reopen the closed roadmap category.
   visibility and access still depend on WordPress and hosting configuration.
 - AAF, OMF, provider-specific NLE panels, and other possible integrations are
   extension points, not current-release commitments.
-- The bundled EDL PHP code can parse and generate supported formats, but the
-  admin page references missing assets and its AJAX action contract conflicts.
-  Import confirmation persists nothing, and Project export uses sample clips;
-  the admin workflow is not presented as delivered.
+- The bundled EDL PHP code parses and generates supported formats through a
+  delivered admin workflow: import confirmation persists as an Editorial
+  Artifact post, Project/Episode export resolves the live Scene/Shot
+  timeline, and unparsable ASCII lines are reported with line numbers instead
+  of being silently dropped.
 - The bundled Fountain source has a browser bootstrap defect, and the bundled
   Celtx source has response-handling and Scene-call defects. They remain listed
   in the catalog as integration scaffolds rather than delivered workflows.

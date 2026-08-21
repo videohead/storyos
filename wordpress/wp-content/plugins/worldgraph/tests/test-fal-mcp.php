@@ -66,7 +66,7 @@ class Test_Fal_MCP extends TestCase {
 		$this->assertNotFalse( $batch );
 		$this->assertNotFalse( $assets );
 		$this->assertLessThan(
-			strpos( $batch, "update_post_meta( \$job_id, '_worldgraph_gen_status', \$status )" ),
+			strpos( $batch, "self::persist_job_status( \$job_id, \$status )" ),
 			strpos( $batch, 'Asset_Generator::import_completed_job' )
 		);
 		$this->assertStringContainsString( 'find_result_urls( $result )', $assets );

@@ -2,8 +2,8 @@
 
 World Graph Studio keeps stories, Story Graph data, and specialist creative
 advisors in WordPress. Generative media workflows can run through configured
-tools including ComfyUI, fal, ElevenLabs, Suno, and VideoDraft. Neither a GPU nor a
-generation connection is required for writing, planning, continuity,
+tools including ComfyUI, fal, ElevenLabs, Suno, VideoDraft, and OpenRouter.
+Neither a GPU nor a generation connection is required for writing, planning, continuity,
 collaboration, asset tracking, JSON/FDX import, or Markdown export.
 AI-assisted and generated-media features require the corresponding configured
 service.
@@ -20,8 +20,8 @@ Every World Graph Studio user needs:
 1. A WordPress.org-capable host, WP Local, or a local Docker/Lando deployment.
 2. Optionally, a local ComfyUI installation, Comfy Cloud account, fal account,
    ElevenLabs account, separate SunoAPI.org and AceData Cloud accounts, a
-   VideoDraft account with a personal access token, or
-   another manually managed asset source.
+   VideoDraft account with a personal access token, an OpenRouter account with
+   an API key, or another manually managed asset source.
 3. Optionally, an API-connected LLM: a local OpenAI-compatible server such as
    llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as
    OpenAI or Anthropic.

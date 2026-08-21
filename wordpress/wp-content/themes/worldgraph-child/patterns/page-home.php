@@ -382,6 +382,7 @@
 			<tr><td><?php echo esc_html__( 'ElevenLabs', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'REST API', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Speech, dialogue, sound effects, music, and voice previews', 'worldgraph-child' ); ?></td></tr>
 			<tr><td><?php echo esc_html__( 'Suno', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'REST API + MCP', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Prompt music, custom music, and lyrics', 'worldgraph-child' ); ?></td></tr>
 			<tr><td><?php echo esc_html__( 'VideoDraft', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Hosted MCP', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Discovered image, video, and audio Templates with media import', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'OpenRouter', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'REST API', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Text-to-video, image-to-video, and reference-to-video jobs across any OpenRouter video model', 'worldgraph-child' ); ?></td></tr>
 			</tbody></table></figure>
 			<!-- /wp:table -->
 

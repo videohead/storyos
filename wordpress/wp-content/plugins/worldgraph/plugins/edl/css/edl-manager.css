@@ -1,0 +1,38 @@
+/**
+ * World Graph Studio - EDL Manager admin styles.
+ *
+ * @package WorldGraphEDL
+ */
+
+.worldgraph-edl-wrap #edl-status {
+	padding: 10px 12px;
+	margin: 10px 0;
+}
+
+.worldgraph-edl-wrap .edl-tab-content {
+	margin-top: 16px;
+}
+
+.worldgraph-edl-preview {
+	margin-top: 20px;
+	padding: 12px 16px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+}
+
+.worldgraph-edl-preview #preview-warnings {
+	white-space: pre-wrap;
+	font-family: monospace;
+	padding: 10px 12px;
+	margin: 10px 0;
+}
+
+#preview-table th,
+#preview-table td {
+	text-align: left;
+	padding: 6px 10px;
+}
+
+.worldgraph-edl-wrap input[type="number"] {
+	width: 110px;
+}

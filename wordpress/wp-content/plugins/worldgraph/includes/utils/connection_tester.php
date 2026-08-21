@@ -79,6 +79,9 @@ class Connection_Tester {
 		if ( 'descript' === $record['provider_type'] ) {
 			return self::test_descript( $connection_id, $record );
 		}
+		if ( 'openrouter' === $record['provider_type'] ) {
+			return self::test_openrouter( $connection_id );
+		}
 
 		$has_key = '' !== trim( (string) $record['credential_reference'] );
 		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
@@ -184,9 +187,23 @@ class Connection_Tester {
 		return self::record_result( $connection_id, true, sprintf( 'Connected to Descript (%d project(s) visible in this drive).', $count ), [ 'projects' => $result['projects'] ?? [] ] );
 	}
 
+	/** Test OpenRouter authentication and video model discovery. */
+	private static function test_openrouter( int $connection_id ): array {
+		$models = OpenRouter_API::video_models( $connection_id );
+		if ( is_wp_error( $models ) ) {
+			return self::record_result( $connection_id, false, $models->get_error_message(), [] );
+		}
+
+		return self::record_result(
+			$connection_id,
+			true,
+			sprintf( 'Connected to OpenRouter; %d video generation model(s) available.', count( $models ) ),
+			[ 'model_count' => count( $models ) ]
+		);
+	}
+
 	/** Test VideoDraft generation, project-sync tools, and Template provisioning. */
-	private static function test_videodraft( int $connection_id ): array {
-		$tools = VideoDraft_API::available_tools( $connection_id );
+	private static function test_videodraft( int $connection_id ): array {		$tools = VideoDraft_API::available_tools( $connection_id );
 		if ( is_wp_error( $tools ) ) {
 			return self::record_result( $connection_id, false, $tools->get_error_message(), [] );
 		}

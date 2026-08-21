@@ -520,7 +520,7 @@ function parse_edl_ascii( string $content, float $fps ) {
 
 	$tc = '\d{2}[:;]\d{2}[:;]\d{2}[:;]\d{2}';
 	// event# reel track edit-type [transition-duration] src-in src-out rec-in rec-out.
-	$event_pattern = '/^(\d{1,3})\s+(\S{1,8})\s+([A-Z0-9\/]+)\s+([CDW])\s*(\d+)?\s+(' . $tc . ')\s+(' . $tc . ')\s+(' . $tc . ')\s+(' . $tc . ')\s*$/i';
+	$event_pattern = '/^(\d{1,6})\s+(\S+)\s+([A-Z0-9\/]+)\s+([CDW])\s*(\d+)?\s+(' . $tc . ')\s+(' . $tc . ')\s+(' . $tc . ')\s+(' . $tc . ')\s*$/i';
 
 	$last_clip_index = null;
 
@@ -860,8 +860,12 @@ function generate_edl_xml( array $clips, float $fps ): string {
  * @return float Actual frame rate.
  */
 function normalize_fps( int $code ): float {
-	$fractional = [ 23976, 2997, 5994 ];
-	return in_array( $code, $fractional, true ) ? $code / 1000 : (float) $code;
+	$scale = [
+		23976 => 1000, // 23.976
+		2997  => 100,  // 29.97
+		5994  => 100,  // 59.94
+	];
+	return isset( $scale[ $code ] ) ? $code / $scale[ $code ] : (float) $code;
 }
 
 /**

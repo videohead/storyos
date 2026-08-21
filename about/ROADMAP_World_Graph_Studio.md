@@ -80,7 +80,8 @@ The product direction is guided by five rules:
 - Status polling, cancellation, failure reporting, and generation logs.
 - Returned-media import, source linkage, and provenance.
 - Comfy Cloud MCP, local ComfyUI HTTP, fal MCP, ElevenLabs, SunoAPI.org REST,
-  AceData Cloud Suno MCP, VideoDraft hosted MCP, and manually managed
+  AceData Cloud Suno MCP, VideoDraft hosted MCP, OpenRouter video generation
+  REST, and manually managed
   external-generator workflows where configured.
 - Suno prompt-music, custom-music, and `text_to_lyrics` Templates, with
   distinct REST and MCP credentials.

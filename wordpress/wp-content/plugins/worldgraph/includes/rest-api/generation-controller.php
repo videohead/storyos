@@ -126,7 +126,7 @@ class Generation_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/generation/(?P<id>\d+)/cancel', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'cancel_generation' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_generation_manage_permission' ],
 			'args'                => [
 				'id' => [
 					'description' => 'Generation request ID.',
@@ -170,6 +170,22 @@ class Generation_Controller extends Base_Controller {
 				],
 			],
 		] );
+	}
+
+	/** Only editors of a generation record may cancel it. */
+	public function check_generation_manage_permission( WP_REST_Request $request ) {
+		$permission = parent::check_create_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		$generation_id = absint( $request->get_param( 'id' ) );
+		$generation = get_post( $generation_id );
+		if ( ! $generation instanceof \WP_Post || 'worldgraph_gen' !== $generation->post_type || ! current_user_can( 'edit_post', $generation_id ) ) {
+			return new WP_Error( 'worldgraph_generation_forbidden', 'You are not allowed to manage this generation request.', [ 'status' => 403 ] );
+		}
+
+		return true;
 	}
 
 	/**
@@ -427,9 +443,16 @@ class Generation_Controller extends Base_Controller {
 	public static function cancel_generation( WP_REST_Request $request ) {
 		$generation_id = absint( $request->get_param( 'id' ) );
 		$job_id = get_post_meta( $generation_id, '_worldgraph_gen_job_id', true );
+		$current_status = sanitize_key( (string) get_post_meta( $generation_id, '_worldgraph_gen_status', true ) );
 
-		// Update status.
-		update_post_meta( $generation_id, '_worldgraph_gen_status', 'cancelled' );
+		if ( ! in_array( $current_status, [ 'queued', 'submitted', 'import_retry' ], true ) ) {
+			return new WP_Error( 'worldgraph_generation_not_cancellable', 'This generation request is already running or has reached a terminal state.', [ 'status' => 409 ] );
+		}
+		if ( false === update_post_meta( $generation_id, '_worldgraph_gen_status', 'cancelled', $current_status ) ) {
+			return new WP_Error( 'worldgraph_generation_cancel_conflict', 'The generation request changed while cancellation was being applied.', [ 'status' => 409 ] );
+		}
+		delete_post_meta( $generation_id, '_worldgraph_videodraft_resolved_inputs' );
+		delete_post_meta( $generation_id, '_worldgraph_videodraft_resolved_request' );
 
 		return rest_ensure_response( [
 			'id'       => $generation_id,

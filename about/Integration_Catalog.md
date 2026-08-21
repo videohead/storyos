@@ -17,7 +17,7 @@ integration's exact contract.
 | [Celtx Connector](plugins/CELTX.md) | Project synchronization | Intended: Story Graph → Celtx | Bundled mapping and REST source targets Projects, Characters, Locations, Scenes, and Shots, but response handling and Scene-call defects currently block a verified outbound sync | Runtime repair required; not currently delivered |
 | [VideoDraft Sync](plugins/VIDEODRAFT.md) | Project synchronization | Story Graph ↔ VideoDraft | Pushes and pulls the shared structural Project subset with dry-run preview, checkpoints, conflict hashes, and per-Connection mappings | Optional; enabled `videodraft` Connection and PAT |
 | [Descript Exchange](plugins/DESCRIPT.md) | Transcript and media exchange | Intended: Descript transcript → Story Graph; bound media → Descript | Source maps one composition transcript to a Project/World/transcript Scene and prepares asynchronous media-import jobs; canonical media lookup, callback handling, binary formats, wizard classification, and runtime verification remain incomplete | Experimental scaffold; not a delivered workflow |
-| [EDL Format Tools](plugins/EDL_IMPORT_AND_EXPORT.md) | Editorial format library and admin scaffold | CMX/XML ↔ normalized clip arrays | PHP parsing, timecode, and format-generation functions are present; the admin workflow references missing assets, its AJAX action contract conflicts, import persists nothing, and Project export uses sample clips | Implemented format code; admin workflow not delivered |
+| [EDL Format Tools](plugins/EDL_IMPORT_AND_EXPORT.md) | Editorial format library and admin workflow | CMX/XML ↔ normalized clip arrays | PHP parsing, timecode, and format-generation functions with a preview/confirm admin workflow; imports persist as Editorial Artifact posts, exports resolve a live Project or Episode Scene/Shot timeline, and unparsable ASCII lines are reported with line numbers | Delivered format code and admin workflow |
 | [Google Web Stories](plugins/WEB_STORIES.md) | Publishing connector source | No supported runtime direction | Retained prototype code and design surface; not loaded by the main plugin and not a current release workflow | Prototype only |
 
 ## Core interchange surfaces
@@ -41,6 +41,7 @@ mapping and format-level boundaries.
 | ElevenLabs | REST API | Provisions speech, dialogue, sound-effect, music, and voice-design Templates and imports returned audio or previews | ElevenLabs API key |
 | Suno | SunoAPI.org REST plus AceData Cloud MCP | Provisions prompt-music, custom-music, and lyrics Templates, polls tasks, imports final songs, and retains normalized lyric results | Separate REST and MCP credentials |
 | VideoDraft | Hosted JSON-RPC MCP | Discovers live image, video, and audio tools, provisions Templates, polls asynchronous work, uploads bound local references, and imports completed media | VideoDraft PAT |
+| OpenRouter | REST API | Submits text-to-video (and image-to-video/reference-to-video) jobs to any OpenRouter video model, polls asynchronous jobs, and imports completed video | OpenRouter API key |
 
 Connection status is the loading authority for these adapters. Provider model
 availability, pricing, quotas, regions, and terms remain external operating

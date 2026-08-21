@@ -36,7 +36,8 @@ AI Editor    Generation Engine   Interchange
     v             v              v
 Configured     Comfy / fal /        JSON / FDX / Markdown /
 LLM endpoint   ElevenLabs / Suno /  VideoDraft
-               VideoDraft           + cataloged scaffolds
+               VideoDraft /         + cataloged scaffolds
+               OpenRouter
 ```
 
 Core Story Graph work has no AI dependency. An unavailable connection should
@@ -193,8 +194,9 @@ The generation lifecycle is:
    results remain on the generation record.
 
 The delivered adapters cover Comfy Cloud MCP, local ComfyUI HTTP workflows,
-fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft MCP, and manually
-managed external-generator workflows where configured. Suno uses one
+fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft MCP,
+OpenRouter video generation REST, and manually managed external-generator
+workflows where configured. Suno uses one
 Connection with distinct REST and MCP credential references; its managed
 Templates cover prompt music, custom music, and `text_to_lyrics`. Job state,
 cancellation, validation failures, and generation logs remain in WordPress.

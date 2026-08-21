@@ -146,7 +146,8 @@ The current release provides:
   source linkage and provenance.
 - Adapters for Comfy Cloud MCP, local ComfyUI HTTP workflows, fal MCP,
   ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft hosted MCP,
-  and manually managed external-generator workflows where configured.
+  OpenRouter video generation REST, and manually managed external-generator
+  workflows where configured.
 
 Capabilities depend on the selected adapter, template, model, credentials, and
 reachable service. The product may store media types for which the current

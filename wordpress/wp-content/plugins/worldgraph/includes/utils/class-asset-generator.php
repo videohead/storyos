@@ -553,7 +553,9 @@ class Asset_Generator {
 				return new WP_Error( 'worldgraph_gen_source_missing', __( 'The generation record no longer exists.', 'worldgraph' ) );
 			}
 		}
-		self::recover_import_journal( $job_id );
+		if ( ! self::recover_import_journal( $job_id ) ) {
+			return new WP_Error( 'worldgraph_gen_journal_failed', __( 'WordPress could not clean up an interrupted media import.', 'worldgraph' ) );
+		}
 
 		$provider   = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
 		$adapter    = (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true );
@@ -588,7 +590,7 @@ class Asset_Generator {
 		if ( '' !== $image_url ) {
 			$download = $is_videodraft
 				? self::download_to_file( $image_url, AI_Image_Client::MAX_IMAGE_BYTES, $job_id )
-				: self::download_bytes( $image_url, $adapter );
+				: self::download_bytes( $image_url, $adapter, $job_id );
 			if ( is_wp_error( $download ) ) {
 				return self::rollback_media_import( $job_id, $download );
 			}
@@ -609,6 +611,9 @@ class Asset_Generator {
 					return self::rollback_media_import( $job_id, new WP_Error( 'worldgraph_gen_journal_failed', __( 'WordPress could not journal the generated featured image.', 'worldgraph' ) ) );
 				}
 				set_post_thumbnail( $post->ID, $attachment_id );
+				if ( $attachment_id !== (int) get_post_thumbnail_id( $post->ID ) ) {
+					return self::rollback_media_import( $job_id, new WP_Error( 'worldgraph_asset_link_failed', __( 'WordPress could not set the generated featured image.', 'worldgraph' ) ) );
+				}
 			}
 			self::add_to_gallery( $post->ID, $attachment_id );
 		}
@@ -618,7 +623,7 @@ class Asset_Generator {
 		if ( '' !== $video_url ) {
 			$video_download = $is_videodraft
 				? self::download_to_file( $video_url, self::MAX_VIDEO_BYTES, $job_id )
-				: self::download_bytes( $video_url, $adapter );
+				: self::download_bytes( $video_url, $adapter, $job_id );
 			if ( is_wp_error( $video_download ) ) {
 				return self::rollback_media_import( $job_id, $video_download );
 			}
@@ -650,7 +655,7 @@ class Asset_Generator {
 				$audio_download = self::download_to_file( $audio_url, self::MAX_AUDIO_BYTES, $job_id );
 				$audio = is_wp_error( $audio_download ) ? $audio_download : self::validate_audio_file( $audio_download, $audio_url );
 			} else {
-				$audio_download = self::download_bytes( $audio_url, $adapter );
+				$audio_download = self::download_bytes( $audio_url, $adapter, $job_id );
 				$audio = is_wp_error( $audio_download ) ? $audio_download : self::validate_audio_bytes( $audio_download, $audio_mime, $audio_url );
 			}
 			if ( is_wp_error( $audio ) ) {
@@ -701,7 +706,7 @@ class Asset_Generator {
 			$is_audio = in_array( $additional_url, $audio_urls, true ) || self::is_audio_url( $additional_url );
 			$additional_download = $is_videodraft
 				? self::download_to_file( $additional_url, $is_video ? self::MAX_VIDEO_BYTES : ( $is_audio ? self::MAX_AUDIO_BYTES : AI_Image_Client::MAX_IMAGE_BYTES ), $job_id )
-				: self::download_bytes( $additional_url, $adapter );
+				: self::download_bytes( $additional_url, $adapter, $job_id );
 			if ( is_wp_error( $additional_download ) ) {
 				return self::rollback_media_import( $job_id, $additional_download );
 			}
@@ -742,10 +747,11 @@ class Asset_Generator {
 	 * Store raw image bytes in the media library.
 	 *
 	 * @param array    $image Image payload from AI_Image_Client.
-	 * @param \WP_Post $post  Source post.
+	 * @param \WP_Post $post   Source post.
+	 * @param int      $job_id Generation job ID, when this is a queued import.
 	 * @return int|WP_Error Attachment ID.
 	 */
-	private static function sideload( array $image, \WP_Post $post ) {
+	private static function sideload( array $image, \WP_Post $post, int $job_id = 0 ) {
 		$filename = sanitize_file_name(
 			sprintf( 'worldgraph-%s-%d-%s.%s', $post->post_type, $post->ID, gmdate( 'YmdHis' ), $image['extension'] )
 		);
@@ -801,6 +807,10 @@ class Asset_Generator {
 			wp_delete_file( $upload['file'] );
 			return $attachment_id;
 		}
+		if ( $job_id && ! self::journal_attachment( $job_id, (int) $attachment_id ) ) {
+			wp_delete_attachment( $attachment_id, true );
+			return new WP_Error( 'worldgraph_gen_journal_failed', __( 'WordPress could not journal the generated media attachment.', 'worldgraph' ) );
+		}
 
 		require_once ABSPATH . 'wp-admin/includes/image.php';
 		require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -818,18 +828,168 @@ class Asset_Generator {
 		}
 	}
 
-	/** Roll back attachments from a partial multi-output import before retrying. */
-	private static function rollback_media_import( int $post_id, array $attachment_ids, int $previous_thumbnail_id, bool $featured_changed, WP_Error $error ): WP_Error {
-		$attachment_ids = array_values( array_unique( array_filter( array_map( 'absint', $attachment_ids ) ) ) );
-		if ( ! empty( $attachment_ids ) ) {
-			$gallery = array_values( array_diff( (array) get_post_meta( $post_id, self::GALLERY_META, true ), $attachment_ids ) );
-			update_post_meta( $post_id, self::GALLERY_META, $gallery );
-			foreach ( $attachment_ids as $attachment_id ) {
-				wp_delete_attachment( $attachment_id, true );
+	/** Start a durable record of side effects before importing provider media. */
+	private static function begin_import_journal( int $job_id, int $post_id, int $previous_thumbnail_id ): bool {
+		return self::update_import_journal(
+			$job_id,
+			[
+				'version'                => 1,
+				'post_id'                => $post_id,
+				'previous_thumbnail_id'  => $previous_thumbnail_id,
+				'featured_attachment_id' => 0,
+				'attachment_ids'          => [],
+				'asset_ids'               => [],
+				'temp_files'              => [],
+			]
+		);
+	}
+
+	/** Persist a newly created attachment before generating metadata or links. */
+	private static function journal_attachment( int $job_id, int $attachment_id ): bool {
+		return self::append_import_journal_value( $job_id, 'attachment_ids', $attachment_id );
+	}
+
+	/** Persist the generated attachment that is about to become featured. */
+	private static function journal_featured_attachment( int $job_id, int $attachment_id ): bool {
+		$journal = get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true );
+		if ( ! is_array( $journal ) ) {
+			return false;
+		}
+		$journal['featured_attachment_id'] = $attachment_id;
+		return self::update_import_journal( $job_id, $journal );
+	}
+
+	/** Persist a generated Asset post so a crashed import cannot orphan it. */
+	private static function journal_asset( int $job_id, int $asset_id ): bool {
+		return self::append_import_journal_value( $job_id, 'asset_ids', $asset_id );
+	}
+
+	/** Persist a temporary download path before the remote request writes to it. */
+	private static function journal_temp_file( int $job_id, string $file ): bool {
+		return self::append_import_journal_value( $job_id, 'temp_files', $file );
+	}
+
+	/** Append one unique value to a list in the current import journal. */
+	private static function append_import_journal_value( int $job_id, string $key, $value ): bool {
+		$journal = get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true );
+		if ( ! is_array( $journal ) ) {
+			return false;
+		}
+		$values = isset( $journal[ $key ] ) && is_array( $journal[ $key ] ) ? $journal[ $key ] : [];
+		if ( ! in_array( $value, $values, true ) ) {
+			$values[] = $value;
+		}
+		$journal[ $key ] = $values;
+		return self::update_import_journal( $job_id, $journal );
+	}
+
+	/** Store a journal and treat an already-identical value as success. */
+	private static function update_import_journal( int $job_id, array $journal ): bool {
+		$updated = update_post_meta( $job_id, self::IMPORT_JOURNAL_META, $journal );
+		return false !== $updated || $journal === get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true );
+	}
+
+	/**
+	 * Remove side effects from an interrupted import before retrying it.
+	 *
+	 * The thumbnail is restored only while it still points at this import's
+	 * generated attachment, preserving a later editor's explicit change.
+	 */
+	public static function recover_import_journal( int $job_id ): bool {
+		$journal = get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true );
+		if ( ! is_array( $journal ) || empty( $journal ) ) {
+			return true;
+		}
+
+		$post_id                = absint( $journal['post_id'] ?? 0 );
+		$previous_thumbnail_id  = absint( $journal['previous_thumbnail_id'] ?? 0 );
+		$featured_attachment_id = absint( $journal['featured_attachment_id'] ?? 0 );
+		$attachment_ids         = array_values( array_unique( array_filter( array_map( 'absint', (array) ( $journal['attachment_ids'] ?? [] ) ) ) ) );
+		$asset_ids              = array_values( array_unique( array_filter( array_map( 'absint', (array) ( $journal['asset_ids'] ?? [] ) ) ) ) );
+		$clean                  = true;
+
+		if ( $post_id && $featured_attachment_id && $featured_attachment_id === (int) get_post_thumbnail_id( $post_id ) ) {
+			if ( $previous_thumbnail_id && 'attachment' === get_post_type( $previous_thumbnail_id ) ) {
+				set_post_thumbnail( $post_id, $previous_thumbnail_id );
+				$clean = $previous_thumbnail_id === (int) get_post_thumbnail_id( $post_id ) && $clean;
+			} else {
+				delete_post_thumbnail( $post_id );
+				$clean = 0 === (int) get_post_thumbnail_id( $post_id ) && $clean;
 			}
 		}
-		if ( $featured_changed ) {
-			$previous_thumbnail_id ? set_post_thumbnail( $post_id, $previous_thumbnail_id ) : delete_post_thumbnail( $post_id );
+
+		if ( $post_id && ! empty( $attachment_ids ) ) {
+			$current_gallery = array_values( array_filter( array_map( 'absint', (array) get_post_meta( $post_id, self::GALLERY_META, true ) ) ) );
+			$gallery         = array_values( array_diff( $current_gallery, $attachment_ids ) );
+			if ( $gallery !== $current_gallery ) {
+				update_post_meta( $post_id, self::GALLERY_META, $gallery );
+				$stored_gallery = array_values( array_filter( array_map( 'absint', (array) get_post_meta( $post_id, self::GALLERY_META, true ) ) ) );
+				$clean          = $gallery === $stored_gallery && $clean;
+			}
+		}
+
+		foreach ( $asset_ids as $asset_id ) {
+			if ( 'worldgraph_asset' === get_post_type( $asset_id ) ) {
+				wp_delete_post( $asset_id, true );
+				$clean = ! get_post( $asset_id ) && $clean;
+			}
+		}
+		foreach ( $attachment_ids as $attachment_id ) {
+			if ( 'attachment' === get_post_type( $attachment_id ) ) {
+				wp_delete_attachment( $attachment_id, true );
+				$clean = ! get_post( $attachment_id ) && $clean;
+			}
+		}
+
+		delete_post_meta( $job_id, '_worldgraph_gen_attachment_id' );
+		delete_post_meta( $job_id, '_worldgraph_gen_attachment_ids' );
+		delete_post_meta( $job_id, '_worldgraph_gen_asset_id' );
+		$clean = self::delete_journal_temp_files( $journal ) && $clean;
+		if ( $clean ) {
+			delete_post_meta( $job_id, self::IMPORT_JOURNAL_META );
+			$clean = ! is_array( get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true ) );
+		}
+
+		return $clean;
+	}
+
+	/** Clear recovery state after attachment metadata and final status are durable. */
+	public static function commit_import_journal( int $job_id ): bool {
+		$journal = get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true );
+		if ( ! is_array( $journal ) || empty( $journal ) ) {
+			return true;
+		}
+		$clean = self::delete_journal_temp_files( $journal );
+		if ( ! $clean ) {
+			return false;
+		}
+		delete_post_meta( $job_id, self::IMPORT_JOURNAL_META );
+		return ! is_array( get_post_meta( $job_id, self::IMPORT_JOURNAL_META, true ) );
+	}
+
+	/** Delete only temporary files created by this importer. */
+	private static function delete_journal_temp_files( array $journal ): bool {
+		$clean    = true;
+		$temp_dir = realpath( get_temp_dir() );
+		foreach ( array_unique( array_filter( (array) ( $journal['temp_files'] ?? [] ), 'is_string' ) ) as $file ) {
+			$file_dir = realpath( dirname( $file ) );
+			if ( 0 !== strpos( basename( $file ), 'worldgraph-videodraft-media' ) || ! file_exists( $file ) || ! $temp_dir || $temp_dir !== $file_dir ) {
+				continue;
+			}
+			wp_delete_file( $file );
+			$clean = ! file_exists( $file ) && $clean;
+		}
+		return $clean;
+	}
+
+	/** Roll back a partial multi-output import before retrying. */
+	private static function rollback_media_import( int $job_id, WP_Error $error ): WP_Error {
+		if ( ! self::recover_import_journal( $job_id ) ) {
+			return new WP_Error(
+				'worldgraph_gen_cleanup_failed',
+				__( 'WordPress could not finish rolling back the interrupted media import.', 'worldgraph' ),
+				[ 'cause' => $error->get_error_code() ]
+			);
 		}
 		return $error;
 	}
@@ -976,11 +1136,16 @@ class Asset_Generator {
 	 * @param string $adapter Generation job adapter, e.g. 'local_comfyui'.
 	 * @return string|WP_Error Raw bytes, or an error.
 	 */
-	private static function download_bytes( string $url, string $adapter ) {
+	private static function download_bytes( string $url, string $adapter, int $job_id = 0 ) {
 		// Local ComfyUI runs on a trusted, non-public host (e.g. host.lando.internal),
 		// which wp_safe_remote_get's SSRF check would otherwise reject.
 		$timeout = 'videodraft' === $adapter ? 600 : 60;
-		$download = 'local_comfyui' === $adapter ? wp_remote_get( $url, [ 'timeout' => $timeout ] ) : wp_safe_remote_get( $url, [ 'timeout' => $timeout ] );
+		$args = [ 'timeout' => $timeout ];
+		// OpenRouter's content endpoint requires the same bearer credential used to submit the job.
+		if ( $job_id && 'openrouter' === (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true ) ) {
+			$args['headers'] = OpenRouter_API::download_headers( $job_id );
+		}
+		$download = 'local_comfyui' === $adapter ? wp_remote_get( $url, $args ) : wp_safe_remote_get( $url, $args );
 		if ( is_wp_error( $download ) ) {
 			Generation_Log::add( 'error', 'generation_batch', 'Download request failed: ' . $download->get_error_message(), [ 'url' => $url ], '', 0 );
 			return new WP_Error( 'worldgraph_gen_download_failed', __( 'The completed output could not be downloaded from the generation provider.', 'worldgraph' ) );
@@ -999,10 +1164,14 @@ class Asset_Generator {
 	}
 
 	/** Stream a large VideoDraft output into a bounded temporary file. */
-	private static function download_to_file( string $url, int $maximum_bytes ) {
+	private static function download_to_file( string $url, int $maximum_bytes, int $job_id ) {
 		$temporary = wp_tempnam( 'worldgraph-videodraft-media' );
 		if ( ! $temporary ) {
 			return new WP_Error( 'worldgraph_gen_download_failed', __( 'WordPress could not create temporary storage for the generated media.', 'worldgraph' ) );
+		}
+		if ( ! self::journal_temp_file( $job_id, $temporary ) ) {
+			wp_delete_file( $temporary );
+			return new WP_Error( 'worldgraph_gen_journal_failed', __( 'WordPress could not journal temporary storage for the generated media.', 'worldgraph' ) );
 		}
 
 		$download = wp_safe_remote_get( $url, [
@@ -1200,9 +1369,10 @@ class Asset_Generator {
 	 * @param int      $attachment_id Attachment ID.
 	 * @param string   $prompt        Prompt used.
 	 * @param array    $image         Image payload.
+	 * @param int      $job_id        Generation job ID, when this is a queued import.
 	 * @return int Asset post ID, or 0 on failure.
 	 */
-	private static function create_asset_record( \WP_Post $post, int $attachment_id, string $prompt, array $image ): int {
+	private static function create_asset_record( \WP_Post $post, int $attachment_id, string $prompt, array $image, int $job_id = 0 ): int {
 		$mime = (string) ( $image['mime'] ?? '' );
 		$kind = 0 === strpos( $mime, 'video/' ) ? __( 'Video', 'worldgraph' ) : ( 0 === strpos( $mime, 'audio/' ) ? __( 'Audio', 'worldgraph' ) : __( 'Image', 'worldgraph' ) );
 		$title = sprintf(
@@ -1226,6 +1396,10 @@ class Asset_Generator {
 		}
 
 		$asset_id = (int) $asset_id;
+		if ( $job_id && ! self::journal_asset( $job_id, $asset_id ) ) {
+			wp_delete_post( $asset_id, true );
+			return 0;
+		}
 		if ( 0 !== strpos( $mime, 'audio/' ) ) {
 			set_post_thumbnail( $asset_id, $attachment_id );
 		}
