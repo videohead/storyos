@@ -12,6 +12,7 @@
 namespace WorldGraph\Utils;
 
 use WorldGraph\AI\AI_Image_Client;
+use WorldGraph\REST\Generation_Authorization;
 use WP_Error;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -107,45 +108,29 @@ class Asset_Generator {
 	}
 
 	/**
-	 * Build a text-to-image prompt from a story element.
+	 * Build a detailed, intent-aware generation prompt from a story element.
 	 *
-	 * @param int $post_id Post ID.
+	 * @param int    $post_id      Post ID.
+	 * @param string $intent       Optional representative-media intent.
+	 * @param string $base_prompt  Optional author-edited base prompt.
 	 * @return string
 	 */
-	public static function build_prompt( int $post_id ): string {
+	public static function build_prompt( int $post_id, string $intent = '', string $base_prompt = '' ): string {
 		$post = get_post( $post_id );
 		if ( ! $post instanceof \WP_Post ) {
 			return '';
 		}
 
-		$labels = worldgraph_get_all_cpts();
-		$label  = $labels[ $post->post_type ] ?? __( 'Story element', 'worldgraph' );
-
-		$parts = [ sprintf( '%s: %s', $label, $post->post_title ) ];
-
-		$summary = trim( wp_strip_all_tags( $post->post_excerpt ) );
-		if ( '' === $summary ) {
-			$summary = trim( wp_strip_all_tags( $post->post_content ) );
-		}
-		if ( '' !== $summary ) {
-			$parts[] = wp_trim_words( $summary, 90, '' );
-		}
-
-		foreach ( self::descriptive_meta( $post ) as $value ) {
-			$parts[] = $value;
-		}
-
-		$parts[] = __( 'Cinematic concept art, single subject, coherent lighting, high detail, no text or watermarks.', 'worldgraph' );
-
-		$prompt = implode( '. ', array_filter( $parts ) );
+		$prompt = Generation_Workflows::compose_prompt( $post_id, $intent, $base_prompt );
 
 		/**
 		 * Filter the generated text-to-image prompt for a story element.
 		 *
-		 * @param string   $prompt  Generated prompt.
-		 * @param \WP_Post $post    Source post.
+		 * @param string   $prompt Generated prompt.
+		 * @param \WP_Post $post   Source post.
+		 * @param string   $intent Representative-media intent, when supplied.
 		 */
-		return (string) apply_filters( 'worldgraph_generate_asset_prompt', $prompt, $post );
+		return (string) apply_filters( 'worldgraph_generate_asset_prompt', $prompt, $post, $intent );
 	}
 
 	/**
@@ -161,14 +146,31 @@ class Asset_Generator {
 			return new WP_Error( 'worldgraph_asset_invalid_post', __( 'That post cannot have a World Graph Studio asset generated for it.', 'worldgraph' ), [ 'status' => 404 ] );
 		}
 
-		$args   = wp_parse_args( $args, [ 'prompt' => '', 'set_featured' => true, 'create_asset' => true, 'template_id' => 0 ] );
+		$args   = wp_parse_args( $args, [
+			'type'         => 'image',
+			'prompt'       => '',
+			'set_featured' => true,
+			'create_asset' => true,
+			'template_id'  => 0,
+			'intent'       => '',
+			'batch_id'     => 0,
+		] );
+		$type = sanitize_key( (string) $args['type'] );
+		if ( ! in_array( $type, [ 'image', 'video' ], true ) ) {
+			return new WP_Error( 'worldgraph_asset_invalid_type', __( 'Representative media must be an image or video.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
+		$intent = sanitize_key( (string) $args['intent'] );
 		$prompt = trim( wp_strip_all_tags( (string) $args['prompt'] ) );
-		$prompt = '' !== $prompt ? $prompt : self::build_prompt( $post_id );
+		$prompt = '' !== $prompt ? $prompt : self::build_prompt( $post_id, $intent );
 		$profile = self::project_media_profile( $post_id );
 
 		$template_id = absint( $args['template_id'] );
 		if ( ! $template_id || ! self::is_active_template( $template_id ) ) {
 			return new WP_Error( 'worldgraph_asset_invalid_template', __( 'That Template is not available to generate from.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
+		$template_modality = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
+		if ( $type !== Generation_Modality::output_type( $template_modality ) ) {
+			return new WP_Error( 'worldgraph_asset_template_type_mismatch', __( 'The selected Template does not produce the required representative-media type.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 		$connection_id = absint( get_post_meta( $template_id, 'connection_id', true ) );
 		$connection = Connection_Repository::get( $connection_id );
@@ -183,7 +185,7 @@ class Asset_Generator {
 			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
 		}
 		$use_local_template = false;
-		if ( ! in_array( $provider, [ 'comfyui', 'fal', 'videodraft' ], true ) ) {
+		if ( ! in_array( $provider, [ 'comfyui', 'fal', 'videodraft', 'openrouter' ], true ) ) {
 			return new WP_Error( 'worldgraph_asset_provider_unsupported', __( 'This provider has no World Graph Studio asset generation adapter yet.', 'worldgraph' ), [ 'status' => 501 ] );
 		}
 		if ( '' === $provider_template_id ) {
@@ -216,6 +218,9 @@ class Asset_Generator {
 		if ( 'videodraft' === $provider && ! in_array( $provider_template_id, VideoDraft_API::GENERATION_TOOLS, true ) ) {
 			return new WP_Error( 'worldgraph_videodraft_tool_invalid', __( 'That Template does not select a supported VideoDraft generation tool.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
+		if ( 'openrouter' === $provider && '' === trim( (string) $connection['credential_reference'] ) ) {
+			return new WP_Error( 'worldgraph_openrouter_unconfigured', __( 'The Template Connection has no OpenRouter API key or credential reference.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
 
 		if ( $use_local_template ) {
 			$requirements = self::ensure_local_template_requirements( $template_id, $connection_id );
@@ -242,9 +247,19 @@ class Asset_Generator {
 			$bound_inputs = Template_Bindings::resolve( $template_id, $post_id );
 		}
 
+		$authorization = Generation_Authorization::authorize_submission( $type, $post_id, $bound_inputs, get_current_user_id() );
+		if ( is_wp_error( $authorization ) ) {
+			return $authorization;
+		}
+
 		$job_id = wp_insert_post( [
 			'post_type'   => 'worldgraph_gen',
-			'post_title'  => sprintf( __( 'Image generation: %s', 'worldgraph' ), $post->post_title ),
+			'post_title'  => sprintf(
+				/* translators: 1: generated media type, 2: source title. */
+				__( '%1$s generation: %2$s', 'worldgraph' ),
+				ucfirst( $type ),
+				$post->post_title
+			),
 			'post_status' => 'draft',
 			'post_parent' => $post_id,
 		], true );
@@ -256,9 +271,9 @@ class Asset_Generator {
 		// A user-selected Template wins; otherwise keep the legacy per-CPT
 		// workflow name so existing jobs without a Template keep working.
 		$template = $use_local_template ? (string) $template_id : $provider_template_id;
-		$adapter  = 'fal' === $provider ? 'fal_mcp' : ( 'videodraft' === $provider ? 'videodraft' : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
-		$params   = 'fal' === $provider ? self::fal_template_input( $template_id ) : ( 'videodraft' === $provider ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
-		update_post_meta( $job_id, '_worldgraph_gen_type', 'image' );
+		$adapter  = 'fal' === $provider ? 'fal_mcp' : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? $provider : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
+		$params   = 'fal' === $provider ? self::fal_template_input( $template_id ) : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
+		update_post_meta( $job_id, '_worldgraph_gen_type', $type );
 		update_post_meta( $job_id, '_worldgraph_gen_prompt', $prompt );
 		update_post_meta( $job_id, '_worldgraph_gen_params', $params );
 		if ( ! empty( $bound_inputs ) ) {
@@ -271,8 +286,15 @@ class Asset_Generator {
 		update_post_meta( $job_id, '_worldgraph_gen_connection_id', $connection_id );
 		update_post_meta( $job_id, '_worldgraph_gen_source_post_id', $post_id );
 		update_post_meta( $job_id, '_worldgraph_gen_requested_by', get_current_user_id() );
-		update_post_meta( $job_id, '_worldgraph_gen_set_featured', rest_sanitize_boolean( $args['set_featured'] ) );
+		update_post_meta( $job_id, '_worldgraph_gen_set_featured', 'image' === $type && rest_sanitize_boolean( $args['set_featured'] ) );
 		update_post_meta( $job_id, '_worldgraph_gen_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );
+		if ( '' !== $intent ) {
+			update_post_meta( $job_id, Generation_Workflows::INTENT_META, $intent );
+		}
+		$batch_id = absint( $args['batch_id'] );
+		if ( $batch_id ) {
+			update_post_meta( $job_id, Generation_Workflows::BATCH_ID_META, $batch_id );
+		}
 		update_post_meta( $job_id, '_worldgraph_gen_status', 'queued' );
 		update_post_meta( $job_id, '_worldgraph_gen_created', current_time( 'mysql' ) );
 		Generation_Batch::schedule();
@@ -282,6 +304,9 @@ class Asset_Generator {
 			'post_id'       => $post_id,
 			'prompt'        => $prompt,
 			'status'        => 'queued',
+			'type'          => $type,
+			'intent'        => $intent,
+			'batch_id'      => $batch_id,
 		];
 	}
 
@@ -388,14 +413,18 @@ class Asset_Generator {
 	}
 
 	/**
-	 * Walk a story element's "contains" ancestry (e.g. Character -> World ->
-	 * Project) to find its owning Project, since most elements are nested
-	 * under an intermediate entity rather than owned by the Project directly.
+	 * Walk canonical ownership ancestry to find the containing Project. Imports
+	 * may store parent-to-child `contains` edges, while editors may store the
+	 * equivalent child-to-parent `belongs_to` edge.
 	 *
 	 * @param int $post_id Source story element ID.
 	 * @return int Project post ID, or 0 when none is found.
 	 */
 	private static function resolve_project_id( int $post_id ): int {
+		if ( 'worldgraph_project' === get_post_type( $post_id ) ) {
+			return $post_id;
+		}
+
 		$seen         = [];
 		$current_id   = $post_id;
 		$current_type = get_post_type( $post_id );
@@ -413,6 +442,15 @@ class Asset_Generator {
 					$parent_id   = absint( $relationship['from_id'] ?? 0 );
 					$parent_type = (string) ( $relationship['from_type'] ?? '' );
 					break;
+				}
+			}
+			if ( ! $parent_id ) {
+				foreach ( get_relationships( $current_id, $current_type, 'outgoing' ) as $relationship ) {
+					if ( 'belongs_to' === ( $relationship['type'] ?? '' ) ) {
+						$parent_id   = absint( $relationship['to_id'] ?? 0 );
+						$parent_type = (string) ( $relationship['to_type'] ?? '' );
+						break;
+					}
 				}
 			}
 
@@ -738,6 +776,25 @@ class Asset_Generator {
 
 		if ( ! in_array( $attachment_id, $generated_attachment_ids, true ) ) {
 			$generated_attachment_ids[] = $attachment_id;
+		}
+
+		$intent = sanitize_key( (string) get_post_meta( $job_id, Generation_Workflows::INTENT_META, true ) );
+		if ( '' !== $intent ) {
+			foreach ( $generated_attachment_ids as $generated_attachment_id ) {
+				update_post_meta( $generated_attachment_id, Generation_Workflows::INTENT_META, $intent );
+			}
+			if ( $asset_id ) {
+				update_post_meta( $asset_id, Generation_Workflows::INTENT_META, $intent );
+			}
+		}
+		$batch_id = absint( get_post_meta( $job_id, Generation_Workflows::BATCH_ID_META, true ) );
+		if ( $batch_id ) {
+			foreach ( $generated_attachment_ids as $generated_attachment_id ) {
+				update_post_meta( $generated_attachment_id, Generation_Workflows::BATCH_ID_META, $batch_id );
+			}
+			if ( $asset_id ) {
+				update_post_meta( $asset_id, Generation_Workflows::BATCH_ID_META, $batch_id );
+			}
 		}
 
 		return [ 'attachment_id' => $attachment_id, 'attachment_ids' => $generated_attachment_ids, 'asset_id' => $asset_id, 'url' => (string) wp_get_attachment_url( $attachment_id ) ];
@@ -1448,38 +1505,4 @@ class Asset_Generator {
 		] ) );
 	}
 
-	/**
-	 * Collect short descriptive meta values that improve the prompt.
-	 *
-	 * @param \WP_Post $post Source post.
-	 * @return array<int, string>
-	 */
-	private static function descriptive_meta( \WP_Post $post ): array {
-		$keys = [
-			'description',
-			'appearance',
-			'physical_description',
-			'visual_style',
-			'setting',
-			'mood',
-			'time_of_day',
-			'shot_type',
-			'camera_angle',
-		];
-
-		$values = [];
-		foreach ( $keys as $key ) {
-			$value = get_post_meta( $post->ID, $key, true );
-			if ( ! is_string( $value ) ) {
-				continue;
-			}
-
-			$value = trim( wp_strip_all_tags( $value ) );
-			if ( '' !== $value ) {
-				$values[] = wp_trim_words( $value, 40, '' );
-			}
-		}
-
-		return $values;
-	}
 }

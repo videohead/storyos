@@ -105,6 +105,26 @@
             "media_upload": 1,
             "default_value": "",
             "delay": 0
+        },
+        {
+            "key": "field_worldgraph_prop_generation_prompt",
+            "label": "Generation Prompt Instructions",
+            "name": "generation_prompt",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Prop-specific visual instructions appended to generated media prompts, for example \"no watermark\" or material constraints.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "rows": "",
+            "placeholder": "",
+            "new_lines": ""
         }
     ],
     "location": [

@@ -81,6 +81,12 @@ include the WordPress identity and lifecycle fields, SCF-backed `meta`, assigned
 `taxonomies`, outgoing `relationships`, Schema.org mapping hints, featured
 media, and the World Graph Studio asset gallery where applicable.
 
+Project, Story World, Character, Location, Prop, Episode, Scene, and Shot
+responses expose the optional `generation_prompt` textarea under `meta`. It is
+writable through the normal create and update routes and contains
+generation-specific instructions, not a replacement for the entity's
+description, synopsis, script, or other detailed fields.
+
 Every content resource response also includes a top-level, read-only
 `external_id` string. This portable identifier is distinct from the numeric
 WordPress `id`: the JSON importer persists it for correlation across sites,
@@ -263,6 +269,55 @@ The editor-facing image workflow is also available through:
 GET  /wp-json/worldgraph/v1/assets/generate/prompt
 POST /wp-json/worldgraph/v1/assets/generate
 ```
+
+Story-aware representative-media planning and durable batches use:
+
+```http
+GET  /wp-json/worldgraph/v1/assets/generate/plan?post_id={id}&scope={item|project}
+POST /wp-json/worldgraph/v1/assets/generate/batches
+GET  /wp-json/worldgraph/v1/assets/generate/batches/{id}
+POST /wp-json/worldgraph/v1/assets/generate/batches/{id}/cancel
+```
+
+`scope=item` plans the default representative outputs for one supported Story
+Graph item. `scope=project` requires a Project and traverses its canonical
+ownership graph to plan the Project plus supported World, Character, Prop,
+Location, Episode, Scene, and Shot descendants. Planning is read-only and does
+not reserve provider capacity or spend provider budget.
+
+The plan response includes `workflow`, `sources`, `total_jobs`, image/video
+`counts`, and a `tasks` array. Each task identifies its source, workflow,
+creative `intent`, output `type`, featured-image behavior, and composed prompt.
+It also returns the Templates runnable across the plan as `image_templates`
+and `video_templates`, resolved `defaults`, and `latest_batch` when one exists.
+
+Starting a batch accepts:
+
+```json
+{
+  "post_id": 42,
+  "scope": "project",
+  "base_prompt": "",
+  "image_template_id": 101,
+  "video_template_id": 202,
+  "idempotency_key": "client-operation-uuid"
+}
+```
+
+`base_prompt` is an optional author override for item-scoped generation. The
+image and video Template IDs are optional explicit overrides shared by outputs
+of that type; without them, the server applies the registered preference and
+fallback cascade. Starting fails before any child is queued if any task lacks a
+runnable Template or the requester cannot edit every source. A non-empty
+`idempotency_key` is scoped to the requester, root post, and batch operation;
+repeating it returns the existing batch instead of duplicating work.
+
+Batch status includes `batch_id`, root `post_id`, `scope`, aggregate `status`,
+`total`, `active`, `completed`, `failed`, `cancelled`, per-state `counts`,
+creation time, and child `jobs`. Each job reports its source, intent, output
+type, status, attachment ID, and error. Cancellation acts on cancellable child
+jobs and returns the refreshed aggregate status; provider work already running
+or terminal may remain visible until its normal lifecycle settles.
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
 fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP,

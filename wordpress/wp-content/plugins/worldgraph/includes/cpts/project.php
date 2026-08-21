@@ -41,6 +41,12 @@ class Project {
 			'required'    => false,
 			'description' => 'Project overview and synopsis.',
 		],
+		'generation_prompt'   => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Project-specific visual instructions appended to generated media prompts, for example "no watermark" or a house style.',
+		],
 		'genre'               => [
 			'type'        => 'taxonomy',
 			'taxonomy'    => 'worldgraph_genre',

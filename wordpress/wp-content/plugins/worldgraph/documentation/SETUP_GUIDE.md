@@ -88,6 +88,11 @@ and an installed checkpoint. A bare HTTP-only ComfyUI works for the managed
 local Template; model downloads remain manual unless a real MCP
 `download_models` tool is configured.
 
+For local video workflows such as LTX or WAN, the optional MCP service discovers
+workflow JSON files from its configured template folder. Add or export the
+workflow JSON there first, then sync the Connection catalog in WordPress. See
+`about/how-to-text-to-video.md` for the step-by-step local ComfyUI sequence.
+
 ### Comfy Cloud MCP
 
 The managed Connection uses:

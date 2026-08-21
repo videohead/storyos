@@ -43,6 +43,12 @@ class Character {
 			'label'       => 'Visual Description',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Character-specific visual instructions appended to generated media prompts, for example "no watermark" or wardrobe constraints.',
+		],
 		'personality'     => [
 			'type'        => 'wysiwyg',
 			'label'       => 'Personality Traits',

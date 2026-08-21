@@ -38,6 +38,12 @@ class Episode {
 			'label'       => 'Synopsis',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Episode-specific visual instructions appended to generated media prompts, for example "no watermark" or title-card guidance.',
+		],
 		'status'          => [
 			'type'        => 'taxonomy',
 			'taxonomy'    => 'worldgraph_status',

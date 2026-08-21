@@ -92,6 +92,12 @@ class Shot {
 			'label'       => 'Shot Description',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Shot-specific image and motion instructions appended to generated media prompts, for example "no watermark" or camera movement.',
+		],
 		'editorial_notes' => [
 			'type'        => 'wysiwyg',
 			'label'       => 'Editorial Notes',

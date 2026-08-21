@@ -337,6 +337,26 @@
             "ui": 1,
             "taxonomy": [],
             "bidirectional_target": []
+        },
+        {
+            "key": "field_worldgraph_scene_generation_prompt",
+            "label": "Generation Prompt Instructions",
+            "name": "generation_prompt",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Scene-specific visual instructions appended to generated media prompts, for example \"no watermark\" or color-script guidance.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "rows": "",
+            "placeholder": "",
+            "new_lines": ""
         }
     ],
     "location": [

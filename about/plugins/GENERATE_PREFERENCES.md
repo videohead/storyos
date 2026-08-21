@@ -1,180 +1,204 @@
 # Generate Preferences and Generation Intents
 
-> **Status: optional extension design note.** A Generation Intent registry and
-> site-wide Generate Preferences screen are not part of the current release and
-> are not active delivery commitments. The current release is complete; its
-> delivered Template-first workflow is documented below and in
-> [Delivery Status](../Delivery_Status.md).
+> **Delivery status:** the provider-neutral representative-media registry,
+> Template-resolution preferences, detailed Story Graph prompts, durable item
+> and Project batches, and their REST operations are delivered. A dedicated
+> graphical site-preferences editor is not required by this contract; sites can
+> manage the versioned option through an integration or filter.
 
-## Current delivered workflow
+## Delivered authoring workflow
 
-World Graph Studio currently exposes a **World Graph Studio Assets** metabox on
-the supported story and asset-editing screens. It provides:
+The **World Graph Studio Assets** Generate surface supports two related paths:
 
-- a prompt textarea prefilled from the current post;
-- an active Template dropdown;
-- **Set as featured asset** and **Create linked Asset record** controls;
-- **Generate image** and **Suggest prompt** actions; and
-- queued-job feedback.
+- direct image generation preserves the existing editable prompt, image
+  Template, featured-image, and linked-Asset controls; and
+- representative generation previews a complete item or Project plan before
+  it starts a durable, potentially long-running batch.
 
-`GET /wp-json/worldgraph/v1/assets/generate/prompt?post_id={id}` returns the
-suggested prompt, runnable image Templates, and default Template ID.
+Planning reports the number of image and video jobs, every source and creative
+intent, composed prompts, Templates runnable across the plan, resolved defaults,
+and the latest batch. It performs no writes and spends no provider budget.
+Starting a batch revalidates permissions, Templates, Connections, and bindings
+before any child job is queued.
 
-`POST /wp-json/worldgraph/v1/assets/generate` requires the source `post_id`
-and an explicit active `template_id`. It can also receive `prompt`,
-`set_featured`, and `create_asset`.
+The original endpoints remain compatible:
 
-The Template list is filtered to records that:
+```http
+GET  /wp-json/worldgraph/v1/assets/generate/prompt?post_id={id}
+POST /wp-json/worldgraph/v1/assets/generate
+```
 
-- are published and have `status = active`;
-- produce an image according to the registered modality;
-- use an available Connection; and
-- can resolve every required media binding from the current post.
+## Detailed prompt contract
 
-The managed local ComfyUI text-to-image Template is preferred when available;
-otherwise the first runnable image Template is selected.
+Project, Story World, Character, Prop, Location, Shot, Scene, and Episode expose
+an optional SCF textarea named `generation_prompt`. It contains additional
+media-generation instructions such as a house style, wardrobe or material
+constraint, camera movement, or "no watermark." It is not a negative-prompt
+transport field and does not replace the entity's authorial description.
 
-This workflow is complete as delivered. It does not depend on the extension
-concepts below.
+The default composer reads this type-specific Story Graph context:
 
-## Current prompt behavior
-
-`Asset_Generator::build_prompt()` composes one text-to-image prompt from:
-
-1. the Story Graph type and post title;
-2. excerpt or post content;
-3. descriptive metadata available on that content type; and
-4. a cinematic concept-art suffix.
-
-The `worldgraph_generate_asset_prompt` filter runs last. Sites that need
-different recipes can customize this output today without adding a preferences
-system.
-
-## Current Template semantics
-
-The runtime uses these Template concerns:
-
-| Field | Current meaning |
+| Content type | Detailed fields included when populated |
 | --- | --- |
-| `modality` | Registered input/output shape: text-to-image; audio modalities used by ElevenLabs and Suno; or Suno `text_to_lyrics` |
-| `generation_structure` | Human/configuration label; managed Templates currently write the modality output type |
-| `connection_id` | Owning provider Connection |
-| `provider_template_id` | Provider workflow, endpoint, or voice identifier |
-| `input_bindings` | JSON sources for required media slots |
-| `configuration_json` / `default_values` | Provider and workflow defaults |
-| `status` | Whether the Template is selectable for generation |
+| Project | description, genre, target medium, production stage, frame dimensions, aspect ratio, frame rate |
+| Story World | synopsis, timeline, rules, themes, geography, references |
+| Character | biography, age, appearance, personality, motivation, backstory, voice profile |
+| Prop | description, purpose, notes |
+| Location | description, environment type, geography, mood |
+| Shot | number, type, camera angle, lens, duration, description, editorial notes |
+| Scene | number, summary, script content, dialogue, location, time of day, emotional tone, production notes |
+| Episode | number, synopsis |
 
-There is no `worldgraph_generate_preferences` option, no
-`Generation_Intent` class, no intent REST route, and no intent value stored on
-generation or Asset provenance in the current release.
+When no author-edited base prompt is supplied, composition order is:
 
-## Why this extension idea exists
+1. content type and title;
+2. non-duplicate excerpt and post content;
+3. labeled detailed fields;
+4. dependent Scene-shot or Episode-bookend context where applicable;
+5. the representative intent's creative objective;
+6. `generation_prompt`; and
+7. common continuity, detail, and no-watermark constraints.
 
-A Template is an operator-facing execution choice. An author may instead think
-in creative outcomes such as “portrait,” “establishing image,” or “storyboard
-frame.” A Generation Intent layer could translate those author-facing outcomes
-into a compatible modality and Template while keeping workflow details behind
-an advanced disclosure.
+The composer removes markup, renders select values and relationships readably,
+deduplicates repeated core/SCF text, and applies one global 2,400-word bound.
+An item-scoped `base_prompt` replaces the assembled Story Graph context while
+retaining the intent objective and output constraints. The
+`worldgraph_generate_asset_prompt` filter runs last with the prompt, source
+post, and intent.
 
-That can be valuable for a site with many similar Templates. It is not required
-for the current Template-first experience and should not be presented as work
-the core project has promised to deliver.
+## Delivered intent vocabulary
 
-## Possible extension vocabulary
+`WorldGraph\Utils\Generation_Workflows` owns the stable creative-intent slugs.
+They describe what to make; the resolved Template and Connection decide how it
+is executed.
 
-An extension may define these three layers:
-
-| Layer | Question answered | Example |
+| Content type | Workflow | Intent slugs and output types |
 | --- | --- | --- |
-| Intent | What creative result does the author want? | Character portrait |
-| Modality | What registered input/output shape is required? | `text_to_image` |
-| Template | Which provider configuration runs it? | A selected ComfyUI or fal Template |
+| Project | `project-key-art` | `project-key-art` (image) |
+| Story World | `world-key-art` | `world-key-art` (image) |
+| Character | `character-look-set` | `character-full-view`, `character-front-view`, `character-three-quarter-view`, `character-profile-view`, `character-back-view`, `character-close-up` (images) |
+| Prop | `prop-look-set` | `prop-full-view`, `prop-front-view`, `prop-three-quarter-view`, `prop-profile-view`, `prop-back-view`, `prop-close-up` (images) |
+| Location | `location-look-set` | `location-full-view`, `location-front-view`, `location-three-quarter-view`, `location-profile-view`, `location-reverse-view`, `location-close-up` (images) |
+| Shot | `shot-still-and-video` | `shot-representative-still` (image), `shot-video` (video) |
+| Scene | `scene-filmstrip` | `scene-filmstrip` (image) |
+| Episode | `episode-bookend-filmstrip` | `episode-bookend-filmstrip` (image) |
 
-Example intent slugs could include:
+The first image in a recipe is eligible to become the source post's featured
+image. Each view and each Shot output is an independent child job, so failures
+and retries remain attributable. Scene filmstrips receive textual context from
+ordered child Shots; Episode filmstrips receive context from the opening and
+final Scenes. These composite prompts do not imply that the engine waits for or
+automatically binds newly generated child images. Other generator-supported
+post types retain the generic representative-image fallback.
 
-- `character-portrait`;
-- `location-establishing`;
-- `prop-reference`;
-- `scene-key-frame`;
-- `shot-storyboard-frame`; and
-- `generic-image`.
+## Template resolution and preferences
 
-These names are illustrative. They are not reserved core identifiers.
+A Template must be published, have `status = active`, produce the required
+output type, belong to an available Connection, and resolve all required media
+bindings for the task. Representative generation resolves each task through:
 
-## Compatible extension contract
+1. an explicit `image_template_id` or `video_template_id` in the request;
+2. per-post `_worldgraph_generation_template_{intent}` metadata;
+3. a site preference for the source CPT and intent;
+4. a site preference for the `image` or `video` output type;
+5. the managed local ComfyUI text-to-image Template for image output; and
+6. the first runnable compatible Template.
 
-An optional preferences implementation should build on the delivered runtime
-rather than replace it.
+Site preferences use the versioned option
+`worldgraph_generation_preferences_v1`. Its supported shape is:
 
-### Resolution
+```json
+{
+  "intents": {
+    "worldgraph_shot": {
+      "shot-representative-still": 101,
+      "shot-video": 202
+    }
+  },
+  "outputs": {
+    "image": 101,
+    "video": 202
+  }
+}
+```
 
-A reasonable Template-resolution cascade is:
+Values are `worldgraph_template` post IDs. Missing, partial, stale, or
+incompatible mappings fall through to the next candidate. The
+`worldgraph_generation_default_template_id` filter can alter a resolved
+candidate, but the returned Template must still be suitable for the task.
 
-1. explicit per-request or per-post override;
-2. site preference for the content type and intent;
-3. site default for the registered modality; and
-4. first active, compatible Template on an available Connection.
+## Plans and durable batches
 
-Every resolved Template must still pass the same core checks for status,
-provider/Connection agreement, output type, and required input bindings.
+The representative REST contract is:
 
-### Storage
+```http
+GET  /wp-json/worldgraph/v1/assets/generate/plan?post_id={id}&scope={item|project}
+POST /wp-json/worldgraph/v1/assets/generate/batches
+GET  /wp-json/worldgraph/v1/assets/generate/batches/{id}
+POST /wp-json/worldgraph/v1/assets/generate/batches/{id}/cancel
+```
 
-Site preferences belong in a versioned WordPress option owned by the extension.
-Per-post overrides belong in namespaced post meta. The extension must tolerate
-a missing or partial option and fall back to the current explicit Template
-path.
+`scope=item` expands the selected post's recipe. `scope=project` requires a
+Project and walks canonical `contains` and `belongs_to` ownership edges to
+include the Project and each supported descendant once. A plan returns:
 
-It must not reinterpret existing `generation_structure` values or migrate them
-without an explicit versioned migration. Current sites may use that field as a
-free-form label or output-type marker.
+- `workflow`, `sources`, `total_jobs`, and image/video `counts`;
+- `tasks` with source identity, workflow, intent, label, type, featured flag,
+  and composed prompt;
+- `image_templates` and `video_templates` runnable across that plan;
+- resolved `defaults`; and
+- `latest_batch`, when one exists for the same root and scope.
 
-### UI
+The start payload accepts `post_id`, `scope`, optional item `base_prompt`,
+optional `image_template_id` and `video_template_id`, and optional
+`idempotency_key`. The server refuses to start unless the requester can edit
+every source and every image/video task resolves a runnable Template. Plans are
+limited to 5,000 jobs by default; `worldgraph_generation_batch_max_tasks` may
+change that bound.
 
-An intent-oriented UI may replace the Template dropdown with creative labels at
-the simple disclosure level, while retaining an advanced Template choice.
-Unavailable choices should explain whether the blocker is:
+A non-empty idempotency key is scoped to the requester and root batch request.
+Repeating it returns the existing batch. This protects clients from duplicate
+provider spending after a timeout or lost response.
 
-- no active Template for the modality;
-- a disabled or missing Connection; or
-- an unresolved required binding.
+## Batch storage, status, and cancellation
 
-The current image-only metabox should remain the no-extension fallback.
+A representative batch is a parent `worldgraph_gen` record with:
 
-### REST and provenance
+- `_worldgraph_gen_batch_kind = representative_media`;
+- `_worldgraph_gen_batch_scope`;
+- `_worldgraph_gen_batch_plan`, containing source, intent, output type,
+  Template, and prompt hash for each child;
+- `_worldgraph_gen_idempotency_key`;
+- requester, creation time, total, child IDs, and aggregate status.
 
-An extension may add an `intent` parameter or an intent-discovery route under
-`/wp-json/worldgraph/v1/`, but it must preserve the existing
-`/assets/generate` and `/assets/generate/prompt` contracts.
+Each child remains an ordinary generation job and adds
+`_worldgraph_gen_batch_id` and `_worldgraph_gen_intent`. Status responses report
+the root and scope, aggregate status, total/active/completed/failed/cancelled
+counts, per-state counts, creation time, and child source, intent, type, status,
+attachment, and error details.
 
-If an intent influences execution, record its slug on the generation record and
-the resulting Asset so provenance explains both the creative purpose and the
-executed Template.
+WP-Cron continues to submit and poll bounded numbers of child jobs, so a large
+Project batch may run for hours or days without one HTTP request remaining
+open. Cancellation cancels children that are still cancellable. Running or
+terminal provider work retains its actual lifecycle state and remains in the
+aggregate report.
 
-### Prompt recipes
+## Security and operating boundaries
 
-Intent-specific prompt recipes may choose fields, prefixes, suffixes, and
-framing defaults. They should compose over the existing post title/content and
-must leave `worldgraph_generate_asset_prompt` available as the final site
-override.
-
-## Boundaries
-
-This design note does not expand the current modality registry. In particular,
-video intent examples must not appear in a core UI unless a real registered
-video modality and runnable adapter are installed.
-
-An extension must also preserve:
-
-- WordPress capability and nonce checks;
-- explicit confirmation before spending provider budget;
-- Connection allowlists and availability;
-- Template input validation;
-- generation-job and media provenance; and
-- the ability to work with no generation provider.
+- Planning and batch operations use WordPress authentication and source-post
+  edit capabilities.
+- Starting a batch is the explicit budget-spending action; preview is read-only.
+- Provider credentials remain on Connections or in environment references.
+- Disabled Connections, output mismatches, and unresolved Template bindings
+  remain hard blockers.
+- An image-only installation can use Project, World, look-set, Scene, and
+  Episode recipes, but a Shot batch cannot start until its required video
+  output also has a runnable Template.
+- World Graph Studio remains usable with no generation provider.
 
 ## Implementation references
 
+- [Representative workflow registry](../../wordpress/wp-content/plugins/worldgraph/includes/utils/class-generation-workflows.php)
 - [Assets metabox](../../wordpress/wp-content/plugins/worldgraph/includes/admin/asset-generator-metabox.php)
 - [Assets REST controller](../../wordpress/wp-content/plugins/worldgraph/includes/rest-api/asset-generation-controller.php)
 - [Asset generation service](../../wordpress/wp-content/plugins/worldgraph/includes/utils/class-asset-generator.php)

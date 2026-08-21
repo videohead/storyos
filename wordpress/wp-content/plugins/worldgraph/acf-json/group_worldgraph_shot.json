@@ -284,6 +284,26 @@
             "load_terms": 1,
             "save_terms": 1,
             "bidirectional_target": []
+        },
+        {
+            "key": "field_worldgraph_shot_generation_prompt",
+            "label": "Generation Prompt Instructions",
+            "name": "generation_prompt",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Shot-specific image and motion instructions appended to generated media prompts, for example \"no watermark\" or camera movement.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "rows": "",
+            "placeholder": "",
+            "new_lines": ""
         }
     ],
     "location": [

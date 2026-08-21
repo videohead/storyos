@@ -131,6 +131,7 @@ Top-level container for all story assets.
 - `project_name` (text)
 - `project_slug` (text)
 - `description` (wysiwyg)
+- `generation_prompt` (textarea; optional generation-specific instructions)
 - `genre` (taxonomy: `worldgraph_genre`, multiple)
 - `target_medium` (select)
 - `status` (taxonomy: `worldgraph_status`)
@@ -158,6 +159,7 @@ Top-level container for all story assets.
 
 - world_name
 - synopsis
+- generation_prompt
 - timeline
 - rules
 - themes
@@ -181,6 +183,7 @@ Top-level container for all story assets.
 - biography
 - age
 - appearance
+- generation_prompt
 - personality
 - motivation
 - backstory
@@ -206,6 +209,7 @@ Top-level container for all story assets.
 
 - location_name
 - description
+- generation_prompt
 - environment_type
 - geography
 - mood
@@ -225,6 +229,7 @@ Top-level container for all story assets.
 
 - prop_name
 - description
+- generation_prompt
 - purpose
 - owner_character
 - notes
@@ -260,6 +265,7 @@ Top-level container for all story assets.
 - episode_number
 - title
 - synopsis
+- generation_prompt
 - status
 
 ## Relationships
@@ -276,6 +282,7 @@ Top-level container for all story assets.
 - scene_number
 - title
 - summary
+- generation_prompt
 - script_content
 - dialogue (structured importer-managed entries: speaker, line, description, sequence)
 - location
@@ -322,6 +329,7 @@ delete the remote record.
 - `take_number` (number)
 - `slate_id` (text)
 - `shot_description` (wysiwyg)
+- `generation_prompt` (textarea; optional image and motion instructions)
 - `editorial_notes` (wysiwyg)
 - `scene` (relationship to `worldgraph_scene`)
 - `sequence` (taxonomy: `worldgraph_sequence`)
@@ -454,13 +462,48 @@ after validation.
 
 ## Delivered Generation Contract
 
-The Assets workflow selects an active `worldgraph_template` and its associated
-`worldgraph_conn`. A queued internal `worldgraph_gen` record preserves the
-template, connection, provider, workflow identifier, prompt, resolved inputs,
-parameters, source Story Graph item, state, and timestamps. The relevant meta
-keys use the `_worldgraph_gen_*` prefix, including
-`_worldgraph_gen_template_id`, `_worldgraph_gen_connection_id`,
-`_worldgraph_gen_provider_type`, and `_worldgraph_gen_status`.
+Project, Story World, Character, Prop, Location, Shot, Scene, and Episode expose
+an optional `generation_prompt` textarea. It stores instructions that apply to
+generated media, such as house style, continuity requirements, camera motion,
+or "no watermark." It augments the entity's descriptive fields; it does not
+replace its synopsis, description, appearance, script, or production notes.
+Like the other canonical SCF fields, its value is stored as `generation_prompt`
+post meta with the stable SCF reference key for that CPT.
+
+The representative-media registry supplies these default workflows and output
+intents:
+
+| CPT | Default workflow | Representative output intents |
+| --- | --- | --- |
+| Project | `project-key-art` | `project-key-art` image |
+| Story World | `world-key-art` | `world-key-art` image |
+| Character | `character-look-set` | full, front, three-quarter, profile, back, and close-up images |
+| Prop | `prop-look-set` | full, front, three-quarter, profile, back, and close-up images |
+| Location | `location-look-set` | full establishing, front, three-quarter, profile, reverse, and detail close-up images |
+| Shot | `shot-still-and-video` | `shot-representative-still` image and `shot-video` video |
+| Scene | `scene-filmstrip` | `scene-filmstrip` image using its shot progression |
+| Episode | `episode-bookend-filmstrip` | `episode-bookend-filmstrip` image using its opening and final scenes |
+
+Each output becomes a separate generation job so it can be retried, inspected,
+and attributed independently. A plan may cover one item or, for a Project, the
+Project and all supported descendants reachable through canonical ownership
+relationships.
+
+The Assets workflow resolves an active `worldgraph_template` and its associated
+`worldgraph_conn` for each output. A queued internal `worldgraph_gen` child
+record preserves the template, connection, provider, workflow identifier,
+creative intent, prompt, resolved inputs, parameters, source Story Graph item,
+state, and timestamps. Relevant meta keys use the `_worldgraph_gen_*` prefix,
+including `_worldgraph_gen_template_id`, `_worldgraph_gen_connection_id`,
+`_worldgraph_gen_provider_type`, `_worldgraph_gen_intent`, and
+`_worldgraph_gen_status`.
+
+A representative-media run also has a durable parent `worldgraph_gen` record.
+It records `_worldgraph_gen_batch_kind = representative_media`, item or project
+scope, an immutable plan snapshot, requester-scoped idempotency key, child job
+IDs, and aggregate status. Children reference it through
+`_worldgraph_gen_batch_id`. Planning is read-only; starting a batch first
+verifies that every required image and video output has a runnable Template.
 
 WP-Cron processes bounded batches, submits or polls the configured adapter,
 supports cancellation, imports completed media for supported Template

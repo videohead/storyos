@@ -239,6 +239,18 @@
             "conditional_logic": 0,
             "wrapper": { "width": "", "class": "", "id": "" },
             "menu_order": 14
+        },
+        {
+            "key": "field_worldgraph_project_generation_prompt",
+            "label": "Generation Prompt Instructions",
+            "name": "generation_prompt",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Project-specific visual instructions appended to generated media prompts, for example \"no watermark\" or a house style.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": { "width": "", "class": "", "id": "" },
+            "menu_order": 15
         }
     ],
     "location": [

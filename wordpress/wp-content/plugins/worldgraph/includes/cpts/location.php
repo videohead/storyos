@@ -33,6 +33,12 @@ class Location {
 			'label'       => 'Description',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Location-specific visual instructions appended to generated media prompts, for example "no watermark" or architectural constraints.',
+		],
 		'environment_type'=> [
 			'type'        => 'select',
 			'label'       => 'Environment Type',

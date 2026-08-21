@@ -33,6 +33,12 @@ class StoryWorld {
 			'label'       => 'Synopsis',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'World-specific visual instructions appended to generated media prompts, for example "no watermark" or a house style.',
+		],
 		'timeline'        => [
 			'type'        => 'wysiwyg',
 			'label'       => 'Timeline',

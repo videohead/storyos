@@ -12,7 +12,8 @@ providers. WordPress remains the control plane and source of truth for:
 
 - provider Connections;
 - reusable generation Templates;
-- queued generation records;
+- provider-neutral representative-media recipes and intents;
+- read-only plans, durable batches, and queued generation records;
 - prompts, parameters, source-post links, and provider provenance;
 - imported WordPress media, retained text results, and linked Asset records; and
 - permissions, nonces, cancellation, status, and operator logs.
@@ -21,13 +22,16 @@ No separate Python orchestrator or application queue is required. Long-running
 work is submitted and polled by WP-Cron.
 
 ```text
-Story Graph post or REST client
+Story Graph item or Project
               |
               v
-     Active Template + Connection
+ representative workflow plan
               |
               v
-       worldgraph_gen record
+ active Template + Connection per output
+              |
+              v
+ durable batch + child worldgraph_gen records
               |
               v
          WP-Cron batch worker
@@ -66,11 +70,54 @@ every media shape a registered generation modality. Custom or future adapters
 must register and validate their own executable contract rather than relying on
 unused modality names.
 
-The story-post **World Graph Studio Assets** metabox intentionally offers only
-active image-output Templates. The generic generation REST endpoint also
-accepts `image`, `video`, `audio`, or `text` as a requested result type, but
-the selected active Template and provider adapter still determine whether that
-request can actually run.
+The story-post **World Graph Studio Assets** metabox retains its direct image
+generation path and also exposes the Story Graph item's representative-media
+plan. A Shot plan can therefore require both an image-output Template and a
+video-output Template. The generic generation REST endpoint accepts `image`,
+`video`, `audio`, or `text` as a requested result type, but the selected active
+Template and provider adapter still determine whether a request can run.
+
+## Story-aware prompts and representative workflows
+
+Project, Story World, Character, Prop, Location, Shot, Scene, and Episode have
+an optional `generation_prompt` SCF textarea for media-specific instructions.
+When no author-edited base prompt is supplied, the prompt composer combines:
+
+1. the content type and title;
+2. non-duplicate excerpt and post content;
+3. labeled, type-appropriate SCF details, including long-form descriptions,
+   appearance, world rules, scripts, dialogue, production notes, and camera
+   details where applicable;
+4. dependent Story Graph context for Scene and Episode filmstrips;
+5. the selected output intent's creative objective;
+6. `generation_prompt`; and
+7. common continuity, detail, and no-watermark constraints.
+
+Markup is removed, select values and relationship titles are made readable,
+and the final provider prompt has a global 2,400-word bound. An item-scoped
+`base_prompt` replaces the assembled Story Graph context but retains the intent
+objective and output constraints. The `worldgraph_generate_asset_prompt` filter
+runs last and receives the prompt, source post, and intent.
+
+`WorldGraph\Utils\Generation_Workflows` defines the delivered representative
+recipes:
+
+| Content type | Workflow | Outputs |
+| --- | --- | --- |
+| Project | `project-key-art` | `project-key-art` image |
+| Story World | `world-key-art` | `world-key-art` image |
+| Character | `character-look-set` | full, front, three-quarter, profile, back, and close-up images |
+| Prop | `prop-look-set` | full, front, three-quarter, profile, back, and close-up images |
+| Location | `location-look-set` | full establishing, front, three-quarter, profile, reverse, and detail close-up images |
+| Shot | `shot-still-and-video` | `shot-representative-still` image and `shot-video` video |
+| Scene | `scene-filmstrip` | one filmstrip image informed by ordered Shot descriptions |
+| Episode | `episode-bookend-filmstrip` | one filmstrip image informed by the opening and final Scenes |
+
+Each output is independently queued and records its stable intent slug. An item
+plan contains one content item's recipe. Project scope walks canonical ownership
+edges from the Project and plans every supported descendant once. The default
+maximum is 5,000 child tasks, filterable with
+`worldgraph_generation_batch_max_tasks`.
 
 ## Connections and provider adapters
 
@@ -176,25 +223,31 @@ template ID, optional workflow JSON, model/checkpoint information, and default
 configuration. Templates are WordPress configuration records, not permission
 to run arbitrary server code.
 
-For the Assets metabox, an author:
+For a direct image, an author can still edit the suggested prompt, select an
+active runnable image Template, choose featured-media and linked-Asset behavior,
+and queue one job. For representative generation, the author first reviews the
+read-only plan and its image/video counts, chooses optional Template overrides,
+and starts the durable item or Project batch.
 
-1. opens a supported Story Graph post;
-2. reviews or edits the suggested prompt;
-3. selects an active, runnable image Template;
-4. chooses whether to set the result as featured media and create a linked
-   Asset record; and
-5. queues the generation.
+Runnable Template lists exclude disabled Connections, mismatched output types,
+and Templates whose required bindings cannot be resolved for every applicable
+task. `Template_Bindings` resolves declared media slots from a featured image,
+the post's asset gallery, or an SCF/post-meta field. Invalid combinations fail
+before provider execution.
 
-The Template dropdown excludes disabled Connections, non-image modalities, and
-Templates whose required bindings cannot be resolved. `Template_Bindings`
-resolves declared media slots from a featured image, the post's asset gallery,
-or an SCF/post-meta field. Invalid combinations therefore fail before provider
-execution.
+For each task, Template resolution follows this cascade:
 
-The current authoring surface is Template-first. A site-wide generation-intent
-or Generate Preferences layer is not part of the current release; the
-separate [Generate Preferences extension note](GENERATE_PREFERENCES.md)
-documents that optional design without presenting it as shipped behavior.
+1. an explicit image or video Template supplied with the batch request;
+2. per-post `_worldgraph_generation_template_{intent}` metadata;
+3. the intent mapping in `worldgraph_generation_preferences_v1`;
+4. the output-type mapping in that option;
+5. the managed local ComfyUI text-to-image Template for image output; and
+6. the first runnable compatible Template.
+
+Every candidate is revalidated against the source post, output type, input
+bindings, and Connection availability. See [Generate Preferences and
+Generation Intents](GENERATE_PREFERENCES.md) for the option shape and intent
+contract.
 
 ## Catalogs, manifests, and readiness
 
@@ -225,6 +278,22 @@ Generation records are stored as internal `worldgraph_gen` posts. Submission
 persists the record before external execution and schedules
 `worldgraph_process_generation_batch`.
 
+Representative-media batches are also durable `worldgraph_gen` posts, marked
+with `_worldgraph_gen_batch_kind = representative_media`. The parent stores the
+root post, `item` or `project` scope, requester, optional idempotency key, a
+snapshot containing each source/intent/type/Template and prompt hash, child
+IDs, total, and aggregate status. Child jobs store
+`_worldgraph_gen_batch_id` and `_worldgraph_gen_intent`. This separation lets a
+Project batch run for hours or days while every child remains independently
+observable and retryable through the ordinary worker lifecycle.
+
+Planning performs no writes. Starting validates edit permission for every
+source and resolves all required Templates before creating the batch. A
+requester-scoped non-empty idempotency key returns the prior batch for the same
+root instead of creating duplicate provider work. Batch summaries derive their
+counts from persisted child states and report `active`, `completed`,
+`completed_with_errors`, or `pending`.
+
 The worker:
 
 1. polls up to ten submitted jobs;
@@ -242,6 +311,10 @@ The durable states are:
 | `completed` | Provider work and required media import succeeded |
 | `failed` | Validation, provider execution, or media import failed |
 | `cancelled` | Cancelled in World Graph Studio |
+
+Cancelling a representative batch cancels child jobs that remain cancellable;
+already running or terminal children retain their real state and continue to
+contribute to the aggregate summary.
 
 ElevenLabs and VideoDraft audio may return completed results synchronously.
 ComfyUI, fal, Suno, and VideoDraft image/video tools can return asynchronous
@@ -278,6 +351,10 @@ The canonical REST base is `/wp-json/worldgraph/v1/`.
 | --- | --- |
 | `GET /assets/generate/prompt?post_id={id}` | Suggested prompt plus runnable image Templates |
 | `POST /assets/generate` | Queue an image for a Story Graph post |
+| `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompts, runnable Templates, defaults, and the latest batch |
+| `POST /assets/generate/batches` | Validate and start a durable item or Project representative-media batch |
+| `GET /assets/generate/batches/{id}` | Read aggregate batch progress and child jobs |
+| `POST /assets/generate/batches/{id}/cancel` | Cancel cancellable children and return refreshed batch status |
 | `POST /generation` | Create a Template-backed generation record |
 | `GET /generation/{id}` | Read job status and identity |
 | `POST /generation/{id}/cancel` | Mark a job cancelled |
@@ -327,6 +404,7 @@ abilities; their current LLM requests use `tool_choice: none`. See
 - [Provider registry](../../wordpress/wp-content/plugins/worldgraph/includes/utils/connection-adapters.php)
 - [Generation modalities](../../wordpress/wp-content/plugins/worldgraph/includes/utils/generation-modality.php)
 - [Generation worker](../../wordpress/wp-content/plugins/worldgraph/includes/utils/generation-batch.php)
+- [Representative workflows and batches](../../wordpress/wp-content/plugins/worldgraph/includes/utils/class-generation-workflows.php)
 - [Generation REST controller](../../wordpress/wp-content/plugins/worldgraph/includes/rest-api/generation-controller.php)
 - [Assets metabox controller](../../wordpress/wp-content/plugins/worldgraph/includes/rest-api/asset-generation-controller.php)
 - [Asset import and provenance](../../wordpress/wp-content/plugins/worldgraph/includes/utils/class-asset-generator.php)

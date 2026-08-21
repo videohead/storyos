@@ -209,6 +209,26 @@
             "ui": 1,
             "taxonomy": [],
             "bidirectional_target": []
+        },
+        {
+            "key": "field_worldgraph_character_generation_prompt",
+            "label": "Generation Prompt Instructions",
+            "name": "generation_prompt",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Character-specific visual instructions appended to generated media prompts, for example \"no watermark\" or wardrobe constraints.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "rows": "",
+            "placeholder": "",
+            "new_lines": ""
         }
     ],
     "location": [

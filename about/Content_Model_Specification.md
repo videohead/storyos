@@ -79,6 +79,7 @@ Represents a top-level creative project.
 - Project Name
 - Project Slug
 - Description
+- Generation Prompt Instructions
 - Genre
 - Target Medium
 - Production Status
@@ -106,6 +107,7 @@ Represents a fictional universe.
 
 - World Name
 - Synopsis
+- Generation Prompt Instructions
 - Timeline
 - Rules
 - Themes
@@ -129,6 +131,7 @@ Represents a fictional universe.
 - Biography
 - Age
 - Visual Description
+- Generation Prompt Instructions
 - Voice Description
 - Personality Traits
 - Motivation
@@ -156,6 +159,7 @@ Represents a fictional universe.
 
 - Name
 - Description
+- Generation Prompt Instructions
 - Geography
 - Environment Type
 - Mood
@@ -176,6 +180,7 @@ Represents a fictional universe.
 
 - Name
 - Description
+- Generation Prompt Instructions
 - Purpose
 - Owner Character
 - Notes
@@ -211,6 +216,7 @@ Represents a fictional universe.
 - Episode Number
 - Title
 - Synopsis
+- Generation Prompt Instructions
 - Status
 
 ## Relationships
@@ -227,6 +233,7 @@ Represents a fictional universe.
 - Scene Number
 - Title
 - Summary
+- Generation Prompt Instructions
 - Script Content
 - Dialogue (structured speaker, line, description, and sequence entries)
 - Location
@@ -260,6 +267,7 @@ Represents a fictional universe.
 - Take Number
 - Slate ID
 - Shot Description
+- Generation Prompt Instructions
 - Editorial Notes
 - Sequence
 
@@ -425,11 +433,40 @@ environment reference.
 
 # Internal Generation Job
 
-`worldgraph_gen` records queued and submitted work beneath the target Asset or
-source Story Graph item. `_worldgraph_gen_*` metadata preserves the Template,
-Connection, provider, workflow, prompt, inputs, state, remote job identity,
-results, imported attachment IDs, and provenance. This is an internal workflow
-record, not one of the 15 SCF-backed editorial content types.
+The optional **Generation Prompt Instructions** field on Project, Story World,
+Character, Prop, Location, Shot, Scene, and Episode contains media-generation
+constraints specific to that entity. It is additive context: the prompt
+composer also reads the entity's detailed authorial fields and the creative
+objective for the selected representative output.
+
+The default representative-media model is:
+
+| Entity | Default representation |
+| --- | --- |
+| Project | One project key-art image |
+| Story World | One defining world key-art image |
+| Character | Full, front, three-quarter, profile, back, and close-up images |
+| Prop | Full, front, three-quarter, profile, back, and close-up images |
+| Location | Full establishing, front, three-quarter, profile, reverse, and detail close-up images |
+| Shot | One representative still and one video |
+| Scene | One filmstrip image summarizing its ordered Shots |
+| Episode | One filmstrip image contrasting its first and last Scenes |
+
+`worldgraph_gen` records represent both individual work and durable
+representative-media batches. A batch record is parented to the requested item
+or Project and retains scope, requester, idempotency key, plan snapshot, child
+IDs, aggregate counts, and state. Each child job is parented to its source Story
+Graph item and retains the batch ID and creative intent together with the
+Template, Connection, provider, workflow, prompt, inputs, state, remote job
+identity, results, imported attachment IDs, and provenance.
+
+An item plan covers one entity. A project plan traverses canonical `contains`
+and `belongs_to` ownership edges from the Project and includes every supported
+descendant once. Planning does not queue work. Starting the plan creates all
+children only after every required output resolves a runnable Template, which
+allows WP-Cron to execute and report the work safely over hours or days.
+
+These are internal workflow records, not SCF-backed editorial content types.
 
 ---
 

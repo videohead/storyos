@@ -33,6 +33,12 @@ class Prop {
 			'label'       => 'Description',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Prop-specific visual instructions appended to generated media prompts, for example "no watermark" or material constraints.',
+		],
 		'purpose'         => [
 			'type'        => 'text',
 			'label'       => 'Purpose',

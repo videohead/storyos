@@ -54,6 +54,12 @@ results are normalized and merged by provider template ID.
 The current task types are:
 
 - `txt2img`;
+- `img2img`;
+- `image-text-to-image`;
+- `text-to-video`;
+- `image-to-video`;
+- `video-to-video`;
+- `video-with-audio`;
 - `text-to-speech`;
 - `text-to-dialogue`;
 - `text-to-sound-effects`;
@@ -72,6 +78,15 @@ kept in the catalog snapshot; it is fetched again when materialized.
 
 An entry whose task type does not map to a registered modality remains visible
 as `unmappable` and cannot be enabled automatically.
+
+For the bundled local ComfyUI MCP helper, `list_templates` is file-backed: it
+lists `.json` workflows from the MCP service's configured template directory.
+It can report both ComfyUI UI workflow JSON and API-format workflow JSON, but
+ComfyUI's documented `/prompt` execution path expects API-format workflow JSON.
+The helper does not create new workflows from installed nodes or upload
+workflows into ComfyUI. Local operators add or export workflow JSON first, then
+sync the World Graph Studio catalog. See [Text to Video with Local ComfyUI MCP](../how-to-text-to-video.md)
+for the user-facing sequence.
 
 ### Local HTTP discovery
 

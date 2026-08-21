@@ -38,6 +38,12 @@ class Scene {
 			'label'       => 'Summary',
 			'required'    => false,
 		],
+		'generation_prompt' => [
+			'type'        => 'textarea',
+			'label'       => 'Generation Prompt Instructions',
+			'required'    => false,
+			'description' => 'Scene-specific visual instructions appended to generated media prompts, for example "no watermark" or color-script guidance.',
+		],
 		'script_content'  => [
 			'type'        => 'wysiwyg',
 			'label'       => 'Script Content',

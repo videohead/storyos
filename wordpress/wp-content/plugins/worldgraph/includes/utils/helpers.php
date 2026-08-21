@@ -316,15 +316,15 @@ function worldgraph_should_exclude_from_details( string $field_name, array $fiel
  */
 function worldgraph_expected_fields_for_cpt( string $cpt ): array {
 	$expected_fields = [
-		'worldgraph_project'            => [ 'project_name', 'project_slug', 'description', 'genre', 'target_medium', 'status', 'owner', 'start_date', 'end_date', 'team_members', 'production_stage', 'frame_width', 'frame_height', 'aspect_ratio', 'frame_rate' ],
-		'worldgraph_world'        => [ 'world_name', 'synopsis', 'timeline', 'rules', 'themes', 'geography', 'references', 'project' ],
-		'worldgraph_character'          => [ 'display_name', 'biography', 'age', 'appearance', 'personality', 'motivation', 'backstory', 'voice_profile', 'avatar_asset', 'story_world' ],
-		'worldgraph_location'           => [ 'location_name', 'description', 'environment_type', 'geography', 'mood', 'visual_reference', 'story_world' ],
-		'worldgraph_prop'               => [ 'prop_name', 'description', 'purpose', 'owner_character', 'notes' ],
+		'worldgraph_project'            => [ 'project_name', 'project_slug', 'description', 'genre', 'target_medium', 'status', 'owner', 'start_date', 'end_date', 'team_members', 'production_stage', 'frame_width', 'frame_height', 'aspect_ratio', 'frame_rate', 'generation_prompt' ],
+		'worldgraph_world'        => [ 'world_name', 'synopsis', 'timeline', 'rules', 'themes', 'geography', 'references', 'project', 'generation_prompt' ],
+		'worldgraph_character'          => [ 'display_name', 'biography', 'age', 'appearance', 'personality', 'motivation', 'backstory', 'voice_profile', 'avatar_asset', 'story_world', 'generation_prompt' ],
+		'worldgraph_location'           => [ 'location_name', 'description', 'environment_type', 'geography', 'mood', 'visual_reference', 'story_world', 'generation_prompt' ],
+		'worldgraph_prop'               => [ 'prop_name', 'description', 'purpose', 'owner_character', 'notes', 'generation_prompt' ],
 		'worldgraph_org'       => [ 'organization_name', 'organization_type', 'description', 'leadership', 'goals', 'story_world' ],
-		'worldgraph_episode'            => [ 'episode_number', 'title', 'synopsis', 'status', 'project' ],
-		'worldgraph_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'dialogue', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode' ],
-		'worldgraph_shot'               => [ 'shot_name', 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene', 'sequence' ],
+		'worldgraph_episode'            => [ 'episode_number', 'title', 'synopsis', 'status', 'project', 'generation_prompt' ],
+		'worldgraph_scene'              => [ 'scene_number', 'title', 'summary', 'script_content', 'dialogue', 'location', 'time_of_day', 'emotional_tone', 'production_notes', 'sequence', 'episode', 'generation_prompt' ],
+		'worldgraph_shot'               => [ 'shot_name', 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'take_number', 'slate_id', 'shot_description', 'editorial_notes', 'scene', 'sequence', 'generation_prompt' ],
 		'worldgraph_sound'              => [ 'sound_type', 'production_status', 'spoken_text', 'lyrics', 'start_timecode', 'duration', 'diegetic', 'production_notes', 'scene', 'shot', 'character', 'asset' ],
 		'worldgraph_board'         => [ 'frame_number', 'frame_description', 'image_asset', 'prompt_text', 'camera_notes', 'scene', 'shot' ],
 		'worldgraph_asset'              => [ 'asset_title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed', 'generation_parameters', 'version', 'status', 'storage_uri', 'character', 'location', 'scene', 'storyboard' ],
