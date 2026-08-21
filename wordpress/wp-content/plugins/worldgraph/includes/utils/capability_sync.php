@@ -48,6 +48,12 @@ class Capability_Sync {
 			'endpoint'      => Connection_Adapters::endpoint( 'suno' ),
 			'mcp_endpoint'  => Connection_Adapters::mcp_endpoint( 'suno' ),
 			'capabilities'  => [ 'audio', 'text', 'text_to_music', 'text_to_lyrics', 'async_generation', 'rest_execution', 'mcp_execution', 'tool_discovery' ],
+		], [
+			'provider_type' => 'videodraft',
+			'label'         => 'VideoDraft',
+			'endpoint'      => Connection_Adapters::endpoint( 'videodraft' ),
+			'mcp_endpoint'  => Connection_Adapters::mcp_endpoint( 'videodraft' ),
+			'capabilities'  => [ 'image', 'video', 'audio', 'async_generation', 'project_import', 'project_export', 'mcp_execution', 'tool_discovery' ],
 		] ];
 
 		$snapshot = [

@@ -1,8 +1,10 @@
 # World Graph Studio Delivery Status
 
-**Current release status: complete.** The capabilities described as current in
-this repository are implemented. Additional file-based script import/export
-formats are on hold.
+**Current core release status: complete.** The additional-script roadmap area
+that was previously paused is now closed for a defined current-release scope:
+Final Draft FDX import is delivered, while unaccepted formats remain extension
+opportunities rather than unfinished release requirements. The inventory below
+separates delivered workflows from bundled scaffolds that still need repair.
 
 This document is the status source of truth. Feature specifications explain how
 the delivered system works; they should not redefine a shipped feature as
@@ -15,13 +17,14 @@ not been configured.
 | --- | --- |
 | Story Graph | 15 content types, nine taxonomies, Structured Content Fields, canonical relationships, graph traversal, and REST exposure |
 | Creative workspace | Project and world management, scenes, shots, sounds, storyboards, assets, editorial records, templates, and provider connections |
-| AI assistance | Gutenberg AI Editor, Story Graph context, configured LLM access, WordPress Abilities, and 50+ specialist creative advisors |
+| AI assistance | Gutenberg AI Editor, Story Graph context, configured LLM access, WordPress Abilities, and 50+ specialist agents loaded from extensible profiles |
 | Story intelligence | Search, optional semantic assistance, continuity checks, relationship analytics, summaries, and admin panels |
 | Generation | Connection and template records, validation, queued generation jobs, WP-Cron processing, job state, cancellation, result import, and provenance |
-| Provider adapters | local ComfyUI HTTP workflows, Comfy Cloud MCP, fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, and manually managed external-generator workflows where configured |
-| Project interchange | World Graph Studio JSON import and Markdown screenplay/storyboard export |
-| Script synchronization | Optional outbound Celtx synchronization for supported entities, with persistent remote-ID mapping |
-| Editorial utilities | Optional CMX 3600 and SMPTE 436m XML parsers, preview data, timecode helpers, and format generators |
+| Provider adapters | A filterable Connection adapter manifest plus local ComfyUI HTTP workflows, Comfy Cloud MCP, fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft MCP, and manually managed external-generator workflows where configured |
+| Project interchange | World Graph Studio JSON and Final Draft FDX import, Markdown screenplay/storyboard export, and optional VideoDraft structural Project push/pull |
+| Synchronization | Optional bidirectional VideoDraft structural synchronization, with persistent remote-ID mappings |
+| Editorial format code | CMX 3600 and SMPTE 436m XML parsing, timecode, and format-generation functions; the bundled admin workflow remains incomplete |
+| Extension surfaces | Canonical import contract, bundled format and synchronization plugins, filterable Connection adapters, profile-driven agents, REST APIs, and WordPress Abilities |
 | Administration | Setup wizard, connection management, plugin toggles, dashboards, and permission-aware REST/admin actions |
 
 “Delivered” describes code in the repository. Optional connections still need
@@ -32,27 +35,35 @@ not unfinished World Graph Studio implementation.
 The delivered Suno path provisions prompt-music, custom-music, and
 `text_to_lyrics` Templates for both REST and MCP. One `suno` Connection keeps
 the SunoAPI.org REST credential distinct from the AceData Cloud MCP credential.
-See [Suno Integration](plugins/SUNO.md) for the transport boundary.
+See [Suno Integration](plugins/SUNO.md) for the transport boundary and the
+[Integration Catalog](Integration_Catalog.md) for the complete table view,
+including source-only and experimental integrations.
 
-## On hold: additional script import/export
+## Closed additional-script roadmap item
 
-The following additions are not part of the current release and are not active
-delivery commitments:
+The blanket “additional script import/export” hold is retired. The accepted
+current-release paths are:
 
-- Final Draft FDX import.
-- Fade In import.
-- Highland import.
-- Story Architect import.
-- Automated screenplay parsing and Story Graph entity extraction for those
-  formats.
-- Import preview, deduplication, and merge workflows specific to those formats.
-- Professional script exporters beyond the delivered Markdown screenplay and
-  storyboard exports.
-- Additional script synchronization providers beyond Celtx.
+- World Graph Studio JSON and Final Draft FDX import.
+- Markdown screenplay and storyboard export.
+- Bidirectional VideoDraft synchronization for its shared structural Project
+  subset.
+- As adjacent library code—not live project interchange—CMX 3600 and SMPTE
+  436m XML parsing, timecode, and format generation from clip arrays.
 
-Existing JSON import, Markdown export, and outbound Celtx synchronization are
-delivered and remain supported. “Script import/export is on hold” refers only
-to the additional formats above.
+Each path adapts to the canonical Story Graph instead of introducing a second
+project model. The FDX adapter normalizes screenplay data for the core
+importer; VideoDraft pull also delegates persistence to that importer.
+
+Fountain importer source is bundled but its current browser bootstrap fails
+before exposing the shared FDX parser. Celtx connector source has response and
+Scene-call defects that block verified outbound sync. Neither is counted as a
+delivered workflow until repaired and tested.
+
+Fade In, Highland, Story Architect, additional professional script exporters,
+format-specific merge workflows, and further synchronization providers are
+possible future adapters. They are not shipped features or active delivery
+commitments, and they do not reopen the closed roadmap category.
 
 ## Current boundaries
 
@@ -68,12 +79,19 @@ to the additional formats above.
   visibility and access still depend on WordPress and hosting configuration.
 - AAF, OMF, provider-specific NLE panels, and other possible integrations are
   extension points, not current-release commitments.
-- The bundled EDL utility can parse, preview, and generate supported formats.
-  Import confirmation does not yet persist a project timeline, and live
-  project export still needs a production timeline-data adapter; neither is
-  presented as delivered interchange.
+- The bundled EDL PHP code can parse and generate supported formats, but the
+  admin page references missing assets and its AJAX action contract conflicts.
+  Import confirmation persists nothing, and Project export uses sample clips;
+  the admin workflow is not presented as delivered.
+- The bundled Fountain source has a browser bootstrap defect, and the bundled
+  Celtx source has response-handling and Scene-call defects. They remain listed
+  in the catalog as integration scaffolds rather than delivered workflows.
 - The bundled Google Web Stories directory is prototype extension source. It
   is not loaded by the current plugin and is not a supported release workflow.
+- The bundled Descript exchange source is experimental. Canonical media lookup,
+  callback handling, binary transcript handling, wizard classification, and
+  runtime contract tests remain incomplete, so it is not presented as a
+  delivered workflow.
 
 ## Naming contract
 

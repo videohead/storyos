@@ -118,6 +118,22 @@ On the Connection record:
 For deployment-managed credentials, a manually edited Connection may use an
 `env://FAL_KEY` reference.
 
+### VideoDraft Cloud
+
+The managed Connection uses:
+
+`https://app.videodraft.ai/api/mcp`
+
+Enter a VideoDraft personal access token. The wizard test calls `tools/list`
+and verifies the generation and Project tools used by World Graph Studio.
+Saving schedules live-schema Template provisioning for supported image, video,
+audio, voiceover, music, and sound-effect tools.
+
+A manually edited Connection may use `env://VIDEODRAFT_API_KEY`. Enable and
+configure the separate **VideoDraft Sync** child plugin to push or pull the
+shared structural Project subset. See [VideoDraft Connection and
+Sync](../../../../../about/plugins/VIDEODRAFT.md).
+
 ### ElevenLabs
 
 The managed Connection uses:
@@ -205,7 +221,8 @@ not expose separate fallback fields. Do not expect the wizard to save
   when a provider is selected;
 - stores the primary LLM options;
 - creates or updates one managed Connection with wizard slot `llm`;
-- schedules fal, ElevenLabs, or Suno Template catalog work where applicable;
+- schedules fal, ElevenLabs, Suno, or VideoDraft Template catalog work where
+  applicable;
 - provisions the managed local ComfyUI Template where applicable; and
 - sets `worldgraph_setup_complete = true`.
 
@@ -242,6 +259,8 @@ Provider-specific behavior:
 - ElevenLabs verifies voices/models and synchronizes Templates;
 - Suno verifies the SunoAPI.org credit endpoint and required AceData Cloud MCP
   tools, then synchronizes transport-specific Templates;
+- VideoDraft verifies hosted MCP generation and Project tools, then
+  synchronizes live-schema Templates;
 - Comfy Cloud's Connection test currently verifies credential presence; catalog
   sync is the stronger MCP capability check; and
 - LLM Connections run the configured LLM health test.

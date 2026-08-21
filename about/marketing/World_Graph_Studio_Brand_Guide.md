@@ -47,15 +47,27 @@ Follow platform casing conventions when an identifier requires them, such as
 constants. In reader-facing prose, spell out **World Graph Studio** unless the
 technical identifier itself is being documented.
 
+### Product Terminology
+
+- Use **Connection** (capitalized) for the World Graph Studio record that stores
+  a provider configuration. Use lowercase “connection” only in its ordinary
+  networking sense.
+- Use **Connection adapter** for a provider integration registered with the
+  adapter manifest; avoid hyphenating the noun in reader-facing prose.
+- Use **specialist agent** as the general product term. The editor may label a
+  specialist agent a **Creative Advisor** to emphasize its human-directed role;
+  these names describe the same profile-driven feature.
+
 ---
 
 # Brand Positioning
 
 ## Elevator Pitch
 
-World Graph Studio is the open-source studio for worldbuilding, storytelling,
-and AI-powered creative production. It connects ideas, assets, production
-decisions, and optional AI workflows through a Story Graph creators control.
+World Graph Studio is the extensible open-source studio for worldbuilding,
+storytelling, and AI-powered creative production. It connects ideas, assets,
+production decisions, portable interchange, provider Connections, and 50+
+specialist agents through a Story Graph that creators control.
 
 ## Mission
 
@@ -87,6 +99,8 @@ licenses, and usage policies.
 Story First.
 AI Assisted.
 Creator Owned.
+Portable by Design.
+Built to Extend.
 Open Source.
 No Platform Credits.
 ```
@@ -115,6 +129,11 @@ Community-owned infrastructure.
 ## Structured Storytelling
 
 The Story Graph is the source of truth.
+
+## Extensible by Design
+
+Formats, provider Connections, and specialist agents grow around the Story
+Graph instead of replacing it.
 
 ---
 
@@ -399,16 +418,16 @@ Your ideas and assets remain connected, portable, and under your control.
 
 # One-Sentence Description
 
-> World Graph Studio is the open-source studio for worldbuilding, storytelling,
-> and AI-powered creative production, built around a Story Graph creators
-> control.
+> World Graph Studio is the extensible open-source studio for connected
+> storytelling, portable production data, and AI-powered creative production,
+> built around a Story Graph that creators control.
 
 ---
 
 # GitHub Repository Description
 
 ```text
-Open-source, self-hosted studio for connected worlds, creative AI advisors, and provider-agnostic production workflows in WordPress.
+Open-source, self-hosted studio for portable story data, extensible AI agents, and provider-agnostic production in WordPress.
 ```
 
 ---
@@ -421,9 +440,10 @@ Open-source, self-hosted studio for connected worlds, creative AI advisors, and 
 
 ## Subheadline
 
-The open-source studio for worldbuilding, storytelling, and AI-powered creative
-production. Build connected worlds without a World Graph Studio credit meter
-or mandatory model provider.
+The extensible open-source studio for worldbuilding, storytelling, and
+AI-powered creative production. Import scripts, connect the tools you choose,
+and grow a team of 50+ specialist agents without a World Graph Studio credit
+meter.
 
 ---
 
@@ -448,13 +468,13 @@ World Graph Studio lets creators choose the infrastructure.
 ## Deployment Promise
 
 World Graph Studio runs on a WordPress.org-capable host or a local Docker/Lando
-deployment. Helpful filmmaking advisors require an API-connected LLM: a local
+deployment. Helpful specialist agents require an API-connected LLM: a local
 OpenAI-compatible server or a supported hosted API key. Generation can use
-Comfy Cloud MCP, local ComfyUI HTTP workflows, fal MCP, ElevenLabs, or Suno
-through SunoAPI.org REST and AceData Cloud MCP when the matching Connection and
-Template are configured. Suno's REST and MCP services require distinct
-credentials. Browser-only AI subscriptions are not a World Graph Studio server
-connection.
+Comfy Cloud MCP, local ComfyUI HTTP workflows, fal MCP, ElevenLabs, Suno through
+SunoAPI.org REST and AceData Cloud MCP, or VideoDraft when the matching
+Connection and Template are configured. Suno's REST and MCP services require
+distinct credentials. Browser-only AI subscriptions are not a World Graph
+Studio server connection.
 
 Use “no credits needed” to describe World Graph Studio itself and local/open
 model workflows. Do not imply that optional hosted providers are free or lack

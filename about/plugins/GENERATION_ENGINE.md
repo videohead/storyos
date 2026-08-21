@@ -33,7 +33,7 @@ Story Graph post or REST client
          WP-Cron batch worker
               |
               v
- ComfyUI / fal / ElevenLabs / Suno adapter
+ ComfyUI / fal / ElevenLabs / Suno / VideoDraft adapter
               |
               v
  WordPress attachments / text results + provenance
@@ -47,6 +47,12 @@ release registers these modalities:
 | Modality | Output | Required input | Optional input | Primary adapter |
 | --- | --- | --- | --- | --- |
 | `text_to_image` | image | `prompt` | `negative_prompt` | ComfyUI or a compatible fal Template |
+| `image_to_image` | image | `image` | `prompt`, `negative_prompt` | Compatible ComfyUI or VideoDraft Template |
+| `image_text_to_image` | image | `image`, `prompt` | `negative_prompt` | Compatible ComfyUI or VideoDraft Template |
+| `text_to_video` | video | `prompt` | `negative_prompt` | VideoDraft |
+| `text_image_to_video` | video | `prompt`, `image` | `negative_prompt` | VideoDraft |
+| `video_to_video` | video | `start_frame` | `prompt`, `negative_prompt`, `end_frame` | Compatible ComfyUI Template |
+| `video_with_audio` | video | `audio` | `prompt`, `negative_prompt`, `video` | VideoDraft |
 | `text_to_speech` | audio | `prompt` | none | ElevenLabs |
 | `text_to_dialogue` | audio | `prompt` | none | ElevenLabs |
 | `text_to_sound_effect` | audio | `prompt` | none | ElevenLabs |
@@ -139,6 +145,21 @@ returned task ID and `suno_get_task`. Music completion imports both returned
 tracks before the generation is marked complete. See [Suno
 Integration](SUNO.md) for the operator and transport contracts.
 
+### VideoDraft hosted MCP
+
+A `videodraft` Connection calls `https://app.videodraft.ai/api/mcp` directly
+from WordPress with a VideoDraft personal access token. Connection testing
+reads `tools/list`, verifies the generation and Project tools used by the
+integration, and provisions active Templates from the live input schemas for
+image, video, audio, voiceover, music, and sound-effect generation.
+
+Image and video tools return asynchronous jobs that the batch worker polls
+with `check_generation_status`; completed image, video, and audio URLs are
+imported through the normal media and provenance path. Bound local media uses
+VideoDraft's presigned upload flow. The Node CLI is the protocol reference,
+not a WordPress runtime dependency. See [VideoDraft Connection and
+Sync](VIDEODRAFT.md).
+
 ### Manually managed providers
 
 Connections may record other provider types, and users can always generate in
@@ -222,8 +243,9 @@ The durable states are:
 | `failed` | Validation, provider execution, or media import failed |
 | `cancelled` | Cancelled in World Graph Studio |
 
-ElevenLabs may return completed audio synchronously. ComfyUI, fal, and Suno can
-return asynchronous jobs. A local ComfyUI Connection with an MCP endpoint can
+ElevenLabs and VideoDraft audio may return completed results synchronously.
+ComfyUI, fal, Suno, and VideoDraft image/video tools can return asynchronous
+jobs. A local ComfyUI Connection with an MCP endpoint can
 fall back to the local HTTP adapter when MCP submission fails. Suno REST and
 MCP Templates do not fall back across transports because their credentials and
 provider contracts are different.

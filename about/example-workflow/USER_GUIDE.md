@@ -36,9 +36,10 @@ The setup screen separates core WordPress operation from optional services:
   metadata, imports, exports, and integrations manually.
 - **LLM connection:** enable AI Editor conversations, analysis, generation
   assistance, and specialist advisor workflows.
-- **Generation connection:** submit supported templates to Comfy Cloud MCP,
-  local ComfyUI, fal MCP, ElevenLabs, SunoAPI.org REST, or AceData Cloud Suno
-  MCP, depending on the adapter and templates you configure.
+- **Generation connection:** submit supported Templates through Comfy Cloud
+  MCP, local ComfyUI, fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno
+  MCP, or VideoDraft hosted MCP, depending on the adapter and Templates you
+  configure.
 - **Manual external generation:** create media in another tool, then import it
   into WordPress with its source and provenance.
 
@@ -119,17 +120,30 @@ API. A Suno Connection requires a SunoAPI.org REST key and a separate AceData
 Cloud MCP token; one cannot authenticate the other. See
 [Suno Integration](../plugins/SUNO.md).
 
+A VideoDraft Connection provisions Templates from the provider's live tool
+schemas. Image and video jobs are polled through WP-Cron, completed media is
+imported into WordPress, and local reference attachments use the provider's
+presigned upload flow. See [VideoDraft Connection and
+Sync](../plugins/VIDEODRAFT.md).
+
 ## 7. Export and exchange work
 
 The current release provides these portable workflows:
 
 - **World Graph Studio JSON import** for structured project data.
+- **Final Draft FDX import** for screenplay scenes, locations, characters,
+  action, and dialogue normalized into the Story Graph.
+- **Fountain importer source** targeting the shared browser-side
+  Fountain-to-FDX and Story Graph pipeline; its current bootstrap blocker is
+  cataloged and the workflow is not yet delivered.
 - **Markdown screenplay export** from live project and scene records.
 - **Markdown storyboard export** with shot and storyboard context.
-- **Outbound Celtx synchronization** through the optional bundled integration.
-- **EDL parsing, preview, timecode, and format helpers** through the optional
-  bundled editorial utility. Import persistence and live project timeline
-  export are not part of the current workflow.
+- **Celtx connector source** for intended outbound synchronization; current
+  response and Scene-call defects require repair before use.
+- **Bidirectional VideoDraft structural Project sync** with preview, conflict
+  checks, and checkpointed updates through the optional bundled integration.
+- **EDL parsing, timecode, and format-generation PHP functions** for custom
+  editorial adapters. The bundled admin workflow is incomplete.
 
 The repository also contains prototype source for a Google Web Stories
 connector. It is not loaded or supported as a current release workflow.
@@ -138,8 +152,16 @@ Open **World Graph Studio > Export** to download a Markdown screenplay or
 storyboard. The sample output is
 [Little Red Riding Hood screenplay export](Little-Red-Riding-Hood-Screenplay-Example-Export.md).
 
-Additional FDX, Fade In, Highland, Story Architect, and professional script
-format work is on hold. It is not required for the delivered workflows above.
+Open **World Graph Studio > Import Final Draft FDX** to select a screenplay
+file. Parsing and conversion happen in the browser; the normalized World Graph
+Studio document is then validated and persisted by the canonical importer.
+The Fountain admin surface remains a scaffold until its browser bootstrap is
+repaired.
+
+The previously paused blanket category is closed for the current release:
+Final Draft FDX is delivered, while Fade In, Highland, Story Architect,
+additional professional exporters, and other unaccepted formats remain
+possible adapters rather than unfinished requirements.
 
 ## 8. Keep the project portable and private
 
@@ -163,4 +185,5 @@ and licensing terms.
 - [REST API](../REST_API_Specification.md)
 - [Generation engine](../plugins/GENERATION_ENGINE.md)
 - [Suno integration](../plugins/SUNO.md)
+- [VideoDraft connection and sync](../plugins/VIDEODRAFT.md)
 - [Script and EDL integration](../Script_EDL_Integration.md)

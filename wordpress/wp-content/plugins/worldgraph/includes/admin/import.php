@@ -142,7 +142,7 @@ class Import {
 						<th scope="row"><label for="worldgraph_json_file"><?php esc_html_e( 'World Graph Studio JSON File', 'worldgraph' ); ?></label></th>
 						<td>
 							<input type="file" name="worldgraph_json_file" id="worldgraph_json_file" accept=".json,application/json" class="regular-text" />
-							<p class="description"><?php esc_html_e( 'Select the World Graph Studio JSON file exported from the project, or use the example workflow export.', 'worldgraph' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Select a JSON document that follows the World Graph Studio import contract, or use the example workflow document.', 'worldgraph' ); ?></p>
 						</td>
 					</tr>
 					<tr>

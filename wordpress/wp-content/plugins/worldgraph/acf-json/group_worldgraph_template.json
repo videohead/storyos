@@ -78,6 +78,12 @@
             },
             "choices": {
                 "text_to_image": "Text to image",
+                "image_to_image": "Image to image",
+                "image_text_to_image": "Image and text to image",
+                "text_to_video": "Text to video",
+                "text_image_to_video": "Text and image to video",
+                "video_to_video": "Video to video",
+                "video_with_audio": "Video with audio",
                 "text_to_speech": "Text to speech",
                 "text_to_dialogue": "Text to dialogue",
                 "text_to_sound_effect": "Text to sound effect",

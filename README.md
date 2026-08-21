@@ -13,6 +13,12 @@ you choose, and connect the local or hosted AI tools that fit your workflow.
 The platform does not sell generation credits or require a single model
 provider.
 
+Interchange and extensibility are part of the product, not afterthoughts.
+Bring screenplay and project data into the Story Graph, take readable
+deliverables back out, add provider integrations around a shared Connection
+registry without changing the canonical project model, and expand the bundled
+team of specialist agents with new profile files.
+
 ## What ships today
 
 - A structured Story Graph with 15 WordPress content types, nine taxonomies,
@@ -20,22 +26,47 @@ provider.
 - Project, world, character, location, prop, organization, episode, scene,
   shot, sound, storyboard, asset, editorial, template, and connection tools.
 - An AI Editor, Story Graph-aware analysis, continuity checks, relationship
-  analytics, semantic-search fallbacks, and 50+ specialist creative advisors.
-- Template-backed generation jobs, provider connections, WordPress media
-  imports, provenance, status tracking, cancellation, and scheduled batches.
-- World Graph Studio JSON import plus Markdown screenplay and storyboard
-  export.
-- Optional outbound Celtx synchronization plus EDL parsing, preview, and
-  formatting tools.
+  analytics, semantic-search fallbacks, and 50+ specialist agents loaded from
+  extensible `.agent.md` profiles.
+- Template-backed image, video, and audio generation jobs through providers
+  including VideoDraft, with WordPress media imports, provenance, status tracking,
+  cancellation, and scheduled batches.
+- World Graph Studio JSON and Final Draft FDX import plus Markdown screenplay
+  and storyboard export.
+- Optional bidirectional VideoDraft structural Project sync and reusable EDL
+  parsing, timecode, and format-generation code.
+- Bundled Fountain, Celtx, Descript, and Web Stories integration source with
+  readiness and current blockers called out in the integration catalog.
+- A filterable Connection adapter manifest that lets integrations register
+  provider types, guided setup choices, and a conditional implementation
+  loader.
 - A permission-aware REST API and WordPress Abilities for tools, resources,
   and prompts.
 
-Broader file-based script interchange—such as FDX, Fade In, Highland, Story
-Architect, and additional professional script exports—is on hold. The JSON,
-Markdown, Celtx, and EDL-helper surfaces already in the product remain
-available. See [Delivery status](about/Delivery_Status.md) for the exact
-boundary. The bundled Web Stories source is an extension prototype, not a
-current release feature.
+The additional-script roadmap area that was previously described as on hold is
+closed for the current release: Final Draft FDX import is delivered, while
+Fade In, Highland, Story Architect, and other unaccepted formats are extension
+opportunities rather than unfinished requirements. The bundled Fountain,
+Celtx, EDL admin, Descript, and Web Stories surfaces remain visible in the
+catalog with their actual scaffold or prototype status. See [Delivery
+status](about/Delivery_Status.md) for exact directions and boundaries.
+
+## Built to extend
+
+- **Interchange adapters reuse one Story Graph contract.** FDX normalizes
+  screenplay data for the same validated importer used by World Graph Studio
+  JSON; exporters derive portable projections from live Story Graph records;
+  and VideoDraft maps external project structure without replacing WordPress
+  as the source of truth. Bundled scaffolds target the same contracts as they
+  are hardened.
+- **Connections are an extension surface.** An integration can register its
+  provider metadata, a conditional loader, and setup choices through a
+  WordPress hook. Its implementation then supplies any provider-specific
+  validation, catalog, execution, or polling behavior it needs around shared
+  Connection records.
+- **Agents are profile-driven.** World Graph Studio discovers bundled
+  `.agent.md` files at runtime, so a focused production role can be added
+  without creating another service or changing the Story Graph.
 
 ## Why it exists
 
@@ -57,12 +88,16 @@ Creator
   v
 WordPress + World Graph Studio
   |-- Story Graph, SCF, media, REST, and admin workflows
-  |-- AI Editor, creative advisors, search, and continuity
-  |-- connections, templates, generation jobs, and provenance
+  |-- AI Editor, specialist agents, search, and continuity
+  |-- extensible agents, interchange adapters, and Connection adapters
+  |-- templates, generation jobs, and provenance
   |
   +--> optional LLM connection
   +--> optional ComfyUI / Comfy Cloud / provider connection
-  +--> optional Celtx sync and EDL format tooling
+  +--> JSON / FDX import and Markdown export
+  +--> adjacent EDL format code
+  +--> optional VideoDraft generation and structural project sync
+  +--> experimental Descript transcript/media exchange source
 ```
 
 WordPress is the application and source of truth. External AI and generation
@@ -75,9 +110,9 @@ services are replaceable connections; they do not own the Story Graph.
 - Docker Desktop or Docker Engine
 - [Lando](https://docs.lando.dev/getting-started/installation.html)
 - Git
-- An API-connected LLM only if you want AI Editor or advisor features
-- ComfyUI, Comfy Cloud, or another configured provider only if you want
-  automated asset generation
+- An API-connected LLM only if you want AI Editor or specialist-agent features
+- ComfyUI, Comfy Cloud, VideoDraft, or another configured provider only if you
+  want automated asset generation
 
 ### Start the local site
 
@@ -139,7 +174,12 @@ references:
 - [Product requirements](about/World_Graph_Studio_PRD.md)
 - [Architecture](about/World_Graph_Studio_Architecture.md)
 - [User guide](about/example-workflow/USER_GUIDE.md)
+- [Integration catalog](about/Integration_Catalog.md)
+- [Script and editorial interchange](about/Script_EDL_Integration.md)
+- [Agent architecture](about/Agent_Architecture.md)
 - [Deployment and connections](about/Deployment_and_Connections.md)
+- [VideoDraft connection and sync](about/plugins/VIDEODRAFT.md)
+- [Descript connection and exchange](about/plugins/DESCRIPT.md)
 - [Story Graph specification](about/Story_Graph_Specification.md)
 - [REST API](about/REST_API_Specification.md)
 

@@ -184,11 +184,24 @@ function render_admin_page(): void {
 							<p class="description">Frame rate must match the source footage.</p>
 						</td>
 					</tr>
+					<tr>
+						<th scope="row"><label for="edl_import_target_id">Attach To (optional)</label></th>
+						<td>
+							<select name="target" id="edl_import_target">
+								<option value="">None (preview only)</option>
+								<option value="project">Project</option>
+								<option value="episode">Episode</option>
+							</select>
+							<input type="number" name="target_id" id="edl_import_target_id" min="1" placeholder="Post ID">
+							<p class="description">Optional Project or Episode post ID to link the imported EDL to.</p>
+						</td>
+					</tr>
 				</table>
 
 				<div id="edl-preview" class="worldgraph-edl-preview" style="display:none;">
 					<h2>Import Preview</h2>
 					<p>Detected <strong id="preview-clip-count">0</strong> clips:</p>
+					<div id="preview-warnings" class="notice notice-warning inline" style="display:none;"></div>
 					<table id="preview-table" class="widefat fixed" style="display:none;">
 						<thead>
 							<tr>
@@ -222,6 +235,8 @@ function render_admin_page(): void {
 								<option value="project">Project</option>
 								<option value="episode">Episode</option>
 							</select>
+							<input type="number" name="target_id" id="edl_target_id" min="1" required placeholder="Post ID">
+							<p class="description">Project or Episode post ID to resolve the timeline from.</p>
 						</td>
 					</tr>
 					<tr>
@@ -322,13 +337,16 @@ function ajax_handler(): void {
 		wp_send_json_error( 'Unauthorized' );
 	}
 
-	$action  = isset( $_POST['action'] ) ? sanitize_text_field( $_POST['action'] ) : '';
-	$format  = isset( $_POST['format'] ) ? sanitize_text_field( $_POST['format'] ) : 'cmx3600';
-	$fps     = isset( $_POST['fps'] ) ? intval( $_POST['fps'] ) : 24;
+	// `action` is reserved by wp_ajax_* routing, so the sub-operation travels in its own field.
+	$sub_action = isset( $_POST['edl_action'] ) ? sanitize_text_field( $_POST['edl_action'] ) : '';
+	$format     = isset( $_POST['format'] ) ? sanitize_text_field( $_POST['format'] ) : 'cmx3600';
+	$fps        = normalize_fps( isset( $_POST['fps'] ) ? intval( $_POST['fps'] ) : 24 );
 
-	if ( 'import' === $action ) {
-		handle_import( $format, $fps );
-	} elseif ( 'export' === $action ) {
+	if ( 'import' === $sub_action ) {
+		$target_type = isset( $_POST['target'] ) ? sanitize_text_field( $_POST['target'] ) : '';
+		$target_id   = isset( $_POST['target_id'] ) ? intval( $_POST['target_id'] ) : 0;
+		handle_import( $format, $fps, $target_type, $target_id );
+	} elseif ( 'export' === $sub_action ) {
 		$options = [
 			'title'       => isset( $_POST['title'] ) ? sanitize_text_field( $_POST['title'] ) : 'World Graph Studio EDL',
 			'reel'        => isset( $_POST['reel'] ) ? sanitize_text_field( $_POST['reel'] ) : 'REEL 001',
@@ -340,7 +358,7 @@ function ajax_handler(): void {
 			'audio_track' => isset( $_POST['audio_track'] ) ? sanitize_text_field( $_POST['audio_track'] ) : 'A  C',
 		];
 		handle_export( $format, $fps, $options );
-	} elseif ( 'confirm_import' === $action ) {
+	} elseif ( 'confirm_import' === $sub_action ) {
 		handle_confirm_import();
 	} else {
 		wp_send_json_error( 'Invalid action.' );
@@ -350,11 +368,13 @@ function ajax_handler(): void {
 /**
  * Handle EDL import.
  *
- * @param string $format EDL format (cmx3600 or xml).
- * @param int    $fps Frame rate.
+ * @param string $format      EDL format (cmx3600 or xml).
+ * @param float  $fps         Frame rate.
+ * @param string $target_type Optional target type (project or episode) to attach the import to.
+ * @param int    $target_id   Optional target post ID to attach the import to.
  */
-function handle_import( string $format, int $fps ): void {
-	if ( empty( $_FILES['edl_file'] ) ) {
+function handle_import( string $format, float $fps, string $target_type = '', int $target_id = 0 ): void {
+	if ( empty( $_FILES['edl_file'] ) || UPLOAD_ERR_OK !== ( $_FILES['edl_file']['error'] ?? UPLOAD_ERR_NO_FILE ) ) {
 		wp_send_json_error( 'No file uploaded.' );
 	}
 
@@ -366,25 +386,39 @@ function handle_import( string $format, int $fps ): void {
 		wp_send_json_error( $edl_data->get_error_message() );
 	}
 
+	$edl_data['target_type'] = in_array( $target_type, [ 'project', 'episode' ], true ) ? $target_type : '';
+	$edl_data['target_id']   = $target_id;
+
 	// Store preview for confirmation via transient (expires in 5 minutes).
 	set_transient( 'worldgraph_edl_import_preview', $edl_data, 300 );
-	wp_send_json_success( [ 'preview' => $edl_data, 'message' => 'Preview generated. Confirm to import.' ] );
+	wp_send_json_success(
+		[
+			'preview' => $edl_data,
+			'message' => empty( $edl_data['errors'] )
+				? 'Preview generated. Confirm to import.'
+				: sprintf( 'Preview generated with %d unparsable line(s). Review before confirming.', count( $edl_data['errors'] ) ),
+		]
+	);
 }
 
 /**
  * Handle EDL export.
  *
  * @param string $format  EDL format (cmx3600 or xml).
- * @param int    $fps     Frame rate.
+ * @param float  $fps     Frame rate.
  * @param array  $options Export options (reel, pre_roll, post_roll, etc.).
  */
-function handle_export( string $format, int $fps, array $options = [] ): void {
+function handle_export( string $format, float $fps, array $options = [] ): void {
 	$target_type = isset( $_POST['target'] ) ? sanitize_text_field( $_POST['target'] ) : 'project';
 	$target_id   = isset( $_POST['target_id'] ) ? intval( $_POST['target_id'] ) : 0;
 
 	$timeline_data = get_timeline_data( $target_type, $target_id );
 
-	if ( empty( $timeline_data ) ) {
+	if ( is_wp_error( $timeline_data ) ) {
+		wp_send_json_error( $timeline_data->get_error_message() );
+	}
+
+	if ( empty( $timeline_data['clips'] ) ) {
 		wp_send_json_error( 'No timeline data found.' );
 	}
 
@@ -402,17 +436,53 @@ function handle_export( string $format, int $fps, array $options = [] ): void {
 
 /**
  * Handle import confirmation.
+ *
+ * Persists the previewed clips as a Editorial Artifact post so a confirmed
+ * import is durable rather than a discarded transient.
  */
 function handle_confirm_import(): void {
 	$preview = get_transient( 'worldgraph_edl_import_preview' );
 
-	if ( ! $preview ) {
+	if ( ! $preview || empty( $preview['clips'] ) ) {
 		wp_send_json_error( 'No preview found. Please upload again.' );
 	}
 
-	// TODO: Save EDL data to World Graph Studio timeline/episode DB.
+	$target_type = $preview['target_type'] ?? '';
+	$target_id   = (int) ( $preview['target_id'] ?? 0 );
+
+	$post_id = wp_insert_post(
+		[
+			'post_type'   => 'worldgraph_editorial',
+			'post_status' => 'publish',
+			/* translators: %s: current date/time. */
+			'post_title'  => sprintf( __( 'EDL Import - %s', 'worldgraph-edl' ), current_time( 'mysql' ) ),
+		],
+		true
+	);
+
+	if ( is_wp_error( $post_id ) ) {
+		wp_send_json_error( $post_id->get_error_message() );
+	}
+
+	update_post_meta( $post_id, 'artifact_type', 'edl' );
+	update_post_meta( $post_id, 'export_format', $preview['format'] ?? 'cmx3600' );
+	update_post_meta( $post_id, 'generated_date', current_time( 'Y-m-d' ) );
+	update_post_meta( $post_id, '_worldgraph_edl_fps', (float) ( $preview['fps'] ?? 24 ) );
+	update_post_meta( $post_id, '_worldgraph_edl_clips', wp_json_encode( $preview['clips'] ) );
+
+	if ( $target_id && in_array( $target_type, [ 'project', 'episode' ], true ) ) {
+		$related_cpt = 'project' === $target_type ? 'worldgraph_project' : 'worldgraph_episode';
+		\WorldGraph\Utils\add_relationship( $post_id, 'worldgraph_editorial', $target_id, $related_cpt, 'derived_from' );
+	}
+
 	delete_transient( 'worldgraph_edl_import_preview' );
-	wp_send_json_success( [ 'message' => 'EDL successfully imported.' ] );
+	wp_send_json_success(
+		[
+			/* translators: 1: clip count, 2: post ID. */
+			'message' => sprintf( __( 'EDL successfully imported: %1$d clip(s) saved as Editorial Artifact #%2$d.', 'worldgraph-edl' ), count( $preview['clips'] ), $post_id ),
+			'post_id' => $post_id,
+		]
+	);
 }
 
 /**

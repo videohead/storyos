@@ -22,7 +22,7 @@
 
 			if (!/\.json$/i.test(file.name)) {
 				e.preventDefault();
-				alert('Please choose a .json World Graph Studio export file.');
+				alert('Please choose a .json document that follows the World Graph Studio import contract.');
 				return;
 			}
 

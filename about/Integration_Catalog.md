@@ -1,0 +1,84 @@
+# World Graph Studio Integration Catalog
+
+> Formats, providers, and specialist agents around one canonical Story Graph.
+
+This catalog is the table view of the integration surfaces present in the
+current repository, including delivered workflows, optional integrations,
+scaffolds, and prototypes. [Delivery Status](Delivery_Status.md) remains the
+source of truth for release status, while the linked guides define each
+integration's exact contract.
+
+## Bundled integration plugins
+
+| Integration | Category | Direction | Current scope | Availability / setup |
+| --- | --- | --- | --- | --- |
+| Final Draft FDX Import | Screenplay importer | FDX → Story Graph | Parses supported FDX screenplay structure in the browser, normalizes it to World Graph Studio JSON, and delegates validation and persistence to the core importer | Bundled; no external account |
+| Fountain Import | Screenplay importer | Intended: Fountain → FDX → Story Graph | Parser and importer source are bundled, but the shared FDX script currently dereferences the absent FDX form before exposing its parser on the Fountain page | Bootstrap-blocked scaffold; not currently delivered |
+| [Celtx Connector](plugins/CELTX.md) | Project synchronization | Intended: Story Graph → Celtx | Bundled mapping and REST source targets Projects, Characters, Locations, Scenes, and Shots, but response handling and Scene-call defects currently block a verified outbound sync | Runtime repair required; not currently delivered |
+| [VideoDraft Sync](plugins/VIDEODRAFT.md) | Project synchronization | Story Graph ↔ VideoDraft | Pushes and pulls the shared structural Project subset with dry-run preview, checkpoints, conflict hashes, and per-Connection mappings | Optional; enabled `videodraft` Connection and PAT |
+| [Descript Exchange](plugins/DESCRIPT.md) | Transcript and media exchange | Intended: Descript transcript → Story Graph; bound media → Descript | Source maps one composition transcript to a Project/World/transcript Scene and prepares asynchronous media-import jobs; canonical media lookup, callback handling, binary formats, wizard classification, and runtime verification remain incomplete | Experimental scaffold; not a delivered workflow |
+| [EDL Format Tools](plugins/EDL_IMPORT_AND_EXPORT.md) | Editorial format library and admin scaffold | CMX/XML ↔ normalized clip arrays | PHP parsing, timecode, and format-generation functions are present; the admin workflow references missing assets, its AJAX action contract conflicts, import persists nothing, and Project export uses sample clips | Implemented format code; admin workflow not delivered |
+| [Google Web Stories](plugins/WEB_STORIES.md) | Publishing connector source | No supported runtime direction | Retained prototype code and design surface; not loaded by the main plugin and not a current release workflow | Prototype only |
+
+## Core interchange surfaces
+
+| Surface | Direction | Current scope | Access |
+| --- | --- | --- | --- |
+| World Graph Studio JSON | JSON → Story Graph | Dry-run validation, entity creation or update, taxonomy assignment, relationship construction, and import reporting | WordPress admin and `worldgraph/v1/import*` REST routes |
+| Markdown screenplay export | Story Graph → Markdown | Derives a screenplay-style view from the live Project, ordered Scenes, Scene summary/script content, linked Character names, and Shot headings; structured dialogue appears only when already represented in Scene script content | WordPress Export screen |
+| Markdown storyboard export | Story Graph → Markdown | Derives a storyboard view from live Scenes, Shots, Storyboard Frames, prompts, and image references | WordPress Export screen |
+| Manual external asset intake | External media → WordPress | Stores uploaded or registered media with source, prompt, model, rights, and provenance context | Media Library and Asset workflows |
+
+See [Script and Editorial Interchange](Script_EDL_Integration.md) for field
+mapping and format-level boundaries.
+
+## Executable generation Connection adapters
+
+| Connection adapter | Transport | Delivered behavior | Required setup |
+| --- | --- | --- | --- |
+| ComfyUI | Local HTTP API; optional local MCP; Comfy Cloud MCP | Runs compatible Template-backed workflows, discovers supported capabilities where available, polls jobs, and imports completed media | Reachable local endpoint or Comfy Cloud credential |
+| fal | Streamable HTTP MCP | Discovers model schemas, provisions text-to-image Templates, submits and polls image jobs, and imports results | fal API key |
+| ElevenLabs | REST API | Provisions speech, dialogue, sound-effect, music, and voice-design Templates and imports returned audio or previews | ElevenLabs API key |
+| Suno | SunoAPI.org REST plus AceData Cloud MCP | Provisions prompt-music, custom-music, and lyrics Templates, polls tasks, imports final songs, and retains normalized lyric results | Separate REST and MCP credentials |
+| VideoDraft | Hosted JSON-RPC MCP | Discovers live image, video, and audio tools, provisions Templates, polls asynchronous work, uploads bound local references, and imports completed media | VideoDraft PAT |
+
+Connection status is the loading authority for these adapters. Provider model
+availability, pricing, quotas, regions, and terms remain external operating
+conditions. See [Deployment and Connections](Deployment_and_Connections.md)
+and [Web GenAI Platform Support](WEB_GENAI.md).
+
+## AI Editor backends
+
+These are delivered model-access paths for the AI Editor and specialist agents;
+they are not media-generation adapters.
+
+| Backend | Current scope | Required setup |
+| --- | --- | --- |
+| OpenAI-compatible | Local or hosted OpenAI-compatible chat endpoint | Compatible base URL, model, and optional service credential |
+| OpenAI | Hosted OpenAI chat API | API key and model |
+| Anthropic | Hosted Anthropic messages API | API key and model |
+| Dual | Primary local/OpenAI-compatible path with configured cloud fallback | Both selected backend configurations |
+
+## Registered extension placeholders
+
+| Provider type | Current status |
+| --- | --- |
+| Google Gemini | Metadata-only Connection type; no bundled executable adapter |
+| Veo | Metadata-only Connection type; no bundled executable adapter |
+| Nova Reel | Metadata-only Connection type; no bundled executable adapter |
+
+A provider name in a Connection record does not make that provider executable.
+A supported adapter must implement authentication, validation, submission,
+lifecycle handling, result retrieval, and WordPress asset ingestion.
+
+## How the catalog grows
+
+| Extension unit | Addition contract | Stable services it reuses |
+| --- | --- | --- |
+| Format integration | Normalize input to the World Graph Studio document contract or project output from live Story Graph records | Validation, identity mapping, relationships, permissions, and persistence |
+| Connection integration | Register provider metadata, implementation loading, and optional guided setup through `worldgraph_conn_adapters`; supply provider-specific behavior in the integration | Stable Connection records and whichever shared Template, job, media-import, or provenance services the implementation adopts |
+| Specialist agent | Add a focused `.agent.md` profile; router keywords are optional | Story Graph context, permission checks, bounded chat, editor selection, and configured LLM access |
+
+The current bundle contains 51 specialist agent profiles. See
+[Agent Architecture](Agent_Architecture.md) for the profile and routing
+contract.

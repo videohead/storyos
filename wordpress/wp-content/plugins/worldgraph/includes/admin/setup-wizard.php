@@ -185,6 +185,8 @@ class Setup_Wizard {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $connection_id ] );
 			} elseif ( 'suno' === $provider_type && $connection_id && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $connection_id ] ) ) {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $connection_id ] );
+			} elseif ( 'videodraft' === $provider_type && $connection_id && ! wp_next_scheduled( \WorldGraph\Utils\VideoDraft_Catalog::HOOK, [ $connection_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\VideoDraft_Catalog::HOOK, [ $connection_id ] );
 			}
 		}
 
@@ -326,6 +328,19 @@ class Setup_Wizard {
 				'message' => sprintf( 'Connected to SunoAPI.org and AceData Cloud Suno MCP; %d MCP tools available. Saving provisions transport-specific Templates.', count( $tools ) ),
 			] );
 		}
+		if ( 'videodraft' === $mode ) {
+			\WorldGraph\Utils\Connection_Adapters::load( 'videodraft' );
+			$key = sanitize_text_field( wp_unslash( $_POST['api_key'] ?? '' ) );
+			$tools = \WorldGraph\Utils\VideoDraft_API::test_configuration( \WorldGraph\Utils\Connection_Adapters::endpoint( 'videodraft' ), $key );
+			if ( is_wp_error( $tools ) ) {
+				wp_send_json_error( [ 'message' => $tools->get_error_message() ] );
+			}
+			$missing = array_values( array_diff( \WorldGraph\Utils\VideoDraft_API::REQUIRED_TOOLS, $tools ) );
+			if ( ! empty( $missing ) ) {
+				wp_send_json_error( [ 'message' => sprintf( 'VideoDraft is missing required generation or sync tools: %s.', implode( ', ', $missing ) ) ] );
+			}
+			wp_send_json_success( [ 'message' => sprintf( 'Connected to VideoDraft; %d tools available. Saving provisions image, video, and audio Templates.', count( $tools ) ) ] );
+		}
 
 		$url = untrailingslashit( esc_url_raw( wp_unslash( $_POST['url'] ?? '' ) ) );
 		\WorldGraph\Utils\Connection_Adapters::load( 'comfyui' );
@@ -411,6 +426,9 @@ class Setup_Wizard {
 				<?php elseif ( 'suno' === $comfy_mode ) : ?>
 					<h3>Suno Template Configuration</h3>
 					<p class="description">After saving, World Graph Studio creates transport-specific music, custom-music, and lyrics Templates for SunoAPI.org REST and the AceData Cloud Suno MCP server. The two services use separate bearer tokens. Generation is polled asynchronously and every final song returned by the provider is imported.</p>
+				<?php elseif ( 'videodraft' === $comfy_mode ) : ?>
+					<h3>VideoDraft Template Configuration</h3>
+					<p class="description">After saving, World Graph Studio discovers VideoDraft's live MCP schemas and creates active image, video, voiceover, music, and sound-effect Templates. The same Connection can be selected by the VideoDraft Sync plugin.</p>
 				<?php endif; ?>
 				<h2>External Generator Workflow</h2>
 				<ol>

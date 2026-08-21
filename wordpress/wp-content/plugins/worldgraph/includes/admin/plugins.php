@@ -99,6 +99,78 @@ class Plugins {
 			);
 		}
 
+		// VideoDraft bidirectional project sync.
+		if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/videodraft/videodraft-sync.php' ) ) {
+			self::register_plugin(
+				'videodraft',
+				'World Graph Studio - VideoDraft Sync',
+				[
+					'name'         => 'VideoDraft Sync',
+					'description'  => 'Import and export project structure through a VideoDraft Connection with preview, checkpoints, and conflict detection.',
+					'version'      => '1.0.0',
+					'author'       => 'World Graph Studio Contributors',
+					'icon'         => 'dashicons-video-alt3',
+					'file'         => 'plugins/videodraft/videodraft-sync.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=worldgraph-videodraft' ),
+				]
+			);
+		}
+
+		// Descript transcript import and project media export.
+		if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/descript/descript-sync.php' ) ) {
+			self::register_plugin(
+				'descript',
+				'World Graph Studio - Descript Sync',
+				[
+					'name'         => 'Descript Sync',
+					'description'  => 'Import Descript project transcripts into the Story Graph and export bound Project media into new Descript projects.',
+					'version'      => '1.0.0',
+					'author'       => 'World Graph Studio Contributors',
+					'icon'         => 'dashicons-media-text',
+					'file'         => 'plugins/descript/descript-sync.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=worldgraph-descript' ),
+				]
+			);
+		}
+
+		// Final Draft FDX import.
+		if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/fdx/fdx-import.php' ) ) {
+			self::register_plugin(
+				'fdx',
+				'World Graph Studio - Final Draft FDX Import',
+				[
+					'name'        => 'Final Draft FDX Import',
+					'description' => 'Import Final Draft FDX screenplay files into the World Graph Studio Story Graph.',
+					'version'     => '1.0.0',
+					'author'      => 'World Graph Studio Contributors',
+					'icon'        => 'dashicons-media-document',
+					'file'        => 'plugins/fdx/fdx-import.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=worldgraph-fdx' ),
+				]
+			);
+		}
+
+		// Fountain import.
+		if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/fountain/fountain-import.php' ) ) {
+			self::register_plugin(
+				'fountain',
+				'World Graph Studio - Fountain Import',
+				[
+					'name'        => 'Fountain Import',
+					'description' => 'Convert Fountain screenplay files to FDX in the browser and import them into the World Graph Studio Story Graph.',
+					'version'     => '1.0.0',
+					'author'      => 'World Graph Studio Contributors',
+					'icon'        => 'dashicons-media-text',
+					'file'        => 'plugins/fountain/fountain-import.php',
+					'has_settings' => true,
+					'settings_url' => admin_url( 'admin.php?page=worldgraph-fountain' ),
+				]
+			);
+		}
+
 		// Future integrations can be registered here:
 		// self::register_plugin( 'integration-name', 'Plugin Name', [ ... ] );
 
@@ -157,6 +229,22 @@ class Plugins {
 			case 'edl':
 				return (bool) get_option( 'worldgraph_edl_enabled', true );
 
+			case 'videodraft':
+				return class_exists( '\\WorldGraphVideoDraft\\Settings' )
+					? \WorldGraphVideoDraft\Settings::is_enabled()
+					: (bool) get_option( 'worldgraph_videodraft_enabled', false );
+
+			case 'descript':
+				return class_exists( '\\WorldGraphDescript\\Settings' )
+					? \WorldGraphDescript\Settings::is_enabled()
+					: (bool) get_option( 'worldgraph_descript_enabled', false );
+
+			case 'fdx':
+				return (bool) get_option( 'worldgraph_fdx_enabled', true );
+
+			case 'fountain':
+				return (bool) get_option( 'worldgraph_fountain_enabled', true );
+
 			default:
 				return false;
 		}
@@ -189,6 +277,32 @@ class Plugins {
 					return false;
 
 			case 'edl':
+				return true;
+
+			case 'videodraft':
+				if ( class_exists( '\\WorldGraphVideoDraft\\Settings' ) ) {
+					return \WorldGraphVideoDraft\Settings::is_configured();
+				}
+				foreach ( \WorldGraph\Utils\Connection_Repository::get_all( [ 'provider_type' => 'videodraft' ] ) as $connection ) {
+					if ( 'disabled' !== ( $connection['status'] ?? '' ) && '' !== trim( (string) ( $connection['credential_reference'] ?? '' ) ) ) {
+						return true;
+					}
+				}
+				return false;
+
+			case 'descript':
+				if ( class_exists( '\\WorldGraphDescript\\Settings' ) ) {
+					return \WorldGraphDescript\Settings::is_configured();
+				}
+				foreach ( \WorldGraph\Utils\Connection_Repository::get_all( [ 'provider_type' => 'descript' ] ) as $connection ) {
+					if ( 'disabled' !== ( $connection['status'] ?? '' ) && '' !== trim( (string) ( $connection['credential_reference'] ?? '' ) ) ) {
+						return true;
+					}
+				}
+				return false;
+
+			case 'fdx':
+			case 'fountain':
 				return true;
 
 			default:
@@ -232,6 +346,30 @@ class Plugins {
 
 			case 'edl':
 				update_option( 'worldgraph_edl_enabled', $enabled );
+				break;
+
+			case 'videodraft':
+				if ( class_exists( '\\WorldGraphVideoDraft\\Settings' ) ) {
+					$enabled ? \WorldGraphVideoDraft\Settings::enable() : \WorldGraphVideoDraft\Settings::disable();
+				} else {
+					update_option( 'worldgraph_videodraft_enabled', $enabled );
+				}
+				break;
+
+			case 'descript':
+				if ( class_exists( '\\WorldGraphDescript\\Settings' ) ) {
+					$enabled ? \WorldGraphDescript\Settings::enable() : \WorldGraphDescript\Settings::disable();
+				} else {
+					update_option( 'worldgraph_descript_enabled', $enabled );
+				}
+				break;
+
+			case 'fdx':
+				update_option( 'worldgraph_fdx_enabled', $enabled );
+				break;
+
+			case 'fountain':
+				update_option( 'worldgraph_fountain_enabled', $enabled );
 				break;
 		}
 	}
@@ -535,6 +673,9 @@ class Plugins {
 	 * AJAX handler for testing connections.
 	 */
 	public static function ajax_test_connection(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => 'You are not allowed to perform this action.' ], 403 );
+		}
 		check_ajax_referer( 'worldgraph_admin', 'nonce' );
 
 		$slug = isset( $_POST['slug'] ) ? sanitize_text_field( $_POST['slug'] ) : '';
@@ -561,6 +702,20 @@ class Plugins {
 			} else {
 				wp_send_json_error( [ 'message' => 'Celtx API client not available.' ] );
 			}
+		} elseif ( 'videodraft' === $slug ) {
+			\WorldGraph\Utils\Connection_Adapters::load( 'videodraft' );
+			$connection_id = class_exists( '\\WorldGraphVideoDraft\\Settings' ) ? \WorldGraphVideoDraft\Settings::connection_id() : 0;
+			if ( ! $connection_id ) {
+				$connection_id = (int) ( \WorldGraph\Utils\Connection_Repository::get_default( 'videodraft' ) ?? 0 );
+			}
+			if ( ! $connection_id ) {
+				wp_send_json_error( [ 'message' => 'Select a VideoDraft Connection in the plugin settings first.' ] );
+			}
+			$result = \WorldGraph\Utils\Connection_Tester::test( $connection_id );
+			if ( empty( $result['success'] ) ) {
+				wp_send_json_error( [ 'message' => $result['message'] ?? 'VideoDraft connection failed.' ] );
+			}
+			wp_send_json_success( [ 'message' => $result['message'], 'status' => $result['health'] ?? [] ] );
 		} else {
 			wp_send_json_error( [ 'message' => 'No test handler for this plugin.' ] );
 		}

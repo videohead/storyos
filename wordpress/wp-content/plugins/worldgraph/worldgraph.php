@@ -351,6 +351,16 @@ function init(): void {
 		require_once WORLDGRAPH_PLUGIN_DIR . 'plugins/celtx/celtx-sync.php';
 	}
 
+	// Load VideoDraft import/export sync integration.
+	if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/videodraft/videodraft-sync.php' ) ) {
+		require_once WORLDGRAPH_PLUGIN_DIR . 'plugins/videodraft/videodraft-sync.php';
+	}
+
+	// Load Descript import/export sync integration.
+	if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/descript/descript-sync.php' ) ) {
+		require_once WORLDGRAPH_PLUGIN_DIR . 'plugins/descript/descript-sync.php';
+	}
+
 	// Load ComfyUI Generate integration.
 	if ( file_exists( WORLDGRAPH_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php' ) ) {
 		require_once WORLDGRAPH_PLUGIN_DIR . 'plugins/comfy-generate/comfy-generate.php';

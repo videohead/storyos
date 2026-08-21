@@ -116,7 +116,7 @@ lando wp cron event list
 ## External connections
 
 Tests should mock LLM, ComfyUI, Comfy Cloud, fal, ElevenLabs, SunoAPI.org REST,
-AceData Cloud Suno MCP, Celtx, and Web Stories traffic unless a test is
+AceData Cloud Suno MCP, VideoDraft MCP, Celtx, and Web Stories traffic unless a test is
 explicitly an environment-specific smoke test. A valid credential or reachable
 model is deployment state, not a unit test prerequisite. Suno tests must keep
 the REST and MCP credentials separate and cover the `text_to_lyrics` modality.

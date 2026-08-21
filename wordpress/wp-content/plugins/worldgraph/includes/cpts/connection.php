@@ -210,6 +210,8 @@ class Connection {
 			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
 		} elseif ( 'suno' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] ) ) {
 			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] );
+		} elseif ( 'videodraft' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\VideoDraft_Catalog::HOOK, [ $post_id ] ) ) {
+			wp_schedule_single_event( time() + 5, \WorldGraph\Utils\VideoDraft_Catalog::HOOK, [ $post_id ] );
 		}
 	}
 
@@ -566,6 +568,35 @@ class Connection {
 			</ul>
 			<p><strong><?php echo esc_html__( 'Last template sync:', 'worldgraph' ); ?></strong> <?php echo esc_html( $synced_at ?: '—' ); ?></p>
 			<?php if ( '' !== $error ) : ?><p class="notice notice-error inline"><?php echo esc_html( $error ); ?></p><?php endif; ?>
+			<?php
+			return;
+		}
+
+		if ( 'videodraft' === $provider_type ) {
+			\WorldGraph\Utils\Connection_Adapters::load( 'videodraft' );
+			$synced_at = (string) get_post_meta( $post->ID, 'videodraft_catalog_synced_at', true );
+			$error     = (string) get_post_meta( $post->ID, 'videodraft_catalog_error', true );
+			?>
+			<p><?php echo esc_html__( 'World Graph Studio discovers VideoDraft MCP tools and maintains provider-backed Templates for image, video, voiceover, music, and sound effects. This Connection is also shared with the bundled VideoDraft Sync plugin.', 'worldgraph' ); ?></p>
+			<ul>
+				<li><?php echo esc_html__( 'Use a dedicated VideoDraft personal access token or an env://VIDEODRAFT_API_KEY reference.', 'worldgraph' ); ?></li>
+				<li><?php echo esc_html__( 'Tool schemas are read live and stored with each generated Template.', 'worldgraph' ); ?></li>
+				<li><?php echo esc_html__( 'Generated media is downloaded into the WordPress Media Library before the job completes.', 'worldgraph' ); ?></li>
+			</ul>
+			<p><strong><?php echo esc_html__( 'Last template sync:', 'worldgraph' ); ?></strong> <?php echo esc_html( $synced_at ?: '—' ); ?></p>
+			<?php if ( '' !== $error ) : ?><p class="notice notice-error inline"><?php echo esc_html( $error ); ?></p><?php endif; ?>
+			<?php
+			return;
+		}
+
+		if ( 'descript' === $provider_type ) {
+			?>
+			<p><?php echo esc_html__( 'This Connection authenticates the Descript REST API and is shared with the bundled Descript Sync plugin.', 'worldgraph' ); ?></p>
+			<ul>
+				<li><?php echo esc_html__( 'Use a Descript personal API token or an env://DESCRIPT_API_TOKEN reference. Each token is scoped to one Descript drive.', 'worldgraph' ); ?></li>
+				<li><?php echo esc_html__( 'Descript Sync exports composition transcripts into Story Graph Scenes and imports bound video/audio media as new Descript projects.', 'worldgraph' ); ?></li>
+				<li><?php echo esc_html__( 'Descript has no editable project schema, so this integration is one-way per direction rather than a structural mirror.', 'worldgraph' ); ?></li>
+			</ul>
 			<?php
 			return;
 		}
@@ -1023,6 +1054,8 @@ class Connection {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\ElevenLabs_Catalog::HOOK, [ $post_id ] );
 			} elseif ( 'suno' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] ) ) {
 				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\Suno_Catalog::HOOK, [ $post_id ] );
+			} elseif ( 'videodraft' === $provider_type && ! wp_next_scheduled( \WorldGraph\Utils\VideoDraft_Catalog::HOOK, [ $post_id ] ) ) {
+				wp_schedule_single_event( time() + 5, \WorldGraph\Utils\VideoDraft_Catalog::HOOK, [ $post_id ] );
 			}
 		}
 	}

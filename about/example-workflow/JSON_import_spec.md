@@ -200,6 +200,10 @@ Prop → Owner Character
 scenes[]
 ```
 
+Each Scene may include `script_content` in addition to its summary. Importers
+store that value in the Scene's canonical script field without replacing the
+summary.
+
 ### CPT
 
 ```text

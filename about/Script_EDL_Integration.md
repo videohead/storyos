@@ -4,36 +4,41 @@
 
 ## Current Release Boundary
 
-World Graph Studio treats the Story Graph as the canonical source of truth and
-provides several delivered interchange paths around it:
+World Graph Studio treats the Story Graph as the canonical source of truth.
+The repository contains both delivered interchange paths and bundled
+integration scaffolds:
 
 | Capability | Current status |
 | --- | --- |
 | World Graph Studio JSON import | Delivered |
+| Final Draft FDX screenplay import | Delivered bundled admin integration |
+| Fountain screenplay import | Bootstrap-blocked scaffold; not currently delivered |
 | Markdown screenplay export | Delivered |
 | Markdown storyboard export | Delivered |
-| Celtx synchronization | Delivered optional plugin |
-| CMX 3600 EDL formatter/download | Delivered optional plugin; current admin export uses sample clip data |
-| SMPTE 436m XML EDL formatter/download | Delivered optional plugin; current admin export uses sample clip data |
-| CMX/XML EDL parsing and preview | Delivered optional plugin |
-| Additional professional script-file formats | On hold |
+| Celtx synchronization | Bundled source; response and Scene-call repair required |
+| VideoDraft structural Project synchronization | Delivered optional bidirectional plugin |
+| Descript transcript/media exchange | Experimental scaffold; not a delivered workflow |
+| CMX 3600 EDL parser/formatter | Implemented PHP format code; admin workflow incomplete |
+| SMPTE 436m XML EDL parser/formatter | Implemented PHP format code; admin workflow incomplete |
+| CMX/XML EDL admin preview/download | Not delivered; missing assets, action conflict, no persistence, and sample export data |
+| Additional professional script-file adapters | Extension opportunity |
 
 See [Delivery Status](Delivery_Status.md) for the repository-wide status source
-of truth. “Script import/export is on hold” refers only to the additional
-formats listed below; it does not withdraw JSON import, Markdown export, or
-Celtx synchronization.
+of truth. The old blanket hold on additional script formats is closed for a
+defined current-release scope; the table records what is operational and what
+still needs implementation work.
 
 ## Canonical Workflow
 
 ```text
-World Graph Studio JSON or Celtx
-                ↓
-          Story Graph
-      ↙         ↓          ↘
-Markdown      Storyboards      Shot planning
-exports       and assets       and editorial data
-                                  ↓
-                         CMX/XML EDL formatting
+JSON / FDX / VideoDraft pull
+            ↓
+      Story Graph
+       ↙       ↘
+Markdown     VideoDraft push
+exports
+
+CMX/XML files ↔ implemented EDL PHP format functions ↔ clip arrays
 ```
 
 Scripts, storyboards, shot lists, and editorial files are projections or
@@ -57,15 +62,46 @@ supported Project, Story World, Character, Location, Prop, Scene, Shot, Sound,
 Storyboard Frame, and Sequence records; resolves external IDs; assigns terms;
 builds relationships; and verifies the resulting counts and references.
 
-JSON import is the delivered structured project importer. It is not an FDX,
-PDF, or generic screenplay parser.
+The JSON engine is the canonical structured project importer. FDX and
+VideoDraft pull normalize their supported external structures into this
+contract so validation and persistence do not fork by source format.
+
+### Final Draft FDX Import
+
+The bundled FDX integration reads a `.fdx` screenplay locally in the browser.
+It derives the Project and Story World title from the file name and maps Scene
+Heading, Action, Character, Dialogue, Parenthetical, and Dual Dialogue content
+into a World Graph Studio document, including Character, Location, Scene,
+dialogue, and sequence records. Only the normalized World Graph Studio JSON is
+submitted to WordPress, where the canonical importer validates and commits it.
+
+The integration is an administrator workflow rather than a `/scripts/*` REST
+surface. Its import direction is Final Draft FDX into the Story Graph; the
+current release does not claim FDX export.
+
+### Fountain Import Scaffold
+
+The bundled Fountain source is intended to read `.fountain`, `.spmd`, or
+plain-text Fountain files locally in the browser, convert their supported
+screenplay structure to FDX, and send the result through the FDX normalization
+and canonical Story Graph importer. Its parser covers scene headings, action,
+character cues, dialogue, parentheticals, transitions, and common shot lines.
+
+The current page loads the shared FDX script without the FDX form. That script
+dereferences the missing form before it publishes the parser needed by
+Fountain, so the browser workflow is not currently delivered. After that
+bootstrap defect is fixed and tested, its intended direction remains Fountain
+into the Story Graph—not Fountain export or lossless preservation of every
+application-specific syntax extension.
 
 ### Markdown Screenplay Export
 
 The WordPress Export screen derives a screenplay-style Markdown document from
-the selected live Project, including its ordered Scenes, locations, dialogue,
-characters, and Shots where present. The download uses a `-screenplay.md`
-suffix.
+the selected live Project, including ordered Scenes, Scene summary and script
+content, linked Character names, and Shot headings where present. Structured
+Scene dialogue is not read separately by this exporter, so it appears only
+when it is already represented in `script_content`. The download uses a
+`-screenplay.md` suffix.
 
 ### Markdown Storyboard Export
 
@@ -77,35 +113,58 @@ Markdown output is intentionally readable, diffable, and suitable for version
 control. The current release does not claim native Final Draft or other
 professional screenplay-file output.
 
-## Delivered Celtx Synchronization
+## Celtx Connector Scaffold
 
-The bundled `worldgraph-celtx` plugin provides optional outbound
-synchronization to the Celtx GEM API for supported entities:
-
-| World Graph Studio entity | Celtx representation |
-| --- | --- |
-| Project | Project |
-| Character | Character element |
-| Location | Location element |
-| Scene | Scene/element |
-| Shot | Shot element |
+The bundled `worldgraph-celtx` source targets outbound synchronization to the
+Celtx GEM API. Its current sync layer re-parses already normalized API results
+and passes them to a raw-response status check; Scene calls also require
+episode and argument-order correction. Those defects block a verified
+outbound workflow.
 
 Persistent `_worldgraph_celtx_mapping` post meta stores the remote identity and
 sync timestamp by entity category.
 
-The integration includes connection testing, full and type-specific outbound
-sync, individual-item sync, mapping inspection, and unsync actions under the
-`worldgraph/v1/celtx/*` REST surface. The API client can read Celtx resources,
-but the current sync service does not import remote changes into WordPress.
-It requires Celtx credentials and a reachable Celtx service; those operating
-requirements do not make the delivered outbound workflow pending.
+The source defines connection testing, full and type-specific outbound actions,
+individual-item actions, mapping inspection, and unsync routes under the
+`worldgraph/v1/celtx/*` REST surface. It does not import remote changes into
+WordPress. See [Celtx Connector](plugins/CELTX.md) for the implementation status
+and intended boundary.
 
-## On Hold: Additional Script Formats
+## Delivered VideoDraft Synchronization
 
-The following capabilities are not part of the current release and are not
-active delivery commitments:
+The bundled VideoDraft integration provides manual push and pull for the
+shared structural Project subset. Pull supports a no-write preview before the
+canonical importer persists data. Push checkpoints an existing remote Project
+before update, and per-Connection mappings plus content hashes support conflict
+detection.
 
-- Final Draft FDX import.
+This is bidirectional structural synchronization, not a claim of lossless
+VideoDraft production-timeline interchange. See
+[VideoDraft Connection and Sync](plugins/VIDEODRAFT.md) for the exact mapped
+subset and REST contract.
+
+## Experimental Descript Exchange
+
+The Descript integration source sketches two separate directions rather than a
+bidirectional project mirror. A pull exports one remote composition
+transcript and imports it through the canonical importer as a Project, Story
+World, Sequence, and transcript Scene. A push collects eligible audio/video
+attachments bound to the selected Project's Scenes and related Shots and
+submits their URLs to a Descript project-media import job.
+
+It is not a delivered workflow: canonical media relationship lookup, callback
+handling, binary transcript handling, and runtime contract tests remain
+incomplete. It also does not infer structured Characters or Locations from transcript text,
+mirror editable Descript composition structure, or export the Story Graph as a
+Descript project schema. See [Descript Connection and Exchange](plugins/DESCRIPT.md)
+for setup, routes, mapping, and job boundaries.
+
+## Extending Script Interchange
+
+The old blanket hold is closed without claiming every possible creative file
+format. The following remain possible adapter work rather than shipped
+capabilities or active delivery commitments:
+
 - Fade In import.
 - Highland import.
 - Story Architect project import.
@@ -114,11 +173,14 @@ active delivery commitments:
   formats.
 - Format-specific import preview, deduplication, and merge workflows.
 - Professional screenplay exporters beyond the delivered Markdown views.
-- Additional script synchronization providers beyond Celtx.
+- Additional script synchronization providers beyond delivered VideoDraft
+  structural sync.
 
 No `/scripts/import`, `/scripts/export`, preview, or commit REST routes are
-registered in v1. Extensions should use their own namespaces until they satisfy
-the core Story Graph mapping and validation contract.
+registered in v1. Delivered FDX import uses a capability- and nonce-protected
+WordPress admin action; Fountain source targets the same pattern but is not yet
+operational. Extensions should use their own namespaces until they satisfy the
+core Story Graph mapping and validation contract.
 
 ## Story Graph Mapping Rules
 
@@ -151,23 +213,24 @@ An interchange adapter should preserve these meanings:
 
 ## EDL Integration
 
-The optional EDL plugin adds a capability- and nonce-protected WordPress admin
-screen. It does not add a REST namespace.
+The optional EDL plugin contains a capability- and nonce-protected WordPress
+admin-page scaffold. It does not add a REST namespace, and its current admin
+workflow is not operational.
 
-### Delivered Formats
+### Implemented PHP Formats
 
-| Format | Parse/preview | Export |
+| Format | Parse function | Format function |
 | --- | --- | --- |
 | CMX 3600 ASCII (`.txt`, `.edl`) | Yes | Yes |
 | SMPTE 436m XML (`.xml`) | Yes | Yes |
 | AAF | No | No |
 | OMF | No | No |
 
-The import side parses an uploaded CMX/XML document into normalized clip data,
-converts timecodes to frame positions, stores a short-lived preview, and lets
-an authorized user confirm the preview. Confirmation does not currently create
-or update persistent Story Graph timeline entities. “EDL import” in the current
-plugin therefore means parsing and preview, not a persisted NLE round trip.
+The PHP layer can parse CMX/XML into normalized clip data and convert timecodes
+to frame positions. Handler code can store a short-lived preview, but the admin
+page references missing JavaScript/CSS and its AJAX action name conflicts with
+its operation dispatch. Confirmation does not create or update persistent Story
+Graph timeline entities.
 
 The export side formats clip arrays as downloadable CMX 3600 or SMPTE 436m XML.
 The current Project/Episode timeline resolver is a development placeholder that
@@ -175,7 +238,7 @@ returns two fixed sample clips; it does not yet derive a live Story Graph cut.
 
 ### Export Surface and Controls
 
-The admin screen exposes:
+The admin-page scaffold presents controls for:
 
 - Frame-rate choices for 23.976, 24, 25, 29.97, 30, 50, 59.94, and 60 fps.
 - CMX reel names and configurable video/audio track designators.
@@ -187,8 +250,8 @@ The admin screen exposes:
 The current admin handler does not forward its reel, handle, track, clip-name,
 or drop-frame choices to the formatter, and its fractional-rate values are
 integer sentinels rather than usable fractional rates. Treat those controls as
-prototype UI. The delivered path is format generation and download from the
-formatter's current clip input, not a validated live-timeline export.
+prototype UI. The implemented path is the PHP formatter operating on supplied
+clip arrays, not a validated admin download or live-timeline export.
 
 The CMX output is intended for NLEs that accept CMX 3600, including common
 Premiere Pro, DaVinci Resolve, Avid Media Composer, and Unreal Sequencer
@@ -204,7 +267,7 @@ consumers should validate it against their target application.
 - It does not embed or transfer source media in an EDL.
 - EDL clip names and timecodes do not replace Story Graph identity and
   relationship metadata.
-- Imported EDL preview data is transient in the current plugin.
+- Preview data, when the handler is invoked correctly, is transient.
 - Project/Episode timeline extraction and fully wired export controls are not
   delivered.
 

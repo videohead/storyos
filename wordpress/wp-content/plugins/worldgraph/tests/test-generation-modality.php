@@ -35,6 +35,12 @@ class Test_Generation_Modality extends TestCase {
 		$this->assertSame(
 			[
 				'text_to_image',
+				'image_to_image',
+				'image_text_to_image',
+				'text_to_video',
+				'text_image_to_video',
+				'video_to_video',
+				'video_with_audio',
 				'text_to_speech',
 				'text_to_dialogue',
 				'text_to_sound_effect',
@@ -51,7 +57,7 @@ class Test_Generation_Modality extends TestCase {
 	 */
 	public function test_sanitize_falls_back_to_text_to_image(): void {
 		$this->assertSame( Generation_Modality::TEXT_TO_IMAGE, Generation_Modality::sanitize( 'not-a-modality' ) );
-		$this->assertSame( Generation_Modality::TEXT_TO_IMAGE, Generation_Modality::sanitize( 'text_to_video' ) );
+		$this->assertSame( Generation_Modality::TEXT_TO_VIDEO, Generation_Modality::sanitize( 'text_to_video' ) );
 	}
 
 	/**
@@ -74,13 +80,18 @@ class Test_Generation_Modality extends TestCase {
 	public static function required_input_provider(): array {
 		return [
 			'text to image'        => [ Generation_Modality::TEXT_TO_IMAGE, [ 'prompt' ] ],
+			'image to image'       => [ Generation_Modality::IMAGE_TO_IMAGE, [ 'image' ] ],
+			'image text to image'  => [ Generation_Modality::IMAGE_TEXT_TO_IMAGE, [ 'image', 'prompt' ] ],
+			'text to video'        => [ Generation_Modality::TEXT_TO_VIDEO, [ 'prompt' ] ],
+			'text image to video'  => [ Generation_Modality::TEXT_IMAGE_TO_VIDEO, [ 'prompt', 'image' ] ],
+			'video to video'       => [ Generation_Modality::VIDEO_TO_VIDEO, [ 'start_frame' ] ],
+			'video with audio'     => [ Generation_Modality::VIDEO_WITH_AUDIO, [ 'audio' ] ],
 			'text to speech'       => [ Generation_Modality::TEXT_TO_SPEECH, [ 'prompt' ] ],
 			'text to dialogue'     => [ Generation_Modality::TEXT_TO_DIALOGUE, [ 'prompt' ] ],
 			'text to sound effect' => [ Generation_Modality::TEXT_TO_SOUND_EFFECT, [ 'prompt' ] ],
 			'text to music'        => [ Generation_Modality::TEXT_TO_MUSIC, [ 'prompt' ] ],
 			'text to voice'        => [ Generation_Modality::TEXT_TO_VOICE, [ 'prompt' ] ],
 			'text to lyrics'       => [ Generation_Modality::TEXT_TO_LYRICS, [ 'prompt' ] ],
-			'legacy mode falls back' => [ Generation_Modality::TEXT_TO_VIDEO, [ 'prompt' ] ],
 		];
 	}
 
@@ -143,13 +154,16 @@ class Test_Generation_Modality extends TestCase {
 	}
 
 	/**
-	 * Locally rendered image modalities expose SaveImage; API-native audio has no Comfy graph.
+	 * Locally rendered image/video modalities expose their matching save node;
+	 * API-native audio and text have no Comfy graph.
 	 */
 	public function test_output_nodes_match_output_type(): void {
 		foreach ( Generation_Modality::slugs() as $slug ) {
 			$classes = array_column( Generation_Modality::default_workflow( $slug, [ 'checkpoint' => 'test.safetensors' ] ), 'class_type' );
 			if ( 'image' === Generation_Modality::output_type( $slug ) ) {
 				$this->assertContains( 'SaveImage', $classes, "{$slug} does not save an image." );
+			} elseif ( 'video' === Generation_Modality::output_type( $slug ) ) {
+				$this->assertContains( 'SaveVideo', $classes, "{$slug} does not save a video." );
 			} else {
 				$this->assertSame( [], $classes, "{$slug} should be rendered by its provider adapter." );
 			}

@@ -658,9 +658,12 @@ class WorldGraph_Importer {
 			if ( isset( $scene['summary'] ) ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'summary', wp_kses_post( $scene['summary'] ) );
 			}
+			if ( isset( $scene['script_content'] ) ) {
+				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'script_content', wp_kses_post( $scene['script_content'] ) );
+			}
 
-			// Store dialogue as structured metadata.
-			if ( ! empty( $scene['dialogue'] ) && is_array( $scene['dialogue'] ) ) {
+			// Store dialogue as structured metadata, including an explicit clear.
+			if ( array_key_exists( 'dialogue', $scene ) && is_array( $scene['dialogue'] ) ) {
 				$dialogue = [];
 				$sequence = 1;
 				foreach ( $scene['dialogue'] as $line ) {
@@ -744,7 +747,7 @@ class WorldGraph_Importer {
 			update_post_meta( $post_id, 'external_id', $external_id );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'shot_number', $shot_index );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'shot_name', $shot_name );
-			if ( '' !== $shot_type ) {
+			if ( array_key_exists( 'type', $shot ) ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'shot_type', $shot_type );
 			}
 			if ( isset( $shot['description'] ) ) {
@@ -1008,15 +1011,30 @@ class WorldGraph_Importer {
 			}
 
 			// Scene → Location.
-			if ( ! empty( $scene['location'] ) ) {
-				$loc_id = $this->id_map[ $scene['location'] ] ?? 0;
-				if ( $loc_id ) {
+			if ( ! empty( $scene['location'] ) || ( $this->overwrite && array_key_exists( 'location', $scene ) ) ) {
+				$loc_id = $this->id_map[ $scene['location'] ?? '' ] ?? 0;
+				$result = \WorldGraph\Utils\set_relationships_for_field( $scene_id, 'worldgraph_scene', $loc_id ? [ $loc_id ] : [], 'worldgraph_location', 'located_in', 'location', false );
+				if ( is_wp_error( $result ) ) {
+					$this->report['errors'][] = sprintf( 'Scene %s Location: %s', $scene['id'], $result->get_error_message() );
+				} else {
 					\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'location', $loc_id );
 				}
 			}
 
 			// Scene → Characters.
-			if ( ! empty( $scene['characters'] ) && is_array( $scene['characters'] ) ) {
+			if ( $this->overwrite && array_key_exists( 'characters', $scene ) && is_array( $scene['characters'] ) ) {
+				$character_ids = [];
+				foreach ( $scene['characters'] as $char_external_id ) {
+					$char_id = $this->id_map[ $char_external_id ] ?? 0;
+					if ( $char_id ) {
+						$character_ids[] = $char_id;
+					}
+				}
+				$result = \WorldGraph\Utils\set_relationships_for_field( $scene_id, 'worldgraph_scene', $character_ids, 'worldgraph_character', 'appears_in', 'characters', true );
+				if ( is_wp_error( $result ) ) {
+					$this->report['errors'][] = sprintf( 'Scene %s Characters: %s', $scene['id'], $result->get_error_message() );
+				}
+			} elseif ( ! empty( $scene['characters'] ) && is_array( $scene['characters'] ) ) {
 				foreach ( $scene['characters'] as $char_external_id ) {
 					$char_id = $this->id_map[ $char_external_id ] ?? 0;
 					if ( $char_id ) {
@@ -1026,7 +1044,19 @@ class WorldGraph_Importer {
 			}
 
 			// Scene → Props.
-			if ( ! empty( $scene['props'] ) && is_array( $scene['props'] ) ) {
+			if ( $this->overwrite && array_key_exists( 'props', $scene ) && is_array( $scene['props'] ) ) {
+				$prop_ids = [];
+				foreach ( $scene['props'] as $prop_external_id ) {
+					$prop_id = $this->id_map[ $prop_external_id ] ?? 0;
+					if ( $prop_id ) {
+						$prop_ids[] = $prop_id;
+					}
+				}
+				$result = \WorldGraph\Utils\set_relationships_for_field( $scene_id, 'worldgraph_scene', $prop_ids, 'worldgraph_prop', 'used_in', 'props', true );
+				if ( is_wp_error( $result ) ) {
+					$this->report['errors'][] = sprintf( 'Scene %s Props: %s', $scene['id'], $result->get_error_message() );
+				}
+			} elseif ( ! empty( $scene['props'] ) && is_array( $scene['props'] ) ) {
 				foreach ( $scene['props'] as $prop_external_id ) {
 					$prop_id = $this->id_map[ $prop_external_id ] ?? 0;
 					if ( $prop_id ) {

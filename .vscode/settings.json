@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^lando exec appserver -- php /app/vendor/bin/phpunit --filter FDX /app/wordpress/wp-content/plugins/worldgraph/tests$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

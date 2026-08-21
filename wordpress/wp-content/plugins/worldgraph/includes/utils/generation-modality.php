@@ -66,7 +66,10 @@ class Generation_Modality {
 		$image_nodes = [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'SaveImage' ];
 
 		$prompt_input   = [ 'type' => 'text', 'required' => true, 'label' => 'Prompt' ];
+		$optional_prompt_input = [ 'type' => 'text', 'required' => false, 'label' => 'Prompt' ];
 		$negative_input = [ 'type' => 'text', 'required' => false, 'label' => 'Negative prompt' ];
+		$image_input    = [ 'type' => 'media', 'required' => true, 'label' => 'Reference image' ];
+		$audio_input    = [ 'type' => 'media', 'required' => true, 'label' => 'Source audio' ];
 
 		return [
 			self::TEXT_TO_IMAGE       => [
@@ -80,6 +83,70 @@ class Generation_Modality {
 				],
 				'nodes'       => array_merge( $image_nodes, [ 'EmptyLatentImage' ] ),
 				'models'      => $image_models,
+			],
+			self::IMAGE_TO_IMAGE      => [
+				'label'       => 'Image to image',
+				'description' => 'A still image transformed from a reference image.',
+				'output_type' => 'image',
+				'task_type'   => 'img2img',
+				'inputs'      => [ 'image' => $image_input, 'prompt' => $optional_prompt_input, 'negative_prompt' => $negative_input ],
+				'nodes'       => array_merge( $image_nodes, [ 'LoadImage', 'VAEEncode' ] ),
+				'models'      => $image_models,
+			],
+			self::IMAGE_TEXT_TO_IMAGE => [
+				'label'       => 'Image and text to image',
+				'description' => 'A still image guided by both a reference image and a text prompt.',
+				'output_type' => 'image',
+				'task_type'   => 'image-text-to-image',
+				'inputs'      => [ 'image' => $image_input, 'prompt' => $prompt_input, 'negative_prompt' => $negative_input ],
+				'nodes'       => array_merge( $image_nodes, [ 'LoadImage', 'VAEEncode' ] ),
+				'models'      => $image_models,
+			],
+			self::TEXT_TO_VIDEO       => [
+				'label'       => 'Text to video',
+				'description' => 'A video generated from a text prompt.',
+				'output_type' => 'video',
+				'task_type'   => 'text-to-video',
+				'inputs'      => [ 'prompt' => $prompt_input, 'negative_prompt' => $negative_input ],
+				'nodes'       => [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'EmptyLTXVLatentVideo', 'LTXVConditioning', 'CreateVideo', 'SaveVideo' ],
+				'models'      => [],
+			],
+			self::TEXT_IMAGE_TO_VIDEO => [
+				'label'       => 'Text and image to video',
+				'description' => 'A video generated from a prompt and a starting image.',
+				'output_type' => 'video',
+				'task_type'   => 'image-to-video',
+				'inputs'      => [ 'prompt' => $prompt_input, 'negative_prompt' => $negative_input, 'image' => $image_input ],
+				'nodes'       => [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'LoadImage', 'LTXVImgToVideo', 'LTXVConditioning', 'CreateVideo', 'SaveVideo' ],
+				'models'      => [],
+			],
+			self::VIDEO_TO_VIDEO      => [
+				'label'       => 'Video to video',
+				'description' => 'A video transformed from source video with optional text guidance.',
+				'output_type' => 'video',
+				'task_type'   => 'video-to-video',
+				'inputs'      => [
+					'prompt'          => $optional_prompt_input,
+					'negative_prompt' => $negative_input,
+					'start_frame'     => [ 'type' => 'media', 'required' => true, 'label' => 'Start frame' ],
+					'end_frame'       => [ 'type' => 'media', 'required' => false, 'label' => 'End frame' ],
+				],
+				'nodes'       => [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'EmptyLTXVLatentVideo', 'LoadImage', 'LTXVAddGuide', 'LTXVCropGuides', 'LTXVConditioning', 'CreateVideo', 'SaveVideo' ],
+				'models'      => [],
+			],
+			self::VIDEO_WITH_AUDIO    => [
+				'label'       => 'Video with audio',
+				'description' => 'A video generated or transformed with a bound audio source.',
+				'output_type' => 'video',
+				'task_type'   => 'video-with-audio',
+				'inputs'      => [
+					'prompt'          => $optional_prompt_input,
+					'negative_prompt' => $negative_input,
+					'video'           => [ 'type' => 'media', 'required' => false, 'label' => 'Source video' ],
+					'audio'           => $audio_input,
+				],
+				'nodes'       => [ 'CheckpointLoaderSimple', 'CLIPTextEncode', 'KSampler', 'VAEDecode', 'EmptyLTXVLatentVideo', 'LTXVConditioning', 'LoadAudio', 'CreateVideo', 'SaveVideo' ],
+				'models'      => [],
 			],
 			self::TEXT_TO_SPEECH      => [
 				'label'       => 'Text to speech',

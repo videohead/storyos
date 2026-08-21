@@ -2,9 +2,9 @@
 
 World Graph Studio keeps stories, Story Graph data, and specialist creative
 advisors in WordPress. Generative media workflows can run through configured
-tools including ComfyUI, fal, ElevenLabs, and Suno. Neither a GPU nor a
+tools including ComfyUI, fal, ElevenLabs, Suno, and VideoDraft. Neither a GPU nor a
 generation connection is required for writing, planning, continuity,
-collaboration, asset tracking, JSON interchange, or Markdown export.
+collaboration, asset tracking, JSON/FDX/Fountain import, or Markdown export.
 AI-assisted and generated-media features require the corresponding configured
 service.
 
@@ -18,7 +18,8 @@ Every World Graph Studio user needs:
 
 1. A WordPress.org-capable host, WP Local, or a local Docker/Lando deployment.
 2. Optionally, a local ComfyUI installation, Comfy Cloud account, fal account,
-   ElevenLabs account, separate SunoAPI.org and AceData Cloud accounts, or
+   ElevenLabs account, separate SunoAPI.org and AceData Cloud accounts, a
+   VideoDraft account with a personal access token, or
    another manually managed asset source.
 3. Optionally, an API-connected LLM: a local OpenAI-compatible server such as
    llama.cpp, Ollama, vLLM, or LM Studio; or a hosted provider API such as
@@ -78,8 +79,16 @@ but does not give them a second enable/disable control. Connection status is the
 single source of truth for whether an adapter should load.
 
 Third-party code can extend the manifest through
-`worldgraph_conn_adapters`, provide a callable `loader` or plugin-relative
-`files`, and declare guided setup choices with `setup_options`.
+`worldgraph_conn_adapters`, provide a callable `loader`, and declare guided
+setup choices with `setup_options`. The `files` shorthand resolves paths inside
+the main World Graph Studio plugin and is therefore intended for bundled
+implementations, not files owned by an external plugin.
+
+This adapter boundary is a core product capability: an integration can register
+provider metadata, conditional loading, and setup choices without changing the
+Story Graph or Connection schema. Its own provider-specific code can then
+reuse whichever shared services it integrates with, such as Connection records,
+Templates, generation jobs, media import, and provenance.
 
 For reliable production scheduling, invoke `wp-cron.php` from the host scheduler. Local Lando users can run due events with `lando wp-cron`.
 
@@ -215,6 +224,26 @@ See [Suno Integration](plugins/SUNO.md) for credential setup, Template
 contracts, callback-token behavior, polling, import, limits, and
 troubleshooting.
 
+## VideoDraft MCP and Project Sync
+
+VideoDraft uses one `videodraft` Connection at
+`https://app.videodraft.ai/api/mcp`. Configure a dedicated personal access
+token in `credential_reference`, preferably as
+`env://VIDEODRAFT_API_KEY`. WordPress calls the hosted JSON-RPC endpoint
+directly; the VideoDraft Node CLI is a protocol reference and is not a runtime
+dependency.
+
+Saving or testing the Connection discovers its live MCP tool schemas and
+provisions image, video, voiceover, audio, music, and sound-effect Templates.
+Asynchronous image and video jobs are polled, while all completed media crosses
+the WordPress Media Library boundary before job completion.
+
+The bundled **VideoDraft Sync** plugin selects the same Connection. It provides
+manual structural Project push and pull, dry-run import preview, checkpointed
+remote updates, per-Connection mappings, and hash-based conflict detection.
+See [VideoDraft Connection and Sync](plugins/VIDEODRAFT.md) for the mapped
+subset and REST contract.
+
 ## Local ComfyUI HTTP API
 
 World Graph Studio can reach a local ComfyUI server through its HTTP API. In the Setup
@@ -240,9 +269,10 @@ Configure the AI Editor in WordPress under **World Graph Studio > AI Settings**.
 ## World Graph Studio Without ComfyUI
 
 World Graph Studio remains useful without ComfyUI: creators can write, develop
-story worlds, use configured LLM advisors, plan production, manage continuity,
-use delivered JSON and Markdown interchange, parse/preview or export EDL data,
-and register or upload assets from an external generator.
+story worlds, use configured specialist agents, plan production, manage
+continuity, use delivered JSON import and Markdown export, build custom
+editorial adapters on the EDL PHP format functions, and register or upload
+assets from an external generator.
 
 Web-based generation services such as Veo can be recorded as external asset
 sources. Store their prompt, provider, model, source URL, usage rights, and

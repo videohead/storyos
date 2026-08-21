@@ -15,8 +15,8 @@ Content Fields (SCF).
 
 WordPress is both the application and the control plane. It owns users,
 permissions, project records, relationships, REST routes, background jobs,
-media, and administration. LLMs, generation providers, Celtx, editors, and
-publishing tools are optional connections around that core.
+media, and administration. LLMs, generation providers, Celtx, VideoDraft,
+editors, and publishing tools are optional connections around that core.
 
 ## System context
 
@@ -34,8 +34,9 @@ Story Graph + SCF + Media Library
 AI Editor    Generation Engine   Interchange
     |             |              |
     v             v              v
-Configured   Comfy / fal /       JSON / Markdown /
-LLM endpoint ElevenLabs / Suno   Celtx / EDL
+Configured     Comfy / fal /        JSON / FDX / Fountain /
+LLM endpoint   ElevenLabs / Suno /  Markdown / Celtx /
+               VideoDraft           VideoDraft / EDL
 ```
 
 Core Story Graph work has no AI dependency. An unavailable connection should
@@ -71,7 +72,7 @@ is divided by responsibility:
 | AI Editor | `includes/ai-editor/`, `assets/ai-editor/` | Context assembly, LLM access, specialist advisors, Abilities, and Gutenberg UI |
 | Administration | `includes/admin/`, `assets/` | Setup, dashboards, metaboxes, connections, import/export, intelligence panels, and logs |
 | Core interchange | `includes/importer/`, `includes/exporter/` | World Graph Studio JSON import and Markdown screenplay/storyboard export |
-| Optional integrations | `plugins/` | Celtx and EDL utilities, plus Web Stories prototype source |
+| Optional integrations | `plugins/` | FDX and Fountain import, Celtx and VideoDraft synchronization, EDL utilities, plus Web Stories prototype source |
 | Verification | `tests/` | Unit, schema-contract, migration, and behavior coverage |
 
 SCF is a plugin dependency. Local JSON archives seed portable field groups;
@@ -160,6 +161,12 @@ service.
 See [AI Editor](AI_Editor.md) and
 [Agent Architecture](Agent_Architecture.md).
 
+Specialist agents are filesystem-discovered `.agent.md` profiles owned by the
+plugin. The current bundle contains more than 50, and another focused role is
+directly selectable with the same context, permissions, and configured LLM
+layer without a new runtime or Story Graph entity type. Automatic routing is
+optional and requires matching router keywords.
+
 ### Story Graph intelligence
 
 Search, continuity, and relationship analytics operate on the canonical
@@ -186,7 +193,7 @@ The generation lifecycle is:
    results remain on the generation record.
 
 The delivered adapters cover Comfy Cloud MCP, local ComfyUI HTTP workflows,
-fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, and manually
+fal MCP, ElevenLabs, SunoAPI.org REST, AceData Cloud Suno MCP, VideoDraft MCP, and manually
 managed external-generator workflows where configured. Suno uses one
 Connection with distinct REST and MCP credential references; its managed
 Templates cover prompt music, custom music, and `text_to_lyrics`. Job state,
@@ -196,6 +203,13 @@ A connection represents endpoint, environment, credentials, and capability
 configuration. A template represents reusable, provider-aware generation
 inputs. Neither is a story entity, and neither replaces the source entity or
 resulting WordPress asset.
+
+Provider implementations register in a filterable Connection adapter manifest.
+An extension can contribute provider metadata, conditional loading, and guided
+setup choices while keeping the Connection record stable. The integration must
+supply and wire its own provider-specific testing, discovery, Template,
+execution, and polling behavior; the manifest alone does not add those stages
+to the shared generation lifecycle.
 
 See [Generation Engine](plugins/GENERATION_ENGINE.md),
 [Comfy Template Catalog](plugins/COMFY_TEMPLATE_CATALOG.md), and
@@ -209,14 +223,18 @@ Interchange is deliberately adapter-based:
 | Workflow | Owner | Delivered behavior |
 | --- | --- | --- |
 | Project JSON | Main plugin | Validate and import the World Graph Studio document format |
+| Final Draft FDX | Bundled import integration | Parse supported screenplay structure in the browser, normalize it to World Graph Studio JSON, and delegate to the core importer |
+| Fountain | Bundled import integration | Convert supported Fountain screenplay structure through the FDX normalization path and delegate to the core importer |
 | Markdown | Main plugin | Export screenplay and storyboard views from live project data |
 | Celtx | Optional child integration | Outbound synchronization and persistent entity mapping |
+| VideoDraft | Optional child integration | Bidirectional structural Project sync, preview, checkpointed push, conflict hashes, and per-Connection mapping |
 | EDL | Optional child integration | CMX 3600 and SMPTE 436m XML parsing, preview, timecode, and format helpers; persistence/live timeline adapters are extension boundaries |
 | Google Web Stories | Prototype source | Bundled design/implementation scaffold; not loaded or supported as a current workflow |
 
-Additional file-based screenplay formats are on hold. They must not be implied
-by the generic import/export surfaces. See
-[Script and Editorial Interchange](Script_EDL_Integration.md).
+This completes the current script-software integration milestone. Additional
+file formats can be added as focused adapters, but they must not be implied by
+the generic import/export surfaces until implemented. See [Script and
+Editorial Interchange](Script_EDL_Integration.md).
 
 ## Trust boundaries
 

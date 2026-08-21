@@ -18,8 +18,12 @@ credential setup.
 
 The API covers Story Graph resources, relationships, production/editorial
 views, JSON import, generation jobs, the AI Editor, search, and optional
-integrations. Final Draft FDX, Fade In, Highland, Story Architect, and other
-professional script-file endpoints are on hold and are not registered routes.
+integrations. Final Draft FDX is a delivered WordPress admin import workflow
+that normalizes into the canonical JSON importer; it does not register a
+`/scripts/*` REST route. Fountain targets the same admin/importer pattern but
+has a current browser bootstrap blocker and is not a delivered workflow.
+Further professional script-file adapters are extension opportunities rather
+than part of the v1 API contract.
 
 ## Authentication and Permissions
 
@@ -178,9 +182,16 @@ Markdown screenplay and storyboard export is delivered through the WordPress
 admin export action and exporter class; there is no `/scripts/export` REST
 route in v1.
 
-Additional FDX, Fade In, Highland, Story Architect, screenplay parsing,
-format-specific preview/merge, and professional script-export routes are on
-hold. Consumers must not depend on `/scripts/*` paths.
+The bundled Final Draft FDX and Fountain integrations run through
+capability- and nonce-protected WordPress admin actions. They parse locally in
+the browser, normalize supported screenplay structure into the World Graph
+Studio JSON contract, and delegate persistence to the importer above. They do
+not add REST routes.
+
+Fade In, Highland, Story Architect, format-specific preview/merge, and
+professional script-export routes are not registered in v1. Consumers must
+not depend on `/scripts/*` paths; future adapters should document their own
+route contracts.
 
 ## Generation
 
@@ -213,7 +224,8 @@ POST /wp-json/worldgraph/v1/assets/generate
 ```
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
-fal MCP, ElevenLabs, and Suno through SunoAPI.org REST and AceData Cloud MCP.
+fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP, and
+VideoDraft MCP.
 The Suno callback route is public because the provider calls it, but an HMAC
 query token binds it to one Suno Connection. It only schedules an authenticated
 poll; the worker still retrieves canonical status and imports every final track
@@ -245,6 +257,13 @@ readiness check; `sync` refreshes the local provider-capability descriptor.
 Provider catalog and Template discovery run through provider-specific
 save/test/admin flows rather than this generic capability route.
 
+The adapter registry is extensible through the `worldgraph_conn_adapters`
+filter. An integration can contribute provider metadata, a callable loader,
+optional initialization, and guided setup choices without changing the
+Connection resource contract. Plugin-relative `files` are resolved inside the
+main World Graph Studio plugin and are intended for bundled implementations;
+external plugins should use a callable loader.
+
 ## AI Editor and Advisors
 
 The Gutenberg AI Editor exposes permission-aware routes under the core
@@ -275,6 +294,10 @@ the current 15-type Story Graph registration. They are retained implementation
 surface, not a supported advisor-record API. Current clients should discover
 the `.agent.md` advisor profiles through `GET /worldgraph/v1/ai/agents` and use
 the `/ai/*` routes above.
+
+The current bundle contains more than 50 specialist profiles. WordPress scans
+the plugin-owned agent directory at runtime, so adding another focused profile
+does not require a new REST route, data model, or execution service.
 
 An LLM connection is optional for the Story Graph itself but required for
 routes that request model output.
@@ -346,6 +369,30 @@ Celtx synchronization sends supported Project, Character, Location, Scene, and
 Shot data from World Graph Studio to Celtx and stores persistent external ID
 mappings in `_worldgraph_celtx_mapping`. The current sync service does not
 import remote Celtx changes into WordPress.
+
+## Optional VideoDraft Synchronization
+
+When VideoDraft Sync is enabled and a `videodraft` Connection is selected, it
+registers these administrator-only routes:
+
+```http
+GET    /wp-json/worldgraph/v1/videodraft/projects
+GET    /wp-json/worldgraph/v1/videodraft/schema
+POST   /wp-json/worldgraph/v1/videodraft/push
+POST   /wp-json/worldgraph/v1/videodraft/pull
+GET    /wp-json/worldgraph/v1/videodraft/mapping/{project_id}
+DELETE /wp-json/worldgraph/v1/videodraft/mapping/{project_id}
+```
+
+Push accepts `project_id`, optional `connection_id`, optional
+`remote_project_id`, and `force`. Pull accepts `remote_project_id`, optional
+`connection_id`, `force`, and `dry_run`; `dry_run` defaults to `true`. Existing
+remote Projects are checkpointed before update. Mapping state is stored in
+`_worldgraph_videodraft_mapping` and credentials remain on the Connection.
+
+The routes map the shared Project/script/storyboard/visual-asset subset rather
+than promising lossless VideoDraft production-timeline interchange. See
+[VideoDraft Connection and Sync](plugins/VIDEODRAFT.md).
 
 ## Google Web Stories Extension Prototype
 

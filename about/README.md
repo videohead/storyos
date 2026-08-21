@@ -1,15 +1,17 @@
 # World Graph Studio Documentation
 
-This documentation describes the shipped World Graph Studio system. Start with
-the product overview and delivery status, then follow the path that matches
-what you are trying to do.
+This documentation describes the shipped World Graph Studio system, including
+delivered script interchange, extension surfaces for provider Connections, and
+50+ profile-driven specialist agents. Start with the product overview and
+delivery status, then follow the path that matches what you are trying to do.
 
 ## Start here
 
 - [Product overview](marketing/overview.md) — positioning, audience, and
   principles.
-- [Delivery status](Delivery_Status.md) — the authoritative boundary between
-  shipped capabilities and on-hold script work.
+- [Delivery status](Delivery_Status.md) — the authoritative inventory of
+  shipped capabilities, optional integrations, interchange directions, and
+  remaining boundaries.
 - [Product requirements](World_Graph_Studio_PRD.md) — current product scope and
   success criteria.
 - [Architecture](World_Graph_Studio_Architecture.md) — system components and
@@ -34,22 +36,30 @@ what you are trying to do.
 - [Schema.org minimum surface](SchemaOrg_Minimum_Surface.md)
 - [Schema.org interoperability review](SchemaOrg_Interoperability_Review.md)
 
-## Use the application APIs and intelligence
+## Use and extend the APIs, intelligence, and agents
 
 - [REST API](REST_API_Specification.md)
 - [AI Editor](AI_Editor.md)
-- [Agent architecture](Agent_Architecture.md)
+- [Agent architecture](Agent_Architecture.md) — how the 50+ bundled profiles
+  are loaded, selected, routed, and extended.
 - [Story Graph intelligence](Story_Graph_Intelligence.md)
 - [API-key wizard integration](API_KEY_WIZARD_INTEGRATION.md)
 
-## Work with generation and production integrations
+## Import, export, synchronize, and connect
 
+- [Integration catalog](Integration_Catalog.md) — table view of bundled
+  plugins, executable Connection adapters, AI backends, and extension
+  placeholders.
 - [Generation engine](plugins/GENERATION_ENGINE.md)
 - [Suno integration](plugins/SUNO.md)
+- [VideoDraft connection and sync](plugins/VIDEODRAFT.md)
+- [Descript connection and exchange](plugins/DESCRIPT.md)
 - [Comfy template catalog](plugins/COMFY_TEMPLATE_CATALOG.md)
 - [Comfy and prompt advisors](plugins/COMFY_AND_PROMPT_AGENTS.md)
 - [Generation preferences](plugins/GENERATE_PREFERENCES.md)
-- [Script and EDL integration](Script_EDL_Integration.md)
+- [Script and EDL integration](Script_EDL_Integration.md) — delivered JSON,
+  FDX, Markdown, and VideoDraft directions plus Fountain, Celtx, Descript, and
+  EDL scaffold boundaries.
 - [EDL plugin](plugins/EDL_IMPORT_AND_EXPORT.md)
 - [Celtx integration](plugins/CELTX.md)
 - [Web Stories connector prototype](plugins/WEB_STORIES.md)
@@ -76,8 +86,13 @@ Documentation uses these terms consistently:
 - **Delivered** means the capability exists in the current repository.
 - **Optional** means it is delivered but requires a connection, dependency, or
   separately enabled bundled integration.
-- **On hold** applies to the additional script import/export formats identified
-  in [Delivery status](Delivery_Status.md).
+- **Script and project interchange** includes delivered JSON and FDX import,
+  Markdown export, and VideoDraft structural sync. Fountain, Celtx, Descript,
+  and the EDL admin workflow remain scaffold or experimental surfaces; the EDL
+  PHP parsing, timecode, and formatting functions can support custom adapter
+  work. Delivery status defines the supported boundary of each.
+- **Extensible** means the current architecture exposes a supported addition
+  point; it does not imply that every possible adapter is already bundled.
 - **Extension point** describes a possible integration boundary, not a roadmap
   promise.
 - **Prototype** means source or design work exists but is not loaded or

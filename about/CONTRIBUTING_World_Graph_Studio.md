@@ -125,7 +125,7 @@ The current release scope is complete. Useful contribution areas include:
 - Comfy Cloud MCP workflows and local Comfy MCP creator workflows
 - WordPress Abilities and Story Graph agent context
 - Maintenance of delivered World Graph Studio JSON import and Markdown export
-- Production adapters built on the delivered EDL format utilities
+- Production adapters built on the implemented EDL PHP format functions
 - Production planning workflows
 - Documentation
 

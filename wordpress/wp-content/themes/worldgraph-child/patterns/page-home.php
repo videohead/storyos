@@ -7,7 +7,7 @@
  * Block Types: core/post-content
  * Post Types: page
  * Viewport Width: 1440
- * Description: A complete World Graph Studio landing page with product positioning, delivered capabilities, workflow, creator-control principles, audiences, and calls to action.
+ * Description: A complete World Graph Studio landing page with product positioning, delivered interchange, extension surfaces, workflow, creator-control principles, audiences, and calls to action.
  *
  * @package WorldGraphChild
  */
@@ -28,7 +28,7 @@
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"align":"center","className":"wg-hero__summary"} -->
-			<p class="has-text-align-center wg-hero__summary"><?php echo esc_html__( 'The open-source studio for worldbuilding, storytelling, and AI-powered creative production. Build connected worlds without a World Graph Studio credit meter or mandatory model provider.', 'worldgraph-child' ); ?></p>
+			<p class="has-text-align-center wg-hero__summary"><?php echo esc_html__( 'The extensible open-source studio for worldbuilding, storytelling, and AI-powered creative production. Import scripts, connect the tools you choose, and grow a team of 50+ specialist agents without a World Graph Studio credit meter.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons {"className":"wg-hero__actions","layout":{"type":"flex","justifyContent":"center"}} -->
@@ -84,7 +84,7 @@
 					<p class="has-text-align-center wg-stat__value"><strong><?php echo esc_html__( '50+', 'worldgraph-child' ); ?></strong></p>
 					<!-- /wp:paragraph -->
 					<!-- wp:paragraph {"align":"center","className":"wg-stat__label"} -->
-					<p class="has-text-align-center wg-stat__label"><?php echo esc_html__( 'Specialist creative advisors', 'worldgraph-child' ); ?></p>
+					<p class="has-text-align-center wg-stat__label"><?php echo esc_html__( 'Extensible specialist agents', 'worldgraph-child' ); ?></p>
 					<!-- /wp:paragraph -->
 				</div>
 				<!-- /wp:group -->
@@ -245,7 +245,7 @@
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"align":"center","className":"wg-section__summary"} -->
-			<p class="has-text-align-center wg-section__summary"><?php echo esc_html__( 'Core story and production planning work without an AI or generation connection. Add supported services when they help the project.', 'worldgraph-child' ); ?></p>
+			<p class="has-text-align-center wg-section__summary"><?php echo esc_html__( 'Core story and production planning work without an AI or generation connection. Interchange adapters, specialist agents, and Connection types are designed to grow around that stable core.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:group -->
@@ -277,10 +277,10 @@
 			<!-- wp:group {"backgroundColor":"dark-espresso","textColor":"warm-ivory","className":"wg-card wg-capability","layout":{"type":"constrained"}} -->
 			<div class="wp-block-group wg-card wg-capability has-warm-ivory-color has-dark-espresso-background-color has-text-color has-background">
 				<!-- wp:heading {"level":3,"className":"wg-card__title","fontFamily":"headline"} -->
-				<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'AI-assisted editing', 'worldgraph-child' ); ?></h3>
+				<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( '50+ extensible agents', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Use Story Graph-aware chat, analysis, drafting, and more than 50 specialist creative advisor profiles inside WordPress. Suggestions remain human-directed.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Use Story Graph-aware chat, analysis, drafting, and more than 50 specialist agent profiles inside WordPress. Add focused roles through portable profile files; suggestions remain human-directed.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -291,7 +291,7 @@
 				<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Generation and provenance', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Queue template-backed work through supported connections, track job state, and retain returned media in WordPress with source links and provenance.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Queue template-backed work through supported Connections, track job state, and retain returned media in WordPress with source links and provenance. The adapter registry exposes provider types and loads their implementation code when needed.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -313,7 +313,7 @@
 				<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Practical interchange', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Import World Graph Studio JSON, export Markdown screenplays and storyboards, optionally synchronize supported entities outbound to Celtx, or use EDL format tools.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Import World Graph Studio JSON or Final Draft FDX, export Markdown screenplays and storyboards, synchronize the documented structural subset with VideoDraft, and reuse EDL format code in custom editorial adapters.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -327,10 +327,138 @@
 			<!-- /wp:paragraph -->
 
 			<!-- wp:paragraph {"align":"center"} -->
-			<p class="has-text-align-center"><?php echo esc_html__( 'Additional professional script formats are on hold. EDL tools cover parsing, preview, timecode, and format generation—not live timeline interchange.', 'worldgraph-child' ); ?></p>
+			<p class="has-text-align-center"><strong><?php echo esc_html__( 'The additional-script roadmap hold is closed.', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'Final Draft FDX import is delivered; formats outside the accepted current-release scope are extension opportunities rather than unfinished requirements. The catalog below separates operational integrations from scaffolds and prototypes.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:group -->
+	</section>
+	<!-- /wp:group -->
+
+	<!-- wp:group {"tagName":"section","align":"full","anchor":"integrations","backgroundColor":"warm-ivory","textColor":"dark-espresso","className":"wg-section wg-integrations","layout":{"type":"constrained"}} -->
+	<section class="wp-block-group alignfull wg-section wg-integrations has-dark-espresso-color has-warm-ivory-background-color has-text-color has-background" id="integrations">
+		<!-- wp:group {"align":"wide","className":"wg-section__header","layout":{"type":"constrained"}} -->
+		<div class="wp-block-group alignwide wg-section__header">
+			<!-- wp:paragraph {"align":"center","className":"wg-eyebrow"} -->
+			<p class="has-text-align-center wg-eyebrow"><?php echo esc_html__( 'Integration catalog', 'worldgraph-child' ); ?></p>
+			<!-- /wp:paragraph -->
+
+			<!-- wp:heading {"textAlign":"center","className":"wg-section__title","fontFamily":"headline"} -->
+			<h2 class="wp-block-heading has-text-align-center wg-section__title has-headline-font-family"><?php echo esc_html__( 'Bring work in. Send it out. Connect what comes next.', 'worldgraph-child' ); ?></h2>
+			<!-- /wp:heading -->
+
+			<!-- wp:paragraph {"align":"center","className":"wg-section__summary"} -->
+			<p class="has-text-align-center wg-section__summary"><?php echo esc_html__( 'Every entry has an explicit direction and readiness label. Delivered integrations are separated from optional, scaffold, and prototype surfaces.', 'worldgraph-child' ); ?></p>
+			<!-- /wp:paragraph -->
+		</div>
+		<!-- /wp:group -->
+
+		<!-- wp:group {"align":"wide","className":"wg-integration-stack","layout":{"type":"constrained"}} -->
+		<div class="wp-block-group alignwide wg-integration-stack">
+			<!-- wp:heading {"level":3,"fontFamily":"headline"} -->
+			<h3 class="wp-block-heading has-headline-font-family"><?php echo esc_html__( 'Interchange, synchronization, and bundled utilities', 'worldgraph-child' ); ?></h3>
+			<!-- /wp:heading -->
+
+			<!-- wp:table {"className":"is-style-stripes wg-integration-table"} -->
+			<figure class="wp-block-table is-style-stripes wg-integration-table"><table><thead><tr><th scope="col"><?php echo esc_html__( 'Integration', 'worldgraph-child' ); ?></th><th scope="col"><?php echo esc_html__( 'Surface', 'worldgraph-child' ); ?></th><th scope="col"><?php echo esc_html__( 'Direction or output', 'worldgraph-child' ); ?></th><th scope="col"><?php echo esc_html__( 'Status', 'worldgraph-child' ); ?></th></tr></thead><tbody>
+			<tr><td><?php echo esc_html__( 'World Graph Studio JSON + Markdown', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Core interchange', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'JSON in; screenplay and storyboard Markdown out', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'Final Draft FDX', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled importer', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'FDX screenplay into the Story Graph', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'Fountain', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled importer source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Intended: Fountain into the Story Graph through FDX normalization', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bootstrap fix pending', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'Celtx', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled sync source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Intended: supported Story Graph entities outbound to Celtx', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Runtime repair required', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'VideoDraft Sync', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled sync plugin', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Shared structural Project subset in both directions', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered, optional', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'Descript Exchange', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled exchange source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Intended: composition transcript in; bound Project audio/video media out', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Experimental scaffold', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'EDL Format Tools', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'PHP format library + admin scaffold', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'CMX/XML parsing, timecode, and format generation from clip arrays', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Admin workflow incomplete', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'Google Web Stories', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Connector source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'No active runtime direction', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Prototype', 'worldgraph-child' ); ?></td></tr>
+			</tbody></table></figure>
+			<!-- /wp:table -->
+
+			<!-- wp:heading {"level":3,"fontFamily":"headline"} -->
+			<h3 class="wp-block-heading has-headline-font-family"><?php echo esc_html__( 'Executable generation Connection adapters', 'worldgraph-child' ); ?></h3>
+			<!-- /wp:heading -->
+
+			<!-- wp:table {"className":"is-style-stripes wg-integration-table"} -->
+			<figure class="wp-block-table is-style-stripes wg-integration-table"><table><thead><tr><th scope="col"><?php echo esc_html__( 'Connection', 'worldgraph-child' ); ?></th><th scope="col"><?php echo esc_html__( 'Transport', 'worldgraph-child' ); ?></th><th scope="col"><?php echo esc_html__( 'Delivered behavior', 'worldgraph-child' ); ?></th><th scope="col"><?php echo esc_html__( 'Status', 'worldgraph-child' ); ?></th></tr></thead><tbody>
+			<tr><td><?php echo esc_html__( 'ComfyUI', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Local HTTP / MCP / Comfy Cloud MCP', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Compatible Template-backed media workflows', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered; Connection required', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'fal', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'MCP', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Discovered text-to-image Templates and imported results', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered; Connection required', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'ElevenLabs', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'REST API', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Speech, dialogue, sound effects, music, and voice previews', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered; Connection required', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'Suno', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'REST API + MCP', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Prompt music, custom music, and lyrics', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered; Connection required', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'VideoDraft', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Hosted MCP', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Discovered image, video, and audio Templates with media import', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Delivered; Connection required', 'worldgraph-child' ); ?></td></tr>
+			</tbody></table></figure>
+			<!-- /wp:table -->
+
+			<!-- wp:paragraph {"className":"wg-integration-note"} -->
+			<p class="wg-integration-note"><strong><?php echo esc_html__( 'Clear status boundaries:', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'OpenAI-compatible, OpenAI, Anthropic, and Dual are delivered AI Editor backends, not media-generation adapters. Google Gemini, Veo, and Nova Reel are registered extension placeholders without bundled execution. The 50+ specialist agents extend separately through profile files.', 'worldgraph-child' ); ?></p>
+			<!-- /wp:paragraph -->
+		</div>
+		<!-- /wp:group -->
+	</section>
+	<!-- /wp:group -->
+
+	<!-- wp:group {"tagName":"section","align":"full","anchor":"extensibility","backgroundColor":"blueprint-blue","textColor":"warm-ivory","className":"wg-section wg-extensibility","layout":{"type":"constrained"}} -->
+	<section class="wp-block-group alignfull wg-section wg-extensibility has-warm-ivory-color has-blueprint-blue-background-color has-text-color has-background" id="extensibility">
+		<!-- wp:group {"align":"wide","className":"wg-section__header","layout":{"type":"constrained"}} -->
+		<div class="wp-block-group alignwide wg-section__header">
+			<!-- wp:paragraph {"align":"center","className":"wg-eyebrow"} -->
+			<p class="has-text-align-center wg-eyebrow"><?php echo esc_html__( 'Built to extend', 'worldgraph-child' ); ?></p>
+			<!-- /wp:paragraph -->
+
+			<!-- wp:heading {"textAlign":"center","className":"wg-section__title","fontFamily":"headline"} -->
+			<h2 class="wp-block-heading has-text-align-center wg-section__title has-headline-font-family"><?php echo esc_html__( 'Grow the toolchain, not the project silo.', 'worldgraph-child' ); ?></h2>
+			<!-- /wp:heading -->
+
+			<!-- wp:paragraph {"align":"center","className":"wg-section__summary"} -->
+			<p class="has-text-align-center wg-section__summary"><?php echo esc_html__( 'Formats, provider Connections, and specialist agents adapt to one canonical Story Graph. New capabilities can stay focused because they reuse the context, permissions, and persistence already in WordPress.', 'worldgraph-child' ); ?></p>
+			<!-- /wp:paragraph -->
+		</div>
+		<!-- /wp:group -->
+
+		<!-- wp:columns {"align":"wide","className":"wg-grid wg-control-grid"} -->
+		<div class="wp-block-columns alignwide wg-grid wg-control-grid">
+			<!-- wp:column -->
+			<div class="wp-block-column">
+				<!-- wp:group {"className":"wg-card wg-control-card","layout":{"type":"constrained"}} -->
+				<div class="wp-block-group wg-card wg-control-card">
+					<!-- wp:heading {"level":3,"className":"wg-card__title","fontFamily":"headline"} -->
+					<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Add a format', 'worldgraph-child' ); ?></h3>
+					<!-- /wp:heading -->
+					<!-- wp:paragraph -->
+					<p><?php echo esc_html__( 'Normalize inbound data through the canonical interchange contract, or derive an outbound projection from live Story Graph records. Reuse validation, identity, relationships, and persistence where the direction requires them.', 'worldgraph-child' ); ?></p>
+					<!-- /wp:paragraph -->
+				</div>
+				<!-- /wp:group -->
+			</div>
+			<!-- /wp:column -->
+
+			<!-- wp:column -->
+			<div class="wp-block-column">
+				<!-- wp:group {"className":"wg-card wg-control-card","layout":{"type":"constrained"}} -->
+				<div class="wp-block-group wg-card wg-control-card">
+					<!-- wp:heading {"level":3,"className":"wg-card__title","fontFamily":"headline"} -->
+					<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Add a Connection', 'worldgraph-child' ); ?></h3>
+					<!-- /wp:heading -->
+					<!-- wp:paragraph -->
+					<p><?php echo esc_html__( 'Register provider metadata, a conditional loader, and setup choices through the filterable Connection adapter layer, then supply the provider-specific behavior the integration needs.', 'worldgraph-child' ); ?></p>
+					<!-- /wp:paragraph -->
+				</div>
+				<!-- /wp:group -->
+			</div>
+			<!-- /wp:column -->
+
+			<!-- wp:column -->
+			<div class="wp-block-column">
+				<!-- wp:group {"className":"wg-card wg-control-card","layout":{"type":"constrained"}} -->
+				<div class="wp-block-group wg-card wg-control-card">
+					<!-- wp:heading {"level":3,"className":"wg-card__title","fontFamily":"headline"} -->
+					<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Add an agent', 'worldgraph-child' ); ?></h3>
+					<!-- /wp:heading -->
+					<!-- wp:paragraph -->
+					<p><?php echo esc_html__( 'Define a focused production role in a portable profile. It becomes directly selectable and reuses Story Graph context, permissions, and the configured LLM; automatic routing is available when keywords are configured.', 'worldgraph-child' ); ?></p>
+					<!-- /wp:paragraph -->
+				</div>
+				<!-- /wp:group -->
+			</div>
+			<!-- /wp:column -->
+		</div>
+		<!-- /wp:columns -->
 	</section>
 	<!-- /wp:group -->
 
@@ -356,10 +484,10 @@
 				<p class="wg-step__number"><?php echo esc_html__( '01', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 				<!-- wp:heading {"level":3,"className":"wg-step__title","fontFamily":"headline"} -->
-				<h3 class="wp-block-heading wg-step__title has-headline-font-family"><?php echo esc_html__( 'Build the world', 'worldgraph-child' ); ?></h3>
+				<h3 class="wp-block-heading wg-step__title has-headline-font-family"><?php echo esc_html__( 'Build or import', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Create the project, story world, people, places, scenes, shots, and relationships that define the work.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Create the project in WordPress or bring in structured project and screenplay data through World Graph Studio JSON or Final Draft FDX.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -373,7 +501,7 @@
 				<h3 class="wp-block-heading wg-step__title has-headline-font-family"><?php echo esc_html__( 'Review the context', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Search the graph, inspect relationships, check continuity, and invite a configured specialist advisor to offer labeled suggestions.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Search the graph, inspect relationships, check continuity, and invite a configured specialist agent to offer labeled suggestions.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -401,7 +529,7 @@
 				<h3 class="wp-block-heading wg-step__title has-headline-font-family"><?php echo esc_html__( 'Exchange the work', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Use documented JSON, Markdown, outbound Celtx synchronization, or EDL format helpers while WordPress remains canonical.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Take screenplay-style and storyboard views out as Markdown, synchronize the supported structural subset through VideoDraft, and reuse EDL format helpers while WordPress remains canonical.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -453,7 +581,7 @@
 					<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Choose the connections', 'worldgraph-child' ); ?></h3>
 					<!-- /wp:heading -->
 					<!-- wp:paragraph -->
-					<p><?php echo esc_html__( 'Use supported local or hosted services and change providers without rebuilding the Story Graph or moving canonical records out of WordPress.', 'worldgraph-child' ); ?></p>
+					<p><?php echo esc_html__( 'Use supported local or hosted services, add provider types through Connection adapter hooks, and change providers without rebuilding the Story Graph.', 'worldgraph-child' ); ?></p>
 					<!-- /wp:paragraph -->
 				</div>
 				<!-- /wp:group -->
@@ -468,7 +596,7 @@
 					<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Choose what becomes canon', 'worldgraph-child' ); ?></h3>
 					<!-- /wp:heading -->
 					<!-- wp:paragraph -->
-					<p><?php echo esc_html__( 'Advisors propose, analyze, and draft. Creators explicitly accept, revise, discard, save, generate, or publish.', 'worldgraph-child' ); ?></p>
+					<p><?php echo esc_html__( 'Specialist agents propose, analyze, and draft. Creators explicitly accept, revise, discard, save, generate, or publish.', 'worldgraph-child' ); ?></p>
 					<!-- /wp:paragraph -->
 				</div>
 				<!-- /wp:group -->
@@ -553,7 +681,7 @@
 				<h3 class="wp-block-heading wg-card__title has-headline-font-family"><?php echo esc_html__( 'Technical creators', 'worldgraph-child' ); ?></h3>
 				<!-- /wp:heading -->
 				<!-- wp:paragraph -->
-				<p><?php echo esc_html__( 'Extend a self-hosted WordPress application through documented data and API surfaces.', 'worldgraph-child' ); ?></p>
+				<p><?php echo esc_html__( 'Extend WordPress with focused format adapters, provider Connection types, and specialist agent profiles around documented Story Graph, REST, and Abilities surfaces.', 'worldgraph-child' ); ?></p>
 				<!-- /wp:paragraph -->
 			</div>
 			<!-- /wp:group -->
@@ -571,7 +699,7 @@
 			<!-- /wp:heading -->
 
 			<!-- wp:paragraph {"align":"center","className":"wg-cta__summary"} -->
-			<p class="has-text-align-center wg-cta__summary"><?php echo esc_html__( 'Start with a Story Graph you control. Add optional AI and generation connections only when they serve the work.', 'worldgraph-child' ); ?></p>
+			<p class="has-text-align-center wg-cta__summary"><?php echo esc_html__( 'Start with a portable Story Graph you control. Add or replace formats, provider Connections, and specialist agents as the work evolves.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 
 			<!-- wp:buttons {"className":"wg-cta__actions","layout":{"type":"flex","justifyContent":"center"}} -->

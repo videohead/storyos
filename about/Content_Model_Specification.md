@@ -15,8 +15,8 @@ artifacts are derived views of Story Graph data. A scheduling extension can
 derive call sheets or shoot-day records without making them core entities.
 
 The model described here is delivered in the current repository. See
-[Delivery Status](Delivery_Status.md) for the authoritative shipped and
-on-hold boundary.
+[Delivery Status](Delivery_Status.md) for the authoritative inventory of
+shipped capabilities and integration boundaries.
 
 ---
 
@@ -41,11 +41,12 @@ All entities must be queryable by AI advisors and workflows.
 ## Interoperability
 
 Entities expose WordPress and World Graph Studio API surfaces where appropriate.
-The delivered interchange formats are World Graph Studio JSON, Markdown
-screenplay/storyboard exports, optional Celtx synchronization, EDL exchange,
-and the related editorial views. Bundled Google Web Stories source is an
-extension prototype rather than part of the delivered interchange contract.
-Additional professional script-file formats are on hold.
+The delivered interchange formats are World Graph Studio JSON, Final Draft
+FDX and Fountain import, Markdown screenplay/storyboard export, optional Celtx
+and VideoDraft synchronization, EDL tooling, and the related editorial views.
+Bundled Google Web Stories source is an extension prototype rather than part
+of the delivered interchange contract. Further professional script-file
+formats can be added as adapters without changing the entity model.
 
 ---
 
@@ -560,20 +561,21 @@ Advisors retrieve context directly from Story Graph entities.
 
 # Script Integration Mapping
 
-## Celtx Integration (Delivered)
+## Celtx Integration Scaffold
 
-World Graph Studio-to-Celtx synchronization is delivered through the optional
-`worldgraph-celtx` WordPress plugin.
+The optional `worldgraph-celtx` WordPress plugin defines mappings for intended
+World Graph Studio-to-Celtx synchronization. Current response handling and
+Scene-call defects block a verified outbound workflow.
 
-### Synced Entities
+### Intended Entity Mapping
 
 | World Graph Studio CPT | Celtx Entity | Current Sync Direction |
 |-------------|--------------|----------------|
-| Project | `/project` | World Graph Studio → Celtx |
+| Project | Generic element in the current connector source | Intended World Graph Studio → Celtx |
 | Character | `/element` (character) | World Graph Studio → Celtx |
 | Location | `/element` (location) | World Graph Studio → Celtx |
-| Scene | `/scene` / `/element` | World Graph Studio → Celtx |
-| Shot | `/element` (shot/comment) | World Graph Studio → Celtx |
+| Scene | Episode Scene endpoint; episode resolution needs repair | Intended World Graph Studio → Celtx |
+| Shot | Comment in the current connector source | Intended World Graph Studio → Celtx |
 
 ### ID Mapping
 
@@ -595,13 +597,19 @@ remote Celtx record.
 
 - World Graph Studio JSON import creates and links the supported Story Graph
   entities. Validation can run without committing changes.
+- Final Draft FDX and Fountain import adapters normalize screenplay structures
+  into the canonical JSON contract and reuse the same entity and relationship
+  persistence.
 - Markdown export produces screenplay and storyboard views from live project
   data.
 - Celtx synchronization remains a separate, optional integration.
+- VideoDraft synchronization optionally pushes and pulls its shared structural
+  Project subset with persistent mapping and conflict checks.
 
-Final Draft FDX, Fade In, Highland, Story Architect, automated screenplay
-parsing, format-specific preview/merge workflows, and additional professional
-script exporters are on hold. They are not current API or schema contracts.
+Fade In, Highland, Story Architect, format-specific preview/merge workflows,
+and additional professional script exporters are possible extensions. They are
+not current API or schema contracts and do not make the delivered interchange
+milestone incomplete.
 
 ---
 

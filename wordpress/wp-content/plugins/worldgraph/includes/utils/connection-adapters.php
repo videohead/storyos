@@ -107,6 +107,40 @@ class Connection_Adapters {
 				],
 				'init'          => [ 'WorldGraph\\Utils\\Suno_Catalog', 'init' ],
 			],
+			'videodraft' => [
+				'label'         => 'VideoDraft',
+				'description'   => 'Generate image, video, and audio assets and synchronize projects through VideoDraft MCP.',
+				'icon'          => 'dashicons-video-alt3',
+				'endpoint'      => 'https://app.videodraft.ai/api/mcp',
+				'mcp_endpoint'  => 'https://app.videodraft.ai/api/mcp',
+				'setup_options' => [
+					'videodraft' => [
+						'label'        => 'VideoDraft Cloud',
+						'environment'  => 'production',
+						'mcp_endpoint' => true,
+					],
+				],
+				'files'         => [
+					'includes/utils/videodraft-api.php',
+					'includes/utils/videodraft-catalog.php',
+				],
+				'init'          => [ 'WorldGraph\\Utils\\VideoDraft_Catalog', 'init' ],
+			],
+			'descript' => [
+				'label'         => 'Descript',
+				'description'   => 'Import project transcripts from Descript and export bound media into new Descript projects.',
+				'icon'          => 'dashicons-media-text',
+				'endpoint'      => 'https://descriptapi.com/v1',
+				'setup_options' => [
+					'descript' => [
+						'label'       => 'Descript API',
+						'environment' => 'production',
+					],
+				],
+				'files'         => [
+					'includes/utils/descript-api.php',
+				],
+			],
 			'openai_compatible' => [ 'label' => 'OpenAI-compatible', 'endpoint' => '', 'files' => [] ],
 			'openai'            => [ 'label' => 'OpenAI', 'endpoint' => 'https://api.openai.com/v1', 'files' => [] ],
 			'anthropic'         => [ 'label' => 'Anthropic', 'endpoint' => 'https://api.anthropic.com', 'files' => [] ],

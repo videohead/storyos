@@ -36,6 +36,7 @@ class Generation_Controller extends Base_Controller {
 	 * Initialize the controller.
 	 */
 	public static function init(): void {
+		Generation_Authorization::init();
 		$instance = new self();
 		add_action( 'rest_api_init', [ $instance, 'register_routes' ] );
 	}
@@ -48,7 +49,7 @@ class Generation_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/generation', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'submit_generation' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_generation_create_permission' ],
 			'args'                => [
 				'type'       => [
 					'description' => 'Generation type (image, video, audio).',
@@ -172,6 +173,26 @@ class Generation_Controller extends Base_Controller {
 	}
 
 	/**
+	 * Authorize a generation request, including its source and media inputs.
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return bool|WP_Error
+	 */
+	public function check_generation_create_permission( WP_REST_Request $request ) {
+		$permission = parent::check_create_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		return Generation_Authorization::authorize_submission(
+			(string) $request->get_param( 'type' ),
+			absint( $request->get_param( 'asset_id' ) ),
+			self::sanitize_inputs( $request->get_param( 'inputs' ) ),
+			get_current_user_id()
+		);
+	}
+
+	/**
 	 * Authenticate a SunoAPI.org callback and wake the polling worker.
 	 *
 	 * @param WP_REST_Request $request Callback request.
@@ -227,16 +248,23 @@ class Generation_Controller extends Base_Controller {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public static function submit_generation( WP_REST_Request $request ) {
-		$type = $request->get_param( 'type' );
+		$type = sanitize_key( (string) $request->get_param( 'type' ) );
 		$prompt = $request->get_param( 'prompt' );
 		$asset_id = $request->get_param( 'asset_id' ) ? absint( $request->get_param( 'asset_id' ) ) : null;
 		$params = $request->get_param( 'params' ) ?? [];
+		$inputs = self::sanitize_inputs( $request->get_param( 'inputs' ) );
 		$workflow = sanitize_text_field( (string) $request->get_param( 'workflow' ) );
 
 		// Validate generation type.
 		$valid_types = [ 'image', 'video', 'audio', 'text' ];
 		if ( ! in_array( $type, $valid_types, true ) ) {
 			return new WP_Error( 'invalid_type', 'Invalid generation type.', [ 'status' => 400 ] );
+		}
+
+		$requester_id = get_current_user_id();
+		$authorization = Generation_Authorization::authorize_submission( $type, absint( $asset_id ), $inputs, $requester_id );
+		if ( is_wp_error( $authorization ) ) {
+			return $authorization;
 		}
 
 		$template = self::resolve_active_template( $workflow );
@@ -283,7 +311,8 @@ class Generation_Controller extends Base_Controller {
 		update_post_meta( $post_id, '_worldgraph_gen_type', $type );
 		update_post_meta( $post_id, '_worldgraph_gen_prompt', $prompt );
 		update_post_meta( $post_id, '_worldgraph_gen_params', $params );
-		update_post_meta( $post_id, '_worldgraph_gen_inputs', self::sanitize_inputs( $request->get_param( 'inputs' ) ) );
+		update_post_meta( $post_id, '_worldgraph_gen_inputs', $inputs );
+		update_post_meta( $post_id, Generation_Authorization::REQUESTER_META, $requester_id );
 		update_post_meta( $post_id, '_worldgraph_gen_workflow', $workflow );
 		update_post_meta( $post_id, '_worldgraph_gen_template_id', $template->ID );
 		update_post_meta( $post_id, '_worldgraph_gen_provider_type', $provider_type );

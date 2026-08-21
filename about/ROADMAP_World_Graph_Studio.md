@@ -11,8 +11,8 @@ configuration; those operating requirements do not make the implementation
 incomplete.
 
 [Delivery Status](Delivery_Status.md) is the authoritative status record. This
-roadmap separates delivered work, one explicitly paused body of work, and
-possible extension points.
+roadmap records the delivered release and distinguishes bundled capabilities
+from possible extension points.
 
 ## Product direction
 
@@ -22,12 +22,14 @@ production planning. WordPress owns the canonical Story Graph and media.
 Creators may connect local, open, or hosted services without moving their
 project into a World Graph Studio cloud or buying World Graph Studio credits.
 
-The product direction is guided by four rules:
+The product direction is guided by five rules:
 
 - Keep ideas, assets, relationships, and production decisions connected.
 - Keep the Story Graph useful when optional AI services are unavailable.
 - Treat models and providers as replaceable connections.
 - Give creators practical ways to bring data in and take deliverables out.
+- Keep formats, Connection adapters, and specialist agent profiles easy to add
+  without forking the Story Graph.
 
 ## Delivered milestones
 
@@ -64,51 +66,63 @@ The product direction is guided by four rules:
 - Local and hosted LLM connection modes.
 - WordPress tools, resources, and prompts through the Abilities API.
 - More than 50 specialist creative advisor profiles.
+- Runtime discovery of `.agent.md` profiles, allowing another focused role to
+  become directly selectable with the same context, permissions, and LLM
+  layer; automatic routing remains optional configuration.
 
 ### Generation and provenance — complete
 
 - Connection and template records with validation and capability discovery.
+- A filterable Connection adapter manifest with provider-owned loading and
+  guided setup definitions.
 - Provider-neutral input binding and request preparation.
 - Queued generation records and WP-Cron processing.
 - Status polling, cancellation, failure reporting, and generation logs.
 - Returned-media import, source linkage, and provenance.
 - Comfy Cloud MCP, local ComfyUI HTTP, fal MCP, ElevenLabs, SunoAPI.org REST,
-  AceData Cloud Suno MCP, and manually managed external-generator workflows
-  where configured.
+  AceData Cloud Suno MCP, VideoDraft hosted MCP, and manually managed
+  external-generator workflows where configured.
 - Suno prompt-music, custom-music, and `text_to_lyrics` Templates, with
   distinct REST and MCP credentials.
+- VideoDraft image, video, and audio Templates discovered from live tool
+  schemas, with asynchronous media import.
 
-### Interchange and publishing — complete
+### Interchange and publishing — core complete; scaffolds classified
 
 - World Graph Studio JSON import.
+- Final Draft FDX screenplay import.
 - Markdown screenplay and storyboard export.
-- Optional outbound Celtx synchronization with persistent remote-ID mapping.
-- Optional EDL parsing, preview, timecode, and format generators for CMX 3600
-  and SMPTE 436m XML. Project persistence and live-timeline export are
-  extension boundaries.
+- Optional bidirectional VideoDraft structural Project sync with preview,
+  checkpointed push, conflict checks, and persistent mapping.
+- Fountain importer source; its browser bootstrap must be corrected before the
+  workflow is classified as delivered.
+- Celtx outbound connector source; response handling and Scene calls require
+  repair before the workflow is classified as delivered.
+- Experimental Descript exchange source; canonical relationship resolution,
+  callback handling, and runtime verification remain extension work.
+- CMX 3600 and SMPTE 436m XML parsing, timecode, and format-generation code.
+  The bundled admin workflow remains incomplete.
 - Google Web Stories connector source is retained as a prototype and is not a
   current-release workflow.
 
-The delivered JSON, Markdown, Celtx, and EDL utility surfaces remain supported
-while additional script format work is paused.
+The delivered JSON, FDX, Markdown, and VideoDraft surfaces complete the defined
+current-release interchange scope. Other bundled rows remain cataloged by
+their actual readiness.
 
-## On hold: additional script import/export
+## Closed additional-script roadmap item
 
-The following work is on hold and is not part of the current release:
+The blanket hold on additional script formats is retired. Final Draft FDX was
+accepted and delivered for the current release; formats outside that scope are
+extension opportunities rather than unfinished release requirements. Format
+adapters reuse the canonical Story Graph import contract, delivered sync keeps
+explicit remote mappings, and exports remain projections of live WordPress
+data.
 
-- Final Draft FDX import.
-- Fade In import.
-- Highland import.
-- Story Architect import.
-- Automated screenplay parsing and Story Graph extraction for those formats.
-- Format-specific import preview, deduplication, and merge.
-- Professional screenplay and shooting-script exporters beyond the delivered
-  Markdown screenplay and storyboard exports.
-- Additional script synchronization providers beyond Celtx.
-
-“Script import/export is on hold” refers only to these additional formats. It
-does not refer to the delivered World Graph Studio JSON, Markdown, outbound
-Celtx, or EDL-helper surfaces.
+Fade In, Highland, Story Architect, additional professional screenplay
+exporters, format-specific merge workflows, and further synchronization
+providers remain possible extensions. They are not shipped capabilities or
+active roadmap commitments, but the current architecture gives them a defined
+place to integrate when they have approved scope and acceptance criteria.
 
 ## Extension points
 
@@ -146,8 +160,6 @@ release. Changes should:
   documented interface is part of the current release.
 - **Configured** describes whether a particular installation has supplied the
   optional credentials, endpoint, model, or integration needed to run it.
-- **On hold** applies only to the additional script import/export work listed
-  above.
 - **Extension point** identifies a compatible direction without promising
   delivery.
 
@@ -160,3 +172,4 @@ release. Changes should:
 - [AI Editor](AI_Editor.md)
 - [Script and Editorial Interchange](Script_EDL_Integration.md)
 - [Suno Integration](plugins/SUNO.md)
+- [VideoDraft Connection and Sync](plugins/VIDEODRAFT.md)

@@ -97,8 +97,12 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
     - `includes/taxonomies/` - Custom taxonomy definitions
     - `includes/utils/` - Utility functions and helpers (generation, search, relationships, continuity)
     - `plugins/` - Sub-plugins and integrations:
-      - `celtx/` - Celtx GEM API integration
-      - `edl/` - EDL parsing, preview, timecode, and generation utilities
+      - `celtx/` - Celtx GEM API connector scaffold
+      - `descript/` - Experimental Descript transcript/media exchange
+      - `edl/` - EDL PHP format functions and admin scaffold
+      - `fdx/` - Final Draft FDX screenplay import
+      - `fountain/` - Fountain-to-FDX importer scaffold
+      - `videodraft/` - VideoDraft structural Project synchronization
       - `web-stories/` - Web Stories connector prototype source
     - `assets/` - Frontend assets
       - `ai-editor/` - AI Editor React components and styles
@@ -109,25 +113,39 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
 
 ## Current Delivery Scope
 
-The current repository is delivered. Optional provider accounts and external
-services still require deployment-specific credentials and configuration; that
-does not make their World Graph Studio integration unfinished. Use
-`about/Delivery_Status.md` as the status source of truth.
+The current core repository is delivered, but the presence of a bundled
+integration directory does not by itself make that workflow release-ready.
+Optional provider accounts and external services still require deployment-
+specific credentials and configuration. Use `about/Delivery_Status.md` and the
+integration catalog as the status sources of truth.
 
 ### Script Ecosystem
 
-- CPT synchronization for projects, characters, locations, scenes, and shots.
-- World Graph Studio JSON import and Markdown screenplay/storyboard export.
-- Additional file-based formats such as FDX, Fade In, Highland, and Story
-  Architect are on hold.
-- Persistent World Graph Studio to Celtx ID mapping in post meta.
-- Outbound World Graph Studio-to-Celtx sync through the bundled Celtx plugin.
-- WordPress REST API endpoints and settings UI for Celtx credentials.
+- World Graph Studio JSON and Final Draft FDX import.
+- Markdown screenplay and storyboard export.
+- Bidirectional VideoDraft synchronization for its shared structural Project
+  subset, with preview, checkpoints, conflict hashes, and persistent mapping.
+- Fountain importer source is bootstrap-blocked; Celtx connector source needs
+  response and Scene-call repair; Descript exchange remains experimental.
+- Further screenplay formats and professional exporters are extension
+  opportunities, not unfinished current-release commitments.
+
+### Extension Surfaces
+
+- `includes/agents/*.agent.md` profiles are discovered at runtime; a focused
+  advisor can be added without introducing another execution service.
+- Provider Connection adapters register metadata, conditional loaders, and
+  setup options through `worldgraph_conn_adapters`. Testing, discovery,
+  Templates, execution, and polling remain provider-specific integration work.
+- Format integrations should normalize into the canonical World Graph Studio
+  import contract or project an export from live Story Graph data rather than
+  create a parallel data model.
 
 ### Editorial Ecosystem
 
-- CMX-style text and XML EDL parsing, preview, timecode, and generation tools.
-- Timeline persistence and live Project/Episode export remain adapter work.
+- CMX-style text and XML EDL PHP parsing, timecode, and generation functions.
+- The bundled admin workflow, timeline persistence, and live Project/Episode
+  export remain adapter work.
 - Editorial artifact, scene, shot, track, and timecode metadata.
 - AAF, OMF, and provider-specific NLE panels are extension points, not current
   delivery commitments.

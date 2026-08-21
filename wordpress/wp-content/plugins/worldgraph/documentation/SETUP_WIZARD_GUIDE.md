@@ -42,6 +42,7 @@ The preferred-Connection list is built from installed adapter metadata:
 | fal MCP | `provider_type = fal`, production | fal API key; fixed MCP endpoint |
 | ElevenLabs Generative Audio | `provider_type = elevenlabs`, production | ElevenLabs API key; fixed REST endpoint |
 | Suno API + MCP | `provider_type = suno`, production | SunoAPI.org key plus a separate AceData Cloud MCP token; fixed REST and MCP endpoints |
+| VideoDraft Cloud | `provider_type = videodraft`, production | VideoDraft PAT; fixed hosted MCP endpoint; generation plus optional Project sync |
 | No generation connection yet | none | Does not create, update, or delete a managed generation Connection |
 
 The entered hosted-provider credential is written to the managed Connection's
@@ -72,6 +73,8 @@ offers a recheck action.
 - ElevenLabs reads the voice/model catalog;
 - Suno checks the SunoAPI.org credit endpoint and the required AceData Cloud
   MCP tools with their separate credentials; and
+- VideoDraft lists hosted MCP tools and verifies the generation and Project
+  operations used by the integration; and
 - Comfy Cloud is saved first and managed from the Connections screen.
 
 Tests do not store the unsaved values. Saving is a separate action.
@@ -84,7 +87,9 @@ Saving:
 - schedules fal Template provisioning;
 - schedules ElevenLabs voice/model Template provisioning; or
 - schedules six transport-specific Suno music, custom-music, and lyrics
-  Templates.
+  Templates; or
+- schedules VideoDraft image, video, audio, voiceover, music, and sound-effect
+  Templates from the live tool schemas.
 
 ComfyUI provider-catalog sync and manual materialization remain available on
 the saved Connection.
@@ -182,8 +187,9 @@ The environment variable by itself does not define a PHP constant.
 ### Generation credentials
 
 The wizard accepts a provider credential and stores it on the managed
-Connection. The fal and ElevenLabs adapters also resolve manually configured
-`env://FAL_KEY` and `env://ELEVENLABS_API_KEY` references.
+Connection. The fal, ElevenLabs, and VideoDraft adapters also resolve manually
+configured `env://FAL_KEY`, `env://ELEVENLABS_API_KEY`, and
+`env://VIDEODRAFT_API_KEY` references.
 
 Suno requires two credentials. `credential_reference` accepts the SunoAPI.org
 key or `env://SUNO_API_KEY`; `mcp_credential_reference` accepts the AceData
@@ -242,7 +248,7 @@ lando wp option get worldgraph_setup_complete
 - Confirm the URL is the ComfyUI HTTP base, not an MCP URL.
 - Confirm the host firewall and bind address allow the appserver container.
 
-### fal, ElevenLabs, or Suno test succeeds but Templates are not visible
+### fal, ElevenLabs, Suno, or VideoDraft test succeeds but Templates are not visible
 
 Saving schedules a single WP-Cron catalog event. Run due events and inspect the
 Connection's provider configuration:
@@ -271,3 +277,4 @@ image-output Templates only.
 - [Generation Engine](../../../../../about/plugins/GENERATION_ENGINE.md)
 - [Deployment and Connections](../../../../../about/Deployment_and_Connections.md)
 - [Suno Integration](../../../../../about/plugins/SUNO.md)
+- [VideoDraft Connection and Sync](../../../../../about/plugins/VIDEODRAFT.md)

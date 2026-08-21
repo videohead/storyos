@@ -1,11 +1,12 @@
 # Celtx Connector
 
-**Status: delivered optional outbound connector.** The bundled Celtx code sends
-supported World Graph Studio records to the Celtx GEM API and retains the
-remote element IDs required for later updates. It does not currently import
-Celtx changes into WordPress.
+**Status: bundled connector source; runtime repair required.** The Celtx code
+defines outbound mapping, API, and REST surfaces, but the current sync layer
+re-parses already normalized API results and passes them to a raw-response
+status check. Scene calls also need episode and argument-order correction.
+These defects block a verified outbound workflow in the current tree.
 
-## Delivered behavior
+## Intended behavior after repair
 
 - Configure a Celtx API key and project ID in WordPress.
 - Create or update supported Celtx elements from World Graph Studio records.
@@ -16,7 +17,8 @@ Celtx changes into WordPress.
 - Keep Celtx unavailable or disabled without affecting the Story Graph.
 
 The connector uses WordPress HTTP APIs and remains subject to Celtx API access,
-account permissions, endpoint behavior, and terms.
+account permissions, endpoint behavior, and terms. Those external conditions
+are separate from the current implementation defects above.
 
 ## Direction boundary
 
@@ -58,8 +60,11 @@ All routes use WordPress permission checks. Exact request and response details
 are documented in the connector source under
 `wordpress/wp-content/plugins/worldgraph/plugins/celtx/`.
 
-## Relationship to on-hold script work
+## Relationship to the interchange suite
 
-The Celtx connector is delivered and maintained. Additional FDX, Fade In,
-Highland, Story Architect, and professional script import/export formats are
-separate work and are on hold. See [Delivery Status](../Delivery_Status.md).
+The Celtx directory is a defined outbound synchronization extension surface,
+not a currently delivered path. Final Draft FDX is the delivered screenplay
+file importer, while VideoDraft provides optional bidirectional structural
+Project synchronization. Fade In, Highland, Story Architect, and additional
+professional exporters are possible future adapters, not capabilities of this
+connector. See [Delivery Status](../Delivery_Status.md).

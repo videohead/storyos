@@ -73,6 +73,12 @@ class Connection_Tester {
 		if ( 'suno' === $record['provider_type'] ) {
 			return self::test_suno( $connection_id );
 		}
+		if ( 'videodraft' === $record['provider_type'] ) {
+			return self::test_videodraft( $connection_id );
+		}
+		if ( 'descript' === $record['provider_type'] ) {
+			return self::test_descript( $connection_id, $record );
+		}
 
 		$has_key = '' !== trim( (string) $record['credential_reference'] );
 		return self::record_result( $connection_id, $has_key, $has_key ? 'Comfy Cloud MCP credentials configured.' : 'Comfy Cloud MCP API key is not configured.', [] );
@@ -164,6 +170,48 @@ class Connection_Tester {
 			true,
 			sprintf( 'Connected to SunoAPI.org and AceData Cloud Suno MCP; %d MCP tools and %d transport-specific Templates are available.', count( $tools ), count( $template_ids ) ),
 			[ 'credits' => $credits, 'tools' => $tools, 'template_ids' => $template_ids ]
+		);
+	}
+
+	/** Test a Descript REST connection by listing one project. */
+	private static function test_descript( int $connection_id, array $record ): array {
+		$result = Descript_API::list_projects( $connection_id, [ 'limit' => 1 ] );
+		if ( is_wp_error( $result ) ) {
+			return self::record_result( $connection_id, false, $result->get_error_message(), [] );
+		}
+
+		$count = is_array( $result['projects'] ?? null ) ? count( $result['projects'] ) : 0;
+		return self::record_result( $connection_id, true, sprintf( 'Connected to Descript (%d project(s) visible in this drive).', $count ), [ 'projects' => $result['projects'] ?? [] ] );
+	}
+
+	/** Test VideoDraft generation, project-sync tools, and Template provisioning. */
+	private static function test_videodraft( int $connection_id ): array {
+		$tools = VideoDraft_API::available_tools( $connection_id );
+		if ( is_wp_error( $tools ) ) {
+			return self::record_result( $connection_id, false, $tools->get_error_message(), [] );
+		}
+
+		$missing = array_values( array_diff( VideoDraft_API::REQUIRED_TOOLS, $tools ) );
+		if ( ! empty( $missing ) ) {
+			return self::record_result(
+				$connection_id,
+				false,
+				sprintf( 'VideoDraft is reachable but does not expose required tools: %s.', implode( ', ', $missing ) ),
+				[ 'tools' => $tools, 'missing_tools' => $missing ]
+			);
+		}
+
+		$provisioned = VideoDraft_Catalog::provision( $connection_id );
+		if ( is_wp_error( $provisioned ) ) {
+			return self::record_result( $connection_id, false, $provisioned->get_error_message(), [ 'tools' => $tools ] );
+		}
+
+		$template_ids = (array) ( $provisioned['template_ids'] ?? [] );
+		return self::record_result(
+			$connection_id,
+			true,
+			sprintf( 'Connected to VideoDraft; %d tools and %d generation Templates are available.', count( $tools ), count( $template_ids ) ),
+			[ 'tools' => $tools, 'template_ids' => $template_ids ]
 		);
 	}
 

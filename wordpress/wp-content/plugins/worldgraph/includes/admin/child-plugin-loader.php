@@ -37,8 +37,12 @@ class Child_Plugin_Loader {
 	public static function load_child_plugins(): void {
 		$child_plugins = [
 			'plugins/celtx/celtx-sync.php',
+			'plugins/videodraft/videodraft-sync.php',
+			'plugins/descript/descript-sync.php',
 			'plugins/comfy-generate/comfy-generate.php',
 			'plugins/edl/edl-import-export.php',
+			'plugins/fdx/fdx-import.php',
+			'plugins/fountain/fountain-import.php',
 		];
 
 		$plugin_dir = defined( 'WORLDGRAPH_PLUGIN_DIR' ) ? WORLDGRAPH_PLUGIN_DIR : '';

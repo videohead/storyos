@@ -1,6 +1,6 @@
 <?php
 /**
- * WordPress cron processor for Comfy Cloud generation jobs.
+ * WordPress cron processor for queued generation-provider jobs.
  *
  * @package WorldGraph
  */
@@ -14,6 +14,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Generation_Batch {
 	const HOOK = 'worldgraph_process_generation_batch';
 	const LOCK = 'worldgraph_gen_batch_lock';
+	const LOCK_TTL = 7200;
+	const CLAIM_TTL = 900;
+	const IMPORT_RETRY_LIMIT = 3;
+	const VIDEODRAFT_AUDIO_RETRY_LIMIT = 45;
 
 	public static function init(): void {
 		add_action( self::HOOK, [ __CLASS__, 'process' ] );
@@ -26,23 +30,114 @@ class Generation_Batch {
 	}
 
 	public static function process(): void {
-		if ( get_transient( self::LOCK ) ) {
+		$lock_token = self::acquire_lock();
+		if ( '' === $lock_token ) {
 			Generation_Log::add( 'debug', 'generation_batch', 'Batch already running; skipped.' );
+			if ( self::has_active_jobs() && ! wp_next_scheduled( self::HOOK ) ) {
+				wp_schedule_single_event( time() + 60, self::HOOK );
+			}
 			return;
 		}
 
-		set_transient( self::LOCK, 1, 55 );
 		Generation_Log::add( 'debug', 'generation_batch', 'Batch run starting.' );
 		try {
+			self::recover_stale_claims();
+			self::retry_media_imports();
 			self::poll_submitted_jobs();
 			self::submit_queued_jobs();
 		} finally {
-			delete_transient( self::LOCK );
+			self::release_lock( $lock_token );
 		}
 
 		if ( self::has_active_jobs() ) {
 			wp_schedule_single_event( time() + 60, self::HOOK );
 			Generation_Log::add( 'debug', 'generation_batch', 'Active jobs remain; rescheduled in 60s.' );
+		}
+	}
+
+	/** Acquire a cross-request option lock atomically. */
+	private static function acquire_lock(): string {
+		global $wpdb;
+
+		$token = wp_generate_uuid4();
+		$value = [ 'token' => $token, 'expires' => time() + self::LOCK_TTL ];
+		if ( add_option( self::LOCK, $value, '', false ) ) {
+			return $token;
+		}
+
+		$current = get_option( self::LOCK, [] );
+		if ( ! is_array( $current ) || absint( $current['expires'] ?? 0 ) < time() ) {
+			$updated = $wpdb->update(
+				$wpdb->options,
+				[ 'option_value' => maybe_serialize( $value ) ],
+				[
+					'option_name'  => self::LOCK,
+					'option_value' => maybe_serialize( $current ),
+				],
+				[ '%s' ],
+				[ '%s', '%s' ]
+			);
+			if ( 1 === $updated ) {
+				wp_cache_delete( self::LOCK, 'options' );
+				return $token;
+			}
+		}
+
+		return '';
+	}
+
+	/** Release only the batch lock owned by this worker. */
+	private static function release_lock( string $token ): void {
+		$current = get_option( self::LOCK, [] );
+		if ( is_array( $current ) && hash_equals( (string) ( $current['token'] ?? '' ), $token ) ) {
+			delete_option( self::LOCK );
+		}
+	}
+
+	/** Atomically move one job into a worker-owned state. */
+	private static function claim_job( int $job_id, string $expected, string $claimed ): bool {
+		if ( false === update_post_meta( $job_id, '_worldgraph_gen_status', $claimed, $expected ) ) {
+			return false;
+		}
+		update_post_meta( $job_id, '_worldgraph_gen_claimed_at', time() );
+		return true;
+	}
+
+	/** Clear worker-claim metadata after publishing a durable job state. */
+	private static function clear_job_claim( int $job_id ): void {
+		delete_post_meta( $job_id, '_worldgraph_gen_claimed_at' );
+	}
+
+	/** Recover crashed workers without blindly duplicating an ambiguous submit. */
+	private static function recover_stale_claims(): void {
+		$jobs = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => 20,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'submitting', 'polling', 'importing' ], 'compare' => 'IN' ],
+			],
+		] );
+		foreach ( $jobs as $job_id ) {
+			$claimed_at = absint( get_post_meta( $job_id, '_worldgraph_gen_claimed_at', true ) );
+			if ( $claimed_at && $claimed_at + self::CLAIM_TTL >= time() ) {
+				continue;
+			}
+			$status = (string) get_post_meta( $job_id, '_worldgraph_gen_status', true );
+			if ( 'polling' === $status ) {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'submitted' );
+			} elseif ( 'importing' === $status && is_array( get_post_meta( $job_id, '_worldgraph_gen_result', true ) ) ) {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'import_retry' );
+			} elseif ( 'submitting' === $status && 'generate_audio' === preg_replace( '/^mcp:/', '', (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) ) && get_post_meta( $job_id, '_worldgraph_videodraft_idempotency_key', true ) ) {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'queued' );
+			} elseif ( 'submitting' === $status && get_post_meta( $job_id, '_worldgraph_gen_job_id', true ) ) {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'submitted' );
+			} else {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
+				update_post_meta( $job_id, '_worldgraph_gen_error', 'The generation submission was interrupted and its provider outcome is unknown. Verify the provider before retrying.' );
+			}
+			self::clear_job_claim( (int) $job_id );
 		}
 	}
 
@@ -57,26 +152,32 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
+			$job_id = (int) $job_id;
+			if ( ! self::claim_job( $job_id, 'queued', 'submitting' ) ) {
+				continue;
+			}
 			$connection_id = absint( get_post_meta( $job_id, '_worldgraph_gen_connection_id', true ) );
 			$connection = Connection_Repository::get( $connection_id );
 			if ( ! $connection || 'disabled' === $connection['status'] ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 				update_post_meta( $job_id, '_worldgraph_gen_error', 'The generation Template has no available Connection.' );
+				self::clear_job_claim( $job_id );
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no available Connection.', $job_id ), [], (string) $job_id );
 				continue;
 			}
 			$provider_type = $connection['provider_type'];
 			Connection_Adapters::load( (string) $provider_type );
-			if ( ! in_array( $provider_type, [ 'comfyui', 'fal', 'elevenlabs', 'suno' ], true ) ) {
+			if ( ! in_array( $provider_type, [ 'comfyui', 'fal', 'elevenlabs', 'suno', 'videodraft' ], true ) ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 				update_post_meta( $job_id, '_worldgraph_gen_error', sprintf( 'No generation adapter is registered for provider: %s.', $provider_type ) );
+				self::clear_job_claim( $job_id );
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d has no adapter for provider %s.', $job_id, $provider_type ), [], (string) $job_id );
 				continue;
 			}
 			$client = self::client_for_job( $job_id, $connection );
 			$params = (array) get_post_meta( $job_id, '_worldgraph_gen_params', true );
 			$template_id = absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) );
-			if ( in_array( $provider_type, [ 'fal', 'elevenlabs', 'suno' ], true ) && $template_id ) {
+			if ( in_array( $provider_type, [ 'fal', 'elevenlabs', 'suno', 'videodraft' ], true ) && $template_id ) {
 				$params = array_merge( self::template_input( $template_id ), $params );
 			}
 			$inputs = get_post_meta( $job_id, '_worldgraph_gen_inputs', true );
@@ -85,10 +186,23 @@ class Generation_Batch {
 			} elseif ( is_array( $inputs ) && ! empty( $inputs ) ) {
 				$params['inputs'] = $inputs;
 			}
+			$workflow = (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true );
+			$provider_workflow = str_starts_with( $workflow, 'mcp:' ) ? substr( $workflow, 4 ) : $workflow;
+			if ( 'videodraft' === $provider_type && 'generate_audio' === $provider_workflow ) {
+				$idempotency_key = (string) get_post_meta( $job_id, '_worldgraph_videodraft_idempotency_key', true );
+				if ( '' === $idempotency_key ) {
+					$idempotency_key = wp_generate_uuid4();
+					update_post_meta( $job_id, '_worldgraph_videodraft_idempotency_key', $idempotency_key );
+				}
+				$params['idempotency_key'] = $idempotency_key;
+			}
+			if ( 'videodraft' === $provider_type ) {
+				$params['_worldgraph_job_id'] = $job_id;
+			}
 
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Submitting job %d via %s.', $job_id, $provider_type ), [], (string) $job_id );
 			$result = $client::run_template(
-				(string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ),
+				$workflow,
 				(string) get_post_meta( $job_id, '_worldgraph_gen_prompt', true ),
 				$params,
 				$connection_id
@@ -123,11 +237,24 @@ class Generation_Batch {
 			}
 
 			if ( is_wp_error( $result ) ) {
-				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
-				update_post_meta( $job_id, '_worldgraph_gen_error', $result->get_error_message() );
-				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d failed to submit: %s', $job_id, $result->get_error_message() ), [], (string) $job_id );
+				$attempts = absint( get_post_meta( $job_id, '_worldgraph_gen_submit_attempts', true ) ) + 1;
+				$reconcile_audio = 'videodraft' === $provider_type
+					&& 'generate_audio' === $provider_workflow
+					&& VideoDraft_API::is_retryable_audio_error( $result )
+					&& $attempts < self::VIDEODRAFT_AUDIO_RETRY_LIMIT;
+				update_post_meta( $job_id, '_worldgraph_gen_submit_attempts', $attempts );
+				self::store_job_error( $job_id, $result );
+				update_post_meta( $job_id, '_worldgraph_gen_status', $reconcile_audio ? 'queued' : 'failed' );
+				if ( ! $reconcile_audio ) {
+					delete_post_meta( $job_id, '_worldgraph_videodraft_resolved_inputs' );
+				}
+				self::clear_job_claim( $job_id );
+				$level = $reconcile_audio ? 'warning' : 'error';
+				Generation_Log::add( $level, 'generation_batch', sprintf( 'Job %d failed to submit: %s', $job_id, $result->get_error_message() ), [], (string) $job_id );
 				continue;
 			}
+			delete_post_meta( $job_id, '_worldgraph_gen_submit_attempts' );
+			delete_post_meta( $job_id, '_worldgraph_videodraft_resolved_inputs' );
 			if ( 'completed' === sanitize_key( (string) ( $result['status'] ?? '' ) ) ) {
 				self::complete_job( $job_id, $result );
 				continue;
@@ -137,12 +264,14 @@ class Generation_Batch {
 			if ( '' === $remote_job_id ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 				update_post_meta( $job_id, '_worldgraph_gen_error', 'The generation provider did not return a job ID.' );
+				self::clear_job_claim( $job_id );
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d: provider did not return a job ID.', $job_id ), $result, (string) $job_id );
 				continue;
 			}
 
 			update_post_meta( $job_id, '_worldgraph_gen_job_id', $remote_job_id );
 			update_post_meta( $job_id, '_worldgraph_gen_status', 'submitted' );
+			self::clear_job_claim( $job_id );
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d submitted as remote job %s.', $job_id, $remote_job_id ), [], (string) $job_id );
 		}
 	}
@@ -158,16 +287,21 @@ class Generation_Batch {
 		] );
 
 		foreach ( $jobs as $job_id ) {
+			$job_id = (int) $job_id;
+			if ( ! self::claim_job( $job_id, 'submitted', 'polling' ) ) {
+				continue;
+			}
 			$connection_id = absint( get_post_meta( $job_id, '_worldgraph_gen_connection_id', true ) );
 			$connection = Connection_Repository::get( $connection_id );
-			if ( ! $connection || ! in_array( $connection['provider_type'], [ 'comfyui', 'fal', 'suno' ], true ) ) {
+			if ( ! $connection || ! in_array( $connection['provider_type'], [ 'comfyui', 'fal', 'suno', 'videodraft' ], true ) ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 				update_post_meta( $job_id, '_worldgraph_gen_error', 'No generation adapter is registered for this Connection provider.' );
+				self::clear_job_claim( $job_id );
 				continue;
 			}
 			Connection_Adapters::load( (string) $connection['provider_type'] );
 			$client = self::client_for_job( $job_id, $connection );
-			if ( in_array( $client, [ Fal_MCP::class, Suno_API::class, Suno_MCP::class ], true ) ) {
+			if ( in_array( $client, [ Fal_MCP::class, Suno_API::class, Suno_MCP::class, VideoDraft_API::class ], true ) ) {
 				$result = $client::get_job_status(
 					(string) get_post_meta( $job_id, '_worldgraph_gen_job_id', true ),
 					$connection_id,
@@ -180,6 +314,18 @@ class Generation_Batch {
 				);
 			}
 			if ( is_wp_error( $result ) ) {
+				$terminal = false;
+				if ( VideoDraft_API::class === $client ) {
+					$attempts = absint( get_post_meta( $job_id, '_worldgraph_gen_poll_attempts', true ) ) + 1;
+					update_post_meta( $job_id, '_worldgraph_gen_poll_attempts', $attempts );
+					$permanent_codes = [ 'videodraft_credential_missing', 'videodraft_connection_invalid', 'videodraft_tool_not_allowed' ];
+					if ( $attempts >= 10 || in_array( $result->get_error_code(), $permanent_codes, true ) ) {
+						$terminal = true;
+					}
+				}
+				self::store_job_error( $job_id, $result );
+				update_post_meta( $job_id, '_worldgraph_gen_status', $terminal ? 'failed' : 'submitted' );
+				self::clear_job_claim( $job_id );
 				Generation_Log::add(
 					'error',
 					'generation_batch',
@@ -190,10 +336,14 @@ class Generation_Batch {
 				);
 				continue;
 			}
+			delete_post_meta( $job_id, '_worldgraph_gen_poll_attempts' );
 
 			$status = sanitize_key( (string) ( $result['status'] ?? 'submitted' ) );
 			if ( in_array( $status, [ 'completed', 'failed', 'cancelled' ], true ) ) {
 				self::complete_job( $job_id, $result );
+			} else {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'submitted' );
+				self::clear_job_claim( $job_id );
 			}
 		}
 	}
@@ -205,7 +355,7 @@ class Generation_Batch {
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
 			'meta_query'     => [
-				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'queued', 'submitted' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'queued', 'submitted', 'submitting', 'polling', 'importing', 'import_retry' ], 'compare' => 'IN' ],
 			],
 		] );
 	}
@@ -228,6 +378,9 @@ class Generation_Batch {
 			$template = trim( (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) );
 			return str_starts_with( $template, 'mcp:' ) ? Suno_MCP::class : Suno_API::class;
 		}
+		if ( 'videodraft' === ( $connection['provider_type'] ?? '' ) ) {
+			return VideoDraft_API::class;
+		}
 
 		$adapter = sanitize_key( (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true ) );
 		if ( 'local_comfyui' === $adapter ) {
@@ -245,28 +398,83 @@ class Generation_Batch {
 		return Comfy_Cloud_MCP::class;
 	}
 
+	/** Retry a completed VideoDraft result without submitting or polling again. */
+	private static function retry_media_imports(): void {
+		$jobs = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => 5,
+			'fields'         => 'ids',
+			'meta_key'       => '_worldgraph_gen_status',
+			'meta_value'     => 'import_retry',
+		] );
+		foreach ( $jobs as $job_id ) {
+			$job_id = (int) $job_id;
+			if ( ! self::claim_job( $job_id, 'import_retry', 'importing' ) ) {
+				continue;
+			}
+			$result = get_post_meta( $job_id, '_worldgraph_gen_result', true );
+			if ( ! is_array( $result ) || empty( $result ) ) {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
+				update_post_meta( $job_id, '_worldgraph_gen_error', 'The completed provider result is unavailable for media import retry.' );
+				self::clear_job_claim( $job_id );
+				continue;
+			}
+			self::complete_job( $job_id, $result );
+		}
+	}
+
 	/** Complete a terminal provider result, importing all media before success. */
 	private static function complete_job( int $job_id, array $result ): void {
 		$status = sanitize_key( (string) ( $result['status'] ?? 'completed' ) );
+		$stored_result = $result;
+		// Never persist raw synchronous provider bytes in post meta.
+		unset( $stored_result['audio_data'], $stored_result['audio_items'] );
+		update_post_meta( $job_id, '_worldgraph_gen_result', $stored_result );
 		if ( 'completed' === $status && in_array( get_post_meta( $job_id, '_worldgraph_gen_type', true ), [ 'image', 'video', 'audio' ], true ) ) {
+			update_post_meta( $job_id, '_worldgraph_gen_status', 'importing' );
+			update_post_meta( $job_id, '_worldgraph_gen_claimed_at', time() );
 			$asset = Asset_Generator::import_completed_job( $job_id, $result );
 			if ( is_wp_error( $asset ) ) {
-				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
-				update_post_meta( $job_id, '_worldgraph_gen_error', $asset->get_error_message() );
+				$attempts = absint( get_post_meta( $job_id, '_worldgraph_gen_import_attempts', true ) ) + 1;
+				update_post_meta( $job_id, '_worldgraph_gen_import_attempts', $attempts );
+				$retry = 'videodraft' === (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true )
+					&& $attempts < self::IMPORT_RETRY_LIMIT
+					&& self::is_retryable_import_error( $asset )
+					&& ! empty( $stored_result['output_media'] );
+				self::store_job_error( $job_id, $asset );
+				update_post_meta( $job_id, '_worldgraph_gen_status', $retry ? 'import_retry' : 'failed' );
+				self::clear_job_claim( $job_id );
 				Generation_Log::add( 'error', 'generation_batch', sprintf( 'Job %d asset import failed: %s', $job_id, $asset->get_error_message() ), [], (string) $job_id );
 				return;
 			}
+			delete_post_meta( $job_id, '_worldgraph_gen_import_attempts' );
 			update_post_meta( $job_id, '_worldgraph_gen_attachment_id', $asset['attachment_id'] );
 			update_post_meta( $job_id, '_worldgraph_gen_attachment_ids', $asset['attachment_ids'] ?? [ $asset['attachment_id'] ] );
 			update_post_meta( $job_id, '_worldgraph_gen_asset_id', $asset['asset_id'] );
 		}
 
-		// Never persist raw synchronous provider bytes in post meta.
-		unset( $result['audio_data'] );
-		unset( $result['audio_items'] );
 		update_post_meta( $job_id, '_worldgraph_gen_status', $status );
-		update_post_meta( $job_id, '_worldgraph_gen_result', $result );
+		delete_post_meta( $job_id, '_worldgraph_gen_error' );
+		delete_post_meta( $job_id, '_worldgraph_gen_error_data' );
+		self::clear_job_claim( $job_id );
 		Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d reached status: %s.', $job_id, $status ), [], (string) $job_id );
+	}
+
+	/** Store provider recovery metadata without ever persisting credentials. */
+	private static function store_job_error( int $job_id, \WP_Error $error ): void {
+		update_post_meta( $job_id, '_worldgraph_gen_error', sanitize_text_field( $error->get_error_message() ) );
+		$data = $error->get_error_data();
+		if ( is_array( $data ) ) {
+			update_post_meta( $job_id, '_worldgraph_gen_error_data', $data );
+		} else {
+			delete_post_meta( $job_id, '_worldgraph_gen_error_data' );
+		}
+	}
+
+	/** Whether retrying a stored VideoDraft output can recover the import. */
+	private static function is_retryable_import_error( \WP_Error $error ): bool {
+		return in_array( $error->get_error_code(), [ 'worldgraph_gen_download_failed', 'worldgraph_asset_upload_failed' ], true );
 	}
 
 	/** Read provider defaults provisioned onto a Template. */

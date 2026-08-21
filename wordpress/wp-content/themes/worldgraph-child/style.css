@@ -629,6 +629,67 @@ textarea:focus {
 	border-color: var(--wg-sepia);
 }
 
+/* Integration catalog. */
+
+.wg-integration-stack {
+	display: grid;
+	gap: clamp(1.25rem, 3vw, 2rem);
+}
+
+.wg-integration-stack > .wp-block-heading {
+	font-size: clamp(1.45rem, 3vw, 2rem);
+	margin-bottom: 0;
+	margin-top: clamp(1rem, 3vw, 2.5rem);
+}
+
+.wg-integration-stack > .wp-block-heading:first-child {
+	margin-top: 0;
+}
+
+.wg-integration-table {
+	background: var(--wg-ivory);
+	border: 1px solid rgba(58, 42, 29, 0.3);
+	box-shadow: var(--wg-shadow);
+	margin: 0;
+	overflow-x: auto;
+}
+
+.wg-integration-table table {
+	border-collapse: collapse;
+	margin: 0;
+	min-width: 48rem;
+	width: 100%;
+}
+
+.wg-integration-table th,
+.wg-integration-table td {
+	line-height: 1.45;
+	padding: 0.9rem 1rem;
+	text-align: left;
+	vertical-align: top;
+}
+
+.wg-integration-table th {
+	background: var(--wg-espresso);
+	color: var(--wg-ivory);
+	font-family: var(--wp--preset--font-family--headline, Oswald, "Arial Narrow", sans-serif);
+	font-size: 0.76rem;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+}
+
+.wg-integration-table tbody tr:nth-child(even) td {
+	background: rgba(63, 93, 125, 0.07);
+}
+
+.wg-integration-note {
+	background: rgba(182, 141, 64, 0.16);
+	border-left: 5px solid var(--wg-sepia);
+	margin: 0;
+	padding: 1.1rem 1.25rem;
+}
+
 /* Workflow and audience cards. */
 
 .wg-workflow__steps {

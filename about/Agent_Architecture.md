@@ -49,6 +49,10 @@ Humans make final decisions and explicitly initiate state-changing operations.
 
 Agents receive relevant knowledge from the Story Graph.
 
+The editor presents these specialist agent profiles as **Creative Advisors**.
+In this document, “agent” names the profile and runtime unit; “advisor” names
+its human-facing role. Both refer to the same profile-driven system.
+
 ### Specialized Expertise
 
 Each agent has a focused production responsibility and role-specific prompt.
@@ -110,6 +114,11 @@ turns to `POST /worldgraph/v1/ai/chat`.
 Agent profiles live in
 `wordpress/wp-content/plugins/worldgraph/includes/agents/` as `.agent.md` files.
 Each profile contains metadata and a role-specific system prompt.
+
+The current bundle contains 51 specialist profiles. The registry scans the
+directory at runtime, so a new focused role becomes discoverable through the
+same API and editor selector without a new service, database entity, or model
+integration.
 
 `AI_MAF_Bridge` loads those files as a local WordPress registry. Its name is
 historical and does not imply a separate MAF runtime. The REST API exposes
@@ -395,6 +404,12 @@ is meaningfully distinct. A new profile should:
 4. Remain advisory unless an audited tool broker explicitly grants abilities.
 5. Be added to router keywords only when automatic routing is useful.
 6. Include focused tests for routing and registry availability.
+
+The profile itself is the primary extension unit. Automatic keyword routing is
+optional: an installed profile can still be selected directly through the
+editor and `GET /worldgraph/v1/ai/agents`. All profiles reuse the current
+Story Graph context builder, permission checks, bounded conversation contract,
+and configured LLM client.
 
 ---
 

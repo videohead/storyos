@@ -163,7 +163,7 @@ class Asset_Generation_Controller extends Base_Controller {
 			'post_id'             => $post_id,
 			'prompt'              => Asset_Generator::build_prompt( $post_id ),
 			'configured'          => $configured,
-			'model'               => 'Comfy Cloud MCP',
+			'model'               => $configured ? __( 'Template provider', 'worldgraph' ) : '',
 			'profile'             => Asset_Generator::project_media_profile( $post_id ),
 			'templates'           => $templates,
 			'default_template_id' => self::default_template_id( $templates ),

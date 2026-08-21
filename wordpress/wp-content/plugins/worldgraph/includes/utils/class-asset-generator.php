@@ -22,6 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Asset generator.
  */
 class Asset_Generator {
+	/** Content types captured from generated-media download responses. */
+	private static $download_mime_types = [];
 
 	/**
 	 * Meta key holding supporting media attached to a story element.
@@ -40,6 +42,7 @@ class Asset_Generator {
 	 */
 	const VIDEO_MIME_TYPES = [
 		'mp4'  => 'video/mp4',
+		'm4v'  => 'video/x-m4v',
 		'webm' => 'video/webm',
 		'mov'  => 'video/quicktime',
 		'avi'  => 'video/x-msvideo',
@@ -177,11 +180,11 @@ class Asset_Generator {
 			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
 		}
 		$use_local_template = false;
-		if ( ! in_array( $provider, [ 'comfyui', 'fal' ], true ) ) {
+		if ( ! in_array( $provider, [ 'comfyui', 'fal', 'videodraft' ], true ) ) {
 			return new WP_Error( 'worldgraph_asset_provider_unsupported', __( 'This provider has no World Graph Studio asset generation adapter yet.', 'worldgraph' ), [ 'status' => 501 ] );
 		}
 		if ( '' === $provider_template_id ) {
-			if ( 'fal' === $provider || 'local' !== $connection['environment'] ) {
+			if ( in_array( $provider, [ 'fal', 'videodraft' ], true ) || 'local' !== $connection['environment'] ) {
 				return new WP_Error( 'worldgraph_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'worldgraph' ), [ 'status' => 400 ] );
 			}
 
@@ -203,6 +206,12 @@ class Asset_Generator {
 		}
 		if ( 'fal' === $provider && ! Fal_MCP::endpoint_is_allowed( $connection, $provider_template_id ) ) {
 			return new WP_Error( 'worldgraph_fal_endpoint_not_allowed', __( 'That fal model endpoint is not allowed by the Template Connection.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
+		if ( 'videodraft' === $provider && '' === trim( (string) $connection['credential_reference'] ) ) {
+			return new WP_Error( 'worldgraph_videodraft_unconfigured', __( 'The Template Connection has no VideoDraft token or credential reference.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
+		if ( 'videodraft' === $provider && ! in_array( $provider_template_id, VideoDraft_API::GENERATION_TOOLS, true ) ) {
+			return new WP_Error( 'worldgraph_videodraft_tool_invalid', __( 'That Template does not select a supported VideoDraft generation tool.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 
 		if ( $use_local_template ) {
@@ -244,8 +253,8 @@ class Asset_Generator {
 		// A user-selected Template wins; otherwise keep the legacy per-CPT
 		// workflow name so existing jobs without a Template keep working.
 		$template = $use_local_template ? (string) $template_id : $provider_template_id;
-		$adapter  = 'fal' === $provider ? 'fal_mcp' : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' );
-		$params   = 'fal' === $provider ? self::fal_template_input( $template_id ) : $profile;
+		$adapter  = 'fal' === $provider ? 'fal_mcp' : ( 'videodraft' === $provider ? 'videodraft' : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
+		$params   = 'fal' === $provider ? self::fal_template_input( $template_id ) : ( 'videodraft' === $provider ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
 		update_post_meta( $job_id, '_worldgraph_gen_type', 'image' );
 		update_post_meta( $job_id, '_worldgraph_gen_prompt', $prompt );
 		update_post_meta( $job_id, '_worldgraph_gen_params', $params );
@@ -258,6 +267,7 @@ class Asset_Generator {
 		update_post_meta( $job_id, '_worldgraph_gen_provider_type', $provider );
 		update_post_meta( $job_id, '_worldgraph_gen_connection_id', $connection_id );
 		update_post_meta( $job_id, '_worldgraph_gen_source_post_id', $post_id );
+		update_post_meta( $job_id, '_worldgraph_gen_requested_by', get_current_user_id() );
 		update_post_meta( $job_id, '_worldgraph_gen_set_featured', rest_sanitize_boolean( $args['set_featured'] ) );
 		update_post_meta( $job_id, '_worldgraph_gen_create_asset', rest_sanitize_boolean( $args['create_asset'] ) );
 		update_post_meta( $job_id, '_worldgraph_gen_status', 'queued' );
@@ -543,10 +553,14 @@ class Asset_Generator {
 
 		$provider   = (string) get_post_meta( $job_id, '_worldgraph_gen_provider_type', true );
 		$adapter    = (string) get_post_meta( $job_id, '_worldgraph_gen_adapter', true );
-		$video_url  = self::find_result_video_url( $result );
-		$audio_urls = self::find_result_audio_urls( $result );
+		$is_videodraft = 'videodraft' === $provider || 'videodraft' === $adapter;
+		$typed_video_urls = self::find_typed_output_urls( $result, 'video' );
+		$typed_audio_urls = self::find_typed_output_urls( $result, 'audio' );
+		$typed_image_urls = self::find_typed_output_urls( $result, 'image' );
+		$video_url  = (string) ( $typed_video_urls[0] ?? ( $is_videodraft ? '' : self::find_result_video_url( $result ) ) );
+		$audio_urls = $is_videodraft ? $typed_audio_urls : array_values( array_unique( array_merge( $typed_audio_urls, self::find_result_audio_urls( $result ) ) ) );
 		$audio_url  = (string) ( $audio_urls[0] ?? '' );
-		$image_url  = self::find_result_url( $result );
+		$image_url  = (string) ( $typed_image_urls[0] ?? ( $is_videodraft ? '' : self::find_result_url( $result ) ) );
 
 		// A video-only workflow reports its file through the same result keys
 		// as an image, so do not try to decode the video as a still frame.
@@ -564,13 +578,17 @@ class Asset_Generator {
 		$attachment_id = 0;
 		$media         = [];
 		$generated_attachment_ids = [];
+		$previous_thumbnail_id = (int) get_post_thumbnail_id( $post );
+		$featured_changed = false;
 		if ( '' !== $image_url ) {
-			$download = self::download_bytes( $image_url, $adapter );
+			$download = $is_videodraft
+				? self::download_to_file( $image_url, AI_Image_Client::MAX_IMAGE_BYTES )
+				: self::download_bytes( $image_url, $adapter );
 			if ( is_wp_error( $download ) ) {
 				return $download;
 			}
 
-			$media = self::validate_image_bytes( $download );
+			$media = is_array( $download ) ? self::validate_image_file( $download ) : self::validate_image_bytes( $download );
 			if ( is_wp_error( $media ) ) {
 				return $media;
 			}
@@ -582,7 +600,7 @@ class Asset_Generator {
 			$generated_attachment_ids[] = $attachment_id;
 
 			if ( rest_sanitize_boolean( get_post_meta( $job_id, '_worldgraph_gen_set_featured', true ) ) && post_type_supports( $post->post_type, 'thumbnail' ) ) {
-				set_post_thumbnail( $post->ID, $attachment_id );
+				$featured_changed = (bool) set_post_thumbnail( $post->ID, $attachment_id );
 			}
 			self::add_to_gallery( $post->ID, $attachment_id );
 		}
@@ -590,17 +608,21 @@ class Asset_Generator {
 		// Import the source video alongside its still frame, or on its own for
 		// a text-to-video Template that produces no separate frame.
 		if ( '' !== $video_url ) {
-			$video_download = self::download_bytes( $video_url, $adapter );
+			$video_download = $is_videodraft
+				? self::download_to_file( $video_url, self::MAX_VIDEO_BYTES )
+				: self::download_bytes( $video_url, $adapter );
 			if ( is_wp_error( $video_download ) ) {
-				return $video_download;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $video_download );
 			}
-			$video = self::validate_video_bytes( $video_download, $video_url );
+			$video = is_array( $video_download )
+				? self::validate_video_file( $video_download, $video_url, true )
+				: self::validate_video_bytes( $video_download, $video_url );
 			if ( is_wp_error( $video ) ) {
-				return $video;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $video );
 			}
 			$video_attachment_id = self::sideload( $video, $post );
 			if ( is_wp_error( $video_attachment_id ) ) {
-				return $video_attachment_id;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $video_attachment_id );
 			}
 			$generated_attachment_ids[] = $video_attachment_id;
 			self::add_to_gallery( $post->ID, $video_attachment_id );
@@ -613,18 +635,22 @@ class Asset_Generator {
 		// Synchronous providers may return audio bytes directly; URL-based audio
 		// is downloaded through the same WordPress-owned media boundary.
 		if ( ! empty( $result['audio_data'] ) || '' !== $audio_url ) {
-			$audio_bytes = ! empty( $result['audio_data'] ) ? (string) $result['audio_data'] : self::download_bytes( $audio_url, $adapter );
-			if ( is_wp_error( $audio_bytes ) ) {
-				return $audio_bytes;
-			}
 			$audio_mime = (string) ( $result['audio_mime'] ?? ( 'suno' === $provider ? 'audio/mpeg' : '' ) );
-			$audio      = self::validate_audio_bytes( $audio_bytes, $audio_mime, $audio_url );
+			if ( ! empty( $result['audio_data'] ) ) {
+				$audio = self::validate_audio_bytes( (string) $result['audio_data'], $audio_mime, $audio_url );
+			} elseif ( $is_videodraft ) {
+				$audio_download = self::download_to_file( $audio_url, self::MAX_AUDIO_BYTES );
+				$audio = is_wp_error( $audio_download ) ? $audio_download : self::validate_audio_file( $audio_download, $audio_url );
+			} else {
+				$audio_download = self::download_bytes( $audio_url, $adapter );
+				$audio = is_wp_error( $audio_download ) ? $audio_download : self::validate_audio_bytes( $audio_download, $audio_mime, $audio_url );
+			}
 			if ( is_wp_error( $audio ) ) {
-				return $audio;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $audio );
 			}
 			$audio_attachment_id = self::sideload( $audio, $post );
 			if ( is_wp_error( $audio_attachment_id ) ) {
-				return $audio_attachment_id;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $audio_attachment_id );
 			}
 			$generated_attachment_ids[] = $audio_attachment_id;
 			self::add_to_gallery( $post->ID, $audio_attachment_id );
@@ -635,15 +661,15 @@ class Asset_Generator {
 		}
 		foreach ( (array) ( $result['audio_items'] ?? [] ) as $audio_item ) {
 			if ( ! is_array( $audio_item ) || empty( $audio_item['data'] ) ) {
-				return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'ElevenLabs returned an unreadable voice preview.', 'worldgraph' ) );
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, new WP_Error( 'worldgraph_gen_invalid_payload', __( 'ElevenLabs returned an unreadable voice preview.', 'worldgraph' ) ) );
 			}
 			$audio = self::validate_audio_bytes( (string) $audio_item['data'], (string) ( $audio_item['mime'] ?? '' ), '' );
 			if ( is_wp_error( $audio ) ) {
-				return $audio;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $audio );
 			}
 			$audio_attachment_id = self::sideload( $audio, $post );
 			if ( is_wp_error( $audio_attachment_id ) ) {
-				return $audio_attachment_id;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $audio_attachment_id );
 			}
 			if ( ! empty( $audio_item['generated_voice_id'] ) ) {
 				update_post_meta( $audio_attachment_id, '_worldgraph_elevenlabs_generated_voice_id', sanitize_text_field( (string) $audio_item['generated_voice_id'] ) );
@@ -658,30 +684,37 @@ class Asset_Generator {
 
 		// Providers such as fal can return multiple images. Every advertised
 		// media URL must become a WordPress attachment before the job completes.
-		$additional_urls = array_values( array_diff( self::find_result_urls( $result ), [ $image_url, $video_url, $audio_url, '' ] ) );
+		$result_urls = $is_videodraft
+			? array_merge( $typed_image_urls, $typed_video_urls, $typed_audio_urls )
+			: self::find_result_urls( $result );
+		$additional_urls = array_values( array_diff( array_unique( $result_urls ), [ $image_url, $video_url, $audio_url, '' ] ) );
 		foreach ( $additional_urls as $additional_url ) {
-			$additional_download = self::download_bytes( $additional_url, $adapter );
+			$is_video = self::is_video_url( $additional_url ) || in_array( $additional_url, $typed_video_urls, true );
+			$is_audio = in_array( $additional_url, $audio_urls, true ) || self::is_audio_url( $additional_url );
+			$additional_download = $is_videodraft
+				? self::download_to_file( $additional_url, $is_video ? self::MAX_VIDEO_BYTES : ( $is_audio ? self::MAX_AUDIO_BYTES : AI_Image_Client::MAX_IMAGE_BYTES ) )
+				: self::download_bytes( $additional_url, $adapter );
 			if ( is_wp_error( $additional_download ) ) {
-				return $additional_download;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $additional_download );
 			}
-			$additional_media = self::is_video_url( $additional_url )
-				? self::validate_video_bytes( $additional_download, $additional_url )
-				: ( in_array( $additional_url, $audio_urls, true ) || self::is_audio_url( $additional_url )
-					? self::validate_audio_bytes( $additional_download, 'suno' === $provider ? 'audio/mpeg' : '', $additional_url )
-					: self::validate_image_bytes( $additional_download ) );
+			$additional_media = $is_video
+				? ( is_array( $additional_download ) ? self::validate_video_file( $additional_download, $additional_url, true ) : self::validate_video_bytes( $additional_download, $additional_url ) )
+				: ( $is_audio
+					? ( is_array( $additional_download ) ? self::validate_audio_file( $additional_download, $additional_url ) : self::validate_audio_bytes( $additional_download, 'suno' === $provider ? 'audio/mpeg' : '', $additional_url ) )
+					: ( is_array( $additional_download ) ? self::validate_image_file( $additional_download ) : self::validate_image_bytes( $additional_download ) ) );
 			if ( is_wp_error( $additional_media ) ) {
-				return $additional_media;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $additional_media );
 			}
 			$additional_attachment_id = self::sideload( $additional_media, $post );
 			if ( is_wp_error( $additional_attachment_id ) ) {
-				return $additional_attachment_id;
+				return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, $additional_attachment_id );
 			}
 			$generated_attachment_ids[] = $additional_attachment_id;
 			self::add_to_gallery( $post->ID, $additional_attachment_id );
 		}
 
 		if ( ! $attachment_id ) {
-			return new WP_Error( 'worldgraph_gen_output_missing', __( 'The generated media could not be imported into the media library.', 'worldgraph' ) );
+			return self::rollback_media_import( $post->ID, $generated_attachment_ids, $previous_thumbnail_id, $featured_changed, new WP_Error( 'worldgraph_gen_output_missing', __( 'The generated media could not be imported into the media library.', 'worldgraph' ) ) );
 		}
 
 		$prompt   = (string) get_post_meta( $job_id, '_worldgraph_gen_prompt', true );
@@ -711,11 +744,24 @@ class Asset_Generator {
 
 		$checked = wp_check_filetype( $filename, null );
 		if ( empty( $checked['type'] ) || $checked['type'] !== $image['mime'] ) {
+			self::delete_temp_media( $image );
 			return new WP_Error( 'worldgraph_asset_filetype_blocked', __( 'This site does not allow uploads of the generated image type.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 
-		$upload = wp_upload_bits( $filename, null, $image['data'] );
+		if ( ! empty( $image['file'] ) ) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			$upload = wp_handle_sideload( [
+				'name'     => $filename,
+				'type'     => $image['mime'],
+				'tmp_name' => $image['file'],
+				'error'    => 0,
+				'size'     => (int) ( $image['size'] ?? 0 ),
+			], [ 'test_form' => false ] );
+		} else {
+			$upload = wp_upload_bits( $filename, null, $image['data'] );
+		}
 		if ( ! empty( $upload['error'] ) ) {
+			self::delete_temp_media( $image );
 			return new WP_Error( 'worldgraph_asset_upload_failed', (string) $upload['error'], [ 'status' => 500 ] );
 		}
 
@@ -757,6 +803,29 @@ class Asset_Generator {
 		return (int) $attachment_id;
 	}
 
+	/** Delete a streamed temporary media file if WordPress did not move it. */
+	private static function delete_temp_media( array $media ): void {
+		if ( ! empty( $media['file'] ) && is_string( $media['file'] ) && file_exists( $media['file'] ) ) {
+			wp_delete_file( $media['file'] );
+		}
+	}
+
+	/** Roll back attachments from a partial multi-output import before retrying. */
+	private static function rollback_media_import( int $post_id, array $attachment_ids, int $previous_thumbnail_id, bool $featured_changed, WP_Error $error ): WP_Error {
+		$attachment_ids = array_values( array_unique( array_filter( array_map( 'absint', $attachment_ids ) ) ) );
+		if ( ! empty( $attachment_ids ) ) {
+			$gallery = array_values( array_diff( (array) get_post_meta( $post_id, self::GALLERY_META, true ), $attachment_ids ) );
+			update_post_meta( $post_id, self::GALLERY_META, $gallery );
+			foreach ( $attachment_ids as $attachment_id ) {
+				wp_delete_attachment( $attachment_id, true );
+			}
+		}
+		if ( $featured_changed ) {
+			$previous_thumbnail_id ? set_post_thumbnail( $post_id, $previous_thumbnail_id ) : delete_post_thumbnail( $post_id );
+		}
+		return $error;
+	}
+
 	/**
 	 * Find the first image URL in a Comfy MCP job result.
 	 *
@@ -764,7 +833,7 @@ class Asset_Generator {
 	 * @return string
 	 */
 	private static function find_result_url( array $result ): string {
-		foreach ( [ 'image_url', 'output_url', 'url', 'audio_url', 'audioUrl' ] as $key ) {
+		foreach ( [ 'image_url', 'imageUrl', 'output_url', 'outputUrl', 'url', 'audio_url', 'audioUrl' ] as $key ) {
 			if ( isset( $result[ $key ] ) && is_string( $result[ $key ] ) && filter_var( $result[ $key ], FILTER_VALIDATE_URL ) ) {
 				return $result[ $key ];
 			}
@@ -785,14 +854,37 @@ class Asset_Generator {
 	/** Find all media URLs advertised in a nested provider result. */
 	private static function find_result_urls( array $result ): array {
 		$urls = [];
-		foreach ( [ 'image_url', 'output_url', 'url' ] as $key ) {
+		foreach ( [ 'image_url', 'imageUrl', 'video_url', 'videoUrl', 'audio_url', 'audioUrl', 'speech_url', 'output_url', 'outputUrl', 'url', 'public_url' ] as $key ) {
 			if ( isset( $result[ $key ] ) && is_string( $result[ $key ] ) && filter_var( $result[ $key ], FILTER_VALIDATE_URL ) ) {
 				$urls[] = $result[ $key ];
+			}
+		}
+		foreach ( [ 'outputUrls', 'output_urls' ] as $key ) {
+			foreach ( (array) ( $result[ $key ] ?? [] ) as $url ) {
+				if ( is_string( $url ) && filter_var( $url, FILTER_VALIDATE_URL ) ) {
+					$urls[] = $url;
+				}
 			}
 		}
 		foreach ( $result as $value ) {
 			if ( is_array( $value ) ) {
 				$urls = array_merge( $urls, self::find_result_urls( $value ) );
+			}
+		}
+
+		return array_values( array_unique( $urls ) );
+	}
+
+	/** Find provider-normalized output_media URLs for one media kind. */
+	private static function find_typed_output_urls( array $result, string $kind ): array {
+		$urls = [];
+		foreach ( (array) ( $result['output_media'] ?? [] ) as $media ) {
+			if ( ! is_array( $media ) || $kind !== sanitize_key( (string) ( $media['kind'] ?? $media['type'] ?? '' ) ) ) {
+				continue;
+			}
+			$url = (string) ( $media['url'] ?? '' );
+			if ( filter_var( $url, FILTER_VALIDATE_URL ) ) {
+				$urls[] = $url;
 			}
 		}
 
@@ -879,7 +971,8 @@ class Asset_Generator {
 	private static function download_bytes( string $url, string $adapter ) {
 		// Local ComfyUI runs on a trusted, non-public host (e.g. host.lando.internal),
 		// which wp_safe_remote_get's SSRF check would otherwise reject.
-		$download = 'local_comfyui' === $adapter ? wp_remote_get( $url, [ 'timeout' => 60 ] ) : wp_safe_remote_get( $url, [ 'timeout' => 60 ] );
+		$timeout = 'videodraft' === $adapter ? 600 : 60;
+		$download = 'local_comfyui' === $adapter ? wp_remote_get( $url, [ 'timeout' => $timeout ] ) : wp_safe_remote_get( $url, [ 'timeout' => $timeout ] );
 		if ( is_wp_error( $download ) ) {
 			Generation_Log::add( 'error', 'generation_batch', 'Download request failed: ' . $download->get_error_message(), [ 'url' => $url ], '', 0 );
 			return new WP_Error( 'worldgraph_gen_download_failed', __( 'The completed output could not be downloaded from the generation provider.', 'worldgraph' ) );
@@ -889,8 +982,50 @@ class Asset_Generator {
 			Generation_Log::add( 'error', 'generation_batch', sprintf( 'Download request returned HTTP %d.', $code ), [ 'url' => $url ], '', 0 );
 			return new WP_Error( 'worldgraph_gen_download_failed', __( 'The completed output could not be downloaded from the generation provider.', 'worldgraph' ) );
 		}
+		$mime = strtolower( trim( explode( ';', (string) wp_remote_retrieve_header( $download, 'content-type' ) )[0] ) );
+		if ( '' !== $mime ) {
+			self::$download_mime_types[ $url ] = $mime;
+		}
 
 		return (string) wp_remote_retrieve_body( $download );
+	}
+
+	/** Stream a large VideoDraft output into a bounded temporary file. */
+	private static function download_to_file( string $url, int $maximum_bytes ) {
+		$temporary = wp_tempnam( 'worldgraph-videodraft-media' );
+		if ( ! $temporary ) {
+			return new WP_Error( 'worldgraph_gen_download_failed', __( 'WordPress could not create temporary storage for the generated media.', 'worldgraph' ) );
+		}
+
+		$download = wp_safe_remote_get( $url, [
+			'timeout'             => 600,
+			'stream'              => true,
+			'filename'            => $temporary,
+			'limit_response_size' => $maximum_bytes + 1,
+		] );
+		if ( is_wp_error( $download ) ) {
+			wp_delete_file( $temporary );
+			Generation_Log::add( 'error', 'generation_batch', 'Download request failed: ' . $download->get_error_message(), [ 'url' => $url ], '', 0 );
+			return new WP_Error( 'worldgraph_gen_download_failed', __( 'The completed output could not be downloaded from VideoDraft.', 'worldgraph' ) );
+		}
+
+		$code = wp_remote_retrieve_response_code( $download );
+		$size = file_exists( $temporary ) ? filesize( $temporary ) : false;
+		if ( $code < 200 || $code >= 300 ) {
+			wp_delete_file( $temporary );
+			return new WP_Error( 'worldgraph_gen_download_failed', sprintf( __( 'VideoDraft returned HTTP %d while downloading completed media.', 'worldgraph' ), $code ) );
+		}
+		if ( false === $size || $size <= 0 || $size > $maximum_bytes ) {
+			wp_delete_file( $temporary );
+			return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'The completed VideoDraft media is empty or too large to store.', 'worldgraph' ) );
+		}
+
+		$mime = strtolower( trim( explode( ';', (string) wp_remote_retrieve_header( $download, 'content-type' ) )[0] ) );
+		if ( '' !== $mime ) {
+			self::$download_mime_types[ $url ] = $mime;
+		}
+
+		return [ 'file' => $temporary, 'mime' => $mime, 'size' => (int) $size ];
 	}
 
 	/**
@@ -919,6 +1054,26 @@ class Asset_Generator {
 		];
 	}
 
+	/** Validate a streamed image without materializing it in PHP memory. */
+	private static function validate_image_file( array $download ) {
+		if ( empty( $download['file'] ) || empty( $download['size'] ) || $download['size'] > AI_Image_Client::MAX_IMAGE_BYTES ) {
+			self::delete_temp_media( $download );
+			return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'The completed image is empty or too large to store.', 'worldgraph' ) );
+		}
+		$info = @getimagesize( $download['file'] ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( ! is_array( $info ) || empty( $info['mime'] ) || ! in_array( $info['mime'], AI_Image_Client::ALLOWED_MIME_TYPES, true ) ) {
+			self::delete_temp_media( $download );
+			return new WP_Error( 'worldgraph_gen_unsupported_type', __( 'The generation provider returned a file that is not a supported image.', 'worldgraph' ) );
+		}
+		$extensions = [ 'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif' ];
+		return array_merge( $download, [
+			'mime'      => $info['mime'],
+			'extension' => $extensions[ $info['mime'] ],
+			'width'     => (int) $info[0],
+			'height'    => (int) $info[1],
+		] );
+	}
+
 	/**
 	 * Validate generated video bytes for media-library import. Video content
 	 * can't be sniffed the way getimagesizefromstring() sniffs images, so the
@@ -929,10 +1084,32 @@ class Asset_Generator {
 	 * @param string $url   Source URL the bytes were downloaded from.
 	 * @return array|WP_Error
 	 */
-	private static function validate_video_bytes( string $bytes, string $url ) {
+	private static function validate_video_bytes( string $bytes, string $url, bool $assume_mp4 = false ) {
 		if ( '' === $bytes || strlen( $bytes ) > self::MAX_VIDEO_BYTES ) {
 			return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'The completed video is empty or too large to store.', 'worldgraph' ) );
 		}
+		$filetype = self::video_filetype( $url, $assume_mp4 );
+		return is_wp_error( $filetype ) ? $filetype : array_merge( [ 'data' => $bytes ], $filetype );
+	}
+
+	/** Validate a streamed video while retaining its temporary file. */
+	private static function validate_video_file( array $download, string $url, bool $assume_mp4 = false ) {
+		if ( empty( $download['file'] ) || empty( $download['size'] ) || $download['size'] > self::MAX_VIDEO_BYTES ) {
+			self::delete_temp_media( $download );
+			return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'The completed video is empty or too large to store.', 'worldgraph' ) );
+		}
+
+		$filetype = self::video_filetype( $url, $assume_mp4 );
+		if ( is_wp_error( $filetype ) ) {
+			self::delete_temp_media( $download );
+			return $filetype;
+		}
+
+		return array_merge( $download, $filetype );
+	}
+
+	/** Resolve a supported generated-video extension and mime type. */
+	private static function video_filetype( string $url, bool $assume_mp4 = false ) {
 
 		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
 		$ext  = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
@@ -940,16 +1117,18 @@ class Asset_Generator {
 			parse_str( (string) wp_parse_url( $url, PHP_URL_QUERY ), $query );
 			$ext = strtolower( pathinfo( (string) ( $query['filename'] ?? '' ), PATHINFO_EXTENSION ) );
 		}
-
-		if ( ! isset( self::VIDEO_MIME_TYPES[ $ext ] ) ) {
-			return new WP_Error( 'worldgraph_gen_unsupported_type', __( 'Comfy MCP returned a video file type that is not supported.', 'worldgraph' ) );
+		if ( '' === $ext && isset( self::$download_mime_types[ $url ] ) ) {
+			$ext = (string) array_search( self::$download_mime_types[ $url ], self::VIDEO_MIME_TYPES, true );
+		}
+		if ( '' === $ext && $assume_mp4 ) {
+			$ext = 'mp4';
 		}
 
-		return [
-			'data'      => $bytes,
-			'mime'      => self::VIDEO_MIME_TYPES[ $ext ],
-			'extension' => $ext,
-		];
+		if ( ! isset( self::VIDEO_MIME_TYPES[ $ext ] ) ) {
+			return new WP_Error( 'worldgraph_gen_unsupported_type', __( 'The generation provider returned an unsupported video type.', 'worldgraph' ) );
+		}
+
+		return [ 'mime' => self::VIDEO_MIME_TYPES[ $ext ], 'extension' => $ext ];
 	}
 
 	/** Validate generated audio bytes and normalize their WordPress file type. */
@@ -957,7 +1136,27 @@ class Asset_Generator {
 		if ( '' === $bytes || strlen( $bytes ) > self::MAX_AUDIO_BYTES ) {
 			return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'The completed audio is empty or too large to store.', 'worldgraph' ) );
 		}
-		$mime = strtolower( trim( explode( ';', $mime )[0] ) );
+		$filetype = self::audio_filetype( $mime, $url );
+		return is_wp_error( $filetype ) ? $filetype : array_merge( [ 'data' => $bytes ], $filetype );
+	}
+
+	/** Validate a streamed audio file while retaining its temporary path. */
+	private static function validate_audio_file( array $download, string $url ) {
+		if ( empty( $download['file'] ) || empty( $download['size'] ) || $download['size'] > self::MAX_AUDIO_BYTES ) {
+			self::delete_temp_media( $download );
+			return new WP_Error( 'worldgraph_gen_invalid_payload', __( 'The completed audio is empty or too large to store.', 'worldgraph' ) );
+		}
+		$filetype = self::audio_filetype( (string) ( $download['mime'] ?? '' ), $url );
+		if ( is_wp_error( $filetype ) ) {
+			self::delete_temp_media( $download );
+			return $filetype;
+		}
+		return array_merge( $download, $filetype );
+	}
+
+	/** Resolve a supported generated-audio extension and mime type. */
+	private static function audio_filetype( string $mime, string $url ) {
+		$mime = strtolower( trim( explode( ';', $mime ?: (string) ( self::$download_mime_types[ $url ] ?? '' ) )[0] ) );
 		$mime = 'audio/mp3' === $mime ? 'audio/mpeg' : $mime;
 		$mime = 'audio/x-wav' === $mime ? 'audio/wav' : $mime;
 		$ext = strtolower( pathinfo( (string) wp_parse_url( $url, PHP_URL_PATH ), PATHINFO_EXTENSION ) );
@@ -967,7 +1166,7 @@ class Asset_Generator {
 		if ( ! isset( self::AUDIO_MIME_TYPES[ $ext ] ) ) {
 			return new WP_Error( 'worldgraph_gen_unsupported_type', __( 'The generation provider returned an unsupported audio type.', 'worldgraph' ) );
 		}
-		return [ 'data' => $bytes, 'mime' => self::AUDIO_MIME_TYPES[ $ext ], 'extension' => $ext ];
+		return [ 'mime' => self::AUDIO_MIME_TYPES[ $ext ], 'extension' => $ext ];
 	}
 
 	/**
