@@ -607,11 +607,7 @@ class Generation_Workflows {
 		return (int) apply_filters( 'worldgraph_generation_default_template_id', $first, $task, $options );
 	}
 
-	/**
-	 * Persist every child job in an item or project representative-media batch.
-	 *
-	 * @return array<string, mixed>|WP_Error
-	 */
+	/** Freeze an item or Project plan for bounded background materialization. */
 	public static function queue_batch( int $post_id, string $scope, array $args = [] ) {
 		$args = wp_parse_args( $args, [
 			'base_prompt'       => '',
@@ -619,33 +615,24 @@ class Generation_Workflows {
 			'video_template_id' => 0,
 			'idempotency_key'   => '',
 		] );
-		$plan = self::plan( $post_id, $scope, (string) $args['base_prompt'] );
-		if ( is_wp_error( $plan ) ) {
-			return $plan;
-		}
-
 		$requester_id = get_current_user_id();
-		if ( ! $requester_id ) {
-			return new WP_Error( 'worldgraph_generation_requester_missing', __( 'Sign in before queueing generation.', 'worldgraph' ), [ 'status' => 401 ] );
+		if ( ! $requester_id || ! user_can( $requester_id, 'upload_files' ) || ! user_can( $requester_id, 'edit_post', $post_id ) ) {
+			return new WP_Error( 'worldgraph_generation_requester_forbidden', __( 'You are not allowed to queue representative media for this item.', 'worldgraph' ), [ 'status' => $requester_id ? 403 : 401 ] );
 		}
 
 		$idempotency_key = sanitize_text_field( (string) $args['idempotency_key'] );
-		if ( '' !== $idempotency_key ) {
-			$existing = get_posts( [
-				'post_type'      => 'worldgraph_gen',
-				'post_status'    => 'any',
-				'post_parent'    => $post_id,
-				'posts_per_page' => 1,
-				'fields'         => 'ids',
-				'meta_query'     => [
-					[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
-					[ 'key' => self::IDEMPOTENCY_META, 'value' => $idempotency_key ],
-					[ 'key' => '_worldgraph_gen_requested_by', 'value' => $requester_id ],
-				],
-			] );
-			if ( $existing ) {
-				return self::batch_status( (int) $existing[0] );
-			}
+		if ( '' === $idempotency_key ) {
+			return new WP_Error( 'worldgraph_generation_idempotency_required', __( 'A unique idempotency key is required to start a representative-media batch.', 'worldgraph' ), [ 'status' => 400 ] );
+		}
+
+		$existing = self::batch_for_idempotency_key( $post_id, $requester_id, $idempotency_key );
+		if ( $existing ) {
+			return self::batch_status( $existing );
+		}
+
+		$plan = self::plan( $post_id, $scope, (string) $args['base_prompt'] );
+		if ( is_wp_error( $plan ) ) {
+			return $plan;
 		}
 
 		$resolved_tasks = [];
@@ -688,50 +675,205 @@ class Generation_Workflows {
 			return $batch;
 		}
 
-		$batch_id = (int) $batch;
-		update_post_meta( $batch_id, self::BATCH_KIND_META, self::REPRESENTATIVE_BATCH );
-		update_post_meta( $batch_id, self::BATCH_SCOPE_META, (string) $plan['scope'] );
-		update_post_meta( $batch_id, self::IDEMPOTENCY_META, $idempotency_key );
-		update_post_meta( $batch_id, '_worldgraph_gen_requested_by', $requester_id );
-		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_active' );
-		update_post_meta( $batch_id, '_worldgraph_gen_created', current_time( 'mysql' ) );
-		update_post_meta( $batch_id, '_worldgraph_gen_total', count( $resolved_tasks ) );
-		update_post_meta( $batch_id, self::BATCH_PLAN_META, array_map( static function ( array $task ): array {
+		$batch_id   = (int) $batch;
+		$frozen_plan = array_map( static function ( array $task, int $index ): array {
 			return [
+				'step'         => $index,
 				'source_id'    => (int) $task['source_id'],
 				'source_type'  => (string) $task['source_type'],
+				'source_title' => (string) $task['source_title'],
+				'workflow_id'  => (string) $task['workflow_id'],
 				'intent'       => (string) $task['intent'],
 				'type'         => (string) $task['type'],
+				'featured'     => ! empty( $task['featured'] ),
 				'template_id'  => (int) $task['template_id'],
+				'prompt'       => (string) $task['prompt'],
 				'prompt_hash'  => hash( 'sha256', (string) $task['prompt'] ),
 			];
-		}, $resolved_tasks ) );
+		}, $resolved_tasks, array_keys( $resolved_tasks ) );
 
-		$queued = [];
-		foreach ( $resolved_tasks as $task ) {
-			$result = Asset_Generator::queue_for_post( (int) $task['source_id'], [
-				'type'         => (string) $task['type'],
-				'prompt'       => (string) $task['prompt'],
-				'set_featured' => 'image' === $task['type'] && ! empty( $task['featured'] ),
-				'create_asset' => true,
-				'template_id'  => (int) $task['template_id'],
-				'intent'       => (string) $task['intent'],
-				'batch_id'     => $batch_id,
-			] );
-			if ( is_wp_error( $result ) ) {
-				foreach ( $queued as $queued_id ) {
-					update_post_meta( $queued_id, '_worldgraph_gen_status', 'cancelled', 'queued' );
-				}
-				update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_failed' );
-				update_post_meta( $batch_id, '_worldgraph_gen_error', sanitize_text_field( $result->get_error_message() ) );
-				return new WP_Error( $result->get_error_code(), $result->get_error_message(), [ 'status' => 409, 'batch_id' => $batch_id ] );
-			}
-			$queued[] = (int) $result['generation_id'];
+		$meta = [
+			self::BATCH_KIND_META        => self::REPRESENTATIVE_BATCH,
+			self::BATCH_SCOPE_META       => (string) $plan['scope'],
+			self::IDEMPOTENCY_META       => $idempotency_key,
+			'_worldgraph_gen_requested_by' => $requester_id,
+			'_worldgraph_gen_status'     => 'batch_materializing',
+			'_worldgraph_gen_created'    => current_time( 'mysql' ),
+			'_worldgraph_gen_total'      => count( $frozen_plan ),
+			'_worldgraph_gen_workflow_version' => self::WORKFLOW_VERSION,
+			self::BATCH_CURSOR_META      => 0,
+			self::BATCH_PLAN_META        => $frozen_plan,
+		];
+		foreach ( $meta as $key => $value ) {
+			update_post_meta( $batch_id, $key, is_array( $value ) ? wp_slash( $value ) : $value );
+		}
+		if ( self::REPRESENTATIVE_BATCH !== get_post_meta( $batch_id, self::BATCH_KIND_META, true ) || count( $frozen_plan ) !== count( (array) get_post_meta( $batch_id, self::BATCH_PLAN_META, true ) ) ) {
+			wp_delete_post( $batch_id, true );
+			return new WP_Error( 'worldgraph_generation_batch_storage_failed', __( 'WordPress could not persist the representative-media plan.', 'worldgraph' ), [ 'status' => 500 ] );
 		}
 
-		update_post_meta( $batch_id, '_worldgraph_gen_child_ids', $queued );
 		Generation_Batch::schedule();
 		return self::batch_status( $batch_id );
+	}
+
+	/** Find an existing caller-scoped batch for a retry-safe start request. */
+	private static function batch_for_idempotency_key( int $post_id, int $requester_id, string $idempotency_key ): int {
+		$existing = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'post_parent'    => $post_id,
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
+				[ 'key' => self::IDEMPOTENCY_META, 'value' => $idempotency_key ],
+				[ 'key' => '_worldgraph_gen_requested_by', 'value' => $requester_id ],
+			],
+		] );
+
+		return $existing ? (int) $existing[0] : 0;
+	}
+
+	/** Stage and then activate frozen child tasks in bounded cron chunks. */
+	public static function process_batches(): void {
+		$batches = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => 2,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'batch_materializing', 'batch_activating' ], 'compare' => 'IN' ],
+			],
+		] );
+
+		foreach ( $batches as $batch_id ) {
+			$status = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
+			if ( 'batch_materializing' === $status ) {
+				self::materialize_batch( (int) $batch_id );
+			} elseif ( 'batch_activating' === $status ) {
+				self::activate_batch( (int) $batch_id );
+			}
+		}
+
+		if ( self::has_pending_batches() ) {
+			Generation_Batch::schedule();
+		}
+	}
+
+	/** Persist a bounded set of non-runnable staged jobs from one frozen plan. */
+	private static function materialize_batch( int $batch_id ): void {
+		$plan         = get_post_meta( $batch_id, self::BATCH_PLAN_META, true );
+		$plan         = is_array( $plan ) ? array_values( $plan ) : [];
+		$cursor       = absint( get_post_meta( $batch_id, self::BATCH_CURSOR_META, true ) );
+		$requester_id = absint( get_post_meta( $batch_id, '_worldgraph_gen_requested_by', true ) );
+		$limit        = min( count( $plan ), $cursor + self::MATERIALIZE_PER_TICK );
+
+		for ( $index = $cursor; $index < $limit; ++$index ) {
+			$task = (array) $plan[ $index ];
+			if ( self::find_child_for_step( $batch_id, $index ) ) {
+				update_post_meta( $batch_id, self::BATCH_CURSOR_META, $index + 1 );
+				continue;
+			}
+
+			$result = Asset_Generator::queue_for_post( (int) $task['source_id'], [
+				'type'           => (string) $task['type'],
+				'prompt'         => (string) $task['prompt'],
+				'set_featured'   => 'image' === $task['type'] && ! empty( $task['featured'] ),
+				'create_asset'   => true,
+				'template_id'    => (int) $task['template_id'],
+				'intent'         => (string) $task['intent'],
+				'batch_id'       => $batch_id,
+				'batch_step'     => $index,
+				'requester_id'   => $requester_id,
+				'initial_status' => 'staged',
+				'schedule'       => false,
+			] );
+			if ( is_wp_error( $result ) ) {
+				self::fail_staged_batch( $batch_id, $result );
+				return;
+			}
+			update_post_meta( $batch_id, self::BATCH_CURSOR_META, $index + 1 );
+		}
+
+		if ( $limit >= count( $plan ) ) {
+			update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_activating', 'batch_materializing' );
+		}
+	}
+
+	/** Promote a bounded number of staged jobs only after the full plan exists. */
+	private static function activate_batch( int $batch_id ): void {
+		$staged = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => self::ACTIVATE_PER_TICK,
+			'fields'         => 'ids',
+			'orderby'        => 'ID',
+			'order'          => 'ASC',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_ID_META, 'value' => $batch_id ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => 'staged' ],
+			],
+		] );
+		foreach ( $staged as $job_id ) {
+			update_post_meta( $job_id, '_worldgraph_gen_status', 'queued', 'staged' );
+		}
+
+		if ( count( $staged ) < self::ACTIVATE_PER_TICK ) {
+			update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_active', 'batch_activating' );
+		}
+		Generation_Batch::schedule();
+	}
+
+	/** Locate a previously staged child so a restarted cursor cannot duplicate it. */
+	private static function find_child_for_step( int $batch_id, int $step ): int {
+		$children = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_ID_META, 'value' => $batch_id ],
+				[ 'key' => self::STEP_META, 'value' => $step ],
+			],
+		] );
+
+		return $children ? (int) $children[0] : 0;
+	}
+
+	/** Fail a batch before activation and cancel every already-staged child. */
+	private static function fail_staged_batch( int $batch_id, WP_Error $error ): void {
+		$staged = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_ID_META, 'value' => $batch_id ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => 'staged' ],
+			],
+		] );
+		foreach ( $staged as $job_id ) {
+			update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', 'staged' );
+		}
+		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_failed' );
+		update_post_meta( $batch_id, '_worldgraph_gen_error', sanitize_text_field( $error->get_error_message() ) );
+	}
+
+	/** Whether another cron tick is needed to finish staging or activation. */
+	private static function has_pending_batches(): bool {
+		$batches = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'batch_materializing', 'batch_activating' ], 'compare' => 'IN' ],
+			],
+		] );
+
+		return ! empty( $batches );
 	}
 
 	/** Summarize durable progress for a representative-media batch. */

@@ -169,8 +169,9 @@ A representative batch is a parent `worldgraph_gen` record with:
 
 - `_worldgraph_gen_batch_kind = representative_media`;
 - `_worldgraph_gen_batch_scope`;
-- `_worldgraph_gen_batch_plan`, containing source, intent, output type,
-  Template, and prompt hash for each child;
+- `_worldgraph_gen_batch_plan`, a versioned frozen task list containing source,
+  intent, output type, Template, prompt, prompt hash, and featured behavior;
+- `_worldgraph_gen_batch_cursor`, which tracks bounded materialization;
 - `_worldgraph_gen_idempotency_key`;
 - requester, creation time, total, child IDs, and aggregate status.
 
@@ -180,12 +181,14 @@ the root and scope, aggregate status, total/active/completed/failed/cancelled
 counts, per-state counts, creation time, and child source, intent, type, status,
 attachment, and error details.
 
-WP-Cron continues to submit and poll bounded numbers of child jobs, so a large
-Project batch may run for hours or days without one HTTP request remaining
-open. Cancellation changes only children that are still `queued` and reports
-`stopped_queued` plus a human-readable `cancel_note`. Submitted or terminal
-provider work retains its actual lifecycle state and remains in the aggregate
-report.
+After start freezes the plan, WP-Cron materializes and activates bounded groups
+of child jobs, then continues to submit and poll bounded numbers of them. A
+large Project batch may therefore run for hours or days without one HTTP
+request remaining open. Cancellation prevents remaining planned tasks from
+being activated, changes already materialized `queued` children to `cancelled`,
+and reports `stopped_queued` plus a human-readable `cancel_note`. Submitted or
+terminal provider work retains its actual lifecycle state and remains in the
+aggregate report.
 
 ## Security and operating boundaries
 

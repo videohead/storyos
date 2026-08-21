@@ -311,10 +311,11 @@ Starting a batch accepts:
 
 `base_prompt` is an optional additional author direction for item-scoped
 generation; saved CPT/SCF context and `generation_prompt` remain in the final
-prompt. The image and video Template IDs are optional explicit overrides shared by outputs
-of that type; without them, the server applies the registered preference and
-fallback cascade. `idempotency_key` is a required request member; a non-empty
-value is scoped to the requester and root post, and repeating it returns the
+prompt. The image and video Template IDs are optional explicit overrides shared
+by outputs of that type; without them, the server applies the registered
+preference and fallback cascade. `idempotency_key` is a required request
+member; a non-empty value is scoped to the requester and root post, and
+repeating it returns the
 existing batch instead of duplicating work. Starting fails before any child is
 queued if any task lacks a runnable Template or the requester cannot edit every
 source. A successful start returns `202 Accepted` and a `Location` header for

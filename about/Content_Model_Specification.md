@@ -462,9 +462,10 @@ identity, results, imported attachment IDs, and provenance.
 
 An item plan covers one entity. A project plan traverses canonical `contains`
 and `belongs_to` ownership edges from the Project and includes every supported
-descendant once. Planning does not queue work. Starting the plan creates all
-children only after every required output resolves a runnable Template, which
-allows WP-Cron to execute and report the work safely over hours or days.
+descendant once. Planning does not queue work. Starting first resolves every
+required output, then persists a versioned frozen plan. WP-Cron materializes
+and activates child jobs in bounded groups, allowing the batch to execute and
+report work safely over hours or days without one large start request.
 
 These are internal workflow records, not SCF-backed editorial content types.
 

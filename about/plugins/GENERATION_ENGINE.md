@@ -281,14 +281,15 @@ persists the record before external execution and schedules
 Representative-media batches are also durable `worldgraph_gen` posts, marked
 with `_worldgraph_gen_batch_kind = representative_media`. The parent stores the
 root post, `item` or `project` scope, requester, optional idempotency key, a
-snapshot containing each source/intent/type/Template and prompt hash, child
-IDs, total, and aggregate status. Child jobs store
+versioned frozen task plan, materialization cursor, child IDs, planned total,
+and aggregate status. Each task snapshot retains its source, intent, output
+type, Template, prompt, prompt hash, and featured behavior. Child jobs store
 `_worldgraph_gen_batch_id` and `_worldgraph_gen_intent`. This separation lets a
 Project batch run for hours or days while every child remains independently
 observable through the ordinary worker lifecycle.
 
 Planning performs no writes. Starting validates edit permission for every
-source and resolves all required Templates before creating the batch. A
+source and resolves all required Templates before freezing the batch plan. A
 requester-scoped non-empty idempotency key returns the prior batch for the same
 root instead of creating duplicate provider work. Batch summaries derive their
 counts from persisted child states and report `active`, `completed`,
@@ -296,11 +297,12 @@ counts from persisted child states and report `active`, `completed`,
 
 The worker:
 
-1. polls up to ten submitted jobs;
-2. submits up to five queued jobs;
-3. records the provider's remote job identifier;
-4. reschedules itself after 60 seconds while work remains; and
-5. imports completed media before recording success.
+1. materializes and activates bounded groups from frozen batch plans;
+2. polls up to ten submitted jobs;
+3. submits up to five queued jobs;
+4. records the provider's remote job identifier;
+5. reschedules itself after 60 seconds while work remains; and
+6. imports completed media before recording success.
 
 The durable states are:
 

@@ -500,10 +500,13 @@ including `_worldgraph_gen_template_id`, `_worldgraph_gen_connection_id`,
 
 A representative-media run also has a durable parent `worldgraph_gen` record.
 It records `_worldgraph_gen_batch_kind = representative_media`, item or project
-scope, an immutable plan snapshot, requester-scoped idempotency key, child job
-IDs, and aggregate status. Children reference it through
-`_worldgraph_gen_batch_id`. Planning is read-only; starting a batch first
-verifies that every required image and video output has a runnable Template.
+scope, a versioned frozen task plan, materialization cursor,
+requester-scoped idempotency key, child job IDs, and aggregate status. Children
+reference it through `_worldgraph_gen_batch_id`. Planning is read-only;
+starting first verifies that every required image and video output has a
+runnable Template, then persists the plan. WP-Cron materializes and activates
+children in bounded groups instead of holding one request open for the complete
+Project run.
 
 WP-Cron processes bounded batches, submits or polls the configured adapter,
 supports cancellation, imports completed media for supported Template
