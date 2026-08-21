@@ -125,24 +125,74 @@ class Projects_Controller extends Base_Controller {
 	 */
 	protected function get_item_data( \WP_Post $post, array $params = [] ): array {
 		$data = parent::get_item_data( $post, $params );
+		$related = self::get_project_related_ids( $post->ID );
 
 		// Add project-specific computed fields.
-		$data['meta']['scene_count'] = self::count_related( $post->ID, 'worldgraph_scene', 'worldgraph_project' );
-		$data['meta']['character_count'] = self::count_related( $post->ID, 'worldgraph_character', 'worldgraph_project' );
-		$data['meta']['asset_count'] = self::count_related( $post->ID, 'worldgraph_asset', 'worldgraph_project' );
+		$data['meta']['scene_count']     = count( $related['worldgraph_scene'] );
+		$data['meta']['character_count'] = count( $related['worldgraph_character'] );
+		$data['meta']['asset_count']     = count( $related['worldgraph_asset'] );
 
 		return $data;
 	}
 
 	/**
-	 * Count related items.
+	 * Resolve Project-owned content through the canonical World and Episode graph.
 	 *
-	 * @param int    $post_id
-	 * @param string $related_cpt
-	 * @param string $from_cpt
-	 * @return int
+	 * Legacy imports connect Scenes through their World's Characters and
+	 * Locations, while version 1.2 also has explicit Episode and Project edges.
+	 * Supporting both paths keeps aggregate counts correct without a data
+	 * migration and de-duplicates entities connected through several paths.
+	 *
+	 * @param int $project_id Project post ID.
+	 * @return array<string, array<int, int>>
 	 */
-	private static function count_related( int $post_id, string $related_cpt, string $from_cpt ): int {
+	private static function get_project_related_ids( int $project_id ): array {
+		$world_ids     = self::related_ids( $project_id, 'worldgraph_project', 'worldgraph_world' );
+		$episode_ids   = self::related_ids( $project_id, 'worldgraph_project', 'worldgraph_episode' );
+		$character_ids = self::related_ids( $project_id, 'worldgraph_project', 'worldgraph_character' );
+		$location_ids  = [];
+		$scene_ids     = self::related_ids( $project_id, 'worldgraph_project', 'worldgraph_scene' );
+		$asset_ids     = self::related_ids( $project_id, 'worldgraph_project', 'worldgraph_asset' );
+
+		foreach ( $world_ids as $world_id ) {
+			$character_ids = array_merge( $character_ids, self::related_ids( $world_id, 'worldgraph_world', 'worldgraph_character' ) );
+			$location_ids  = array_merge( $location_ids, self::related_ids( $world_id, 'worldgraph_world', 'worldgraph_location' ) );
+		}
+		$character_ids = array_values( array_unique( $character_ids ) );
+		$location_ids  = array_values( array_unique( $location_ids ) );
+
+		foreach ( $episode_ids as $episode_id ) {
+			$scene_ids = array_merge( $scene_ids, self::related_ids( $episode_id, 'worldgraph_episode', 'worldgraph_scene' ) );
+		}
+		foreach ( $character_ids as $character_id ) {
+			$scene_ids = array_merge( $scene_ids, self::related_ids( $character_id, 'worldgraph_character', 'worldgraph_scene' ) );
+			$asset_ids = array_merge( $asset_ids, self::related_ids( $character_id, 'worldgraph_character', 'worldgraph_asset' ) );
+		}
+		foreach ( $location_ids as $location_id ) {
+			$scene_ids = array_merge( $scene_ids, self::related_ids( $location_id, 'worldgraph_location', 'worldgraph_scene' ) );
+			$asset_ids = array_merge( $asset_ids, self::related_ids( $location_id, 'worldgraph_location', 'worldgraph_asset' ) );
+		}
+		$scene_ids = array_values( array_unique( $scene_ids ) );
+		foreach ( $scene_ids as $scene_id ) {
+			$asset_ids = array_merge( $asset_ids, self::related_ids( $scene_id, 'worldgraph_scene', 'worldgraph_asset' ) );
+		}
+
+		return [
+			'worldgraph_scene'     => $scene_ids,
+			'worldgraph_character' => $character_ids,
+			'worldgraph_asset'     => array_values( array_unique( $asset_ids ) ),
+		];
+	}
+
+	/**
+	 * Get directly adjacent entities of one CPT in either graph direction.
+	 *
+	 * @param int    $post_id     Source post ID.
+	 * @param string $from_cpt    Source CPT.
+	 * @param string $related_cpt Requested adjacent CPT.
+	 * @return array<int, int>
+	 */
+	private static function related_ids( int $post_id, string $from_cpt, string $related_cpt ): array {
 		$related_ids = [];
 		foreach ( [ 'outgoing', 'incoming' ] as $direction ) {
 			foreach ( \WorldGraph\Utils\get_relationships( $post_id, $from_cpt, $direction ) as $relationship ) {
@@ -153,6 +203,7 @@ class Projects_Controller extends Base_Controller {
 				}
 			}
 		}
-		return count( array_unique( array_filter( $related_ids ) ) );
+
+		return array_values( array_unique( array_filter( $related_ids ) ) );
 	}
 }

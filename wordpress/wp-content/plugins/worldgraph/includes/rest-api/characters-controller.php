@@ -126,8 +126,14 @@ class Characters_Controller extends Base_Controller {
 		}
 
 		// Count related scenes and shots.
-		$data['meta']['scene_count'] = self::count_related( $post->ID, 'worldgraph_scene', 'worldgraph_character' );
-		$data['meta']['shot_count'] = self::count_related( $post->ID, 'worldgraph_shot', 'worldgraph_character' );
+		$scene_ids = self::related_ids( $post->ID, 'worldgraph_scene', 'worldgraph_character' );
+		$shot_ids  = self::related_ids( $post->ID, 'worldgraph_shot', 'worldgraph_character' );
+		foreach ( $scene_ids as $scene_id ) {
+			$shot_ids = array_merge( $shot_ids, self::related_ids( $scene_id, 'worldgraph_shot', 'worldgraph_scene' ) );
+		}
+
+		$data['meta']['scene_count'] = count( $scene_ids );
+		$data['meta']['shot_count']  = count( array_unique( $shot_ids ) );
 		$data['meta']['asset_count'] = self::count_related( $post->ID, 'worldgraph_asset', 'worldgraph_character' );
 
 		return $data;
@@ -142,6 +148,18 @@ class Characters_Controller extends Base_Controller {
 	 * @return int
 	 */
 	private static function count_related( int $post_id, string $related_cpt, string $from_cpt ): int {
+		return count( self::related_ids( $post_id, $related_cpt, $from_cpt ) );
+	}
+
+	/**
+	 * Get directly adjacent entities of one CPT in either graph direction.
+	 *
+	 * @param int    $post_id
+	 * @param string $related_cpt
+	 * @param string $from_cpt
+	 * @return array<int, int>
+	 */
+	private static function related_ids( int $post_id, string $related_cpt, string $from_cpt ): array {
 		$related_ids = [];
 		foreach ( [ 'outgoing', 'incoming' ] as $direction ) {
 			foreach ( \WorldGraph\Utils\get_relationships( $post_id, $from_cpt, $direction ) as $relationship ) {
@@ -152,6 +170,6 @@ class Characters_Controller extends Base_Controller {
 				}
 			}
 		}
-		return count( array_unique( array_filter( $related_ids ) ) );
+		return array_values( array_unique( array_filter( $related_ids ) ) );
 	}
 }

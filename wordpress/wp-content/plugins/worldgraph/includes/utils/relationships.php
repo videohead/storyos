@@ -381,11 +381,13 @@ function get_relationships( int $entity_id, string $entity_type = '', string $di
  *
  * @param int    $from_id   The source entity ID.
  * @param int    $to_id     The target entity ID.
- * @param string $from_type The source CPT slug.
- * @param string $to_type   The target CPT slug.
+ * @param string $from_type         The source CPT slug.
+ * @param string $to_type           The target CPT slug.
+ * @param string $relationship_type Optional relationship verb to remove.
+ * @param string $field             Optional named relationship field to remove.
  * @return bool
  */
-function remove_relationship( int $from_id, int $to_id, string $from_type = '', string $to_type = '' ): bool {
+function remove_relationship( int $from_id, int $to_id, string $from_type = '', string $to_type = '', string $relationship_type = '', string $field = '' ): bool {
 	$meta_key = WORLDGRAPH_CPT_PREFIX . 'relationships';
 	$rels = get_post_meta( $from_id, $meta_key, true );
 
@@ -394,8 +396,16 @@ function remove_relationship( int $from_id, int $to_id, string $from_type = '', 
 	}
 
 	$original_count = count( $rels );
-	$rels = array_values( array_filter( $rels, function( $rel ) use ( $to_id, $to_type ) {
-		return !( $rel['to_id'] === $to_id && ( ! $to_type || $rel['to_type'] === $to_type ) );
+	$rels = array_values( array_filter( $rels, static function( array $rel ) use ( $to_id, $to_type, $relationship_type, $field ): bool {
+		$matches = $to_id === (int) ( $rel['to_id'] ?? 0 ) && ( ! $to_type || $to_type === (string) ( $rel['to_type'] ?? '' ) );
+		if ( $relationship_type ) {
+			$matches = $matches && $relationship_type === (string) ( $rel['type'] ?? '' );
+		}
+		if ( $field ) {
+			$matches = $matches && sanitize_key( $field ) === sanitize_key( (string) ( $rel['metadata']['field'] ?? '' ) );
+		}
+
+		return ! $matches;
 	} ) );
 
 	$removed = $original_count !== count( $rels );

@@ -523,7 +523,9 @@ abstract class Base_Controller extends WP_REST_Controller {
 		$items = [];
 		if ( $query->have_posts() ) {
 			foreach ( $query->posts as $post ) {
-				$items[] = $this->get_item_data( $post, $request->get_params() );
+				$items[] = $this->prepare_response_for_collection(
+					$this->prepare_item( $post, $request->get_params() )
+				);
 			}
 			wp_reset_postdata();
 		}

@@ -116,9 +116,12 @@ Several resource controllers add computed counts under `meta`:
 | Location | `scene_count` |
 | Story World | `location_count`, `character_count`, `organization_count` |
 
-These counts traverse both incoming and outgoing Story Graph edges. Related
-WordPress post IDs are de-duplicated before counting, so the same entity linked
-in both directions contributes once.
+These counts traverse both incoming and outgoing Story Graph edges. Project
+counts also follow its Story World and Episode ownership paths, and a
+Character's Shot count follows that Character's Scene participation to the
+Scene's Shots. This preserves useful totals for both legacy and version 1.2
+imports. Related WordPress post IDs are de-duplicated before counting, so the
+same entity linked along several paths contributes once.
 
 ### Sound Validation
 
@@ -177,7 +180,7 @@ Examples of canonical semantics:
 
 - Project `contains` Story World or Episode.
 - Episode `contains` Scene.
-- Scene `contains` Shot.
+- Shot `belongs_to` Scene.
 - Character `appears_in` Scene.
 - Sound `belongs_to` Scene or Shot and may link to a Character and audio Asset.
 - Asset `derived_from` or `references` a Story Graph source.

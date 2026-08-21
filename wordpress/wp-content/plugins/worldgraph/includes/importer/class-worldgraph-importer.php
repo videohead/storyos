@@ -327,8 +327,15 @@ class WorldGraph_Importer {
 			if ( empty( $asset['type'] ) && empty( $asset['asset_type'] ) ) {
 				$errors[] = sprintf( 'assets[%d] must have a type.', $index );
 			}
-			if ( array_key_exists( 'generation_parameters', $asset ) && ! is_array( $asset['generation_parameters'] ) && ! is_scalar( $asset['generation_parameters'] ) ) {
-				$errors[] = sprintf( 'Asset %s generation_parameters must be an object or JSON string.', $asset['id'] ?? '#' . ( $index + 1 ) );
+			if ( array_key_exists( 'generation_parameters', $asset ) && ! is_array( $asset['generation_parameters'] ) ) {
+				$errors[] = sprintf( 'Asset %s generation_parameters must be an object.', $asset['id'] ?? '#' . ( $index + 1 ) );
+			}
+			if (
+				! empty( $asset['type'] ) &&
+				! empty( $asset['asset_type'] ) &&
+				sanitize_title( (string) $asset['type'] ) !== sanitize_title( (string) $asset['asset_type'] )
+			) {
+				$errors[] = sprintf( 'Asset %s type and asset_type must agree.', $asset['id'] ?? '#' . ( $index + 1 ) );
 			}
 		}
 
@@ -414,6 +421,11 @@ class WorldGraph_Importer {
 				}
 			}
 		}
+		foreach ( $data['shots'] as $shot ) {
+			if ( isset( $shot['take_number'] ) && ( ! is_numeric( $shot['take_number'] ) || (float) $shot['take_number'] < 1 ) ) {
+				$errors[] = sprintf( 'Shot %s take_number must be at least 1.', $shot['id'] ?? '(unknown)' );
+			}
+		}
 		if ( isset( $data['sequence']['sequence_order'] ) && ( ! is_numeric( $data['sequence']['sequence_order'] ) || (int) $data['sequence']['sequence_order'] < 1 ) ) {
 			$errors[] = 'Sequence sequence_order must be a positive number.';
 		}
@@ -464,17 +476,19 @@ class WorldGraph_Importer {
 		$errors  = [];
 
 		foreach ( [ 'project', 'world' ] as $section ) {
-			if ( ! is_scalar( $data[ $section ]['id'] ) ) {
-				$errors[] = sprintf( '%s id must be a scalar value.', $section );
+			$id_sets[ $section ] = [];
+			if ( ! is_string( $data[ $section ]['id'] ) ) {
+				$errors[] = sprintf( '%s id must be a string.', $section );
 				continue;
 			}
-			$external_id = sanitize_text_field( (string) $data[ $section ]['id'] );
-			if ( $external_id !== (string) $data[ $section ]['id'] ) {
+			$external_id = sanitize_text_field( $data[ $section ]['id'] );
+			if ( '' === $external_id || $external_id !== $data[ $section ]['id'] ) {
 				$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $section, $data[ $section ]['id'] );
 			}
 			if ( isset( $all_ids[ $external_id ] ) ) {
 				$errors[] = sprintf( 'External id "%s" is reused by %s and %s.', $external_id, $all_ids[ $external_id ], $section );
 			}
+			$id_sets[ $section ][ $external_id ] = true;
 			$all_ids[ $external_id ] = $section;
 		}
 
@@ -485,13 +499,13 @@ class WorldGraph_Importer {
 					$errors[] = sprintf( '%s[%d] must have an id.', $section, $index );
 					continue;
 				}
-				if ( ! is_scalar( $entity['id'] ) ) {
-					$errors[] = sprintf( '%s[%d] id must be a scalar value.', $section, $index );
+				if ( ! is_string( $entity['id'] ) ) {
+					$errors[] = sprintf( '%s[%d] id must be a string.', $section, $index );
 					continue;
 				}
 
-				$external_id = sanitize_text_field( (string) $entity['id'] );
-				if ( $external_id !== (string) $entity['id'] ) {
+				$external_id = sanitize_text_field( $entity['id'] );
+				if ( '' === $external_id || $external_id !== $entity['id'] ) {
 					$errors[] = sprintf( '%s id "%s" contains unsupported characters.', $section, $entity['id'] );
 				}
 				if ( isset( $id_sets[ $section ][ $external_id ] ) ) {
@@ -506,8 +520,11 @@ class WorldGraph_Importer {
 		}
 
 		$id_sets['sequences'] = [];
-		$sequence_external_id = sanitize_text_field( (string) $data['sequence']['id'] );
-		if ( $sequence_external_id !== (string) $data['sequence']['id'] ) {
+		if ( ! is_string( $data['sequence']['id'] ) ) {
+			return new \WP_Error( 'worldgraph_invalid_reference', 'Sequence id must be a string.' );
+		}
+		$sequence_external_id = sanitize_text_field( $data['sequence']['id'] );
+		if ( '' === $sequence_external_id || $sequence_external_id !== $data['sequence']['id'] ) {
 			$errors[] = sprintf( 'Sequence id "%s" contains unsupported characters.', $data['sequence']['id'] );
 		}
 		if ( isset( $all_ids[ $sequence_external_id ] ) ) {
@@ -534,7 +551,9 @@ class WorldGraph_Importer {
 			$title_term     = get_term_by( 'name', $sequence_title, 'worldgraph_sequence' );
 			if ( $title_term ) {
 				$title_external_id = (string) get_term_meta( $title_term->term_id, 'external_id', true );
-				if ( '' !== $title_external_id && $sequence_external_id !== $title_external_id ) {
+				if ( '' === $title_external_id && ! $this->overwrite ) {
+					$errors[] = sprintf( 'Sequence title "%s" already exists without an external id; enable overwrite to claim it.', $sequence_title );
+				} elseif ( '' !== $title_external_id && $sequence_external_id !== $title_external_id ) {
 					$errors[] = sprintf( 'Sequence title "%s" is already assigned to external id "%s".', $sequence_title, $title_external_id );
 				}
 			}
@@ -743,8 +762,11 @@ class WorldGraph_Importer {
 			if ( ! empty( $sound['asset'] ) ) {
 				$asset_external_id = sanitize_text_field( (string) $sound['asset'] );
 				if ( isset( $document_assets[ $asset_external_id ] ) ) {
-					$asset_type = sanitize_title( (string) ( $document_assets[ $asset_external_id ]['type'] ?? $document_assets[ $asset_external_id ]['asset_type'] ?? '' ) );
-					if ( 'audio' !== $asset_type ) {
+					$existing_asset_id = $this->find_existing( 'worldgraph_asset', $asset_external_id );
+					$asset_is_audio    = $existing_asset_id && ! $this->overwrite
+						? \WorldGraph\Utils\worldgraph_is_audio_asset( $existing_asset_id )
+						: 'audio' === sanitize_title( (string) ( $document_assets[ $asset_external_id ]['asset_type'] ?? $document_assets[ $asset_external_id ]['type'] ?? '' ) );
+					if ( ! $asset_is_audio ) {
 						$errors[] = sprintf( '%s asset "%s" is not classified as Audio.', $context, $asset_external_id );
 					}
 				} else {
@@ -883,7 +905,7 @@ class WorldGraph_Importer {
 			'post_type'    => 'worldgraph_project',
 			'post_title'   => sanitize_text_field( $project['title'] ),
 			'post_status'  => 'publish',
-			'post_content' => isset( $project['description'] ) ? wp_kses_post( $project['description'] ) : '',
+			'post_content' => $this->post_content_value( $post_id, $project, 'description' ),
 		];
 
 		if ( $post_id ) {
@@ -909,14 +931,12 @@ class WorldGraph_Importer {
 			? \WorldGraph\Utils\sanitize_story_id( (string) $project['project_slug'] )
 			: \WorldGraph\Utils\sanitize_story_id( $external_id );
 		\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'project_slug', $project_slug );
-		if ( isset( $project['description'] ) ) {
-			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'description', wp_kses_post( $project['description'] ) );
-		}
 		$this->update_scalar_fields(
 			$post_id,
 			'worldgraph_project',
 			$project,
 			[
+				'description'      => 'description',
 				'target_medium'    => 'target_medium',
 				'start_date'       => 'start_date',
 				'end_date'         => 'end_date',
@@ -964,7 +984,7 @@ class WorldGraph_Importer {
 			'post_type'    => 'worldgraph_world',
 			'post_title'   => sanitize_text_field( $world['name'] ),
 			'post_status'  => 'publish',
-			'post_content' => isset( $world['description'] ) ? wp_kses_post( $world['description'] ) : '',
+			'post_content' => $this->post_content_value( $post_id, $world, 'description' ),
 		];
 
 		if ( $post_id ) {
@@ -986,14 +1006,12 @@ class WorldGraph_Importer {
 		// SCF fields.
 		update_post_meta( $post_id, 'external_id', $external_id );
 		\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'world_name', sanitize_text_field( $world['name'] ) );
-		if ( isset( $world['description'] ) ) {
-			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'synopsis', wp_kses_post( $world['description'] ) );
-		}
 		$this->update_scalar_fields(
 			$post_id,
 			'worldgraph_world',
 			$world,
 			[
+				'description' => 'synopsis',
 				'timeline'   => 'timeline',
 				'rules'      => 'rules',
 				'themes'     => 'themes',
@@ -1023,7 +1041,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_character',
 				'post_title'   => sanitize_text_field( $character['name'] ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $character['description'] ) ? wp_kses_post( $character['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $character, 'description' ),
 			];
 
 			if ( $post_id ) {
@@ -1045,14 +1063,12 @@ class WorldGraph_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'display_name', sanitize_text_field( $character['name'] ) );
-			if ( isset( $character['description'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'biography', wp_kses_post( $character['description'] ) );
-			}
 			$this->update_scalar_fields(
 				$post_id,
 				'worldgraph_character',
 				$character,
 				[
+					'description'   => 'biography',
 					'age'           => 'age',
 					'appearance'    => 'appearance',
 					'personality'   => 'personality',
@@ -1092,7 +1108,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_location',
 				'post_title'   => sanitize_text_field( $location['name'] ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $location['description'] ) ? wp_kses_post( $location['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $location, 'description' ),
 			];
 
 			if ( $post_id ) {
@@ -1114,14 +1130,12 @@ class WorldGraph_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'location_name', sanitize_text_field( $location['name'] ) );
-			if ( isset( $location['description'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'description', wp_kses_post( $location['description'] ) );
-			}
 			$this->update_scalar_fields(
 				$post_id,
 				'worldgraph_location',
 				$location,
 				[
+					'description'      => 'description',
 					'environment_type' => 'environment_type',
 					'geography'        => 'geography',
 					'mood'             => 'mood',
@@ -1150,7 +1164,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_prop',
 				'post_title'   => sanitize_text_field( $prop['name'] ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $prop['description'] ) ? wp_kses_post( $prop['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $prop, 'description' ),
 			];
 
 			if ( $post_id ) {
@@ -1172,16 +1186,14 @@ class WorldGraph_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'prop_name', sanitize_text_field( $prop['name'] ) );
-			if ( isset( $prop['description'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'description', wp_kses_post( $prop['description'] ) );
-			}
 			$this->update_scalar_fields(
 				$post_id,
 				'worldgraph_prop',
 				$prop,
 				[
-					'purpose' => 'purpose',
-					'notes'   => 'notes',
+					'description' => 'description',
+					'purpose'     => 'purpose',
+					'notes'       => 'notes',
 				]
 			);
 		}
@@ -1207,7 +1219,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_org',
 				'post_title'   => $name,
 				'post_status'  => 'publish',
-				'post_content' => isset( $organization['description'] ) ? wp_kses_post( (string) $organization['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $organization, 'description' ),
 			];
 
 			$operation = $post_id ? 'updated' : 'created';
@@ -1259,7 +1271,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_episode',
 				'post_title'   => sanitize_text_field( (string) $episode['title'] ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $episode['synopsis'] ) ? wp_kses_post( (string) $episode['synopsis'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $episode, 'synopsis' ),
 				'menu_order'   => (int) $episode['episode_number'],
 			];
 
@@ -1319,7 +1331,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_scene',
 				'post_title'   => $scene_label ?: sprintf( 'Scene %d', $scene_index ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $scene['summary'] ) ? wp_kses_post( $scene['summary'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $scene, 'summary' ),
 				'menu_order'   => $scene_number,
 			];
 
@@ -1344,17 +1356,13 @@ class WorldGraph_Importer {
 			update_post_meta( $post_id, 'external_id', $external_id );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'scene_number', $scene_number );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'title', $scene_label );
-			if ( isset( $scene['summary'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'summary', wp_kses_post( $scene['summary'] ) );
-			}
-			if ( isset( $scene['script_content'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'script_content', wp_kses_post( $scene['script_content'] ) );
-			}
 			$this->update_scalar_fields(
 				$post_id,
 				'worldgraph_scene',
 				$scene,
 				[
+					'summary'          => 'summary',
+					'script_content'   => 'script_content',
 					'time_of_day'     => 'time_of_day',
 					'emotional_tone'  => 'emotional_tone',
 					'production_notes'=> 'production_notes',
@@ -1428,7 +1436,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_shot',
 				'post_title'   => $shot_name,
 				'post_status'  => 'publish',
-				'post_content' => isset( $shot['description'] ) ? wp_kses_post( $shot['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $shot, 'description' ),
 				'menu_order'   => $shot_number,
 			];
 
@@ -1456,14 +1464,12 @@ class WorldGraph_Importer {
 			if ( array_key_exists( 'type', $shot ) ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'shot_type', $shot_type );
 			}
-			if ( isset( $shot['description'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'shot_description', wp_kses_post( $shot['description'] ) );
-			}
 			$this->update_scalar_fields(
 				$post_id,
 				'worldgraph_shot',
 				$shot,
 				[
+					'description'     => 'shot_description',
 					'camera_angle'    => 'camera_angle',
 					'lens'            => 'lens',
 					'duration'        => 'duration',
@@ -1498,7 +1504,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_sound',
 				'post_title'   => sanitize_text_field( (string) $sound['title'] ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $sound['description'] ) ? wp_kses_post( (string) $sound['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $sound, 'description' ),
 				'menu_order'   => $sound_index,
 			];
 
@@ -1587,7 +1593,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_board',
 				'post_title'   => sanitize_text_field( (string) ( $frame['title'] ?? sprintf( 'Storyboard Frame %d', $frame_number ) ) ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $frame['description'] ) ? wp_kses_post( $frame['description'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $frame, 'description' ),
 				'menu_order'   => $frame_number,
 			];
 
@@ -1611,14 +1617,12 @@ class WorldGraph_Importer {
 			// SCF fields.
 			update_post_meta( $post_id, 'external_id', $external_id );
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'frame_number', $frame_number );
-			if ( isset( $frame['description'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'frame_description', wp_kses_post( $frame['description'] ) );
-			}
 			$this->update_scalar_fields(
 				$post_id,
 				'worldgraph_board',
 				$frame,
 				[
+					'description'  => 'frame_description',
 					'prompt_text'  => 'prompt_text',
 					'camera_notes' => 'camera_notes',
 				]
@@ -1648,7 +1652,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_asset',
 				'post_title'   => $title,
 				'post_status'  => 'publish',
-				'post_content' => isset( $asset['prompt'] ) ? wp_kses_post( (string) $asset['prompt'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $asset, 'prompt' ),
 			];
 
 			$operation = $post_id ? 'updated' : 'created';
@@ -1708,7 +1712,7 @@ class WorldGraph_Importer {
 				'post_type'    => 'worldgraph_editorial',
 				'post_title'   => sanitize_text_field( (string) $artifact['title'] ),
 				'post_status'  => 'publish',
-				'post_content' => isset( $artifact['notes'] ) ? wp_kses_post( (string) $artifact['notes'] ) : '',
+				'post_content' => $this->post_content_value( $post_id, $artifact, 'notes' ),
 			];
 
 			$operation = $post_id ? 'updated' : 'created';
@@ -1766,6 +1770,10 @@ class WorldGraph_Importer {
 		if ( $term ) {
 			$term_id          = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
 			$term_external_id = (string) get_term_meta( $term_id, 'external_id', true );
+			if ( '' === $term_external_id && ! $this->overwrite ) {
+				$this->report['errors'][] = sprintf( 'Sequence title "%s" already exists without an external id; enable overwrite to claim it.', $sequence_title );
+				return;
+			}
 			if ( '' !== $term_external_id && $sequence_external_id !== $term_external_id ) {
 				$this->report['errors'][] = sprintf( 'Sequence title "%s" belongs to external id "%s".', $sequence_title, $term_external_id );
 				return;
@@ -1780,12 +1788,42 @@ class WorldGraph_Importer {
 			return;
 		}
 
-		$term_id = is_array( $term ) ? $term['term_id'] : (int) $term;
-		if ( ! $sequence_term_was_existing || $this->overwrite || '' === (string) get_term_meta( $term_id, 'external_id', true ) ) {
+		$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
+		if ( ! $sequence_term_was_existing || $this->overwrite ) {
 			update_term_meta( $term_id, 'external_id', $sequence_external_id );
 		}
 		if ( $this->overwrite ) {
 			wp_update_term( $term_id, 'worldgraph_sequence', [ 'name' => $sequence_title ] );
+		}
+
+		$desired_scene_ids = [];
+		foreach ( $sequence['order'] as $scene_external_id ) {
+			$scene_post_id = (int) ( $this->id_map[ sanitize_text_field( (string) $scene_external_id ) ] ?? 0 );
+			if ( $scene_post_id ) {
+				$desired_scene_ids[] = $scene_post_id;
+			}
+		}
+		$desired_shot_ids = [];
+		foreach ( $this->document['shots'] as $shot ) {
+			if ( in_array( (string) ( $shot['scene'] ?? '' ), (array) $sequence['order'], true ) ) {
+				$shot_post_id = (int) ( $this->id_map[ (string) $shot['id'] ] ?? 0 );
+				if ( $shot_post_id ) {
+					$desired_shot_ids[] = $shot_post_id;
+				}
+			}
+		}
+
+		if ( $this->overwrite ) {
+			$existing_scene_ids = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( $term_id, 'worldgraph_scene' );
+			foreach ( array_diff( $existing_scene_ids, $desired_scene_ids ) as $stale_scene_id ) {
+				wp_remove_object_terms( $stale_scene_id, $term_id, 'worldgraph_sequence' );
+				delete_post_meta( $stale_scene_id, 'sequence_order' );
+			}
+
+			$existing_shot_ids = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( $term_id, 'worldgraph_shot' );
+			foreach ( array_diff( $existing_shot_ids, $desired_shot_ids ) as $stale_shot_id ) {
+				wp_remove_object_terms( $stale_shot_id, $term_id, 'worldgraph_sequence' );
+			}
 		}
 
 		// Assign scenes to the sequence in order.
@@ -1939,29 +1977,29 @@ class WorldGraph_Importer {
 		foreach ( $this->document['props'] as $prop ) {
 			$prop_id = $this->id_map[ $prop['id'] ] ?? 0;
 			$char_id = $this->id_map[ $prop['owner_character'] ?? '' ] ?? 0;
-			if ( $prop_id && $char_id && ! $this->entity_was_skipped( (string) $prop['id'] ) ) {
+			if ( $prop_id && array_key_exists( 'owner_character', $prop ) && ! $this->entity_was_skipped( (string) $prop['id'] ) ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $prop_id, 'owner_character', $char_id );
 			}
 		}
 
 		foreach ( $this->document['characters'] as $character ) {
-			if ( empty( $character['avatar_asset'] ) || $this->entity_was_skipped( (string) $character['id'] ) ) {
+			if ( ! array_key_exists( 'avatar_asset', $character ) || $this->entity_was_skipped( (string) $character['id'] ) ) {
 				continue;
 			}
 			$character_id = $this->id_map[ $character['id'] ] ?? 0;
-			$asset_id     = $this->resolve_external_id( 'worldgraph_asset', (string) $character['avatar_asset'] );
-			if ( $character_id && $asset_id ) {
+			$asset_id     = empty( $character['avatar_asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $character['avatar_asset'] );
+			if ( $character_id ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $character_id, 'avatar_asset', $asset_id );
 			}
 		}
 
 		foreach ( $this->document['locations'] as $location ) {
-			if ( empty( $location['visual_reference'] ) || $this->entity_was_skipped( (string) $location['id'] ) ) {
+			if ( ! array_key_exists( 'visual_reference', $location ) || $this->entity_was_skipped( (string) $location['id'] ) ) {
 				continue;
 			}
 			$location_id = $this->id_map[ $location['id'] ] ?? 0;
-			$asset_id    = $this->resolve_external_id( 'worldgraph_asset', (string) $location['visual_reference'] );
-			if ( $location_id && $asset_id ) {
+			$asset_id    = empty( $location['visual_reference'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $location['visual_reference'] );
+			if ( $location_id ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $location_id, 'visual_reference', $asset_id );
 			}
 		}
@@ -1975,11 +2013,9 @@ class WorldGraph_Importer {
 				continue;
 			}
 
-			if ( ! empty( $organization['leadership'] ) ) {
-				$leader_id = $this->id_map[ $organization['leadership'] ] ?? 0;
-				if ( $leader_id ) {
-					\WorldGraph\Utils\worldgraph_update_field_value( $organization_id, 'leadership', $leader_id );
-				}
+			if ( array_key_exists( 'leadership', $organization ) ) {
+				$leader_id = $this->id_map[ $organization['leadership'] ?? '' ] ?? 0;
+				\WorldGraph\Utils\worldgraph_update_field_value( $organization_id, 'leadership', $leader_id );
 			}
 
 			if ( array_key_exists( 'members', $organization ) ) {
@@ -2103,7 +2139,7 @@ class WorldGraph_Importer {
 					! $this->entity_was_skipped( (string) $shot['scene'] ) &&
 					$this->relationship_slot_matches( $shot_id, 'worldgraph_shot', 'scene', $scene_id, 'worldgraph_scene' )
 				) {
-					\WorldGraph\Utils\remove_relationship( $scene_id, $shot_id, 'worldgraph_scene', 'worldgraph_shot' );
+					\WorldGraph\Utils\remove_relationship( $scene_id, $shot_id, 'worldgraph_scene', 'worldgraph_shot', 'contains' );
 				}
 			}
 		}
@@ -2123,17 +2159,20 @@ class WorldGraph_Importer {
 			$scene_id = $this->id_map[ $sound['scene'] ?? '' ] ?? 0;
 			\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'scene', $scene_id );
 
-			$shot_id = $this->id_map[ $sound['shot'] ?? '' ] ?? 0;
-			\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'shot', $shot_id );
-
-			$character_id = $this->id_map[ $sound['character'] ?? '' ] ?? 0;
-			\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'character', $character_id );
-
-			$asset_id = 0;
-			if ( ! empty( $sound['asset'] ) ) {
-				$asset_id = $this->find_existing( 'worldgraph_asset', sanitize_text_field( (string) $sound['asset'] ) );
+			if ( array_key_exists( 'shot', $sound ) ) {
+				$shot_id = $this->id_map[ $sound['shot'] ?? '' ] ?? 0;
+				\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'shot', $shot_id );
 			}
-			\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'asset', $asset_id );
+
+			if ( array_key_exists( 'character', $sound ) ) {
+				$character_id = $this->id_map[ $sound['character'] ?? '' ] ?? 0;
+				\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'character', $character_id );
+			}
+
+			if ( array_key_exists( 'asset', $sound ) ) {
+				$asset_id = empty( $sound['asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $sound['asset'] );
+				\WorldGraph\Utils\worldgraph_update_field_value( $sound_id, 'asset', $asset_id );
+			}
 		}
 
 		// Storyboard Frame → Shot.
@@ -2148,8 +2187,12 @@ class WorldGraph_Importer {
 
 			$shot_id = $this->id_map[ $frame['shot'] ] ?? 0;
 			if ( $shot_id ) {
-				if ( ! $this->entity_was_skipped( (string) $frame['shot'] ) ) {
-					\WorldGraph\Utils\add_relationship( $shot_id, 'worldgraph_shot', $frame_id, 'worldgraph_board', 'contains' );
+				// The Board owns the canonical Board → Shot slot. Remove only the
+				// redundant inverse containment edges written by older importers.
+				foreach ( \WorldGraph\Utils\get_relationships( $frame_id, 'worldgraph_board', 'incoming' ) as $relationship ) {
+					if ( 'worldgraph_shot' === ( $relationship['from_type'] ?? '' ) && 'contains' === ( $relationship['type'] ?? '' ) ) {
+						\WorldGraph\Utils\remove_relationship( (int) $relationship['from_id'], $frame_id, 'worldgraph_shot', 'worldgraph_board', 'contains' );
+					}
 				}
 				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'shot', $shot_id );
 			}
@@ -2168,11 +2211,9 @@ class WorldGraph_Importer {
 				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'scene', $scene_id );
 			}
 
-			if ( ! empty( $frame['image_asset'] ) ) {
-				$image_asset_id = $this->resolve_external_id( 'worldgraph_asset', (string) $frame['image_asset'] );
-				if ( $image_asset_id ) {
-					\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'image_asset', $image_asset_id );
-				}
+			if ( array_key_exists( 'image_asset', $frame ) ) {
+				$image_asset_id = empty( $frame['image_asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $frame['image_asset'] );
+				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'image_asset', $image_asset_id );
 			}
 		}
 
@@ -2185,11 +2226,9 @@ class WorldGraph_Importer {
 				continue;
 			}
 			foreach ( [ 'character' => 'worldgraph_character', 'location' => 'worldgraph_location', 'scene' => 'worldgraph_scene', 'storyboard' => 'worldgraph_board' ] as $field => $cpt ) {
-				if ( ! empty( $asset[ $field ] ) ) {
-					$target_id = $this->id_map[ $asset[ $field ] ] ?? 0;
-					if ( $target_id ) {
-						\WorldGraph\Utils\worldgraph_update_field_value( $asset_id, $field, $target_id );
-					}
+				if ( array_key_exists( $field, $asset ) ) {
+					$target_id = $this->id_map[ $asset[ $field ] ?? '' ] ?? 0;
+					\WorldGraph\Utils\worldgraph_update_field_value( $asset_id, $field, $target_id );
 				}
 			}
 		}
@@ -2203,11 +2242,11 @@ class WorldGraph_Importer {
 				continue;
 			}
 
-			if ( ! empty( $artifact['source_scene'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $artifact_id, 'source_scene', $this->id_map[ $artifact['source_scene'] ] ?? 0 );
+			if ( array_key_exists( 'source_scene', $artifact ) ) {
+				\WorldGraph\Utils\worldgraph_update_field_value( $artifact_id, 'source_scene', $this->id_map[ $artifact['source_scene'] ?? '' ] ?? 0 );
 			}
-			if ( ! empty( $artifact['source_shot'] ) ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $artifact_id, 'source_shot', $this->id_map[ $artifact['source_shot'] ] ?? 0 );
+			if ( array_key_exists( 'source_shot', $artifact ) ) {
+				\WorldGraph\Utils\worldgraph_update_field_value( $artifact_id, 'source_shot', $this->id_map[ $artifact['source_shot'] ?? '' ] ?? 0 );
 			}
 			if ( $project_id ) {
 				\WorldGraph\Utils\worldgraph_update_field_value( $artifact_id, 'project', $project_id );
@@ -2328,9 +2367,12 @@ class WorldGraph_Importer {
 		}
 
 		foreach ( $this->document['scenes'] as $scene ) {
+			if ( ! array_key_exists( 'dialogue', $scene ) ) {
+				continue;
+			}
 			$scene_id          = (int) ( $this->id_map[ (string) $scene['id'] ] ?? 0 );
 			$stored_dialogue   = \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'dialogue' );
-			$expected_dialogue = count( (array) ( $scene['dialogue'] ?? [] ) );
+			$expected_dialogue = count( (array) $scene['dialogue'] );
 			if ( $expected_dialogue !== count( is_array( $stored_dialogue ) ? $stored_dialogue : [] ) ) {
 				$this->report['errors'][] = sprintf( 'Scene %s dialogue verification failed.', $scene['id'] );
 			}
@@ -2399,8 +2441,14 @@ class WorldGraph_Importer {
 			}
 
 			$value = $record[ $json_field ];
-			if ( 'generation_parameters' === $meta_field && is_array( $value ) ) {
+			if ( 'generation_parameters' === $meta_field ) {
 				$value = wp_json_encode( $value, JSON_UNESCAPED_SLASHES );
+				if ( false === $value ) {
+					$this->report['errors'][] = 'Asset generation_parameters could not be encoded as JSON.';
+					continue;
+				}
+				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, $meta_field, $value );
+				continue;
 			}
 			$raw_value = $value;
 
@@ -2465,6 +2513,27 @@ class WorldGraph_Importer {
 		}
 
 		wp_set_object_terms( $post_id, array_values( array_unique( $term_ids ) ), $taxonomy, false );
+	}
+
+	/**
+	 * Resolve the duplicated WordPress editor content for an imported field.
+	 *
+	 * Overwrite imports use patch semantics for optional fields: an omitted key
+	 * preserves existing content, while an explicit empty or null value clears
+	 * both the editor content and its corresponding SCF value.
+	 *
+	 * @param int    $post_id Existing post ID, or zero for a new post.
+	 * @param array  $record  Portable entity record.
+	 * @param string $field   JSON field mirrored into post_content.
+	 * @return string
+	 */
+	private function post_content_value( int $post_id, array $record, string $field ): string {
+		if ( array_key_exists( $field, $record ) ) {
+			return wp_kses_post( (string) $record[ $field ] );
+		}
+
+		$existing = $post_id ? get_post( $post_id ) : null;
+		return $existing instanceof \WP_Post ? (string) $existing->post_content : '';
 	}
 
 	/**

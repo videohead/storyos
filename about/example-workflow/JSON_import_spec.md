@@ -148,6 +148,16 @@ Sequence assignment and ordering
 Verification and import report
 ```
 
+
+When overwrite is disabled, an existing entity with the same external ID is
+resolved for references but is not mutated. When overwrite is enabled, the
+importer applies patch semantics to optional fields: omitted keys retain their
+stored value, while an explicitly empty string, `null`, or empty array clears
+the corresponding value or relationship. Required identity and relationship
+values present in the document are always applied. `sequence.order` is a
+snapshot: overwrite also removes stale Scene and Shot assignments from that
+Sequence.
+
 ## Top-Level Document
 
 | Field | Type | Required | Notes |

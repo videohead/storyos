@@ -44,7 +44,20 @@ use WorldGraph\REST\Sequences_Controller;
 use WorldGraph\REST\StoryWorlds_Controller;
 
 if ( ! class_exists( 'WP_REST_Controller' ) ) {
-	class WP_REST_Controller {}
+	class WP_REST_Controller {
+		public function prepare_response_for_collection( $response ) {
+			if ( ! $response instanceof WP_REST_Response ) {
+				return $response;
+			}
+
+			$data  = $response->get_data();
+			$links = $response->get_links();
+			if ( ! empty( $links ) ) {
+				$data['_links'] = $links;
+			}
+			return $data;
+		}
+	}
 }
 
 if ( ! class_exists( 'WP_REST_Request' ) ) {
@@ -87,6 +100,10 @@ if ( ! class_exists( 'WP_REST_Response' ) ) {
 
 		public function add_links( array $links ): void {
 			$this->links = $links;
+		}
+
+		public function get_links(): array {
+			return $this->links;
 		}
 
 		public function header( string $key, $value ): void {
@@ -176,6 +193,12 @@ if ( ! function_exists( 'get_post_thumbnail_id' ) ) {
 if ( ! function_exists( 'get_object_taxonomies' ) ) {
 	function get_object_taxonomies( $post_type ): array {
 		return [];
+	}
+}
+
+if ( ! function_exists( 'get_the_terms' ) ) {
+	function get_the_terms( $post_id, $taxonomy ) {
+		return false;
 	}
 }
 
@@ -328,7 +351,9 @@ final class Test_WorldGraph_REST_API extends TestCase {
 
 	protected function setUp(): void {
 		$this->previous_field_definitions = $GLOBALS['worldgraph_field_definitions'] ?? null;
-		$GLOBALS['worldgraph_field_definitions']['worldgraph_scene'] = [];
+		foreach ( [ 'worldgraph_project', 'worldgraph_character', 'worldgraph_scene' ] as $cpt ) {
+			$GLOBALS['worldgraph_field_definitions'][ $cpt ] = [];
+		}
 		$this->reset_rest_state();
 	}
 
@@ -394,6 +419,7 @@ final class Test_WorldGraph_REST_API extends TestCase {
 		$this->assertIsArray( $items[0] );
 		$this->assertNotInstanceOf( WP_REST_Response::class, $items[0] );
 		$this->assertSame( 'scene_external_10', $items[0]['external_id'] );
+		$this->assertSame( 'https://example.test/wp-json/worldgraph/v1/scenes/10', $items[0]['_links']['self'][0]['href'] );
 		$this->assertSame( 1, $response->get_headers()['X-WP-Total'] );
 	}
 
@@ -441,50 +467,143 @@ final class Test_WorldGraph_REST_API extends TestCase {
 	public function test_related_counts_are_bidirectional_and_unique(
 		string $controller_class,
 		string $from_cpt,
-		string $related_cpt,
-		array $computed_fields
+		string $related_cpt
 	): void {
 		$this->configure_bidirectional_graph( 100, $from_cpt, $related_cpt );
 
 		$method = new ReflectionMethod( $controller_class, 'count_related' );
 		$method->setAccessible( true );
 		$this->assertSame( 3, $method->invoke( null, 100, $related_cpt, $from_cpt ) );
-
-		$source = file_get_contents( $this->controller_path( $controller_class ) );
-		$this->assertNotFalse( $source );
-		foreach ( $computed_fields as $field ) {
-			$this->assertStringContainsString( "\$data['meta']['{$field}'] = self::count_related", $source );
-		}
 	}
 
 	/** Data for every controller with bidirectional computed counts. */
 	public static function related_count_controllers(): array {
 		return [
-			'project' => [
-				Projects_Controller::class,
-				'worldgraph_project',
-				'worldgraph_scene',
-				[ 'scene_count', 'character_count', 'asset_count' ],
-			],
 			'character' => [
 				Characters_Controller::class,
 				'worldgraph_character',
 				'worldgraph_shot',
-				[ 'scene_count', 'shot_count', 'asset_count' ],
 			],
 			'location' => [
 				Locations_Controller::class,
 				'worldgraph_location',
 				'worldgraph_scene',
-				[ 'scene_count' ],
 			],
 			'story_world' => [
 				StoryWorlds_Controller::class,
 				'worldgraph_world',
 				'worldgraph_location',
-				[ 'location_count', 'character_count', 'organization_count' ],
 			],
 		];
+	}
+
+	/** Legacy Project ownership paths contribute once to each aggregate count. */
+	public function test_project_counts_transitive_legacy_graph_without_duplicates(): void {
+		$this->register_graph_entity(
+			100,
+			'worldgraph_project',
+			[
+				[ 'to_id' => 120, 'to_type' => 'worldgraph_character', 'type' => 'contains' ],
+				[ 'to_id' => 130, 'to_type' => 'worldgraph_scene', 'type' => 'contains' ],
+				[ 'to_id' => 140, 'to_type' => 'worldgraph_asset', 'type' => 'contains' ],
+			]
+		);
+		$this->register_graph_entity(
+			110,
+			'worldgraph_world',
+			[
+				[ 'to_id' => 100, 'to_type' => 'worldgraph_project', 'type' => 'belongs_to' ],
+				[ 'to_id' => 100, 'to_type' => 'worldgraph_project', 'type' => 'references' ],
+			]
+		);
+		$this->register_graph_entity(
+			120,
+			'worldgraph_character',
+			[
+				[ 'to_id' => 110, 'to_type' => 'worldgraph_world', 'type' => 'belongs_to' ],
+				[ 'to_id' => 110, 'to_type' => 'worldgraph_world', 'type' => 'references' ],
+			]
+		);
+		$this->register_graph_entity(
+			121,
+			'worldgraph_location',
+			[
+				[ 'to_id' => 110, 'to_type' => 'worldgraph_world', 'type' => 'belongs_to' ],
+			]
+		);
+		$this->register_graph_entity(
+			150,
+			'worldgraph_episode',
+			[
+				[ 'to_id' => 100, 'to_type' => 'worldgraph_project', 'type' => 'belongs_to' ],
+			]
+		);
+		$this->register_graph_entity(
+			130,
+			'worldgraph_scene',
+			[
+				[ 'to_id' => 120, 'to_type' => 'worldgraph_character', 'type' => 'appears_in' ],
+				[ 'to_id' => 120, 'to_type' => 'worldgraph_character', 'type' => 'references' ],
+				[ 'to_id' => 121, 'to_type' => 'worldgraph_location', 'type' => 'located_in' ],
+				[ 'to_id' => 150, 'to_type' => 'worldgraph_episode', 'type' => 'belongs_to' ],
+			]
+		);
+		$this->register_graph_entity(
+			140,
+			'worldgraph_asset',
+			[
+				[ 'to_id' => 100, 'to_type' => 'worldgraph_project', 'type' => 'belongs_to' ],
+				[ 'to_id' => 120, 'to_type' => 'worldgraph_character', 'type' => 'linked_to' ],
+				[ 'to_id' => 130, 'to_type' => 'worldgraph_scene', 'type' => 'linked_to' ],
+			]
+		);
+
+		$project = new WorldGraph_REST_Test_Post( 100, 'worldgraph_project' );
+		$data    = $this->controller_item_data( new Projects_Controller(), $project );
+
+		$this->assertSame( 1, $data['meta']['character_count'] );
+		$this->assertSame( 1, $data['meta']['scene_count'] );
+		$this->assertSame( 1, $data['meta']['asset_count'] );
+	}
+
+	/** Character Shot totals traverse Scenes and dedupe direct and repeated edges. */
+	public function test_character_shot_count_traverses_scenes_without_duplicates(): void {
+		$this->register_graph_entity(
+			200,
+			'worldgraph_character',
+			[
+				[ 'to_id' => 220, 'to_type' => 'worldgraph_shot', 'type' => 'appears_in' ],
+			]
+		);
+		$this->register_graph_entity(
+			210,
+			'worldgraph_scene',
+			[
+				[ 'to_id' => 200, 'to_type' => 'worldgraph_character', 'type' => 'appears_in' ],
+				[ 'to_id' => 200, 'to_type' => 'worldgraph_character', 'type' => 'references' ],
+			]
+		);
+		$this->register_graph_entity(
+			220,
+			'worldgraph_shot',
+			[
+				[ 'to_id' => 210, 'to_type' => 'worldgraph_scene', 'type' => 'belongs_to' ],
+				[ 'to_id' => 210, 'to_type' => 'worldgraph_scene', 'type' => 'references' ],
+			]
+		);
+		$this->register_graph_entity(
+			221,
+			'worldgraph_shot',
+			[
+				[ 'to_id' => 210, 'to_type' => 'worldgraph_scene', 'type' => 'belongs_to' ],
+			]
+		);
+
+		$character = new WorldGraph_REST_Test_Post( 200, 'worldgraph_character' );
+		$data      = $this->controller_item_data( new Characters_Controller(), $character );
+
+		$this->assertSame( 1, $data['meta']['scene_count'] );
+		$this->assertSame( 2, $data['meta']['shot_count'] );
 	}
 
 	/** Story World routes and graph/count calls use the canonical CPT key everywhere. */
@@ -633,6 +752,20 @@ final class Test_WorldGraph_REST_API extends TestCase {
 		$GLOBALS['worldgraph_import_journal_state']['post_types'][ $post->ID ] = $post->post_type;
 	}
 
+	/** Register an entity type and its stored outgoing graph edges. */
+	private function register_graph_entity( int $post_id, string $post_type, array $relationships = [] ): void {
+		$GLOBALS['worldgraph_rest_api_posts'][ $post_id ] = $post_type;
+		$GLOBALS['worldgraph_import_journal_state']['post_types'][ $post_id ] = $post_type;
+		$this->store_post_meta( $post_id, 'worldgraph_relationships', $relationships );
+	}
+
+	/** Invoke a controller's protected resource-data builder. */
+	private function controller_item_data( Base_Controller $controller, WP_Post $post ): array {
+		$method = new ReflectionMethod( $controller, 'get_item_data' );
+		$method->setAccessible( true );
+		return $method->invoke( $controller, $post, [] );
+	}
+
 	/** Store post metadata in each test-suite stub backend. */
 	private function store_post_meta( int $post_id, string $key, $value ): void {
 		$GLOBALS['worldgraph_rest_api_post_meta'][ $post_id ][ $key ] = $value;
@@ -678,10 +811,6 @@ final class Test_WorldGraph_REST_API extends TestCase {
 		);
 	}
 
-	/** Resolve a loaded controller class to its source file. */
-	private function controller_path( string $controller_class ): string {
-		return ( new ReflectionClass( $controller_class ) )->getFileName();
-	}
 }
 
 }

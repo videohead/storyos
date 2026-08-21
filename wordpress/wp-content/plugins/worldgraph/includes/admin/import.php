@@ -152,6 +152,7 @@ class Import {
 								<input type="checkbox" name="worldgraph_overwrite" value="1" />
 								<?php esc_html_e( 'Overwrite existing entities with the same external ID', 'worldgraph' ); ?>
 							</label>
+							<p class="description"><?php esc_html_e( 'Optional fields are patched: omitted keys are preserved, while explicitly empty values are cleared.', 'worldgraph' ); ?></p>
 						</td>
 					</tr>
 				</table>

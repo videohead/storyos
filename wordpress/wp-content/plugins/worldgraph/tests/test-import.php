@@ -119,7 +119,7 @@ class Test_WorldGraph_Import extends TestCase {
 		$this->assertStringContainsString( "worldgraph_update_field_value( \$shot_id, 'scene', \$scene_id )", $source );
 		$this->assertStringContainsString( "relationship_slot_matches( \$shot_id, 'worldgraph_shot', 'scene'", $source );
 		$this->assertStringContainsString(
-			"remove_relationship( \$scene_id, \$shot_id, 'worldgraph_scene', 'worldgraph_shot' )",
+			"remove_relationship( \$scene_id, \$shot_id, 'worldgraph_scene', 'worldgraph_shot', 'contains' )",
 			$source
 		);
 		$this->assertStringContainsString( 'Shot %s did not retain its required Scene relationship.', $source );
@@ -127,6 +127,25 @@ class Test_WorldGraph_Import extends TestCase {
 		$scenes_controller = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/scenes-controller.php' );
 		$this->assertNotFalse( $scenes_controller );
 		$this->assertStringContainsString( "get_relationships( \$post_id, \$from_cpt, 'incoming' )", $scenes_controller );
+	}
+
+	/** Inserted Sequence term IDs must be normalized before taxonomy assignment. */
+	public function test_importer_normalizes_sequence_term_ids_to_integers() {
+		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
+
+		$this->assertNotFalse( $source );
+		$this->assertStringContainsString(
+			"\$term_id = is_array( \$term ) ? (int) \$term['term_id'] : (int) \$term;",
+			$source
+		);
+		$this->assertStringContainsString(
+			"wp_set_object_terms( \$scene_post_id, \$term_id, 'worldgraph_sequence' )",
+			$source
+		);
+		$this->assertStringContainsString(
+			"wp_set_object_terms( \$shot_post_id, \$term_id, 'worldgraph_sequence', false )",
+			$source
+		);
 	}
 
 	/**
