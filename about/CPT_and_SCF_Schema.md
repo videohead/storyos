@@ -525,6 +525,8 @@ rather than as a Story Graph edge.
 - `mcp_endpoint_url` (text)
 - `credential_reference` (text)
 - `mcp_credential_reference` (text)
+- `capabilities` (textarea containing non-secret JSON object)
+- `mcp_configuration` (textarea containing non-secret JSON object)
 - `model` (text)
 - `max_tokens` (text)
 - `temperature` (text)
@@ -533,6 +535,28 @@ rather than as a Story Graph edge.
 - `enabled_templates` (textarea containing JSON)
 - `rate_limits` (textarea containing JSON)
 - `cost_controls` (textarea containing JSON)
+
+`capabilities` describes the interfaces and generation shapes supported by the
+Connection's selected provider/model. A multimodal model can advertise more
+than one interface from the same Connection, for example:
+
+```json
+{
+  "chat": true,
+  "vision": true,
+  "asset_generation": true,
+  "modalities": ["text_to_image", "image_text_to_image", "text_to_video"]
+}
+```
+
+The capability profile is declarative metadata. Asset execution remains
+Template-driven: each listed modality must have a compatible Template before
+it can be used for generation. Chat remains a Connection interface and does
+not require creating a separate asset Template.
+
+`mcp_configuration` stores non-secret deployment metadata for an accompanying
+MCP service, such as `transport`, `host`, `port`, `path`, `service`, and health
+checks. Credentials remain in the credential-reference fields.
 
 ---
 

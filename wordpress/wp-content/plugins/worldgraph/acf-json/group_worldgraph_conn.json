@@ -228,6 +228,46 @@
             "append": ""
         },
         {
+            "key": "field_worldgraph_conn_capabilities",
+            "label": "Capabilities (JSON)",
+            "name": "capabilities",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Optional non-secret capability profile. Use chat, vision, asset_generation, and modalities to describe what this Connection and model can do; pair asset modalities with Templates.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "{\n  \"chat\": true,\n  \"vision\": true,\n  \"asset_generation\": true,\n  \"modalities\": [\"text_to_image\"]\n}",
+            "rows": 6,
+            "new_lines": ""
+        },
+        {
+            "key": "field_worldgraph_conn_mcp_configuration",
+            "label": "MCP Configuration (JSON)",
+            "name": "mcp_configuration",
+            "aria-label": "",
+            "type": "textarea",
+            "instructions": "Optional non-secret MCP deployment settings such as transport, host, port, path, Docker service, or startup health-check details. Keep credentials in the MCP API Key / OAuth reference field.",
+            "required": 0,
+            "conditional_logic": 0,
+            "wrapper": {
+                "width": "",
+                "class": "",
+                "id": ""
+            },
+            "default_value": "",
+            "maxlength": "",
+            "placeholder": "{\n  \"transport\": \"streamable_http\",\n  \"port\": 9000,\n  \"path\": \"/mcp\"\n}",
+            "rows": 6,
+            "new_lines": ""
+        },
+        {
             "key": "field_worldgraph_conn_model",
             "label": "Model",
             "name": "model",

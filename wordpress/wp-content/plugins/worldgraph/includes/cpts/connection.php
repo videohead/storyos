@@ -126,6 +126,8 @@ class Connection {
 			case 'model_access':
 			case 'enabled_structures':
 			case 'enabled_templates':
+			case 'capabilities':
+			case 'mcp_configuration':
 			case 'rate_limits':
 			case 'cost_controls':
 				$normalized = self::sanitize_json_field( (string) $value );
@@ -173,7 +175,7 @@ class Connection {
 		if ( in_array( $name, [ 'max_tokens', 'temperature' ], true ) && '' !== trim( (string) $value ) && ! is_numeric( $value ) ) {
 			return __( 'Enter a numeric value.', 'worldgraph' );
 		}
-		if ( in_array( $name, [ 'model_access', 'enabled_structures', 'enabled_templates', 'rate_limits', 'cost_controls' ], true ) && null === self::sanitize_json_field( (string) $value ) ) {
+		if ( in_array( $name, [ 'model_access', 'enabled_structures', 'enabled_templates', 'capabilities', 'mcp_configuration', 'rate_limits', 'cost_controls' ], true ) && null === self::sanitize_json_field( (string) $value ) ) {
 			return __( 'Enter a valid JSON array or object.', 'worldgraph' );
 		}
 
@@ -340,6 +342,18 @@ class Connection {
 				'label'       => 'MCP API Key / OAuth (Reference)',
 				'required'    => false,
 				'description' => 'Optional separate credential for the MCP endpoint. Suno MCP requires an AceData Cloud token such as env://ACEDATACLOUD_API_TOKEN, which is distinct from a SunoAPI.org key.',
+			],
+			'mcp_configuration'     => [
+				'type'        => 'textarea',
+				'label'       => 'MCP Configuration (JSON)',
+				'required'    => false,
+				'description' => 'Optional non-secret MCP deployment settings as a JSON object, such as transport, host, port, path, Docker service, or startup health-check details. Keep credentials in the MCP API Key / OAuth reference field.',
+			],
+			'capabilities'         => [
+				'type'        => 'textarea',
+				'label'       => 'Capabilities (JSON)',
+				'required'    => false,
+				'description' => 'Optional non-secret capability profile. Use chat, vision, asset_generation, and modalities to describe what this Connection and model can do; pair asset modalities with Templates.',
 			],
 			'model'                => [
 				'type'        => 'text',
@@ -980,6 +994,8 @@ class Connection {
 				case 'model_access':
 				case 'enabled_structures':
 				case 'enabled_templates':
+				case 'capabilities':
+				case 'mcp_configuration':
 				case 'rate_limits':
 				case 'cost_controls':
 					$value = self::sanitize_json_field( $raw );
