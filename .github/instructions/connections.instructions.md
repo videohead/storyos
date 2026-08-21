@@ -1,7 +1,7 @@
 ---
 name: World Graph Studio Connections
 description: Required architecture for creating or changing REST API, MCP, and hybrid provider Connections.
-applyTo: "wordpress/wp-content/plugins/worldgraph/**"
+applyTo: "wordpress/wp-content/plugins/worldgraph/**,about/**"
 ---
 
 # Provider Connection Instructions

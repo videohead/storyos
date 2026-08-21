@@ -7,6 +7,8 @@
 
 **Audience:** Coding agents, plugin authors, reviewers, and maintainers
 
+**MCP baseline verified:** 2026-08-21 against protocol revision `2026-07-28`
+
 **Applies to:** `worldgraph_conn` records, Connection adapters, provider
 clients, catalog synchronization, generation Templates, and provider-backed
 feature plugins
@@ -41,13 +43,24 @@ interchangeable.
 | System | Direction and purpose | Discovery/registration | What a new file does |
 | --- | --- | --- | --- |
 | Provider Connection | WordPress calls an external REST API or MCP server | `Connection_Adapters` and `worldgraph_conn_adapters` | Registers provider metadata and conditionally loads its PHP implementation |
-| WordPress MCP exposure | External MCP clients call World Graph Studio abilities | WordPress Abilities API metadata in `class-ai-abilities.php`, plus a separately installed compatible MCP adapter | Exposes an existing WordPress ability; it does not create an outbound provider Connection |
+| Intended WordPress MCP exposure | External MCP clients call World Graph Studio abilities | Abilities declarations in `class-ai-abilities.php`, plus a separately installed compatible MCP adapter | Can expose a valid public WordPress ability; it does not create an outbound provider Connection |
 | Runtime creative advisor | The AI Editor loads a filmmaking role prompt | `includes/agents/*.agent.md`, scanned by `AI_MAF_Bridge` | Adds an advisory profile to `GET /worldgraph/v1/ai/agents`; it does not register provider tools |
 | Repository coding agent | A developer invokes a specialized coding agent | `.github/agents/*.agent.md` | Guides repository work; it is never loaded by WordPress |
+| Coding-agent MCP tools | A repository agent calls development tools | Workspace `.mcp.json`, VS Code `.vscode/mcp.json`, or supported agent-host configuration such as `mcp-servers` | Gives the coding agent tools; it does not create a `worldgraph_conn` or load in WordPress |
 
 This specification concerns the first row. A provider may optionally have an
 advisor that explains how to operate it, but advisor frontmatter is not a
 transport, authentication, or execution registration mechanism.
+
+The current `class-ai-abilities.php` implementation is not a working inbound
+exposure contract: it attempts registration outside
+`wp_abilities_api_init`, does not register categories on
+`wp_abilities_api_categories_init`, and omits the required ability `category`.
+Treat those declarations as aspirational until repaired and tested, and note
+that World Graph Studio does not bundle or install the WordPress MCP Adapter.
+The current `.vscode/mcp.json` also contains extension settings rather than an
+MCP `servers` registry; do not use it as evidence that a coding-tool server is
+configured.
 
 ## 3. Runtime Architecture
 
@@ -96,9 +109,10 @@ Select the closest shipped reference before writing code.
 | Synchronous REST generation | One request returns final media bytes or URLs | `includes/utils/elevenlabs-api.php` |
 | Asynchronous REST generation | Submit returns a remote ID and a later request returns status/results | `includes/utils/suno-api.php` for the REST lifecycle |
 | Non-generation REST exchange | The provider imports, exports, or synchronizes project data | `includes/utils/descript-api.php` and `plugins/descript/` |
-| Stateful Streamable HTTP MCP | The server requires `initialize` and may return `Mcp-Session-Id` | `includes/utils/fal-mcp.php` or `includes/utils/suno-mcp.php` |
-| Provider-documented stateless MCP | The server explicitly permits direct `tools/list` and `tools/call` | `includes/utils/videodraft-api.php` |
-| REST and MCP in one account model | One World Graph Studio Connection represents two transports or credentials | the `suno` Connection |
+| Current Streamable HTTP MCP | The server supports the `2026-07-28` per-request metadata era | No protocol-complete bundled reference; implement the current specification and provider contract |
+| Initialization-based Streamable HTTP MCP | A legacy `2025-*` server requires `initialize` and may return `Mcp-Session-Id` | fal/Suno show provider request shapes; Comfy Cloud is the session-required reference, but see the protocol-debt warning in section 22 |
+| Provider-specific MCP-shaped JSON-RPC | The provider explicitly permits direct `tools/list` and `tools/call` outside the standard lifecycle | `includes/utils/videodraft-api.php`; treat this as an exception, not generic stateless MCP |
+| REST and MCP in one operator-facing integration | One World Graph Studio Connection spans two transports, services, or credentials | the `suno` Connection spans SunoAPI.org REST and AceData Cloud MCP |
 | Local HTTP API plus optional MCP discovery | Execution and discovery use different processes/endpoints | local ComfyUI plus `comfy-cloud-mcp.php` |
 
 Do not assume that every endpoint ending in `/mcp` has the same handshake,

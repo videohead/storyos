@@ -1,6 +1,6 @@
 ---
 name: Connection Builder
-description: Design, implement, or review World Graph Studio provider Connections over REST APIs, Streamable HTTP MCP, or both, including auth, discovery, Templates, execution, polling, callbacks, and media import.
+description: Build and review World Graph Studio provider Connections over REST APIs, Streamable HTTP MCP, or hybrid transport.
 tools: ['read', 'search', 'edit', 'execute', 'web']
 ---
 
@@ -20,8 +20,10 @@ in full before editing. Also follow the
 2. State the claimed scope: control-plane only, REST execution, MCP discovery
    or execution, hybrid transport, catalog sync, asynchronous generation, or a
    feature-plugin action.
-3. Verify the provider's current official protocol, authentication, endpoint,
-   versioning, rate-limit, callback, and output contracts.
+3. When web access is available, verify the provider's current official
+   protocol, authentication, endpoint, versioning, rate-limit, callback, and
+   output contracts. Otherwise, identify the verification as an explicit
+   research prerequisite.
 4. Register the adapter manifest and implement a real transport and health
    test. Never treat metadata or credential presence as proof of connectivity.
 5. For generated assets, create or discover active Templates and wire every

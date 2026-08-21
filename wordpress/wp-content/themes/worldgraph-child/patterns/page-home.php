@@ -366,7 +366,7 @@
 			<tr><td><?php echo esc_html__( 'Celtx', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled sync source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Intended: supported Story Graph entities outbound to Celtx', 'worldgraph-child' ); ?></td></tr>
 			<tr><td><?php echo esc_html__( 'VideoDraft Sync', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled sync plugin', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Shared structural Project subset in both directions', 'worldgraph-child' ); ?></td></tr>
 			<tr><td><?php echo esc_html__( 'Descript Exchange', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Bundled exchange source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Intended: composition transcript in; bound Project audio/video media out', 'worldgraph-child' ); ?></td></tr>
-			<tr><td><?php echo esc_html__( 'EDL Format Tools', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'PHP format library + admin scaffold', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'CMX/XML parsing, timecode, and format generation from clip arrays', 'worldgraph-child' ); ?></td></tr>
+			<tr><td><?php echo esc_html__( 'EDL Format Tools', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'PHP format library + admin scaffold', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'CMX and XML parsing, timecode, and format generation from clip arrays. Import and export to/from Final Cut Pro, DaVinci Resolve, Vegas, Adobe Premiere Pro.', 'worldgraph-child' ); ?></td></tr>
 			<tr><td><?php echo esc_html__( 'Google Web Stories', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'Connector source', 'worldgraph-child' ); ?></td><td><?php echo esc_html__( 'No active runtime direction', 'worldgraph-child' ); ?></td></tr>
 			</tbody></table></figure>
 			<!-- /wp:table -->
@@ -387,7 +387,7 @@
 			<!-- /wp:table -->
 
 			<!-- wp:paragraph {"className":"wg-integration-note"} -->
-			<p class="wg-integration-note"><strong><?php echo esc_html__( 'How these surfaces fit:', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'OpenAI-compatible, OpenAI, Anthropic, and Dual serve the AI Editor rather than media generation. The 50+ specialist agents extend separately through profile files.', 'worldgraph-child' ); ?></p>
+			<p class="wg-integration-note"><strong><?php echo esc_html__( 'How these surfaces fit:', 'worldgraph-child' ); ?></strong> <?php echo esc_html__( 'OpenAI-compatible, OpenAI, Anthropic, and Dual serve the AI Editor rather than media generation. The 50+ specialist agents extend separately through profile files that you can add or edit any time.', 'worldgraph-child' ); ?></p>
 			<!-- /wp:paragraph -->
 		</div>
 		<!-- /wp:group -->
