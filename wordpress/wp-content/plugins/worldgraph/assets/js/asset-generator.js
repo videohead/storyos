@@ -370,7 +370,14 @@
 			return number;
 		}
 		if ( [ 'string', 'textarea' ].indexOf( field.type ) !== -1 && null !== value && 'undefined' !== typeof value ) {
-			return String( value );
+			var stringValue = String( value );
+			if ( 'aspect_ratio' === runControlSemantic( field.key ) ) {
+				stringValue = stringValue.trim();
+				if ( ! /^(?:\d{1,4}(?:\.\d+)?:\d{1,4}(?:\.\d+)?|auto|square|portrait|landscape)$/i.test( stringValue ) ) {
+					return undefined;
+				}
+			}
+			return stringValue;
 		}
 		return undefined;
 	}

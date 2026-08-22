@@ -822,7 +822,9 @@ class Asset_Generator {
 			$job_params     = get_post_meta( $job_id, '_worldgraph_gen_params', true );
 			$profile_values = get_post_meta( $job_id, '_worldgraph_gen_profile_values', true );
 			$output_size    = is_array( $job_params ) ? (string) ( $job_params['size'] ?? '' ) : '';
-			if ( '' === $output_size && is_array( $profile_values ) && isset( $profile_values['width'], $profile_values['height'] ) ) {
+			if ( '' === $output_size && is_array( $job_params ) && isset( $job_params['width'], $job_params['height'] ) ) {
+				$output_size = $job_params['width'] . 'x' . $job_params['height'];
+			} elseif ( '' === $output_size && is_array( $profile_values ) && isset( $profile_values['width'], $profile_values['height'] ) ) {
 				$output_size = $profile_values['width'] . 'x' . $profile_values['height'];
 			}
 			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $media, [ 'model' => $provider ?: 'generation-mcp', 'size' => $output_size, 'revised_prompt' => '', 'workflow' => (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) ] ), $job_id );

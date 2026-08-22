@@ -74,6 +74,7 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'panel._worldgraphRunValues = {}', $script );
 		$this->assertStringContainsString( 'function effectiveRunControlDefault( panel, field )', $script );
 		$this->assertStringContainsString( "source: 'project'", $script );
+		$this->assertStringContainsString( "'aspect_ratio' === runControlSemantic( field.key )", $script );
 		$this->assertStringContainsString( 'input._worldgraphRunHasDefault', $script );
 		$this->assertStringContainsString( 'input._worldgraphRunDirty', $script );
 		$this->assertStringContainsString( 'Use Template default', $metabox );
@@ -98,6 +99,7 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'self::project_template_defaults( $template_id, $profile, $description )', $generator );
 		$this->assertStringContainsString( 'Template_Run_Controls::profile_defaults( $description, $profile )', $generator );
 		$this->assertStringContainsString( "'_worldgraph_gen_profile_values'", $generator );
+		$this->assertStringContainsString( "isset( \$job_params['width'], \$job_params['height'] )", $generator );
 		$this->assertStringContainsString( "'profile_values' => (array) ( \$task['profile_values'] ?? [] )", $workflows );
 		$this->assertStringContainsString( "'profile_values'     => (array) ( \$task['profile_values'] ?? [] )", $workflows );
 	}
