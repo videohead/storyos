@@ -269,7 +269,7 @@ class Asset_Generator {
 		$batch_id   = absint( $args['batch_id'] );
 		$batch_step = (int) $args['batch_step'];
 		$run_values = is_array( $args['run_values'] ) ? $args['run_values'] : [];
-		if ( ! rest_sanitize_boolean( $args['run_values_validated'] ) ) {
+		if ( ! $batch_id || ! rest_sanitize_boolean( $args['run_values_validated'] ) ) {
 			$run_values = Template_Run_Controls::validate( $template_id, $run_values );
 			if ( is_wp_error( $run_values ) ) {
 				return $run_values;
@@ -367,6 +367,9 @@ class Asset_Generator {
 		$batch = get_post( $batch_id );
 		$plan  = get_post_meta( $batch_id, Generation_Workflows::BATCH_PLAN_META, true );
 		$task  = is_array( $plan ) && isset( $plan[ $step ] ) && is_array( $plan[ $step ] ) ? $plan[ $step ] : [];
+		$expected_fingerprint = (string) ( $task['run_controls_fingerprint'] ?? '' );
+		$current_controls     = $template_id ? Template_Run_Controls::describe( $template_id ) : [];
+		$current_fingerprint  = (string) ( $current_controls['fingerprint'] ?? '' );
 		if (
 			! $batch instanceof \WP_Post
 			|| 'worldgraph_gen' !== $batch->post_type
@@ -377,6 +380,7 @@ class Asset_Generator {
 			|| $intent !== ( $task['intent'] ?? '' )
 			|| $template_id !== absint( $task['template_id'] ?? 0 )
 			|| $run_values !== (array) ( $task['run_values'] ?? [] )
+			|| ( '' !== $expected_fingerprint && ! hash_equals( $expected_fingerprint, $current_fingerprint ) )
 		) {
 			return new WP_Error( 'worldgraph_asset_batch_task_invalid', __( 'The generation job does not match its frozen representative-media batch task.', 'worldgraph' ), [ 'status' => 409 ] );
 		}

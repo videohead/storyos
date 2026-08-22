@@ -360,7 +360,7 @@ Template. This preserves all six same-type look-development actions for a
 Character, Prop, or Location and both still/video actions for a Shot. The
 legacy `outputs.image` and `outputs.video` keys remain as first-of-type aliases
 for older clients. Entries in `templates`, `image_templates`, and
-`video_templates` include the selected Template's sanitized, provider-neutral
+`video_templates` include each Template's sanitized, provider-neutral
 run-control contract:
 
 ```json
@@ -423,7 +423,8 @@ scalar and match the advertised type, bounds, and select options. For example:
 WordPress selects the Template, re-derives its run-control contract, and
 normalizes the submitted object before creating a job. Unknown fields, nested
 arrays or objects, wrong scalar types, out-of-range numbers, and values outside
-an advertised enum fail validation rather than being forwarded to a provider.
+advertised select `options` fail validation rather than being forwarded to a
+provider.
 Omitting `seed` means no fixed-seed override and preserves the Template or
 provider's existing randomization behavior; an explicitly submitted integer
 `0` remains a valid fixed seed. An omitted or empty `run_values` object keeps
@@ -487,7 +488,9 @@ them, the server applies the registered preference and fallback cascade.
 `image_run_values` and `video_run_values` are optional scalar objects shared by
 tasks of the matching output type. A non-empty object requires the corresponding
 explicit `image_template_id` or `video_template_id`; the server re-derives and
-validates the selected immutable Template contract before freezing the values.
+validates that one explicitly selected Template contract before freezing the
+values.
+
 This prevents one map from being interpreted against different per-item
 fallback Templates. Media inputs are not accepted in these objects. Required
 image or start-frame inputs for image-to-video and text-plus-image-to-video
@@ -502,12 +505,12 @@ committed and fingerprints scope, additive prompt, Template overrides, and
 normalized image/video run values, so a concurrent retry cannot create a
 duplicate paid batch or reuse the key for different settings. The normalized
 values are frozen into every affected task in the durable batch plan and later
-copied into its child job; catalog or Template changes cannot mutate an already
-accepted batch. Starting fails before any child is queued if any task lacks a
-runnable Template, a submitted value is invalid, or the requester cannot edit
-every source. A successful start returns `202 Accepted` and a `Location` header
-for the batch status route. Omitting both run-value objects preserves the
-pre-v1 batch behavior.
+copied into its child job; later form or catalog refreshes cannot mutate an
+already accepted batch's values. Starting fails before any child is queued if
+any task lacks a runnable Template, a submitted value is invalid, or the
+requester cannot edit every source. A successful start returns `202 Accepted`
+and a `Location` header for the batch status route. Omitting both run-value
+objects preserves the prior no-values batch behavior.
 
 Batch status includes `batch_id`, root `post_id`, `scope`, aggregate `status`,
 planned `total`, `materialized`, `remaining`, `active`, `completed`, `failed`,

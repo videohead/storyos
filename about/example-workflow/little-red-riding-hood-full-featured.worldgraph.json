@@ -882,8 +882,7 @@
       "storage_uri": "worldgraph://planned/lrrh/grandmother-room-reveal.png",
       "project": "lrrh_full_project_lrrh_full",
       "location": "lrrh_full_loc_grandmother_house",
-      "scene": "lrrh_full_scene_3",
-      "storyboard": "lrrh_full_sb_9"
+      "scene": "lrrh_full_scene_3"
     },
     {
       "id": "lrrh_full_asset_forest_theme_audio",

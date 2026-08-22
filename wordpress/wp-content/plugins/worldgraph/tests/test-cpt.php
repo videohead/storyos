@@ -143,9 +143,8 @@ class Test_WorldGraph_CPT extends TestCase {
 	public function test_worldgraph_cpt_keys_fit_wordpress_limit() {
 		$cpts = \WorldGraph\Utils\worldgraph_get_all_cpts();
 
-		$this->assertArrayHasKey( 'worldgraph_board', $cpts );
 		$this->assertArrayHasKey( 'worldgraph_editorial', $cpts );
-		$this->assertArrayNotHasKey( 'worldgraph_board_frame', $cpts );
+		$this->assertArrayNotHasKey( 'worldgraph_board', $cpts );
 		$this->assertArrayNotHasKey( 'worldgraph_editorial_artifact', $cpts );
 
 		foreach ( array_keys( $cpts ) as $cpt ) {
@@ -169,9 +168,6 @@ class Test_WorldGraph_CPT extends TestCase {
 		$this->assertSame( 'worldgraph_scene', $legacy_keys['storyos_scene'] );
 		$this->assertSame( 'worldgraph_shot', $legacy_keys['storyos_shot'] );
 		$this->assertSame( 'worldgraph_sound', $legacy_keys['storyos_sound'] );
-		$this->assertSame( 'worldgraph_board', $legacy_keys['storyos_storyboard'] );
-		$this->assertSame( 'worldgraph_board', $legacy_keys['storyos_storyboard_frame'] );
-		$this->assertSame( 'worldgraph_board', $legacy_keys['storyos_storyboard_f'] );
 		$this->assertSame( 'worldgraph_asset', $legacy_keys['storyos_asset'] );
 		$this->assertSame( 'worldgraph_editorial', $legacy_keys['storyos_editorial'] );
 		$this->assertSame( 'worldgraph_editorial', $legacy_keys['storyos_editorial_artifact'] );
@@ -181,8 +177,6 @@ class Test_WorldGraph_CPT extends TestCase {
 		$this->assertSame( 'worldgraph_gen', $legacy_keys['storyos_generation'] );
 
 		// Interrupted builds of the rename are safe to retry too.
-		$this->assertSame( 'worldgraph_board', $legacy_keys['worldgraph_board_frame'] );
-		$this->assertSame( 'worldgraph_board', $legacy_keys['worldgraph_board_f'] );
 		$this->assertSame( 'worldgraph_editorial', $legacy_keys['worldgraph_editorial_artifact'] );
 		$this->assertSame( 'worldgraph_editorial', $legacy_keys['worldgraph_editorial_ar'] );
 
@@ -224,20 +218,8 @@ class Test_WorldGraph_CPT extends TestCase {
 			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_organization_story_world' )
 		);
 		$this->assertSame(
-			'field_worldgraph_board_image_asset',
-			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_storyboard_image_asset' )
-		);
-		$this->assertSame(
 			'field_worldgraph_editorial_artifact_type',
 			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_editorial_artifact_type' )
-		);
-		$this->assertSame(
-			'field_worldgraph_board_frame_number',
-			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_storyboard_frame_number' )
-		);
-		$this->assertSame(
-			'field_worldgraph_board_frame_description',
-			\WorldGraph\Utils\worldgraph_migrate_machine_identifier( 'field_storyos_storyboard_frame_description' )
 		);
 		$this->assertSame(
 			'closedpostboxes_worldgraph_world',
@@ -293,8 +275,6 @@ class Test_WorldGraph_CPT extends TestCase {
 					'field_key'  => 'field_storyos_story_world_project',
 					'group_key'  => 'group_storyos_story_world',
 					'artifact_key' => 'field_storyos_editorial_artifact_type',
-					'frame_number_key' => 'field_storyos_storyboard_frame_number',
-					'frame_description_key' => 'field_storyos_storyboard_frame_description',
 					'description' => 'A StoryOS migration note belongs to the author.',
 				],
 			]
@@ -308,8 +288,6 @@ class Test_WorldGraph_CPT extends TestCase {
 		$this->assertSame( 'field_worldgraph_world_project', $migrated['worldgraph_world']['field_key'] );
 		$this->assertSame( 'group_worldgraph_world', $migrated['worldgraph_world']['group_key'] );
 		$this->assertSame( 'field_worldgraph_editorial_artifact_type', $migrated['worldgraph_world']['artifact_key'] );
-		$this->assertSame( 'field_worldgraph_board_frame_number', $migrated['worldgraph_world']['frame_number_key'] );
-		$this->assertSame( 'field_worldgraph_board_frame_description', $migrated['worldgraph_world']['frame_description_key'] );
 		$this->assertSame( 'A StoryOS migration note belongs to the author.', $migrated['worldgraph_world']['description'] );
 	}
 

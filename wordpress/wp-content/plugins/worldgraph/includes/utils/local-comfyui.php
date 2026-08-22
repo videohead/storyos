@@ -57,8 +57,10 @@ class Local_ComfyUI {
 		if ( '' !== $prompt && '' === trim( (string) ( $inputs['prompt'] ?? '' ) ) ) {
 			$inputs['prompt'] = $prompt;
 		}
-		if ( isset( $parameters['negative_prompt'] ) && is_scalar( $parameters['negative_prompt'] ) && '' === trim( (string) ( $inputs['negative_prompt'] ?? '' ) ) ) {
-			$inputs['negative_prompt'] = sanitize_textarea_field( (string) $parameters['negative_prompt'] );
+		if ( ! array_key_exists( 'negative_prompt', $inputs ) ) {
+			$inputs['negative_prompt'] = isset( $parameters['negative_prompt'] ) && is_scalar( $parameters['negative_prompt'] )
+				? sanitize_textarea_field( (string) $parameters['negative_prompt'] )
+				: '';
 		}
 
 		$job_id   = absint( $parameters['_worldgraph_job_id'] ?? 0 );

@@ -37,7 +37,7 @@ class Test_WorldGraph_Import extends TestCase {
 		$this->assertIsArray( $document );
 
 		$ids = [];
-		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'sounds', 'storyboards' ] as $section ) {
+		foreach ( [ 'characters', 'locations', 'props', 'scenes', 'shots', 'sounds' ] as $section ) {
 			$ids[ $section ] = array_column( $document[ $section ], 'id' );
 		}
 
@@ -83,10 +83,6 @@ class Test_WorldGraph_Import extends TestCase {
 			if ( ! empty( $sound['character'] ) ) {
 				$this->assertContains( $sound['character'], $ids['characters'] );
 			}
-		}
-
-		foreach ( $document['storyboards'] as $frame ) {
-			$this->assertContains( $frame['shot'], $ids['shots'] );
 		}
 
 		foreach ( $document['sequence']['order'] as $scene_id ) {
@@ -274,29 +270,6 @@ class Test_WorldGraph_Import extends TestCase {
 			"? \$this->resolve_external_id( 'worldgraph_asset', (string) \$sound[ \$field ] )",
 			$verification
 		);
-		$this->assertStringContainsString(
-			"\$asset_id = empty( \$frame['image_asset'] ) ? 0 : \$this->resolve_external_id( 'worldgraph_asset', (string) \$frame['image_asset'] );",
-			$verification
-		);
-	}
-
-	/** Legacy storyboard cleanup must not alter a Shot skipped by no-overwrite import. */
-	public function test_storyboard_cleanup_does_not_mutate_skipped_shots() {
-		$source = file_get_contents( dirname( __DIR__ ) . '/includes/importer/class-worldgraph-importer.php' );
-
-		$this->assertNotFalse( $source );
-		$this->assertStringContainsString(
-			"if ( ! \$this->entity_was_skipped( (string) \$frame['shot'] ) )",
-			$source
-		);
-		$this->assertStringContainsString(
-			"\$shot_id === (int) ( \$relationship['from_id'] ?? 0 )",
-			$source
-		);
-		$this->assertStringContainsString(
-			"remove_relationship( \$shot_id, \$frame_id, 'worldgraph_shot', 'worldgraph_board', 'contains' )",
-			$source
-		);
 	}
 
 	/**
@@ -366,7 +339,6 @@ class Test_WorldGraph_Import extends TestCase {
 			'shots'                => 12,
 			'sounds'               => 9,
 			'assets'               => 6,
-			'storyboards'          => 12,
 			'editorial_artifacts'  => 1,
 		];
 		foreach ( $expected_counts as $section => $expected_count ) {
@@ -420,11 +392,7 @@ class Test_WorldGraph_Import extends TestCase {
 			'assets' => [
 				'id', 'title', 'asset_type', 'workflow_name', 'prompt', 'model_name', 'seed',
 				'generation_parameters', 'version', 'status', 'storage_uri', 'project',
-				'character', 'location', 'scene', 'storyboard',
-			],
-			'storyboards' => [
-				'id', 'title', 'frame_number', 'description', 'image_asset', 'prompt_text',
-				'camera_notes', 'scene', 'shot',
+				'character', 'location', 'scene',
 			],
 			'editorial_artifacts' => [
 				'id', 'title', 'artifact_type', 'export_format', 'generated_date', 'source_scene',
@@ -591,18 +559,10 @@ class Test_WorldGraph_Import extends TestCase {
 
 		foreach ( $document['assets'] as $asset ) {
 			$this->assert_reference( $asset['project'], $ids['project'], "Asset {$asset['id']} project" );
-			foreach ( [ 'character' => 'characters', 'location' => 'locations', 'scene' => 'scenes', 'storyboard' => 'storyboards' ] as $field => $target_section ) {
+			foreach ( [ 'character' => 'characters', 'location' => 'locations', 'scene' => 'scenes' ] as $field => $target_section ) {
 				if ( ! empty( $asset[ $field ] ) ) {
 					$this->assert_reference( $asset[ $field ], $ids[ $target_section ], "Asset {$asset['id']} {$field}" );
 				}
-			}
-		}
-
-		foreach ( $document['storyboards'] as $frame ) {
-			$this->assert_reference( $frame['scene'], $ids['scenes'], "Storyboard {$frame['id']} scene" );
-			$this->assert_reference( $frame['shot'], $ids['shots'], "Storyboard {$frame['id']} shot" );
-			if ( ! empty( $frame['image_asset'] ) ) {
-				$this->assert_reference( $frame['image_asset'], $ids['assets'], "Storyboard {$frame['id']} image_asset" );
 			}
 		}
 
@@ -644,28 +604,6 @@ class Test_WorldGraph_Import extends TestCase {
 		foreach ( $document['episodes'] as $episode ) {
 			$this->assertSame( $document['sequence']['order'], $episode['scenes'] );
 		}
-	}
-
-	/**
-	 * A Storyboard's direct Scene must agree with the Scene owned by its Shot.
-	 */
-	public function test_full_featured_storyboard_scenes_match_shot_scenes() {
-		$document    = $this->full_featured_document();
-		$shot_scenes = array_column( $document['shots'], 'scene', 'id' );
-		$board_shots = [];
-
-		foreach ( $document['storyboards'] as $frame ) {
-			$this->assertArrayHasKey( $frame['shot'], $shot_scenes );
-			$this->assertSame(
-				$shot_scenes[ $frame['shot'] ],
-				$frame['scene'],
-				"Storyboard {$frame['id']} does not match its Shot's Scene."
-			);
-			$board_shots[] = $frame['shot'];
-		}
-
-		$this->assertEqualsCanonicalizing( array_keys( $shot_scenes ), $board_shots );
-		$this->assertCount( count( $board_shots ), array_unique( $board_shots ) );
 	}
 
 	/**
@@ -795,7 +733,6 @@ class Test_WorldGraph_Import extends TestCase {
 			'shots',
 			'sounds',
 			'assets',
-			'storyboards',
 			'editorial_artifacts',
 		];
 	}

@@ -24,7 +24,7 @@ class Test_WorldGraph_Exporter extends TestCase {
 	}
 
 	/**
-	 * The exporter should build a storyboard document from scene, shot, and frame data.
+	 * The exporter should build a storyboard document from scene and shot data.
 	 */
 	public function test_exporter_builds_storyboard_markdown_from_scene_and_shot_data() {
 		$exporter = new \WorldGraph\Exporter\WorldGraph_Exporter();
@@ -50,14 +50,6 @@ class Test_WorldGraph_Exporter extends TestCase {
 							'lens'             => '50mm',
 							'duration'         => '00:00:04',
 							'shot_description' => 'The basket is packed and handed to Red.',
-							'storyboard_frames' => [
-								[
-									'frame_number'      => 1,
-									'frame_description' => 'Hands tie a cloth over the basket.',
-									'camera_notes'      => 'Static close-up',
-									'prompt_text'       => 'storybook cottage basket close-up',
-								],
-							],
 						],
 					],
 				],
@@ -67,34 +59,28 @@ class Test_WorldGraph_Exporter extends TestCase {
 		$this->assertStringContainsString( '# Little Red Riding Hood Storyboard', $markdown );
 		$this->assertStringContainsString( '## Scene 1: The Warning', $markdown );
 		$this->assertStringContainsString( '### Basket Close-Up - Close Up', $markdown );
-		$this->assertStringContainsString( '- **Frame 1:** Hands tie a cloth over the basket.', $markdown );
-		$this->assertStringContainsString( 'storyboard_frames: 1', $markdown );
+		$this->assertStringContainsString( 'The basket is packed and handed to Red.', $markdown );
+		$this->assertStringContainsString( 'shots: 1', $markdown );
 	}
 
 	/**
-	 * The storyboard exporter should include frames linked directly to scenes.
+	 * A scene without shots still renders as a storyboard block.
 	 */
-	public function test_exporter_includes_scene_level_storyboard_frames() {
+	public function test_exporter_reports_scenes_without_shots() {
 		$exporter = new \WorldGraph\Exporter\WorldGraph_Exporter();
 
 		$markdown = $exporter->export_project_storyboard_markdown( [
 			'title'  => 'Scene Board',
 			'scenes' => [
 				[
-					'title'             => 'Forest Path',
-					'scene_number'      => 3,
-					'storyboard_frames' => [
-						[
-							'frame_number'      => 7,
-							'frame_description' => 'A wide view of the branching path.',
-						],
-					],
+					'title'        => 'Forest Path',
+					'scene_number' => 3,
 				],
 			],
 		] );
 
-		$this->assertStringContainsString( '### Scene Storyboard Frames', $markdown );
-		$this->assertStringContainsString( '- **Frame 7:** A wide view of the branching path.', $markdown );
-		$this->assertStringContainsString( 'storyboard_frames: 1', $markdown );
+		$this->assertStringContainsString( '## Scene 3: Forest Path', $markdown );
+		$this->assertStringContainsString( '_No shots found for this scene yet._', $markdown );
+		$this->assertStringContainsString( 'shots: 0', $markdown );
 	}
 }

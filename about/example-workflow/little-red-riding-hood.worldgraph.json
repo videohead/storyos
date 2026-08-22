@@ -252,17 +252,6 @@
       "shot": "shot_8"
     }
   ],
-  "storyboards": [
-    {"id": "sb_1", "shot": "shot_1", "description": "Village cottage at sunrise."},
-    {"id": "sb_2", "shot": "shot_2", "description": "Basket exchange."},
-    {"id": "sb_3", "shot": "shot_3", "description": "Red prepares to leave."},
-    {"id": "sb_4", "shot": "shot_4", "description": "Forest path establishing frame."},
-    {"id": "sb_5", "shot": "shot_5", "description": "Wolf enters frame."},
-    {"id": "sb_6", "shot": "shot_6", "description": "Conversation coverage."},
-    {"id": "sb_7", "shot": "shot_7", "description": "Grandmother's room."},
-    {"id": "sb_8", "shot": "shot_8", "description": "Red investigates."},
-    {"id": "sb_9", "shot": "shot_9", "description": "Reveal and resolution."}
-  ],
   "sequence": {
     "id": "sequence_1",
     "title": "Little Red Riding Hood Sequence",
