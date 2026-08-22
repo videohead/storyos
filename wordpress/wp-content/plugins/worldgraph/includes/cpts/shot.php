@@ -124,8 +124,7 @@ class Shot {
 		[
 			'menu_icon' => 'dashicons-camera',
 			'show_in_menu' => 'worldgraph-editorial',
-			// page-attributes exposes menu_order, the shot's position in the cut.
-			'supports'  => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions', 'page-attributes' ],
+			'supports'  => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions' ],
 		],
 		$fields
 	);
@@ -146,25 +145,19 @@ class Shot {
 
 		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_shot' );
 
-		// Ordering within the cut: page-attributes menu_order.
-		if ( isset( $_POST['menu_order'] ) ) {
-			wp_update_post( [
-				'ID'         => $post_id,
-				'menu_order' => absint( $_POST['menu_order'] ),
-			] );
-		}
-
 		foreach ( $fields as $key => $field ) {
 			if ( isset( $_POST[ $key ] ) ) {
 				if ( 'taxonomy' === $field['type'] ) {
 					wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
 				} elseif ( 'relationship' === $field['type'] ) {
-					\WorldGraph\Utils\add_relationship(
+					\WorldGraph\Utils\set_relationships_for_field(
 						$post_id,
 						'worldgraph_shot',
-						absint( $_POST[ $key ] ),
+						[ absint( $_POST[ $key ] ) ],
 						$field['related_cpt'],
-						'belongs_to'
+						(string) ( $field['relationship_type'] ?? 'belongs_to' ),
+						$key,
+						false
 					);
 				} else {
 					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );

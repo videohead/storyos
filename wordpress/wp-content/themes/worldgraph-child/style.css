@@ -1610,6 +1610,11 @@ textarea:focus {
 	margin-top: 0;
 }
 
+.wg-scene-card__media {
+	aspect-ratio: 16 / 9;
+	margin-top: 1rem;
+}
+
 .wg-scene-card__reel {
 	display: grid;
 	gap: 0.35rem;

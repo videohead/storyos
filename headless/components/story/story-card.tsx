@@ -40,6 +40,28 @@ function CardImage({ media, alt }: { media?: StoryMedia; alt: string }) {
   return <MediaPlayer media={media} compact />;
 }
 
+function ProtectedStoryCard({ item, href }: { item: StoryItem; href: string }) {
+  return (
+    <article className="flex min-h-64 flex-col justify-between rounded-wg border-2 border-wg-espresso bg-wg-ivory p-6 shadow-wg">
+      <div className="space-y-3">
+        <p className="font-headline text-xs font-bold uppercase tracking-[0.2em] text-wg-sepia">
+          Protected story item
+        </p>
+        <h2 className="text-2xl text-wg-espresso">
+          <Link
+            href={href}
+            className="no-underline hover:text-wg-blueprint"
+            dangerouslySetInnerHTML={{ __html: item.titleHtml }}
+          />
+        </h2>
+      </div>
+      <p className="border-t border-wg-sepia/35 pt-4 text-sm leading-relaxed text-wg-charcoal/70">
+        Details and media are not available in this public view.
+      </p>
+    </article>
+  );
+}
+
 function ProjectCard({ item, href }: { item: StoryItem; href: string }) {
   const project = item.display.project;
   const stage = project?.productionStage || storyFieldText(item, "production_stage");
@@ -254,6 +276,10 @@ function SoundCard({ item, href }: { item: StoryItem; href: string }) {
 
 export function StoryCard({ item }: { item: StoryItem }) {
   const href = `/story/${item.storyType}/${item.slug}`;
+
+  if (item.protected) {
+    return <ProtectedStoryCard item={item} href={href} />;
+  }
 
   if (item.storyType === "characters") {
     return (

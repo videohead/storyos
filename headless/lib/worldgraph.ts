@@ -128,6 +128,7 @@ export interface StoryItem {
   status: string;
   date: string;
   modified: string;
+  protected: boolean;
   titleHtml: string;
   titleText: string;
   excerptHtml: string;
@@ -149,6 +150,7 @@ type UnknownRecord = Record<string, unknown>;
 
 interface WpRenderedField {
   rendered?: unknown;
+  protected?: unknown;
 }
 
 interface WpStoryPost extends UnknownRecord {
@@ -500,7 +502,11 @@ function normalizeDisplay(post: WpStoryPost): StoryDisplay {
 
 function normalizeStoryItem(post: WpStoryPost, storyType: StoryType): StoryItem {
   const titleHtml = renderedValue(post.title);
-  const fields = isRecord(post.acf) ? post.acf : {};
+  // WordPress uses content.protected as the public REST boundary signal. Keep
+  // only the core listing shell when it is set; registered fields such as ACF
+  // and worldgraph_display may otherwise still be present in the raw response.
+  const protectedContent = post.content?.protected === true;
+  const fields = !protectedContent && isRecord(post.acf) ? post.acf : {};
 
   return {
     id: numberValue(post.id) ?? 0,
@@ -510,14 +516,17 @@ function normalizeStoryItem(post: WpStoryPost, storyType: StoryType): StoryItem 
     status: stringValue(post.status),
     date: stringValue(post.date),
     modified: stringValue(post.modified),
+    protected: protectedContent,
     titleHtml,
     titleText: plainText(titleHtml) || "Untitled",
-    excerptHtml: renderedValue(post.excerpt),
-    contentHtml: renderedValue(post.content),
-    featuredMediaId: numberValue(post.featured_media) ?? 0,
+    excerptHtml: protectedContent ? "" : renderedValue(post.excerpt),
+    contentHtml: protectedContent ? "" : renderedValue(post.content),
+    featuredMediaId: protectedContent
+      ? 0
+      : numberValue(post.featured_media) ?? 0,
     fields,
-    terms: normalizeTerms(post),
-    display: normalizeDisplay(post),
+    terms: protectedContent ? [] : normalizeTerms(post),
+    display: protectedContent ? { media: [] } : normalizeDisplay(post),
   };
 }
 

@@ -250,6 +250,7 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/setup-wizard.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/metaboxes.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/asset-generator-metabox.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/template-workflow-test.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/comfy-readiness.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
@@ -330,6 +331,7 @@ function init(): void {
 	Admin\Setup_Wizard::init();
 	Admin\MetaBoxes::init();
 	Admin\Asset_Generator_MetaBox::init();
+	Admin\Template_Workflow_Test::init();
 	Admin\Comfy_Readiness::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();

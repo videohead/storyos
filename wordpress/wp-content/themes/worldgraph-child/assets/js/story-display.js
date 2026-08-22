@@ -23,7 +23,8 @@
 
 		buttons.forEach( function ( button ) {
 			var label = flipped ? button.dataset.backLabel : button.dataset.frontLabel;
-			button.setAttribute( 'aria-expanded', flipped ? 'true' : 'false' );
+			var controlledFace = document.getElementById( button.getAttribute( 'aria-controls' ) );
+			button.setAttribute( 'aria-expanded', controlledFace === activeFace ? 'true' : 'false' );
 			button.setAttribute( 'aria-label', label );
 			var text = button.querySelector( 'span:first-child' );
 			if ( text ) {

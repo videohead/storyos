@@ -146,6 +146,54 @@ class Shots_Controller extends Base_Controller {
 	}
 
 	/**
+	 * Create a Shot without accepting an unscoped editorial position.
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function create_item( $request ) {
+		$order_error = $this->validate_direct_menu_order( $request );
+		if ( is_wp_error( $order_error ) ) {
+			return $order_error;
+		}
+
+		return parent::create_item( $request );
+	}
+
+	/**
+	 * Update a Shot without bypassing the complete Scene reorder invariant.
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function update_item( $request ) {
+		$order_error = $this->validate_direct_menu_order( $request );
+		if ( is_wp_error( $order_error ) ) {
+			return $order_error;
+		}
+
+		return parent::update_item( $request );
+	}
+
+	/**
+	 * Require all Shot ordering writes to use the Scene-scoped reorder route.
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @return true|\WP_Error
+	 */
+	private function validate_direct_menu_order( \WP_REST_Request $request ) {
+		if ( null !== $request->get_param( 'menu_order' ) ) {
+			return new \WP_Error(
+				'worldgraph_shot_order_requires_scene',
+				'Use /shots/reorder with a complete Scene membership to change Shot order.',
+				[ 'status' => 400 ]
+			);
+		}
+
+		return true;
+	}
+
+	/**
 	 * Get graph connections.
 	 *
 	 * @param \WP_REST_Request $request

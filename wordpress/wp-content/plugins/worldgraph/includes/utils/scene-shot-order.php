@@ -57,7 +57,8 @@ function worldgraph_get_scene_shots_for_reorder( int $scene_id ): array {
 	$shots     = [];
 	foreach ( array_values( array_unique( array_filter( array_map( 'absint', $shot_ids ) ) ) ) as $shot_id ) {
 		$shot = get_post( $shot_id );
-		if ( $shot instanceof \WP_Post && 'worldgraph_shot' === $shot->post_type && ! in_array( $shot->post_status, [ 'trash', 'auto-draft' ], true ) ) {
+		$canonical_scene_id = worldgraph_get_shot_canonical_scene_id( $shot_id );
+		if ( $shot instanceof \WP_Post && 'worldgraph_shot' === $shot->post_type && ! in_array( $shot->post_status, [ 'trash', 'auto-draft' ], true ) && ( ! $canonical_scene_id || $scene_id === $canonical_scene_id ) ) {
 			$shots[] = $shot;
 		}
 	}
@@ -97,6 +98,24 @@ function worldgraph_scene_shot_order_slots( array $shots ): array {
 		$shots
 	);
 	$valid_slots = ! empty( $order_slots ) && count( array_unique( $order_slots ) ) === count( $order_slots ) && min( $order_slots ) > 0;
+	if ( $valid_slots ) {
+		$scene_shot_ids = wp_list_pluck( $shots, 'ID' );
+		$other_shot_ids = get_posts(
+			[
+				'post_type'      => 'worldgraph_shot',
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'post__not_in'   => $scene_shot_ids,
+			]
+		);
+		foreach ( $other_shot_ids as $other_shot_id ) {
+			if ( in_array( (int) get_post_field( 'menu_order', $other_shot_id ), $order_slots, true ) ) {
+				$valid_slots = false;
+				break;
+			}
+		}
+	}
 	if ( ! $valid_slots ) {
 		$last_shot_ids = get_posts(
 			[

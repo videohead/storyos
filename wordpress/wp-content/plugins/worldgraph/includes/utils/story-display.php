@@ -143,6 +143,64 @@ function worldgraph_story_display_related_posts( int $post_id, string $post_type
 }
 
 /**
+ * Resolve the single canonical Scene owned by a Shot.
+ *
+ * Named `scene` edges written by SCF take precedence. Older unnamed
+ * child-owned edges remain supported; when legacy data contains more than one,
+ * the scalar SCF value breaks the tie without allowing one Shot to appear in
+ * multiple Scene sequencers.
+ *
+ * @param int $shot_id Shot post ID.
+ * @return int Scene post ID, or zero when the Shot has no canonical owner.
+ */
+function worldgraph_get_shot_canonical_scene_id( int $shot_id ): int {
+	if ( 'worldgraph_shot' !== get_post_type( $shot_id ) ) {
+		return 0;
+	}
+
+	$named_scene_ids = [];
+	$scene_ids       = [];
+	foreach ( get_relationships( $shot_id, 'worldgraph_shot', 'outgoing' ) as $relationship ) {
+		if ( 'worldgraph_scene' !== (string) ( $relationship['to_type'] ?? '' ) || 'belongs_to' !== (string) ( $relationship['type'] ?? '' ) ) {
+			continue;
+		}
+
+		$scene_id = absint( $relationship['to_id'] ?? 0 );
+		if ( ! $scene_id ) {
+			continue;
+		}
+		$scene_ids[] = $scene_id;
+		if ( 'scene' === sanitize_key( (string) ( $relationship['metadata']['field'] ?? '' ) ) ) {
+			$named_scene_ids[] = $scene_id;
+		}
+	}
+
+	$named_scene_ids = array_values( array_unique( $named_scene_ids ) );
+	if ( ! empty( $named_scene_ids ) ) {
+		return (int) $named_scene_ids[0];
+	}
+
+	$scene_ids = array_values( array_unique( $scene_ids ) );
+	if ( empty( $scene_ids ) ) {
+		return 0;
+	}
+
+	$meta_scene = worldgraph_get_field_value( $shot_id, 'scene' );
+	if ( $meta_scene instanceof \WP_Post ) {
+		$meta_scene = $meta_scene->ID;
+	} elseif ( is_array( $meta_scene ) ) {
+		$first_meta_scene = reset( $meta_scene );
+		$meta_scene       = $first_meta_scene instanceof \WP_Post ? $first_meta_scene->ID : $first_meta_scene;
+	}
+	$meta_scene_id = absint( $meta_scene );
+	if ( $meta_scene_id && in_array( $meta_scene_id, $scene_ids, true ) ) {
+		return $meta_scene_id;
+	}
+
+	return (int) $scene_ids[0];
+}
+
+/**
  * Return the Shots belonging to a Scene in editorial order.
  *
  * Canonical child-owned relationships are preferred, while the SCF `scene`
@@ -166,6 +224,10 @@ function worldgraph_get_scene_display_shots( int $scene_id, bool $include_privat
 	);
 	$by_id = [];
 	foreach ( $shots as $shot ) {
+		$canonical_scene_id = worldgraph_get_shot_canonical_scene_id( $shot->ID );
+		if ( $canonical_scene_id && $scene_id !== $canonical_scene_id ) {
+			continue;
+		}
 		$by_id[ $shot->ID ] = $shot;
 	}
 
@@ -187,7 +249,8 @@ function worldgraph_get_scene_display_shots( int $scene_id, bool $include_privat
 		]
 	);
 	foreach ( $meta_shots as $shot ) {
-		if ( worldgraph_story_display_can_read( $shot->ID, $include_private ) ) {
+		$canonical_scene_id = worldgraph_get_shot_canonical_scene_id( $shot->ID );
+		if ( ( ! $canonical_scene_id || $scene_id === $canonical_scene_id ) && worldgraph_story_display_can_read( $shot->ID, $include_private ) ) {
 			$by_id[ $shot->ID ] = $shot;
 		}
 	}
@@ -641,11 +704,50 @@ function worldgraph_maybe_invalidate_story_display_meta_cache( int|array $meta_i
 /** Register presentation hooks shared by REST and the WordPress theme. */
 function worldgraph_story_display_init(): void {
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\worldgraph_register_story_display_rest_field' );
+	foreach ( worldgraph_story_display_post_types() as $post_type ) {
+		add_filter( 'rest_prepare_' . $post_type, __NAMESPACE__ . '\\worldgraph_hide_protected_story_rest_fields', PHP_INT_MAX, 3 );
+	}
 	add_action( 'save_post', __NAMESPACE__ . '\\worldgraph_invalidate_story_display_cache', 30 );
 	add_action( 'deleted_post', __NAMESPACE__ . '\\worldgraph_invalidate_story_display_cache' );
 	add_action( 'added_post_meta', __NAMESPACE__ . '\\worldgraph_maybe_invalidate_story_display_meta_cache', 10, 3 );
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\worldgraph_maybe_invalidate_story_display_meta_cache', 10, 3 );
 	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\worldgraph_maybe_invalidate_story_display_meta_cache', 10, 3 );
+}
+
+/**
+ * Remove SCF presentation data when core withholds a password-protected post.
+ *
+ * Secure Custom Fields prepares its public `acf` REST property independently
+ * of WordPress core's password gate. Applying the same access decision to the
+ * final response prevents collection requests from exposing protected story
+ * fields while retaining edit-context, cookie, and explicit-password access.
+ *
+ * @param mixed            $response Prepared REST response.
+ * @param \WP_Post         $post     Story post.
+ * @param \WP_REST_Request $request  REST request.
+ * @return mixed
+ */
+function worldgraph_hide_protected_story_rest_fields( $response, \WP_Post $post, \WP_REST_Request $request ) {
+	if ( '' === (string) $post->post_password || is_wp_error( $response ) || ! method_exists( $response, 'get_data' ) ) {
+		return $response;
+	}
+
+	$request_password = (string) $request->get_param( 'password' );
+	$can_access       = ! post_password_required( $post )
+		|| ( 'edit' === (string) $request->get_param( 'context' ) && current_user_can( 'edit_post', $post->ID ) )
+		|| ( '' !== $request_password && hash_equals( (string) $post->post_password, $request_password ) );
+	if ( $can_access ) {
+		return $response;
+	}
+
+	$data = $response->get_data();
+	if ( is_array( $data ) ) {
+		$data['acf']                = [];
+		$data['worldgraph_display'] = [];
+		$response->set_data( $data );
+	}
+
+	return $response;
 }
 
 /**

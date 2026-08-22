@@ -32,7 +32,11 @@ export function CharacterFlipCard({
   return (
     <article className="wg-character-card rounded-wg border-2 border-wg-espresso bg-wg-ivory shadow-wg">
       <div className={`wg-character-card__inner ${flipped ? "is-flipped" : ""}`}>
-        <div className="wg-character-card__face overflow-hidden" aria-hidden={flipped}>
+        <div
+          className="wg-character-card__face overflow-hidden"
+          aria-hidden={flipped}
+          inert={flipped}
+        >
           {media ? (
             <MediaPlayer media={media} compact />
           ) : (
@@ -67,6 +71,7 @@ export function CharacterFlipCard({
         <div
           className="wg-character-card__face wg-character-card__back space-y-4 bg-wg-espresso p-6 text-wg-ivory"
           aria-hidden={!flipped}
+          inert={!flipped}
         >
           <p className="font-headline text-xs font-bold uppercase tracking-[0.18em] text-wg-sepia">
             Character profile

@@ -26,6 +26,9 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( 'post_password_required( $post )', $source );
 		$this->assertStringContainsString( "'' === (string) \$node_post->post_password", $source );
 		$this->assertStringContainsString( "'publish' === \$post->post_status", $source );
+		$this->assertStringContainsString( 'worldgraph_hide_protected_story_rest_fields', $source );
+		$this->assertStringContainsString( "\$data['acf']                = [];", $source );
+		$this->assertStringContainsString( 'hash_equals( (string) $post->post_password, $request_password )', $source );
 	}
 
 	/** Scene details must use canonical ownership and deterministic editorial order. */
@@ -36,6 +39,8 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( 'worldgraph_get_scene_display_shots', $source );
 		$this->assertStringContainsString( "[ 'belongs_to', 'contains' ]", $source );
 		$this->assertStringContainsString( "'key'     => 'scene'", $source );
+		$this->assertStringContainsString( 'worldgraph_get_shot_canonical_scene_id', $source );
+		$this->assertStringContainsString( '$scene_id !== $canonical_scene_id', $source );
 		$this->assertStringContainsString( '$left->ID <=> $right->ID', $source );
 		$this->assertStringContainsString( "\$payload['shots']", $source );
 	}
@@ -61,20 +66,30 @@ class Test_Story_Display_UI extends TestCase {
 		$controller = file_get_contents( dirname( __DIR__ ) . '/includes/admin/scene-shot-sequencer.php' );
 		$service    = file_get_contents( dirname( __DIR__ ) . '/includes/utils/scene-shot-order.php' );
 		$rest       = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/shots-controller.php' );
+		$base_rest  = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/base-controller.php' );
+		$shot_cpt   = file_get_contents( dirname( __DIR__ ) . '/includes/cpts/shot.php' );
 		$script     = file_get_contents( dirname( __DIR__ ) . '/assets/js/scene-shot-sequencer.js' );
 
 		$this->assertNotFalse( $controller );
 		$this->assertNotFalse( $service );
 		$this->assertNotFalse( $rest );
+		$this->assertNotFalse( $base_rest );
+		$this->assertNotFalse( $shot_cpt );
 		$this->assertNotFalse( $script );
 		$this->assertStringContainsString( 'worldgraph_reorder_scene_shots', $controller );
 		$this->assertStringContainsString( '$submitted_set !== $expected_set', $service );
 		$this->assertStringContainsString( "current_user_can( 'edit_post', \$scene_id )", $service );
 		$this->assertStringContainsString( "current_user_can( 'edit_post', \$shot_id )", $service );
 		$this->assertStringContainsString( '$order_slots[ $index ]', $service );
+		$this->assertStringContainsString( "'post__not_in'   => \$scene_shot_ids", $service );
 		$this->assertStringContainsString( 'worldgraph_rollback_scene_shot_order', $service );
 		$this->assertStringContainsString( "'scene_id'", $rest );
 		$this->assertStringContainsString( "'permission_callback' => [ \$this, 'check_reorder_permission' ]", $rest );
+		$this->assertStringContainsString( 'worldgraph_shot_order_requires_scene', $rest );
+		$this->assertStringContainsString( "current_user_can( 'edit_post', \$post_id )", $base_rest );
+		$this->assertStringContainsString( "current_user_can( 'delete_post', \$post_id )", $base_rest );
+		$this->assertStringNotContainsString( "'page-attributes'", $shot_cpt );
+		$this->assertStringContainsString( 'set_relationships_for_field', $shot_cpt );
 		$this->assertStringContainsString( "data-shot-move=\"up\"", $controller );
 		$this->assertStringContainsString( 'aria-live="polite"', $controller );
 		$this->assertStringContainsString( 'sortable', $script );
@@ -117,6 +132,7 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( 'wp_safe_remote_post', $source );
 		$this->assertStringContainsString( 'render_failure_notice', $source );
 		$this->assertStringContainsString( "'_thumbnail_id'", $source );
+		$this->assertStringContainsString( "'production_stage'", $source );
 		$this->assertStringContainsString( "'publish' !== \$post->post_status", $source );
 		$this->assertStringContainsString( "add_action( 'set_object_terms'", $source );
 		$this->assertStringContainsString( 'queue_broad_story_revalidation', $source );

@@ -436,6 +436,38 @@ function DetailBody({ item }: { item: StoryItem }) {
 export function StoryDetail({ item }: { item: StoryItem }) {
   const config = storyResourceConfig[item.storyType];
 
+  if (item.protected) {
+    return (
+      <article className="space-y-8">
+        <nav aria-label="Breadcrumb" className="text-sm text-wg-charcoal/65">
+          <Link href="/story" className="font-semibold text-wg-blueprint">
+            Story
+          </Link>
+          <span aria-hidden="true"> / </span>
+          <Link
+            href={`/story/${item.storyType}`}
+            className="font-semibold text-wg-blueprint"
+          >
+            {config.plural}
+          </Link>
+        </nav>
+        <div className="rounded-wg border-2 border-wg-espresso bg-wg-ivory p-8 shadow-wg">
+          <p className="font-headline text-xs font-bold uppercase tracking-[0.22em] text-wg-sepia">
+            Protected story item
+          </p>
+          <h1
+            className="mt-3 max-w-4xl text-4xl font-semibold text-wg-espresso md:text-5xl"
+            dangerouslySetInnerHTML={{ __html: item.titleHtml }}
+          />
+          <p className="mt-5 max-w-2xl leading-relaxed text-wg-charcoal/75">
+            This item is protected in WordPress. Its story details and media are not
+            available in the public headless view.
+          </p>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="space-y-10">
       <nav aria-label="Breadcrumb" className="text-sm text-wg-charcoal/65">

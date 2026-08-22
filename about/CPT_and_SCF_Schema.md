@@ -347,7 +347,10 @@ targets that Scene. Reordering there swaps those Shots among their existing
 editorial slots instead of renumbering every Scene from one, so other Scenes'
 global cut positions are preserved. Legacy Shots with zero or duplicate global
 positions receive new collision-free slots after the current cut the first time
-they are explicitly ordered.
+they are explicitly ordered. The Shot editor does not expose WordPress Page
+Attributes ordering, and the custom REST create/update resources reject direct
+`menu_order` writes; interactive order changes use the complete Scene-scoped
+sequencer.
 
 ---
 

@@ -1,0 +1,58 @@
+.worldgraph-template-test__columns {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 24px;
+}
+
+.worldgraph-template-test__run,
+.worldgraph-template-test__chat {
+	flex: 1 1 320px;
+	min-width: 280px;
+}
+
+.worldgraph-template-test__field label {
+	font-weight: 600;
+}
+
+.worldgraph-template-test__media-preview {
+	display: inline-block;
+	margin-right: 8px;
+	color: #50575e;
+}
+
+.worldgraph-template-test__status-error {
+	color: #b32d2e;
+}
+
+.worldgraph-template-test__status-info {
+	color: #2271b1;
+}
+
+.worldgraph-template-test__preview {
+	display: block;
+	margin-top: 8px;
+	max-width: 100%;
+	height: auto;
+}
+
+.worldgraph-template-test__log {
+	max-height: 320px;
+	overflow-y: auto;
+	padding: 8px;
+	border: 1px solid #dcdcde;
+	background: #fff;
+}
+
+.worldgraph-template-test__message {
+	margin-bottom: 12px;
+}
+
+.worldgraph-template-test__message p {
+	margin: 4px 0;
+	white-space: pre-wrap;
+}
+
+.worldgraph-template-test__message--assistant {
+	border-left: 3px solid #2271b1;
+	padding-left: 8px;
+}

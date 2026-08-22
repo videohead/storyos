@@ -402,7 +402,7 @@ function on_story_post_saved( int $post_id, \WP_Post $post, bool $update ): void
  */
 function on_story_display_meta_changed( int|array $meta_id, int $post_id, string $meta_key ): void {
 	unset( $meta_id );
-	if ( in_array( $meta_key, [ '_thumbnail_id', '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', 'storage_uri', 'worldgraph_relationships' ], true ) ) {
+	if ( in_array( $meta_key, [ '_thumbnail_id', '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', 'storage_uri', 'worldgraph_relationships', 'production_stage' ], true ) ) {
 		queue_story_revalidation( $post_id );
 	}
 }

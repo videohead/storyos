@@ -272,7 +272,20 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return bool|\WP_Error
 	 */
 	public function check_update_permission( \WP_REST_Request $request ) {
-		return $this->check_create_permission( $request );
+		$post_id = absint( $request->get_param( 'id' ) );
+		if ( ! $post_id ) {
+			return $this->check_create_permission( $request );
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post || ( $this->cpt && $this->cpt !== $post->post_type ) ) {
+			return new WP_Error( 'rest_post_not_found', 'Post not found.', [ 'status' => 404 ] );
+		}
+		if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot edit this post.', [ 'status' => 403 ] );
+		}
+
+		return true;
 	}
 
 	/**
@@ -282,9 +295,22 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return bool|\WP_Error
 	 */
 	public function check_delete_permission( \WP_REST_Request $request ) {
-		if ( ! is_user_logged_in() || ! current_user_can( 'delete_posts' ) ) {
-			return new WP_Error( 'rest_forbidden', 'You must be logged in with delete permissions.', [ 'status' => 403 ] );
+		$post_id = absint( $request->get_param( 'id' ) );
+		if ( ! $post_id ) {
+			if ( ! is_user_logged_in() || ! current_user_can( 'delete_posts' ) ) {
+				return new WP_Error( 'rest_forbidden', 'You must be logged in with delete permissions.', [ 'status' => 403 ] );
+			}
+			return true;
 		}
+
+		$post = get_post( $post_id );
+		if ( ! $post || ( $this->cpt && $this->cpt !== $post->post_type ) ) {
+			return new WP_Error( 'rest_post_not_found', 'Post not found.', [ 'status' => 404 ] );
+		}
+		if ( ! is_user_logged_in() || ! current_user_can( 'delete_post', $post_id ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot delete this post.', [ 'status' => 403 ] );
+		}
+
 		return true;
 	}
 

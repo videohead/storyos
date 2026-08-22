@@ -115,7 +115,9 @@ POST /wp-json/worldgraph/v1/shots/reorder
 complete Shot membership exactly once. It checks `edit_post` for the Scene and
 every Shot, preserves the Scene's existing project-wide editorial slots, and
 rolls back previously written positions if a later update fails. An optional
-`sequence_id` assigns the validated Shot set to a Sequence.
+`sequence_id` assigns the validated Shot set to a Sequence. Direct
+`menu_order` writes on Shot create/update resources are rejected; the scoped
+reorder route is the authoritative interactive ordering path.
 
 ### Public Story Display Projection
 
@@ -162,9 +164,11 @@ The post's Featured Media remains first. Recognized generated Character, Prop,
 Location, Shot, Scene, and Episode intents then receive their canonical recipe
 order; manually curated unlabeled media preserves the stored gallery order.
 Anonymous projections include published, non-password-protected related records
-only. An
-authenticated editor can receive only non-public related records that
-WordPress authorizes that user to read.
+only. For a password-protected root Story post, the final native REST response
+also clears both `acf` and `worldgraph_display` unless WordPress recognizes an
+edit-context, cookie, or explicit request password. An authenticated editor can
+receive only non-public related records that WordPress authorizes that user to
+read.
 
 Project completion is represented by its real production-status taxonomy and
 `production_stage`. No completion percentage is inferred because the canonical
