@@ -70,10 +70,11 @@ every media shape a registered generation modality. Custom or future adapters
 must register and validate their own executable contract rather than relying on
 unused modality names.
 
-The story-post **World Graph Studio Assets** metabox retains its direct image
-generation path and also exposes the Story Graph item's representative-media
-plan. A Shot plan can therefore require both an image-output Template and a
-video-output Template. The generic generation REST endpoint accepts `image`,
+The story-post **World Graph Studio Assets** metabox exposes an explicit direct
+still-image/text-to-video selector and the Story Graph item's
+representative-media plan. Direct video is available for a Shot, whose plan can
+therefore require both an image-output Template and a video-output Template.
+The generic generation REST endpoint accepts `image`,
 `video`, `audio`, or `text` as a requested result type, but the selected active
 Template and provider adapter still determine whether a request can run.
 
@@ -225,11 +226,13 @@ template ID, optional workflow JSON, model/checkpoint information, and default
 configuration. Templates are WordPress configuration records, not permission
 to run arbitrary server code.
 
-For a direct image, an author can still edit the suggested prompt, select an
-active runnable image Template, choose featured-media and linked-Asset behavior,
-and queue one job. For representative generation, the author first reviews the
-read-only plan and its image/video counts, chooses optional Template overrides,
-and starts the durable item or Project batch.
+For a direct output, an author selects image or Shot video, chooses the matching
+active runnable Template, adds optional one-off instructions, chooses applicable
+featured-media and linked-Asset behavior, and queues one job. The complete
+Story Graph prompt remains server-composed and is shown only in a collapsed
+read-only preview. For representative generation, the author reviews the
+image/video counts, chooses optional Template overrides, and confirms the
+durable item or Project batch.
 
 Runnable Template lists exclude disabled Connections, mismatched output types,
 and Templates whose required bindings cannot be resolved for every applicable
@@ -344,6 +347,11 @@ or audio results are retained when the provider returns them. Depending on the
 originating request, the primary attachment can become the post's featured
 media and a linked `worldgraph_asset` record can be created.
 
+Large video and URL-based audio outputs use bounded streamed temporary files;
+image responses and local ComfyUI media inputs are also byte-limited. The
+importer refuses to complete unless an attachment matches the job's requested
+image, video, or audio output type.
+
 Text-output jobs such as Suno lyrics retain their normalized provider result on
 the generation record and do not create a media attachment.
 
@@ -380,8 +388,8 @@ The canonical REST base is `/wp-json/worldgraph/v1/`.
 
 | Method and route | Purpose |
 | --- | --- |
-| `GET /assets/generate/prompt?post_id={id}` | Suggested prompt plus runnable image Templates |
-| `POST /assets/generate` | Queue an image for a Story Graph post |
+| `GET /assets/generate/prompt?post_id={id}` | Direct image/Shot-video actions, read-only prompts, and runnable Templates |
+| `POST /assets/generate` | Queue one story-aware image or Shot video |
 | `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompt hashes, runnable Templates, defaults, and the latest batch |
 | `POST /assets/generate/batches` | Validate and start a durable item or Project representative-media batch |
 | `GET /assets/generate/batches/{id}` | Read aggregate batch progress and child jobs |

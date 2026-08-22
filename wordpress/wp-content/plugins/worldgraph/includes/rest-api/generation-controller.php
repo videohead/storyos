@@ -112,7 +112,7 @@ class Generation_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/generation/(?P<id>\d+)', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'get_generation_status' ],
-			'permission_callback' => [ $this, 'check_read_permission' ],
+			'permission_callback' => [ $this, 'check_generation_read_permission' ],
 			'args'                => [
 				'id' => [
 					'description' => 'Generation request ID.',
@@ -140,7 +140,7 @@ class Generation_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/generation/asset/(?P<asset_id>\d+)/history', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'get_asset_history' ],
-			'permission_callback' => [ $this, 'check_read_permission' ],
+			'permission_callback' => [ $this, 'check_asset_history_permission' ],
 			'args'                => [
 				'asset_id' => [
 					'description' => 'Asset ID.',
@@ -170,6 +170,34 @@ class Generation_Controller extends Base_Controller {
 				],
 			],
 		] );
+	}
+
+	/** Restrict prompt/status data to the requester or an editor of its source. */
+	public function check_generation_read_permission( WP_REST_Request $request ) {
+		$generation_id = absint( $request->get_param( 'id' ) );
+		$generation    = get_post( $generation_id );
+		if ( ! $generation instanceof \WP_Post || 'worldgraph_gen' !== $generation->post_type ) {
+			return new WP_Error( 'worldgraph_generation_not_found', 'Generation request not found.', [ 'status' => 404 ] );
+		}
+
+		$user_id      = get_current_user_id();
+		$requester_id = absint( get_post_meta( $generation_id, Generation_Authorization::REQUESTER_META, true ) );
+		$source_id    = absint( get_post_meta( $generation_id, '_worldgraph_gen_source_post_id', true ) ?: $generation->post_parent );
+		if ( $user_id && ( $user_id === $requester_id || ( $source_id && current_user_can( 'edit_post', $source_id ) ) || current_user_can( 'edit_post', $generation_id ) ) ) {
+			return true;
+		}
+
+		return new WP_Error( 'worldgraph_generation_forbidden', 'You are not allowed to view this generation request.', [ 'status' => $user_id ? 403 : 401 ] );
+	}
+
+	/** Generation history can reveal prompts, so require edit access to the Asset. */
+	public function check_asset_history_permission( WP_REST_Request $request ) {
+		$asset_id = absint( $request->get_param( 'asset_id' ) );
+		if ( $asset_id && 'worldgraph_asset' === get_post_type( $asset_id ) && current_user_can( 'edit_post', $asset_id ) ) {
+			return true;
+		}
+
+		return new WP_Error( 'worldgraph_generation_history_forbidden', 'You are not allowed to view generation history for this Asset.', [ 'status' => is_user_logged_in() ? 403 : 401 ] );
 	}
 
 	/** Only editors of a generation record may cancel it. */

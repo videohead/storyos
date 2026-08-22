@@ -77,7 +77,7 @@ includes:
 | `worldgraph/templates-manifest` | Read active Template discovery metadata |
 | `worldgraph/template-requirements` | Read and optionally validate ComfyUI requirements |
 | `worldgraph/suggest-asset-prompt` | Build a prompt for an editable Story Graph post |
-| `worldgraph/generate-asset` | Enter the permission-checked asset-generation path |
+| `worldgraph/generate-asset` | Enter the permission-checked image/Shot-video generation path |
 
 The templates manifest is available as the read-only
 `worldgraph://templates-manifest` MCP resource when a compatible WordPress MCP

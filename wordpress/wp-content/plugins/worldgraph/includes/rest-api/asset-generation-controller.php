@@ -37,12 +37,13 @@ class Asset_Generation_Controller extends Base_Controller {
 			'callback'            => [ $this, 'generate' ],
 			'permission_callback' => [ $this, 'check_generate_permission' ],
 			'args'                => [
-				'post_id'      => [ 'description' => 'Story element post ID the image belongs to.', 'type' => 'integer', 'required' => true ],
-				'prompt'       => [ 'description' => 'Optional edited prompt. A fresh detailed prompt is built from saved Story Graph fields when omitted.', 'type' => 'string' ],
+				'post_id'      => [ 'description' => 'Story element post ID the media belongs to.', 'type' => 'integer', 'required' => true ],
+				'type'         => [ 'description' => 'Direct output type.', 'type' => 'string', 'enum' => [ 'image', 'video' ], 'default' => 'image' ],
+				'prompt'       => [ 'description' => 'Optional additional instructions appended to the saved Story Graph prompt.', 'type' => 'string' ],
 				'intent'       => [ 'description' => 'Optional built-in representative-media intent.', 'type' => 'string' ],
-				'set_featured' => [ 'description' => 'Set the generated image as the featured asset.', 'type' => 'boolean', 'default' => true ],
+				'set_featured' => [ 'description' => 'Set a generated image as the featured asset. Ignored for video.', 'type' => 'boolean', 'default' => true ],
 				'create_asset' => [ 'description' => 'Create a linked World Graph Studio Asset record.', 'type' => 'boolean', 'default' => true ],
-				'template_id'  => [ 'description' => 'Active image Template post ID.', 'type' => 'integer', 'required' => true ],
+				'template_id'  => [ 'description' => 'Active Template post ID matching the requested output type.', 'type' => 'integer', 'required' => true ],
 			],
 		] );
 
@@ -133,12 +134,31 @@ class Asset_Generation_Controller extends Base_Controller {
 		return true;
 	}
 
-	/** Queue a backwards-compatible single representative image. */
+	/** Queue one story-aware image or video output. */
 	public static function generate( WP_REST_Request $request ) {
-		$result = Asset_Generator::queue_for_post( absint( $request->get_param( 'post_id' ) ), [
-			'type'         => 'image',
+		$post_id = absint( $request->get_param( 'post_id' ) );
+		$type    = 'video' === sanitize_key( (string) $request->get_param( 'type' ) ) ? 'video' : 'image';
+		$intent  = sanitize_key( (string) $request->get_param( 'intent' ) );
+		$plan    = Generation_Workflows::plan( $post_id, 'item' );
+		if ( is_wp_error( $plan ) ) {
+			return $plan;
+		}
+
+		$task = self::task_for_output( $plan, $type, $intent );
+		if ( empty( $task ) ) {
+			return new WP_Error(
+				'worldgraph_generation_output_unavailable',
+				'video' === $type
+					? __( 'This item has no direct video output. Generate video from a Shot, or use Generate all Project media for owned Shots.', 'worldgraph' )
+					: __( 'This item has no direct image output.', 'worldgraph' ),
+				[ 'status' => 400 ]
+			);
+		}
+
+		$result = Asset_Generator::queue_for_post( $post_id, [
+			'type'         => $type,
 			'prompt'       => (string) $request->get_param( 'prompt' ),
-			'intent'       => sanitize_key( (string) $request->get_param( 'intent' ) ),
+			'intent'       => (string) $task['intent'],
 			'set_featured' => $request->get_param( 'set_featured' ),
 			'create_asset' => $request->get_param( 'create_asset' ),
 			'template_id'  => absint( $request->get_param( 'template_id' ) ),
@@ -159,27 +179,58 @@ class Asset_Generation_Controller extends Base_Controller {
 			return $plan;
 		}
 
-		$task       = (array) ( $plan['tasks'][0] ?? [] );
-		$templates  = Generation_Workflows::runnable_templates( $post_id, 'image' );
-		$default_id = empty( $task ) ? 0 : Generation_Workflows::resolve_template_id( $task );
+		$image_templates = Generation_Workflows::runnable_templates( $post_id, 'image' );
+		$video_templates = Generation_Workflows::runnable_templates( $post_id, 'video' );
+		$outputs         = [];
+		$default_ids     = [ 'image' => 0, 'video' => 0 ];
+		foreach ( [ 'image', 'video' ] as $type ) {
+			$task = self::task_for_output( $plan, $type );
+			if ( empty( $task ) ) {
+				continue;
+			}
+			$default_ids[ $type ] = Generation_Workflows::resolve_template_id( $task );
+			$outputs[ $type ]     = [
+				'type'                => $type,
+				'intent'              => (string) $task['intent'],
+				'label'               => (string) $task['label'],
+				'prompt'              => (string) $task['prompt'],
+				'configured'          => 0 !== $default_ids[ $type ],
+				'default_template_id' => $default_ids[ $type ],
+			];
+		}
+		$image_output = (array) ( $outputs['image'] ?? [] );
 
 		return rest_ensure_response( [
-			'post_id'             => $post_id,
-			'prompt'              => (string) ( $task['prompt'] ?? Asset_Generator::build_prompt( $post_id ) ),
-			'intent'              => (string) ( $task['intent'] ?? '' ),
-			'configured'          => 0 !== $default_id,
-			'model'               => $default_id ? __( 'Template provider', 'worldgraph' ) : '',
-			'profile'             => Asset_Generator::project_media_profile( $post_id ),
-			'workflow'            => $plan['workflow'],
-			'counts'              => $plan['counts'],
-			'total_jobs'          => $plan['total_jobs'],
-			'templates'           => $templates,
-			'image_templates'     => $templates,
-			'video_templates'     => Generation_Workflows::runnable_templates( $post_id, 'video' ),
-			'default_template_id' => $default_id,
-			'latest_batch'        => Generation_Workflows::latest_batch( $post_id, 'item' ),
+			'post_id'              => $post_id,
+			'prompt'               => (string) ( $image_output['prompt'] ?? Asset_Generator::build_prompt( $post_id ) ),
+			'intent'               => (string) ( $image_output['intent'] ?? '' ),
+			'configured'           => ! empty( $image_output['configured'] ),
+			'model'                => ! empty( $image_output['configured'] ) ? __( 'Template provider', 'worldgraph' ) : '',
+			'profile'              => Asset_Generator::project_media_profile( $post_id ),
+			'workflow'             => $plan['workflow'],
+			'counts'               => $plan['counts'],
+			'total_jobs'           => $plan['total_jobs'],
+			'outputs'              => $outputs,
+			'available_types'      => array_keys( $outputs ),
+			'templates'            => $image_templates,
+			'image_templates'      => $image_templates,
+			'video_templates'      => $video_templates,
+			'default_template_id'  => $default_ids['image'],
+			'default_template_ids' => $default_ids,
+			'latest_batch'         => Generation_Workflows::latest_batch( $post_id, 'item' ),
 			'latest_project_batch' => 'worldgraph_project' === get_post_type( $post_id ) ? Generation_Workflows::latest_batch( $post_id, 'project' ) : [],
 		] );
+	}
+
+	/** Find the first planned task matching a direct output type and intent. */
+	private static function task_for_output( array $plan, string $type, string $intent = '' ): array {
+		foreach ( (array) ( $plan['tasks'] ?? [] ) as $task ) {
+			if ( $type === ( $task['type'] ?? '' ) && ( '' === $intent || $intent === ( $task['intent'] ?? '' ) ) ) {
+				return (array) $task;
+			}
+		}
+
+		return [];
 	}
 
 	/** Dry-run an item or project representative-media plan. */

@@ -11,6 +11,25 @@
 
 .worldgraph-generate-asset__prompt {
 	margin-top: 4px;
+	line-height: 1.5;
+}
+
+.worldgraph-generate-asset__context {
+	margin: 10px 0 14px;
+}
+
+.worldgraph-generate-asset__context summary {
+	cursor: pointer;
+}
+
+.worldgraph-generate-asset__context-preview {
+	max-height: 260px;
+	margin: 8px 0;
+	padding: 10px 12px;
+	overflow: auto;
+	white-space: pre-wrap;
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 	font-size: 12px;
 	line-height: 1.5;
@@ -32,8 +51,23 @@
 .worldgraph-generate-asset__actions {
 	display: flex;
 	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 12px;
+	margin: 14px 0;
+}
+
+.worldgraph-generate-asset__action-group {
+	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px;
+	padding-right: 12px;
+	border-right: 1px solid #dcdcde;
+}
+
+.worldgraph-generate-asset__action-group strong {
+	flex-basis: 100%;
+	font-size: 12px;
 }
 
 .worldgraph-generate-asset__status {
@@ -50,6 +84,10 @@
 	align-items: center;
 	gap: 10px;
 	margin: 8px 0;
+}
+
+.worldgraph-generate-asset__progress[hidden] {
+	display: none;
 }
 
 .worldgraph-generate-asset__progress progress {

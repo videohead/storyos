@@ -191,8 +191,8 @@ configured.
 - `worldgraph/template-requirements` — inspect and optionally validate a
   template's ComfyUI requirements.
 - `worldgraph/suggest-asset-prompt` — build a source-aware asset prompt.
-- `worldgraph/generate-asset` — queue an authorized generation request and
-  optionally link its result to the source.
+- `worldgraph/generate-asset` — queue an authorized story-aware image or Shot
+  video request and optionally link its result to the source.
 
 ### Prompt resources
 

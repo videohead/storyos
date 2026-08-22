@@ -31,6 +31,7 @@ class Generation_Workflows {
 	const BATCH_PLAN_META       = '_worldgraph_gen_batch_plan';
 	const BATCH_CURSOR_META     = '_worldgraph_gen_batch_cursor';
 	const IDEMPOTENCY_META      = '_worldgraph_gen_idempotency_key';
+	const REQUEST_HASH_META     = '_worldgraph_gen_request_hash';
 	const INTENT_META           = '_worldgraph_gen_intent';
 	const STEP_META             = '_worldgraph_gen_batch_step';
 	const REPRESENTATIVE_BATCH = 'representative_media';
@@ -38,7 +39,8 @@ class Generation_Workflows {
 	const MATERIALIZE_PER_TICK  = 20;
 	const ACTIVATE_PER_TICK     = 50;
 	const COORDINATOR_LOCK      = 'worldgraph_generation_workflow_coordinator_lock';
-	const COORDINATOR_LOCK_TTL  = 7200;
+	const COORDINATOR_LOCK_TTL  = 300;
+	const IDEMPOTENCY_LOCK_TTL  = 1800;
 
 	/** Maximum number of child jobs one request may persist. */
 	const MAX_BATCH_TASKS = 5000;
@@ -61,14 +63,30 @@ class Generation_Workflows {
 
 	/** Story Graph fields that provide useful generation context. */
 	const PROMPT_FIELDS = [
-		'worldgraph_project'   => [ 'description', 'genre', 'target_medium', 'production_stage', 'frame_width', 'frame_height', 'aspect_ratio', 'frame_rate' ],
+		'worldgraph_project'   => [ 'description', 'genre', 'target_medium', 'aspect_ratio' ],
 		'worldgraph_world'     => [ 'synopsis', 'timeline', 'rules', 'themes', 'geography', 'references' ],
-		'worldgraph_character' => [ 'biography', 'age', 'appearance', 'personality', 'motivation', 'backstory', 'voice_profile' ],
+		'worldgraph_character' => [ 'biography', 'age', 'appearance', 'personality', 'motivation', 'backstory' ],
 		'worldgraph_prop'      => [ 'description', 'purpose', 'notes' ],
 		'worldgraph_location'  => [ 'description', 'environment_type', 'geography', 'mood' ],
 		'worldgraph_shot'      => [ 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'shot_description', 'editorial_notes' ],
 		'worldgraph_scene'     => [ 'scene_number', 'summary', 'script_content', 'dialogue', 'location', 'time_of_day', 'emotional_tone', 'production_notes' ],
 		'worldgraph_episode'   => [ 'episode_number', 'synopsis' ],
+	];
+
+	/**
+	 * Short, visual fields inherited from parent records.
+	 *
+	 * Source records retain their full prompt map above. Ancestors deliberately
+	 * omit screenplay/dialogue bodies and production-state metadata so a Shot
+	 * does not receive an unrelated Scene transcript merely because those fields
+	 * happened to appear early in its schema.
+	 */
+	const INHERITED_PROMPT_FIELDS = [
+		'worldgraph_project'   => [ 'description', 'genre', 'target_medium', 'aspect_ratio' ],
+		'worldgraph_world'     => [ 'synopsis', 'rules', 'geography', 'themes' ],
+		'worldgraph_character' => [ 'appearance', 'personality', 'biography', 'motivation' ],
+		'worldgraph_episode'   => [ 'episode_number', 'synopsis' ],
+		'worldgraph_scene'     => [ 'summary', 'location', 'time_of_day', 'emotional_tone' ],
 	];
 
 	/** Canonical authoring fields and parent types used for context ancestry. */
@@ -361,10 +379,12 @@ class Generation_Workflows {
 		foreach ( array_reverse( self::ancestors( $post_id ) ) as $ancestor ) {
 			$details = [];
 			$fields  = worldgraph_get_fields( $ancestor->post_type );
-			foreach ( array_slice( self::PROMPT_FIELDS[ $ancestor->post_type ] ?? [], 0, 4 ) as $field_name ) {
-				$value = self::field_prompt_value( (int) $ancestor->ID, $field_name, (array) ( $fields[ $field_name ] ?? [] ) );
+			foreach ( self::INHERITED_PROMPT_FIELDS[ $ancestor->post_type ] ?? [] as $field_name ) {
+				$field = (array) ( $fields[ $field_name ] ?? [] );
+				$value = self::field_prompt_value( (int) $ancestor->ID, $field_name, $field );
 				if ( '' !== $value ) {
-					$details[] = ucwords( str_replace( '_', ' ', $field_name ) ) . ': ' . self::clean_text( $value, 90 );
+					$label     = (string) ( $field['label'] ?? ucwords( str_replace( '_', ' ', $field_name ) ) );
+					$details[] = $label . ': ' . self::clean_text( $value, 90 );
 				}
 			}
 			$instructions = self::clean_text( (string) worldgraph_get_field_value( (int) $ancestor->ID, 'generation_prompt' ), 180 );
@@ -739,9 +759,20 @@ class Generation_Workflows {
 		if ( '' === $idempotency_key ) {
 			return new WP_Error( 'worldgraph_generation_idempotency_required', __( 'A unique idempotency key is required to start a representative-media batch.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
+		$request_hash = hash( 'sha256', wp_json_encode( [
+			'post_id'           => $post_id,
+			'scope'             => 'project' === $scope ? 'project' : 'item',
+			'base_prompt'       => (string) $args['base_prompt'],
+			'image_template_id' => absint( $args['image_template_id'] ),
+			'video_template_id' => absint( $args['video_template_id'] ),
+		] ) );
 
 		$existing = self::batch_for_idempotency_key( $post_id, $requester_id, $idempotency_key );
 		if ( $existing ) {
+			$stored_hash = (string) get_post_meta( $existing, self::REQUEST_HASH_META, true );
+			if ( '' !== $stored_hash && ! hash_equals( $stored_hash, $request_hash ) ) {
+				return new WP_Error( 'worldgraph_generation_idempotency_conflict', __( 'That idempotency key was already used for different generation settings.', 'worldgraph' ), [ 'status' => 409 ] );
+			}
 			return self::batch_status( $existing );
 		}
 
@@ -779,6 +810,15 @@ class Generation_Workflows {
 			);
 		}
 
+		$reservation = self::reserve_idempotency_key( $post_id, $requester_id, $idempotency_key, $request_hash );
+		if ( is_wp_error( $reservation ) ) {
+			return $reservation;
+		}
+		if ( ! empty( $reservation['batch_id'] ) ) {
+			return self::batch_status( (int) $reservation['batch_id'] );
+		}
+		$reservation_token = (string) $reservation['token'];
+
 		$root  = get_post( $post_id );
 		$batch = wp_insert_post( [
 			'post_type'   => 'worldgraph_gen',
@@ -787,6 +827,7 @@ class Generation_Workflows {
 			'post_title'  => sprintf( __( 'Representative media batch: %s', 'worldgraph' ), $root instanceof \WP_Post ? $root->post_title : $post_id ),
 		], true );
 		if ( is_wp_error( $batch ) ) {
+			self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
 			return $batch;
 		}
 
@@ -811,8 +852,8 @@ class Generation_Workflows {
 			self::BATCH_KIND_META        => self::REPRESENTATIVE_BATCH,
 			self::BATCH_SCOPE_META       => (string) $plan['scope'],
 			self::IDEMPOTENCY_META       => $idempotency_key,
+			self::REQUEST_HASH_META       => $request_hash,
 			'_worldgraph_gen_requested_by' => $requester_id,
-			'_worldgraph_gen_status'     => 'batch_materializing',
 			'_worldgraph_gen_created'    => current_time( 'mysql' ),
 			'_worldgraph_gen_total'      => count( $frozen_plan ),
 			'_worldgraph_gen_workflow_version' => self::WORKFLOW_VERSION,
@@ -824,9 +865,20 @@ class Generation_Workflows {
 		}
 		if ( self::REPRESENTATIVE_BATCH !== get_post_meta( $batch_id, self::BATCH_KIND_META, true ) || count( $frozen_plan ) !== count( (array) get_post_meta( $batch_id, self::BATCH_PLAN_META, true ) ) ) {
 			wp_delete_post( $batch_id, true );
+			self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
 			return new WP_Error( 'worldgraph_generation_batch_storage_failed', __( 'WordPress could not persist the representative-media plan.', 'worldgraph' ), [ 'status' => 500 ] );
 		}
 
+		// The root status is the coordinator's commit marker. Publish it only
+		// after the complete frozen plan is durable and verified.
+		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_materializing' );
+		if ( 'batch_materializing' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) ) {
+			wp_delete_post( $batch_id, true );
+			self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
+			return new WP_Error( 'worldgraph_generation_batch_storage_failed', __( 'WordPress could not commit the representative-media plan.', 'worldgraph' ), [ 'status' => 500 ] );
+		}
+
+		self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
 		Generation_Batch::schedule();
 		return self::batch_status( $batch_id );
 	}
@@ -843,24 +895,84 @@ class Generation_Workflows {
 				[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
 				[ 'key' => self::IDEMPOTENCY_META, 'value' => $idempotency_key ],
 				[ 'key' => '_worldgraph_gen_requested_by', 'value' => $requester_id ],
+				[ 'key' => '_worldgraph_gen_status', 'compare' => 'EXISTS' ],
 			],
 		] );
 
 		return $existing ? (int) $existing[0] : 0;
 	}
 
-	/** Stage and then activate frozen child tasks in bounded cron chunks. */
-	public static function process_batches(): void {
-		$current_lock = get_option( self::COORDINATOR_LOCK, [] );
-		$current_lock = is_array( $current_lock ) ? $current_lock : [];
-		if ( absint( $current_lock['expires'] ?? 0 ) >= time() ) {
+	/** Atomically reserve a caller/root idempotency key before inserting a batch. */
+	private static function reserve_idempotency_key( int $post_id, int $requester_id, string $idempotency_key, string $request_hash ) {
+		global $wpdb;
+
+		$existing = self::batch_for_idempotency_key( $post_id, $requester_id, $idempotency_key );
+		if ( $existing ) {
+			$stored_hash = (string) get_post_meta( $existing, self::REQUEST_HASH_META, true );
+			if ( '' !== $stored_hash && ! hash_equals( $stored_hash, $request_hash ) ) {
+				return new WP_Error( 'worldgraph_generation_idempotency_conflict', __( 'That idempotency key was already used for different generation settings.', 'worldgraph' ), [ 'status' => 409 ] );
+			}
+			return [ 'batch_id' => $existing, 'token' => '' ];
+		}
+
+		$option_name = self::idempotency_option_name( $post_id, $requester_id, $idempotency_key );
+		$token       = wp_generate_uuid4();
+		$value       = [ 'token' => $token, 'request_hash' => $request_hash, 'expires' => time() + self::IDEMPOTENCY_LOCK_TTL ];
+		if ( add_option( $option_name, $value, '', false ) ) {
+			return [ 'batch_id' => 0, 'token' => $token ];
+		}
+
+		$current = get_option( $option_name, [] );
+		if ( is_array( $current ) && ! hash_equals( (string) ( $current['request_hash'] ?? '' ), $request_hash ) ) {
+			return new WP_Error( 'worldgraph_generation_idempotency_conflict', __( 'That idempotency key is already reserved for different generation settings.', 'worldgraph' ), [ 'status' => 409 ] );
+		}
+		if ( ! is_array( $current ) || absint( $current['expires'] ?? 0 ) >= time() ) {
+			return new WP_Error( 'worldgraph_generation_idempotency_pending', __( 'That generation request is already being started. Retry the same request shortly.', 'worldgraph' ), [ 'status' => 409 ] );
+		}
+
+		$updated = $wpdb->update(
+			$wpdb->options,
+			[ 'option_value' => maybe_serialize( $value ) ],
+			[
+				'option_name'  => $option_name,
+				'option_value' => maybe_serialize( $current ),
+			],
+			[ '%s' ],
+			[ '%s', '%s' ]
+		);
+		wp_cache_delete( $option_name, 'options' );
+		return 1 === $updated
+			? [ 'batch_id' => 0, 'token' => $token ]
+			: new WP_Error( 'worldgraph_generation_idempotency_pending', __( 'That generation request is already being started. Retry the same request shortly.', 'worldgraph' ), [ 'status' => 409 ] );
+	}
+
+	/** Release only the matching idempotency reservation. */
+	private static function release_idempotency_key( int $post_id, int $requester_id, string $idempotency_key, string $token ): void {
+		global $wpdb;
+
+		$option_name = self::idempotency_option_name( $post_id, $requester_id, $idempotency_key );
+		$current     = get_option( $option_name, [] );
+		if ( ! is_array( $current ) || ! hash_equals( $token, (string) ( $current['token'] ?? '' ) ) ) {
 			return;
 		}
-		if ( $current_lock ) {
-			delete_option( self::COORDINATOR_LOCK );
-		}
-		$lock_token = wp_generate_uuid4();
-		if ( ! add_option( self::COORDINATOR_LOCK, [ 'token' => $lock_token, 'expires' => time() + self::COORDINATOR_LOCK_TTL ], '', false ) ) {
+		$wpdb->delete(
+			$wpdb->options,
+			[ 'option_name' => $option_name, 'option_value' => maybe_serialize( $current ) ],
+			[ '%s', '%s' ]
+		);
+		wp_cache_delete( $option_name, 'options' );
+	}
+
+	/** Stable, bounded option name for one caller/root operation key. */
+	private static function idempotency_option_name( int $post_id, int $requester_id, string $idempotency_key ): string {
+		return 'worldgraph_gen_idem_' . hash( 'sha256', $post_id . ':' . $requester_id . ':' . $idempotency_key );
+	}
+
+	/** Stage and then activate frozen child tasks in bounded cron chunks. */
+	public static function process_batches(): void {
+		$lock_token = self::acquire_coordinator_lock();
+		if ( '' === $lock_token ) {
+			Generation_Batch::schedule();
 			return;
 		}
 
@@ -885,10 +997,7 @@ class Generation_Workflows {
 				}
 			}
 		} finally {
-			$owned_lock = get_option( self::COORDINATOR_LOCK, [] );
-			if ( is_array( $owned_lock ) && hash_equals( $lock_token, (string) ( $owned_lock['token'] ?? '' ) ) ) {
-				delete_option( self::COORDINATOR_LOCK );
-			}
+			self::release_coordinator_lock( $lock_token );
 		}
 
 		if ( self::has_pending_batches() ) {
@@ -896,8 +1005,59 @@ class Generation_Workflows {
 		}
 	}
 
+	/** Acquire or atomically replace an expired coordinator lease. */
+	private static function acquire_coordinator_lock(): string {
+		global $wpdb;
+
+		$token = wp_generate_uuid4();
+		$value = [ 'token' => $token, 'expires' => time() + self::COORDINATOR_LOCK_TTL ];
+		if ( add_option( self::COORDINATOR_LOCK, $value, '', false ) ) {
+			return $token;
+		}
+
+		$current = get_option( self::COORDINATOR_LOCK, [] );
+		if ( ! is_array( $current ) || absint( $current['expires'] ?? 0 ) >= time() ) {
+			return '';
+		}
+		$updated = $wpdb->update(
+			$wpdb->options,
+			[ 'option_value' => maybe_serialize( $value ) ],
+			[
+				'option_name'  => self::COORDINATOR_LOCK,
+				'option_value' => maybe_serialize( $current ),
+			],
+			[ '%s' ],
+			[ '%s', '%s' ]
+		);
+		wp_cache_delete( self::COORDINATOR_LOCK, 'options' );
+
+		return 1 === $updated ? $token : '';
+	}
+
+	/** Release only the coordinator lease owned by this process. */
+	private static function release_coordinator_lock( string $token ): void {
+		global $wpdb;
+
+		$current = get_option( self::COORDINATOR_LOCK, [] );
+		if ( ! is_array( $current ) || ! hash_equals( $token, (string) ( $current['token'] ?? '' ) ) ) {
+			return;
+		}
+		$wpdb->delete(
+			$wpdb->options,
+			[
+				'option_name'  => self::COORDINATOR_LOCK,
+				'option_value' => maybe_serialize( $current ),
+			],
+			[ '%s', '%s' ]
+		);
+		wp_cache_delete( self::COORDINATOR_LOCK, 'options' );
+	}
+
 	/** Persist a bounded set of non-runnable staged jobs from one frozen plan. */
 	private static function materialize_batch( int $batch_id ): void {
+		if ( 'batch_materializing' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) || self::is_cancel_requested( $batch_id ) ) {
+			return;
+		}
 		$plan         = get_post_meta( $batch_id, self::BATCH_PLAN_META, true );
 		$plan         = is_array( $plan ) ? array_values( $plan ) : [];
 		$cursor       = absint( get_post_meta( $batch_id, self::BATCH_CURSOR_META, true ) );
@@ -905,6 +1065,9 @@ class Generation_Workflows {
 		$limit        = min( count( $plan ), $cursor + self::MATERIALIZE_PER_TICK );
 
 		for ( $index = $cursor; $index < $limit; ++$index ) {
+			if ( self::is_cancel_requested( $batch_id ) || 'batch_materializing' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) ) {
+				return;
+			}
 			$task = (array) $plan[ $index ];
 			if ( self::find_child_for_step( $batch_id, $index ) ) {
 				update_post_meta( $batch_id, self::BATCH_CURSOR_META, $index + 1 );
@@ -912,32 +1075,40 @@ class Generation_Workflows {
 			}
 
 			$result = Asset_Generator::queue_for_post( (int) $task['source_id'], [
-				'type'           => (string) $task['type'],
-				'prompt'         => (string) $task['prompt'],
-				'set_featured'   => 'image' === $task['type'] && ! empty( $task['featured'] ),
-				'create_asset'   => true,
-				'template_id'    => (int) $task['template_id'],
-				'intent'         => (string) $task['intent'],
-				'batch_id'       => $batch_id,
-				'batch_step'     => $index,
-				'requester_id'   => $requester_id,
-				'initial_status' => 'staged',
-				'schedule'       => false,
+				'type'               => (string) $task['type'],
+				'prompt'             => (string) $task['prompt'],
+				'prompt_is_composed' => true,
+				'set_featured'       => 'image' === $task['type'] && ! empty( $task['featured'] ),
+				'create_asset'       => true,
+				'template_id'        => (int) $task['template_id'],
+				'intent'             => (string) $task['intent'],
+				'batch_id'           => $batch_id,
+				'batch_step'         => $index,
+				'requester_id'       => $requester_id,
+				'initial_status'     => 'staged',
+				'schedule'           => false,
 			] );
 			if ( is_wp_error( $result ) ) {
 				self::fail_staged_batch( $batch_id, $result );
 				return;
 			}
+			if ( self::is_cancel_requested( $batch_id ) ) {
+				update_post_meta( (int) $result['generation_id'], '_worldgraph_gen_status', 'cancelled', 'staged' );
+				return;
+			}
 			update_post_meta( $batch_id, self::BATCH_CURSOR_META, $index + 1 );
 		}
 
-		if ( $limit >= count( $plan ) ) {
+		if ( $limit >= count( $plan ) && ! self::is_cancel_requested( $batch_id ) ) {
 			update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_activating', 'batch_materializing' );
 		}
 	}
 
 	/** Promote a bounded number of staged jobs only after the full plan exists. */
 	private static function activate_batch( int $batch_id ): void {
+		if ( 'batch_activating' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) || self::is_cancel_requested( $batch_id ) ) {
+			return;
+		}
 		$staged = get_posts( [
 			'post_type'      => 'worldgraph_gen',
 			'post_status'    => 'any',
@@ -951,13 +1122,32 @@ class Generation_Workflows {
 			],
 		] );
 		foreach ( $staged as $job_id ) {
+			if ( self::is_cancel_requested( $batch_id ) ) {
+				break;
+			}
 			update_post_meta( $job_id, '_worldgraph_gen_status', 'queued', 'staged' );
 		}
 
-		if ( count( $staged ) < self::ACTIVATE_PER_TICK ) {
+		$remaining = get_posts( [
+			'post_type'      => 'worldgraph_gen',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'fields'         => 'ids',
+			'meta_query'     => [
+				[ 'key' => self::BATCH_ID_META, 'value' => $batch_id ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => 'staged' ],
+			],
+		] );
+		if ( empty( $remaining ) && ! self::is_cancel_requested( $batch_id ) ) {
 			update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_active', 'batch_activating' );
 		}
 		Generation_Batch::schedule();
+	}
+
+	/** Whether cancellation has won the race with staging or activation. */
+	private static function is_cancel_requested( int $batch_id ): bool {
+		return '' !== (string) get_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', true )
+			|| 'batch_cancelling' === get_post_meta( $batch_id, '_worldgraph_gen_status', true );
 	}
 
 	/** Locate a previously staged child so a restarted cursor cannot duplicate it. */
@@ -1130,6 +1320,17 @@ class Generation_Workflows {
 		if ( empty( $status ) ) {
 			return [];
 		}
+		if ( in_array( $status['status'], [ 'completed', 'completed_with_errors', 'cancelled', 'failed' ], true ) ) {
+			$status['stopped_queued'] = 0;
+			$status['cancel_note']     = __( 'This batch had already reached a terminal state, so no cancellation was applied.', 'worldgraph' );
+			return $status;
+		}
+
+		// Publish cancellation first. Materialization and activation recheck this
+		// marker before and after every child transition.
+		update_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', current_time( 'mysql' ) );
+		$root_status = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
+		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_cancelling', $root_status );
 
 		$stoppable = get_posts( [
 			'post_type'      => 'worldgraph_gen',
@@ -1148,9 +1349,6 @@ class Generation_Workflows {
 				++$stopped;
 			}
 		}
-		update_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', current_time( 'mysql' ) );
-		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_cancelling' );
-
 		$status                    = self::batch_status( $batch_id );
 		$status['stopped_queued'] = $stopped;
 		$status['cancel_note']    = __( 'Staged and queued jobs were stopped. Jobs already submitted to a provider will finish polling and import their results.', 'worldgraph' );

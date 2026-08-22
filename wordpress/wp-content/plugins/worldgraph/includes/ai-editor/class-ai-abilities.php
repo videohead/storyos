@@ -808,10 +808,10 @@ class Asset_Abilities extends AbstractAbilityGroup {
             },
         ] );
 
-        // worldgraph/generate-asset - Generate and attach an image.
+        // worldgraph/generate-asset - Generate and attach an image or Shot video.
         $this->register_ability( 'worldgraph/generate-asset', [
-            'label'       => 'Generate Asset Image',
-            'description' => 'Queue a Comfy Cloud MCP image generation for a story element.',
+            'label'       => 'Generate Asset Media',
+            'description' => 'Queue a story-aware image or Shot video generation for a story element.',
             'input_schema' => [
                 'type'  => 'object',
                 'properties' => [
@@ -819,9 +819,14 @@ class Asset_Abilities extends AbstractAbilityGroup {
                         'type'        => 'integer',
                         'description' => 'Story element post ID.',
                     ],
+                    'type' => [
+                        'type'        => 'string',
+                        'enum'        => ['image', 'video'],
+                        'description' => 'Output type. Video is available when the item workflow defines it.',
+                    ],
                     'prompt'  => [
                         'type'        => 'string',
-                        'description' => 'Text-to-image prompt. Built from the story element when omitted.',
+                        'description' => 'Optional instructions appended to the prompt built from the story element.',
                     ],
                     'set_featured' => [
                         'type'        => 'boolean',
@@ -833,7 +838,7 @@ class Asset_Abilities extends AbstractAbilityGroup {
                     ],
                     'template_id' => [
                         'type'        => 'integer',
-                        'description' => 'Optional active image Template ID. The representative-media default is resolved when omitted.',
+                        'description' => 'Optional active Template ID matching the output type. The representative-media default is resolved when omitted.',
                     ],
                 ],
                 'required' => ['post_id'],
@@ -844,6 +849,8 @@ class Asset_Abilities extends AbstractAbilityGroup {
                     'generation_id' => ['type' => 'integer'],
                     'status'        => ['type' => 'string'],
                     'prompt'        => ['type' => 'string'],
+                    'type'          => ['type' => 'string'],
+                    'intent'        => ['type' => 'string'],
                 ],
             ],
             'execute_callback' => function( $input ) {
@@ -851,12 +858,28 @@ class Asset_Abilities extends AbstractAbilityGroup {
                 if ( is_wp_error( $plan ) ) {
                     return $plan;
                 }
-                $task        = (array) ( $plan['tasks'][0] ?? [] );
+                $type = 'video' === sanitize_key( (string) ( $input['type'] ?? 'image' ) ) ? 'video' : 'image';
+                $task = [];
+                foreach ( (array) ( $plan['tasks'] ?? [] ) as $candidate ) {
+                    if ( $type === ( $candidate['type'] ?? '' ) ) {
+                        $task = (array) $candidate;
+                        break;
+                    }
+                }
+                if ( ! $task ) {
+                    return new \WP_Error(
+                        'worldgraph_generation_output_unavailable',
+                        'video' === $type
+                            ? 'This item has no direct video output. Generate video from a Shot.'
+                            : 'This item has no direct image output.'
+                    );
+                }
                 $template_id = absint( $input['template_id'] ?? 0 );
                 if ( ! $template_id && $task ) {
                     $template_id = \WorldGraph\Utils\Generation_Workflows::resolve_template_id( $task );
                 }
                 return \WorldGraph\Utils\Asset_Generator::queue_for_post( (int) $input['post_id'], [
+                    'type'         => $type,
                     'prompt'       => (string) ( $input['prompt'] ?? '' ),
                     'set_featured' => $input['set_featured'] ?? true,
                     'create_asset' => $input['create_asset'] ?? true,

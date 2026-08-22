@@ -263,12 +263,25 @@ inputs. The controller accepts `image`, `video`, `audio`, and `text` type values
 but the Template and Connection must name the same registered provider adapter
 and the requested output must match an available Template modality.
 
-The editor-facing image workflow is also available through:
+The editor-facing story-aware image/video workflow is also available through:
 
 ```http
 GET  /wp-json/worldgraph/v1/assets/generate/prompt
 POST /wp-json/worldgraph/v1/assets/generate
 ```
+
+The prompt response exposes the current recipe as `outputs.image` and, for a
+Shot, `outputs.video`. Each output includes its intent, read-only composed
+prompt, readiness, and resolved default Template. The metabox keeps that
+provider prompt collapsed and uses a separate blank field for one-off author
+instructions.
+
+Direct generation accepts `type: "image"` (the backward-compatible default) or
+`type: "video"`, an intent returned by the prompt route, a matching
+`template_id`, and optional `prompt` text. That optional text is additive: the
+server appends it to saved Story Graph/SCF context rather than replacing the
+composed prompt. Direct video is defined by the Shot recipe; Project-wide Shot
+videos use the durable batch route.
 
 Story-aware representative-media planning and durable batches use:
 
@@ -316,7 +329,10 @@ IDs are optional explicit overrides shared by outputs of that type; without
 them, the server applies the registered preference and fallback cascade.
 `idempotency_key` is required and must be
 non-empty. It is scoped to the requester and root post; repeating it returns
-the existing batch instead of duplicating work. Starting fails before any child is
+the existing batch instead of duplicating work. WordPress atomically reserves
+the key while the parent is committed and fingerprints scope, additive prompt,
+and Template overrides, so a concurrent retry cannot create a duplicate paid
+batch or reuse the key for different settings. Starting fails before any child is
 queued if any task lacks a runnable Template or the requester cannot edit every
 source. A successful start returns `202 Accepted` and a `Location` header for
 the batch status route.
@@ -326,7 +342,9 @@ planned `total`, `materialized`, `remaining`, `active`, `completed`, `failed`,
 `cancelled`, `progress_percent`, per-state `counts`, creation time, and any
 batch error. Up to 200 child `jobs` are included inline; `jobs_truncated`
 indicates that more exist. Each job reports its source, intent, output type,
-status, attachment ID, and error. Cancellation changes children that are still
+status, attachment ID, and error. Cancellation publishes its parent marker
+before child transitions and staging/activation recheck it on every step. It
+changes children that are still
 `staged` or `queued`; submitted work continues polling and importing because a
 local request cannot reliably revoke paid work across every provider. The
 response adds `stopped_queued` and a `cancel_note` to the refreshed aggregate
@@ -336,6 +354,11 @@ Media imported by these routes is named
 `{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`;
 the non-job synchronous fallback uses a UTC timestamp. Attachment titles mirror
 the readable Project, CPT type, source, and intent or media type.
+
+Generated video and URL-based audio downloads stream into bounded temporary
+files before validation and Media Library import. Image responses and local
+ComfyUI media inputs also have explicit byte limits, and a completed job must
+import an attachment matching its requested image/video/audio output type.
 
 Delivered execution adapters are Comfy Cloud MCP, local ComfyUI HTTP workflows,
 fal MCP, ElevenLabs, Suno through SunoAPI.org REST and AceData Cloud MCP,

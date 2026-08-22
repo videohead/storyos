@@ -10,10 +10,17 @@
 
 The **World Graph Studio Assets** Generate surface supports two related paths:
 
-- direct image generation preserves the existing editable prompt, image
-  Template, featured-image, and linked-Asset controls; and
+- direct generation explicitly selects a still image or, for a Shot, text to
+  video, then selects the matching Template and queues exactly one output; and
 - representative generation previews a complete item or Project plan before
   it starts a durable, potentially long-running batch.
+
+The editable textarea contains only optional **Additional instructions for
+this run**. The complete automatically composed provider prompt is available
+in a collapsed read-only preview. The primary button follows the selected
+direct output; **Generate this item's full set** queues only the current CPT's
+recipe, while **Generate all Project media** expands owned Project content.
+Template selections survive the read-only planning refresh before confirmation.
 
 Planning reports the number of image and video jobs, every source and creative
 intent, prompt fingerprints, Templates runnable across the plan, resolved
@@ -41,9 +48,9 @@ The default composer reads this type-specific Story Graph context:
 
 | Content type | Detailed fields included when populated |
 | --- | --- |
-| Project | description, genre, target medium, production stage, frame dimensions, aspect ratio, frame rate |
+| Project | description, genre, target medium, aspect ratio |
 | Story World | synopsis, timeline, rules, themes, geography, references |
-| Character | biography, age, appearance, personality, motivation, backstory, voice profile |
+| Character | biography, age, appearance, personality, motivation, backstory |
 | Prop | description, purpose, notes |
 | Location | description, environment type, geography, mood |
 | Shot | number, type, camera angle, lens, duration, description, editorial notes |
@@ -68,6 +75,10 @@ context or saved `generation_prompt`; in Project scope it applies to every
 planned source. The
 `worldgraph_generate_asset_prompt` filter runs last with the prompt, source
 post, and intent.
+
+Inherited context uses a smaller visual map than the source record. In
+particular, a Shot inherits its Scene summary, location, time of day, and
+emotional tone, not the Scene's complete script or dialogue transcript.
 
 ## Delivered intent vocabulary
 
@@ -162,8 +173,11 @@ Plans are limited to 5,000 jobs by default;
 `worldgraph_generation_batch_max_tasks` may change that bound.
 
 The idempotency key is scoped to the requester and root batch request. Repeating
-it returns the existing batch. This protects clients from duplicate provider
-spending after a timeout or lost response.
+it returns the existing batch. The server atomically reserves the key and stores
+a request fingerprint covering scope, additive instructions, and Template
+overrides. This protects concurrent starts and client retries from duplicate
+provider spending after a timeout or lost response, while rejecting reuse for
+different settings.
 
 ## Batch storage, status, and cancellation
 
@@ -177,6 +191,7 @@ A representative batch is a parent `worldgraph_gen` record with:
 - `_worldgraph_gen_batch_cursor`, which tracks bounded materialization;
 - `_worldgraph_gen_workflow_version = 1`;
 - `_worldgraph_gen_idempotency_key`;
+- `_worldgraph_gen_request_hash`;
 - requester, creation time, planned total, and aggregate status.
 
 Each child remains an ordinary generation job and adds
@@ -187,6 +202,9 @@ counts, progress percentage, per-state counts, creation time, and batch error.
 Up to 200 child details are returned inline with source, intent, type, status,
 attachment, and error; `jobs_truncated` marks a larger batch.
 
+The coordinator-visible parent status is written only after the complete
+frozen plan is verified. A child's runnable status is likewise written last,
+after its prompt, Template, requester, intent, and batch membership are durable.
 After start freezes the plan, the parent moves through
 `batch_materializing`, `batch_activating`, and `batch_active`. WP-Cron creates
 up to 20 non-runnable `staged` children per tick. Only after every task exists

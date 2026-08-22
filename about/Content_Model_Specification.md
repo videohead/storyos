@@ -438,6 +438,9 @@ Character, Prop, Location, Shot, Scene, and Episode contains media-generation
 constraints specific to that entity. It is additive context: the prompt
 composer also reads the entity's detailed authorial fields and the creative
 objective for the selected representative output.
+In the Assets metabox, one-off directions use a separate blank additive field;
+the composed provider prompt is available only as a collapsed read-only review.
+Shots explicitly expose both direct still-image and text-to-video output choices.
 
 The default representative-media model is:
 
@@ -455,7 +458,7 @@ The default representative-media model is:
 `worldgraph_gen` records represent both individual work and durable
 representative-media batches. A batch record is parented to the requested item
 or Project and retains scope, requester, idempotency key, versioned frozen plan,
-materialization cursor, aggregate counts, and state. Each child job is parented
+request fingerprint, materialization cursor, aggregate counts, and state. Each child job is parented
 to its source Story Graph item and retains the batch ID, frozen-plan step, and
 creative intent together with the
 Template, Connection, provider, workflow, prompt, inputs, state, remote job

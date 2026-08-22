@@ -15,6 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Local_ComfyUI {
+	/** Maximum media input buffered for ComfyUI's multipart upload (50MB). */
+	private const MAX_INPUT_BYTES = 52428800;
 	/**
 	 * Wizard slot marker for the single default local ComfyUI Template. One
 	 * Connection can back many checkpoints/Templates; only one is auto-managed
@@ -409,6 +411,23 @@ class Local_ComfyUI {
 		}
 
 		if ( '' === $path || ! is_readable( $path ) ) {
+			if ( $cleanup && '' !== $path ) {
+				wp_delete_file( $path );
+			}
+			return new WP_Error( 'local_comfyui_input_unreadable', __( 'A generation input file could not be read.', 'worldgraph' ) );
+		}
+		$size = filesize( $path );
+		if ( false === $size || $size <= 0 || $size > self::MAX_INPUT_BYTES ) {
+			if ( $cleanup ) {
+				wp_delete_file( $path );
+			}
+			return new WP_Error( 'local_comfyui_input_too_large', __( 'A generation input must be a non-empty file no larger than 50MB.', 'worldgraph' ) );
+		}
+		$bytes = file_get_contents( $path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		if ( false === $bytes ) {
+			if ( $cleanup ) {
+				wp_delete_file( $path );
+			}
 			return new WP_Error( 'local_comfyui_input_unreadable', __( 'A generation input file could not be read.', 'worldgraph' ) );
 		}
 
@@ -420,7 +439,7 @@ class Local_ComfyUI {
 		}
 		$body .= "--{$boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{$filename}\"\r\n";
 		$body .= 'Content-Type: ' . ( wp_check_filetype( $filename )['type'] ?: 'application/octet-stream' ) . "\r\n\r\n";
-		$body .= file_get_contents( $path ) . "\r\n--{$boundary}--\r\n"; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$body .= $bytes . "\r\n--{$boundary}--\r\n";
 
 		if ( $cleanup ) {
 			wp_delete_file( $path );
