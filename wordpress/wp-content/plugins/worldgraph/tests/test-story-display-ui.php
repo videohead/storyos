@@ -84,6 +84,9 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "current_user_can( 'edit_post', \$shot_id )", $service );
 		$this->assertStringContainsString( '$order_slots[ $index ]', $service );
 		$this->assertStringContainsString( "'post__not_in'   => \$scene_shot_ids", $service );
+		$this->assertStringContainsString( 'worldgraph_acquire_shot_order_lock', $service );
+		$this->assertStringContainsString( 'worldgraph_scene_shot_order_revision', $service );
+		$this->assertStringContainsString( 'worldgraph_scene_shot_conflict', $service );
 		$this->assertStringContainsString( 'worldgraph_rollback_scene_shot_order', $service );
 		$this->assertStringContainsString( "'scene_id'", $rest );
 		$this->assertStringContainsString( "'permission_callback' => [ \$this, 'check_reorder_permission' ]", $rest );
@@ -94,6 +97,8 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( 'set_relationships_for_field', $shot_cpt );
 		$this->assertStringContainsString( "data-shot-move=\"up\"", $controller );
 		$this->assertStringContainsString( 'aria-live="polite"', $controller );
+		$this->assertStringContainsString( "'revision'", $rest );
+		$this->assertStringContainsString( 'edit access to the Scene and every Shot', $controller );
 		$this->assertStringContainsString( 'sortable', $script );
 		$this->assertStringContainsString( 'queuedSave', $script );
 	}
@@ -112,6 +117,9 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "current_user_can( 'edit_post', \$attachment_id )", $controller );
 		$this->assertStringContainsString( 'hash_equals( $current_revision, $revision )', $controller );
 		$this->assertStringContainsString( '$concurrent_additions', $controller );
+		$this->assertStringContainsString( '$user_reordered', $controller );
+		$this->assertStringContainsString( '$concurrent_reordered', $controller );
+		$this->assertStringContainsString( 'render_conflict_notice', $controller );
 		$this->assertStringContainsString( "[ 'image', 'audio', 'video' ]", $script );
 		$this->assertStringContainsString( 'const frame = window.wp.media', $script );
 		$this->assertStringContainsString( 'sortable', $script );
@@ -132,6 +140,11 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "send_webhook( 'story'", $source );
 		$this->assertStringContainsString( 'flush_story_revalidation_queue', $source );
 		$this->assertStringContainsString( 'wp_safe_remote_post', $source );
+		$this->assertStringContainsString( 'is_allowed_local_revalidation_target', $source );
+		$this->assertStringContainsString( "[ 'headless', 'headless.worldgraph.lndo.site' ]", $source );
+		$this->assertStringContainsString( "'http_request_host_is_external'", $source );
+		$this->assertStringContainsString( "'http_allowed_safe_ports'", $source );
+		$this->assertStringContainsString( '} finally {', $source );
 		$this->assertStringContainsString( 'render_failure_notice', $source );
 		$this->assertStringContainsString( "'_thumbnail_id'", $source );
 		$this->assertStringContainsString( "'production_stage'", $source );

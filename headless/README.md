@@ -81,3 +81,10 @@ Settings → Headless Revalidation in wp-admin.
 Story requests use broad, type, ID, and slug cache tags. The matching webhook
 shape is `{ contentType: "story", storyType, contentId, slug }`; `storyType` is
 one of `projects`, `worlds`, `characters`, `scenes`, `props`, or `sounds`.
+
+The sender retains WordPress safe-HTTP validation. Inside Lando it narrowly
+allows only `headless` and `headless.worldgraph.lndo.site`, so either the
+service URL (`http://headless:3000`) or proxy URL can be configured locally.
+For a different private development hostname, define
+`WORLDGRAPH_HEADLESS_LOCAL_HOSTS` in `wp-config.php` as an exact hostname or
+comma-delimited list; production hosts need no exception.

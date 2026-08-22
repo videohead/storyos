@@ -90,8 +90,16 @@ abstract class Base_Controller extends WP_REST_Controller {
 			}
 		}
 
-		// Get relationships.
-		$relationships = \WorldGraph\Utils\get_relationships( $post->ID, $post->post_type, 'outgoing' );
+		// Get relationships the current user may read at both ends.
+		$relationships = array_values(
+			array_filter(
+				\WorldGraph\Utils\get_relationships( $post->ID, $post->post_type, 'outgoing' ),
+				static function( array $relationship ): bool {
+					$target_id = absint( $relationship['to_id'] ?? 0 );
+					return $target_id > 0 && current_user_can( 'read_post', $target_id );
+				}
+			)
+		);
 
 		// Get taxonomy terms.
 		$taxonomies = [];
@@ -122,6 +130,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 		}
 
 		$thumbnail_id = get_post_thumbnail_id( $post->ID );
+		$thumbnail_id = $thumbnail_id && current_user_can( 'read_post', $thumbnail_id ) ? $thumbnail_id : 0;
 		$featured_image = $thumbnail_id ? [
 			'id'            => $thumbnail_id,
 			'url'           => wp_get_attachment_url( $thumbnail_id ),
@@ -130,7 +139,7 @@ abstract class Base_Controller extends WP_REST_Controller {
 		] : null;
 		$gallery_ids = array_values( array_filter( array_map( 'absint', (array) get_post_meta( $post->ID, '_worldgraph_asset_gallery_ids', true ) ) ) );
 		$asset_gallery = array_values( array_filter( array_map( static function ( int $attachment_id ): ?array {
-			if ( 'attachment' !== get_post_type( $attachment_id ) ) {
+			if ( 'attachment' !== get_post_type( $attachment_id ) || ! current_user_can( 'read_post', $attachment_id ) ) {
 				return null;
 			}
 
@@ -249,6 +258,20 @@ abstract class Base_Controller extends WP_REST_Controller {
 		if ( ! is_user_logged_in() ) {
 			return new WP_Error( 'rest_forbidden', 'You must be logged in to access this resource.', [ 'status' => 401 ] );
 		}
+
+		$post_id = absint( $request->get_param( 'id' ) );
+		if ( ! $this->cpt || ! $post_id ) {
+			return true;
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $post || ( $this->cpt && $this->cpt !== $post->post_type ) ) {
+			return new WP_Error( 'rest_post_not_found', 'Post not found.', [ 'status' => 404 ] );
+		}
+		if ( ! current_user_can( 'read_post', $post_id ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot read this post.', [ 'status' => 403 ] );
+		}
+
 		return true;
 	}
 
@@ -259,10 +282,13 @@ abstract class Base_Controller extends WP_REST_Controller {
 	 * @return bool|\WP_Error
 	 */
 	public function check_create_permission( \WP_REST_Request $request ) {
-		if ( ! is_user_logged_in() || ! current_user_can( 'edit_posts' ) ) {
+		$post_type  = $this->cpt ? get_post_type_object( $this->cpt ) : null;
+		$capability = $post_type && ! empty( $post_type->cap->create_posts ) ? $post_type->cap->create_posts : 'edit_posts';
+		if ( ! is_user_logged_in() || ! current_user_can( $capability ) ) {
 			return new WP_Error( 'rest_forbidden', 'You must be logged in with edit permissions.', [ 'status' => 403 ] );
 		}
-		return true;
+
+		return $post_type ? $this->check_requested_status_permission( $request ) : true;
 	}
 
 	/**
@@ -283,6 +309,37 @@ abstract class Base_Controller extends WP_REST_Controller {
 		}
 		if ( ! is_user_logged_in() || ! current_user_can( 'edit_post', $post_id ) ) {
 			return new WP_Error( 'rest_forbidden', 'You cannot edit this post.', [ 'status' => 403 ] );
+		}
+
+		return $this->check_requested_status_permission( $request, $post );
+	}
+
+	/**
+	 * Validate a requested post lifecycle state and publishing capability.
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @param \WP_Post|null    $post    Existing post for updates.
+	 * @return true|WP_Error
+	 */
+	protected function check_requested_status_permission( \WP_REST_Request $request, ?\WP_Post $post = null ) {
+		$raw_status = $request->get_param( 'status' );
+		if ( null === $raw_status || '' === $raw_status ) {
+			return true;
+		}
+
+		$status = sanitize_key( (string) $raw_status );
+		if ( ! in_array( $status, [ 'draft', 'pending', 'publish', 'private' ], true ) ) {
+			return new WP_Error( 'rest_invalid_status', 'Unsupported post status.', [ 'status' => 400 ] );
+		}
+
+		$current_status = $post ? (string) $post->post_status : '';
+		if ( $status === $current_status || ! in_array( $status, [ 'publish', 'private' ], true ) ) {
+			return true;
+		}
+
+		$post_type = get_post_type_object( $post ? $post->post_type : $this->cpt );
+		if ( ! $post_type || empty( $post_type->cap->publish_posts ) || ! current_user_can( $post_type->cap->publish_posts ) ) {
+			return new WP_Error( 'rest_cannot_publish', 'You cannot publish this post.', [ 'status' => 403 ] );
 		}
 
 		return true;
@@ -482,11 +539,13 @@ abstract class Base_Controller extends WP_REST_Controller {
 			return $permission;
 		}
 
-		$args = [
-			'post_type'   => $this->cpt,
-			'post_status' => 'any',
-			'posts_per_page' => absint( $request->get_param( 'per_page' ) ) ?: 10,
-			'paged'       => absint( $request->get_param( 'page' ) ) ?: 1,
+		$per_page = min( 100, max( 1, absint( $request->get_param( 'per_page' ) ) ?: 10 ) );
+		$page     = max( 1, absint( $request->get_param( 'page' ) ) ?: 1 );
+		$args     = [
+			'post_type'      => $this->cpt,
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'nopaging'       => true,
 		];
 
 		// Optional ordering (e.g. orderby=menu_order&order=ASC for editorial cuts).
@@ -546,9 +605,19 @@ abstract class Base_Controller extends WP_REST_Controller {
 
 		$query = new \WP_Query( $args );
 
-		$items = [];
-		if ( $query->have_posts() ) {
-			foreach ( $query->posts as $post ) {
+		$readable_posts = array_values(
+			array_filter(
+				$query->posts,
+				static function( \WP_Post $post ): bool {
+					return current_user_can( 'read_post', $post->ID );
+				}
+			)
+		);
+		$total          = count( $readable_posts );
+		$page_posts     = array_slice( $readable_posts, ( $page - 1 ) * $per_page, $per_page );
+		$items          = [];
+		if ( ! empty( $page_posts ) ) {
+			foreach ( $page_posts as $post ) {
 				$items[] = $this->prepare_response_for_collection(
 					$this->prepare_item( $post, $request->get_params() )
 				);
@@ -557,8 +626,8 @@ abstract class Base_Controller extends WP_REST_Controller {
 		}
 
 		$response = rest_ensure_response( $items );
-		$response->header( 'X-WP-Total', $query->found_posts );
-		$response->header( 'X-WP-TotalPages', $query->max_num_pages );
+		$response->header( 'X-WP-Total', $total );
+		$response->header( 'X-WP-TotalPages', (int) ceil( $total / $per_page ) );
 
 		return $response;
 	}
@@ -601,7 +670,10 @@ abstract class Base_Controller extends WP_REST_Controller {
 			$post_data['menu_order'] = absint( $request->get_param( 'menu_order' ) );
 		}
 
-		wp_update_post( $post_data );
+		$result = wp_update_post( $post_data, true );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
 
 		// Update meta fields.
 		$this->save_meta_fields( $post_id, $request );

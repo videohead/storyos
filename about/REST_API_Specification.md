@@ -111,9 +111,10 @@ POST /wp-json/worldgraph/v1/scenes/reorder
 POST /wp-json/worldgraph/v1/shots/reorder
 ```
 
-`shots/reorder` requires `scene_id` plus `ordered_ids` containing that Scene's
-complete Shot membership exactly once. It checks `edit_post` for the Scene and
-every Shot, preserves the Scene's existing project-wide editorial slots, and
+`shots/reorder` requires `scene_id`, the current 64-character `revision`, and
+`ordered_ids` containing that Scene's complete Shot membership exactly once.
+It checks `edit_post` for the Scene and every Shot, preserves the Scene's
+existing project-wide editorial slots, rejects stale concurrent edits, and
 rolls back previously written positions if a later update fails. An optional
 `sequence_id` assigns the validated Shot set to a Sequence. Direct
 `menu_order` writes on Shot create/update resources are rejected; the scoped
@@ -133,7 +134,8 @@ applicable, and the `sound_kind` distinction (`song` for a Music Sound,
 otherwise `sound`). A by-ID resource request adds detail aggregates:
 
 - Scene responses embed the Scene's visible Shots in editorial `menu_order`,
-  with their display fields and resolved media.
+  with their display fields and resolved media. Authenticated editors also
+  receive `shot_order_revision` for compare-and-swap reorder requests.
 - Project responses include a published/readable-node summary from the shared
   relationship analytics engine: entity and relationship totals, density,
   isolated count, entity counts, and the five most-connected visible records.

@@ -222,6 +222,52 @@ function record_failure( string $message, array $settings ): void {
 }
 
 /**
+ * Whether one exact private-network target is explicitly allowed for local development.
+ *
+ * Lando's two known headless hostnames are enabled only inside a Lando service.
+ * Other local stacks may define WORLDGRAPH_HEADLESS_LOCAL_HOSTS as an array or
+ * comma-delimited list of exact hostnames in wp-config.php.
+ *
+ * @param string $url Candidate webhook URL.
+ * @return bool
+ */
+function is_allowed_local_revalidation_target( string $url ): bool {
+	$host = strtolower( rtrim( (string) wp_parse_url( $url, PHP_URL_HOST ), '.' ) );
+	if ( '' === $host || ! in_array( (string) wp_parse_url( $url, PHP_URL_SCHEME ), [ 'http', 'https' ], true ) ) {
+		return false;
+	}
+
+	$allowed_hosts = [];
+	if ( 'ON' === getenv( 'LANDO' ) || false !== getenv( 'LANDO_INFO' ) ) {
+		$allowed_hosts = [ 'headless', 'headless.worldgraph.lndo.site' ];
+	}
+	if ( defined( 'WORLDGRAPH_HEADLESS_LOCAL_HOSTS' ) ) {
+		$configured_hosts = constant( 'WORLDGRAPH_HEADLESS_LOCAL_HOSTS' );
+		if ( is_string( $configured_hosts ) ) {
+			$configured_hosts = preg_split( '/\s*,\s*/', $configured_hosts, -1, PREG_SPLIT_NO_EMPTY );
+		}
+		if ( is_array( $configured_hosts ) ) {
+			$allowed_hosts = array_merge( $allowed_hosts, $configured_hosts );
+		}
+	}
+
+	$allowed_hosts = array_values(
+		array_unique(
+			array_filter(
+				array_map(
+					static function( $allowed_host ): string {
+						return strtolower( rtrim( sanitize_text_field( (string) $allowed_host ), '.' ) );
+					},
+					$allowed_hosts
+				)
+			)
+		)
+	);
+
+	return in_array( $host, $allowed_hosts, true );
+}
+
+/**
  * Send the revalidation webhook to the headless frontend.
  *
  * @param string          $content_type Content type slug, e.g. "posts", "pages", "story".
@@ -245,17 +291,43 @@ function send_webhook( string $content_type, $content_id = null, ?string $slug =
 		$payload['storyType'] = $story_type;
 	}
 
-	$response = wp_safe_remote_post(
-		untrailingslashit( $settings['next_url'] ) . '/api/revalidate',
-		[
-			'timeout' => 10,
-			'headers' => [
-				'Content-Type'      => 'application/json',
-				'X-Webhook-Secret'  => $settings['webhook_secret'],
-			],
-			'body'    => wp_json_encode( $payload ),
-		]
-	);
+	$webhook_url = untrailingslashit( $settings['next_url'] ) . '/api/revalidate';
+	$local_target = is_allowed_local_revalidation_target( $webhook_url );
+	$host_filter  = static function( bool $external, string $host, string $url ) use ( $local_target, $webhook_url ): bool {
+		$target_host = strtolower( rtrim( (string) wp_parse_url( $webhook_url, PHP_URL_HOST ), '.' ) );
+		return $local_target && $webhook_url === $url && $target_host === strtolower( rtrim( $host, '.' ) ) ? true : $external;
+	};
+	$port_filter  = static function( array $allowed_ports, string $host, string $url ) use ( $local_target, $webhook_url ): array {
+		$target_host = strtolower( rtrim( (string) wp_parse_url( $webhook_url, PHP_URL_HOST ), '.' ) );
+		$target_port = absint( wp_parse_url( $webhook_url, PHP_URL_PORT ) );
+		if ( $local_target && $target_port && $webhook_url === $url && $target_host === strtolower( rtrim( $host, '.' ) ) ) {
+			$allowed_ports[] = $target_port;
+		}
+		return array_values( array_unique( $allowed_ports ) );
+	};
+
+	if ( $local_target ) {
+		add_filter( 'http_request_host_is_external', $host_filter, PHP_INT_MAX, 3 );
+		add_filter( 'http_allowed_safe_ports', $port_filter, PHP_INT_MAX, 3 );
+	}
+	try {
+		$response = wp_safe_remote_post(
+			$webhook_url,
+			[
+				'timeout' => 10,
+				'headers' => [
+					'Content-Type'      => 'application/json',
+					'X-Webhook-Secret'  => $settings['webhook_secret'],
+				],
+				'body'    => wp_json_encode( $payload ),
+			]
+		);
+	} finally {
+		if ( $local_target ) {
+			remove_filter( 'http_request_host_is_external', $host_filter, PHP_INT_MAX );
+			remove_filter( 'http_allowed_safe_ports', $port_filter, PHP_INT_MAX );
+		}
+	}
 
 	if ( is_wp_error( $response ) ) {
 		record_failure( 'Revalidation webhook failed: ' . $response->get_error_message(), $settings );

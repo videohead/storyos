@@ -97,19 +97,14 @@ class Sequences_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/sequences/(?P<id>\d+)/shots', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'assign_shots' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_assign_shots_permission' ],
 			'args'                => [
-				'id'         => [ 'type' => 'integer' ],
-				'shot_ids'   => [
+				'id'       => [ 'type' => 'integer' ],
+				'shot_ids' => [
 					'description' => 'Shot post IDs to assign to this sequence.',
 					'type'        => 'array',
 					'items'       => [ 'type' => 'integer' ],
 					'required'    => true,
-				],
-				'ordered_ids' => [
-					'description' => 'Optional. When provided, sets the shot cut order within the sequence.',
-					'type'        => 'array',
-					'items'       => [ 'type' => 'integer' ],
 				],
 			],
 		] );
@@ -117,7 +112,7 @@ class Sequences_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/sequences/(?P<id>\d+)/scenes', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'assign_scenes' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_assign_scenes_permission' ],
 			'args'                => [
 				'id'         => [ 'type' => 'integer' ],
 				'scene_ids'  => [
@@ -129,6 +124,241 @@ class Sequences_Controller extends Base_Controller {
 			],
 		] );
 
+	}
+
+	/**
+	 * Require taxonomy-management access for the Sequence editorial workspace.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_read_permission( WP_REST_Request $request ) {
+		unset( $request );
+		return $this->check_sequence_management_capability();
+	}
+
+	/**
+	 * Require taxonomy-management access when creating or reordering Sequences.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_create_permission( WP_REST_Request $request ) {
+		unset( $request );
+		return $this->check_sequence_management_capability();
+	}
+
+	/**
+	 * Resolve the Sequence taxonomy and enforce its native management cap.
+	 *
+	 * @return true|WP_Error
+	 */
+	private function check_sequence_management_capability() {
+		$taxonomy = get_taxonomy( \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $taxonomy ) {
+			return new WP_Error( 'rest_sequence_taxonomy_unavailable', 'Sequence taxonomy is unavailable.', [ 'status' => 500 ] );
+		}
+		if ( ! current_user_can( $taxonomy->cap->manage_terms ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot manage Sequence terms.', [ 'status' => is_user_logged_in() ? 403 : 401 ] );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Check whether the current request may assign Shots to a Sequence.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_assign_shots_permission( WP_REST_Request $request ) {
+		return $this->check_assignment_permission( $request, 'shot_ids', 'worldgraph_shot', 'Shot' );
+	}
+
+	/**
+	 * Check whether the current request may assign Scenes to a Sequence.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_assign_scenes_permission( WP_REST_Request $request ) {
+		return $this->check_assignment_permission( $request, 'scene_ids', 'worldgraph_scene', 'Scene' );
+	}
+
+	/**
+	 * Validate a Sequence assignment request before any write is attempted.
+	 *
+	 * @param WP_REST_Request $request   REST request.
+	 * @param string          $param     Request parameter containing post IDs.
+	 * @param string          $post_type Required post type.
+	 * @param string          $label     Human-readable object label.
+	 * @return true|WP_Error
+	 */
+	private function check_assignment_permission( WP_REST_Request $request, string $param, string $post_type, string $label ) {
+		$term_id = absint( $request->get_param( 'id' ) );
+		$term    = get_term( $term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $term || is_wp_error( $term ) ) {
+			return new WP_Error( 'rest_sequence_not_found', 'Sequence term not found.', [ 'status' => 404 ] );
+		}
+
+		$taxonomy = get_taxonomy( \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $taxonomy ) {
+			return new WP_Error( 'rest_sequence_taxonomy_unavailable', 'Sequence taxonomy is unavailable.', [ 'status' => 500 ] );
+		}
+		if ( ! current_user_can( $taxonomy->cap->assign_terms ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot assign this Sequence taxonomy.', [ 'status' => 403 ] );
+		}
+
+		$ids = $this->validate_assignment_ids( $request->get_param( $param ), $param, $post_type, $label );
+		if ( is_wp_error( $ids ) ) {
+			return $ids;
+		}
+
+		foreach ( $ids as $post_id ) {
+			if ( ! current_user_can( 'edit_post', $post_id ) ) {
+				return new WP_Error(
+					'rest_forbidden',
+					sprintf( 'You cannot edit %s ID %d.', $label, $post_id ),
+					[ 'status' => 403 ]
+				);
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Require a non-empty, unique list of positive IDs of one exact post type.
+	 *
+	 * @param mixed  $submitted Submitted request value.
+	 * @param string $param     Request parameter name.
+	 * @param string $post_type Required post type.
+	 * @param string $label     Human-readable object label.
+	 * @return array<int, int>|WP_Error
+	 */
+	private function validate_assignment_ids( $submitted, string $param, string $post_type, string $label ) {
+		if ( ! is_array( $submitted ) || empty( $submitted ) ) {
+			return new WP_Error( 'rest_invalid_' . $param, $param . ' cannot be empty.', [ 'status' => 400 ] );
+		}
+
+		$ids = [];
+		foreach ( $submitted as $submitted_id ) {
+			$is_integer = is_int( $submitted_id ) || ( is_string( $submitted_id ) && ctype_digit( $submitted_id ) );
+			$post_id    = $is_integer ? (int) $submitted_id : 0;
+			if ( $post_id < 1 ) {
+				return new WP_Error( 'rest_invalid_' . $param, $param . ' must contain only positive post IDs.', [ 'status' => 400 ] );
+			}
+			$ids[] = $post_id;
+		}
+
+		if ( count( $ids ) !== count( array_unique( $ids ) ) ) {
+			return new WP_Error( 'rest_invalid_' . $param, $param . ' cannot contain duplicate post IDs.', [ 'status' => 400 ] );
+		}
+
+		foreach ( $ids as $post_id ) {
+			$post = get_post( $post_id );
+			if ( ! $post || $post_type !== $post->post_type ) {
+				return new WP_Error(
+					'rest_invalid_' . $param,
+					sprintf( '%s ID %d is invalid.', $label, $post_id ),
+					[ 'status' => 400 ]
+				);
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * Read the Sequence term IDs currently assigned to an object.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return array<int, int>|WP_Error
+	 */
+	private function get_object_sequence_term_ids( int $post_id ) {
+		if ( function_exists( 'wp_get_object_terms' ) ) {
+			$term_ids = wp_get_object_terms(
+				$post_id,
+				\WorldGraph\Taxonomies\Sequence::TAXONOMY,
+				[ 'fields' => 'ids' ]
+			);
+			if ( is_wp_error( $term_ids ) ) {
+				return $term_ids;
+			}
+
+			return array_values( array_unique( array_filter( array_map( 'absint', (array) $term_ids ) ) ) );
+		}
+
+		// Lightweight test environments may not provide wp_get_object_terms().
+		$terms = get_the_terms( $post_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( is_wp_error( $terms ) ) {
+			return $terms;
+		}
+		if ( ! $terms ) {
+			return [];
+		}
+
+		return array_values(
+			array_unique(
+				array_filter(
+					array_map(
+						static function ( $term ): int {
+							return absint( is_object( $term ) ? $term->term_id : $term );
+						},
+						(array) $terms
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Replace each object's Sequence terms, rolling back prior writes on error.
+	 *
+	 * Original assignments are captured for every object before the first write,
+	 * so a lookup failure cannot leave a partially-updated request.
+	 *
+	 * @param array<int, int> $post_ids Sequence object post IDs.
+	 * @param int             $term_id  Destination Sequence term ID.
+	 * @return array<int, int>|WP_Error
+	 */
+	private function assign_sequence_term( array $post_ids, int $term_id ) {
+		$original_terms = [];
+		foreach ( $post_ids as $post_id ) {
+			$term_ids = $this->get_object_sequence_term_ids( $post_id );
+			if ( is_wp_error( $term_ids ) ) {
+				return $term_ids;
+			}
+			$original_terms[ $post_id ] = $term_ids;
+		}
+
+		$updated = [];
+		foreach ( $post_ids as $post_id ) {
+			$attempted = array_merge( $updated, [ $post_id ] );
+			$result    = wp_set_object_terms(
+				$post_id,
+				[ $term_id ],
+				\WorldGraph\Taxonomies\Sequence::TAXONOMY,
+				false
+			);
+			if ( is_wp_error( $result ) ) {
+				foreach ( $attempted as $rollback_id ) {
+					// Best effort: preserve the original error even if rollback fails.
+					wp_set_object_terms(
+						$rollback_id,
+						$original_terms[ $rollback_id ],
+						\WorldGraph\Taxonomies\Sequence::TAXONOMY,
+						false
+					);
+				}
+
+				return $result;
+			}
+
+			$updated[] = $post_id;
+		}
+
+		return $updated;
 	}
 
 	/**
@@ -145,8 +375,8 @@ class Sequences_Controller extends Base_Controller {
 			$shots  = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $sequence['id'], 'worldgraph_shot' );
 			$scenes = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $sequence['id'], 'worldgraph_scene' );
 
-			$sequences[ $index ]['shot_count']  = count( $shots );
-			$sequences[ $index ]['scene_count'] = count( $scenes );
+			$sequences[ $index ]['shot_count']  = count( array_filter( $shots, static fn( $post_id ): bool => current_user_can( 'read_post', $post_id ) ) );
+			$sequences[ $index ]['scene_count'] = count( array_filter( $scenes, static fn( $post_id ): bool => current_user_can( 'read_post', $post_id ) ) );
 			$sequences[ $index ]['edit_link'] = admin_url( 'term.php?taxonomy=' . \WorldGraph\Taxonomies\Sequence::TAXONOMY . '&tag_ID=' . $sequence['id'] );
 		}
 
@@ -183,6 +413,9 @@ class Sequences_Controller extends Base_Controller {
 			] );
 
 			foreach ( $shot_posts as $shot ) {
+				if ( ! current_user_can( 'read_post', $shot->ID ) ) {
+					continue;
+				}
 				$shots[] = [
 					'id'           => $shot->ID,
 					'external_id'  => (string) get_post_meta( $shot->ID, 'external_id', true ),
@@ -218,6 +451,9 @@ class Sequences_Controller extends Base_Controller {
 			);
 
 			foreach ( $scene_posts as $scene ) {
+				if ( ! current_user_can( 'read_post', $scene->ID ) ) {
+					continue;
+				}
 				$scenes[] = [
 					'id'             => $scene->ID,
 					'external_id'    => (string) get_post_meta( $scene->ID, 'external_id', true ),
@@ -312,33 +548,14 @@ class Sequences_Controller extends Base_Controller {
 			return new WP_Error( 'rest_sequence_not_found', 'Sequence term not found.', [ 'status' => 404 ] );
 		}
 
-		$shot_ids = array_values( array_unique( array_map( 'absint', (array) $request->get_param( 'shot_ids' ) ) ) );
-		$ordered_ids = array_values( array_unique( array_map( 'absint', (array) $request->get_param( 'ordered_ids' ) ) ) );
-
-		if ( empty( $shot_ids ) ) {
-			return new WP_Error( 'rest_invalid_shot_ids', 'shot_ids cannot be empty.', [ 'status' => 400 ] );
+		$shot_ids = $this->validate_assignment_ids( $request->get_param( 'shot_ids' ), 'shot_ids', 'worldgraph_shot', 'Shot' );
+		if ( is_wp_error( $shot_ids ) ) {
+			return $shot_ids;
 		}
 
-		$updated = [];
-		foreach ( $shot_ids as $shot_id ) {
-			$post = get_post( $shot_id );
-			if ( ! $post || 'worldgraph_shot' !== $post->post_type ) {
-				continue;
-			}
-
-			wp_set_object_terms( $post->ID, [ (int) $term->term_id ], \WorldGraph\Taxonomies\Sequence::TAXONOMY, false );
-
-			if ( ! empty( $ordered_ids ) ) {
-				$position = array_search( $post->ID, $ordered_ids, true );
-				if ( false !== $position ) {
-					wp_update_post( [
-						'ID'         => $post->ID,
-						'menu_order' => $position + 1,
-					] );
-				}
-			}
-
-			$updated[] = $post->ID;
+		$updated = $this->assign_sequence_term( $shot_ids, (int) $term->term_id );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
 		}
 
 		return rest_ensure_response( [
@@ -365,25 +582,22 @@ class Sequences_Controller extends Base_Controller {
 			return new WP_Error( 'rest_sequence_not_found', 'Sequence term not found.', [ 'status' => 404 ] );
 		}
 
-		$scene_ids = array_values( array_unique( array_map( 'absint', (array) $request->get_param( 'scene_ids' ) ) ) );
-		if ( empty( $scene_ids ) ) {
-			return new WP_Error( 'rest_invalid_scene_ids', 'scene_ids cannot be empty.', [ 'status' => 400 ] );
+		$scene_ids = $this->validate_assignment_ids( $request->get_param( 'scene_ids' ), 'scene_ids', 'worldgraph_scene', 'Scene' );
+		if ( is_wp_error( $scene_ids ) ) {
+			return $scene_ids;
 		}
 
 		$existing      = \WorldGraph\Utils\worldgraph_get_sequence_object_ids( (int) $term->term_id, 'worldgraph_scene' );
 		$current_order = count( $existing );
 
-		$updated = [];
-		foreach ( $scene_ids as $scene_id ) {
-			$post = get_post( $scene_id );
-			if ( ! $post || 'worldgraph_scene' !== $post->post_type ) {
-				continue;
-			}
+		$updated = $this->assign_sequence_term( $scene_ids, (int) $term->term_id );
+		if ( is_wp_error( $updated ) ) {
+			return $updated;
+		}
 
-			wp_set_object_terms( $post->ID, [ (int) $term->term_id ], \WorldGraph\Taxonomies\Sequence::TAXONOMY, false );
+		foreach ( $scene_ids as $scene_id ) {
 			$current_order++;
-			update_post_meta( $post->ID, 'sequence_order', $current_order );
-			$updated[] = $post->ID;
+			update_post_meta( $scene_id, 'sequence_order', $current_order );
 		}
 
 		return rest_ensure_response(
@@ -396,6 +610,33 @@ class Sequences_Controller extends Base_Controller {
 				],
 			]
 		);
+	}
+
+	/**
+	 * Check taxonomy-native permission for deleting a Sequence term.
+	 *
+	 * Sequence route IDs are term IDs, so Base_Controller's post-object
+	 * capability check is not applicable here.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_delete_permission( WP_REST_Request $request ) {
+		$term_id = absint( $request->get_param( 'id' ) );
+		$term    = get_term( $term_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $term || is_wp_error( $term ) ) {
+			return new WP_Error( 'rest_sequence_not_found', 'Sequence term not found.', [ 'status' => 404 ] );
+		}
+
+		$taxonomy = get_taxonomy( \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $taxonomy ) {
+			return new WP_Error( 'rest_sequence_taxonomy_unavailable', 'Sequence taxonomy is unavailable.', [ 'status' => 500 ] );
+		}
+		if ( ! current_user_can( $taxonomy->cap->delete_terms ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot delete Sequence terms.', [ 'status' => 403 ] );
+		}
+
+		return true;
 	}
 
 	/**

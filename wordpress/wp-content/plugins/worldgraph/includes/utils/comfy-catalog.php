@@ -405,6 +405,15 @@ class Comfy_Catalog {
 			$enabled[ (string) $entry['id'] ] = $entry;
 		}
 
+		// A reachable ComfyUI answers "is this model actually installed" directly,
+		// which is more trustworthy than inferring it from a missing download URL.
+		$connection = Connection_Repository::get( $connection_id );
+		$endpoint   = is_array( $connection ) ? untrailingslashit( esc_url_raw( (string) ( $connection['endpoint_url'] ?? '' ) ) ) : '';
+		$installed  = '' !== $endpoint ? Comfy_Manifest::object_info( $endpoint ) : null;
+		if ( is_wp_error( $installed ) ) {
+			$installed = null;
+		}
+
 		$decorated = [];
 		foreach ( $entries as $entry ) {
 			if ( ! is_array( $entry ) || empty( $entry['id'] ) ) {
@@ -414,7 +423,7 @@ class Comfy_Catalog {
 			$id = (string) $entry['id'];
 			$entry['enabled']     = isset( $enabled[ $id ] );
 			$entry['template_id'] = (int) ( $enabled[ $id ]['template_id'] ?? 0 );
-			$entry['status']      = self::entry_status( $entry );
+			$entry['status']      = self::entry_status( $entry, $installed );
 			unset( $enabled[ $id ] );
 			$decorated[] = $entry;
 		}
@@ -440,10 +449,11 @@ class Comfy_Catalog {
 	 * Coarse readiness for catalog rendering. Authoritative validation happens
 	 * against a materialized Template via {@see Comfy_Manifest::validate()}.
 	 *
-	 * @param array $entry Catalog entry.
+	 * @param array      $entry     Catalog entry.
+	 * @param array|null $installed Live ComfyUI `/object_info` catalog, or null when unreachable.
 	 * @return string
 	 */
-	private static function entry_status( array $entry ): string {
+	private static function entry_status( array $entry, ?array $installed = null ): string {
 		if ( empty( $entry['modality'] ) ) {
 			return 'unmappable';
 		}
@@ -457,8 +467,15 @@ class Comfy_Catalog {
 
 			return $entry['installable'] ? 'ready' : 'needs_models';
 		}
-		if ( ! empty( $entry['models'] ) && empty( $entry['model_urls'] ) ) {
-			return 'needs_models';
+		if ( ! empty( $entry['models'] ) ) {
+			// A reachable ComfyUI is authoritative: check what it actually has on
+			// disk instead of assuming missing just because no download URL was advertised.
+			if ( null !== $installed ) {
+				return empty( Comfy_Manifest::unresolved_models( $entry['models'], $installed ) ) ? 'ready' : 'needs_models';
+			}
+			if ( empty( $entry['model_urls'] ) ) {
+				return 'needs_models';
+			}
 		}
 
 		return 'ready';

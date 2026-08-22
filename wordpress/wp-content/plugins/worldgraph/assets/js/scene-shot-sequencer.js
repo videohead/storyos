@@ -14,6 +14,7 @@
 	}
 
 	let savedOrder = readOrder();
+	let revision = config.revision || '';
 	let request = null;
 	let queuedSave = false;
 
@@ -74,6 +75,7 @@
 				nonce: config.nonce,
 				scene_id: config.sceneId,
 				ordered_ids: order,
+				revision,
 			},
 		} ).done( ( response ) => {
 			if ( ! response?.success ) {
@@ -82,6 +84,7 @@
 				return;
 			}
 			savedOrder = order;
+			revision = response.data?.revision || revision;
 			setStatus( response.data?.message || config.i18n?.saved || 'Shot order saved.', false );
 		} ).fail( ( xhr ) => {
 			queuedSave = false;

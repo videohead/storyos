@@ -57,6 +57,10 @@ class Scene_Shot_Sequencer {
 		if ( ! $post_id ) {
 			return;
 		}
+		$shots = \WorldGraph\Utils\worldgraph_get_scene_shots_for_reorder( $post_id );
+		if ( ! current_user_can( 'edit_post', $post_id ) || array_filter( $shots, static fn( \WP_Post $shot ): bool => ! current_user_can( 'edit_post', $shot->ID ) ) ) {
+			return;
+		}
 
 		$script_path = WORLDGRAPH_PLUGIN_DIR . 'assets/js/scene-shot-sequencer.js';
 		$style_path  = WORLDGRAPH_PLUGIN_DIR . 'assets/css/scene-shot-sequencer.css';
@@ -81,6 +85,7 @@ class Scene_Shot_Sequencer {
 				'action'  => self::ACTION,
 				'nonce'   => wp_create_nonce( self::ACTION ),
 				'sceneId' => $post_id,
+				'revision' => \WorldGraph\Utils\worldgraph_scene_shot_order_revision( $shots ),
 				'i18n'    => [
 					'saving' => __( 'Saving Shot order…', 'worldgraph' ),
 					'saved'  => __( 'Shot order saved.', 'worldgraph' ),
@@ -98,13 +103,31 @@ class Scene_Shot_Sequencer {
 	 * @param \WP_Post $post Current Scene.
 	 */
 	public static function render_meta_box( \WP_Post $post ): void {
-		$shots = \WorldGraph\Utils\worldgraph_get_scene_display_shots( $post->ID, true );
+		$shots         = \WorldGraph\Utils\worldgraph_get_scene_shots_for_reorder( $post->ID );
+		$blocked_shots = array_values(
+			array_filter(
+				$shots,
+				static fn( \WP_Post $shot ): bool => ! current_user_can( 'edit_post', $shot->ID )
+			)
+		);
 		?>
 		<div class="worldgraph-shot-sequencer" data-worldgraph-shot-sequencer>
 			<p class="description">
 				<?php esc_html_e( 'Drag Shots into editorial order, or use the Move up and Move down buttons. Changes save immediately and are reflected in Scene displays.', 'worldgraph' ); ?>
 			</p>
-			<?php if ( empty( $shots ) ) : ?>
+			<?php if ( ! current_user_can( 'edit_post', $post->ID ) || ! empty( $blocked_shots ) ) : ?>
+				<p class="notice notice-warning inline">
+					<?php
+					echo esc_html(
+						sprintf(
+							/* translators: %s: comma-delimited Shot titles. */
+							__( 'Reordering is unavailable because you need edit access to the Scene and every Shot. Restricted: %s', 'worldgraph' ),
+							implode( ', ', array_map( static fn( \WP_Post $shot ): string => $shot->post_title ?: sprintf( __( 'Shot #%d', 'worldgraph' ), $shot->ID ), $blocked_shots ) ) ?: __( 'this Scene', 'worldgraph' )
+						)
+					);
+					?>
+				</p>
+			<?php elseif ( empty( $shots ) ) : ?>
 				<p class="worldgraph-shot-sequencer__empty">
 					<?php esc_html_e( 'No Shots belong to this Scene yet. Assign this Scene in a Shot’s Scene field, then return here to order it.', 'worldgraph' ); ?>
 				</p>
@@ -163,7 +186,8 @@ class Scene_Shot_Sequencer {
 
 		$scene_id = isset( $_POST['scene_id'] ) ? absint( $_POST['scene_id'] ) : 0;
 		$raw_order = isset( $_POST['ordered_ids'] ) && is_array( $_POST['ordered_ids'] ) ? wp_unslash( $_POST['ordered_ids'] ) : [];
-		$result    = \WorldGraph\Utils\worldgraph_reorder_scene_shots( $scene_id, $raw_order );
+		$revision  = isset( $_POST['revision'] ) ? sanitize_key( wp_unslash( $_POST['revision'] ) ) : '';
+		$result    = \WorldGraph\Utils\worldgraph_reorder_scene_shots( $scene_id, $raw_order, 0, $revision );
 		if ( is_wp_error( $result ) ) {
 			$error_data = $result->get_error_data();
 			$status     = is_array( $error_data ) ? absint( $error_data['status'] ?? 500 ) : 500;
@@ -173,6 +197,7 @@ class Scene_Shot_Sequencer {
 		wp_send_json_success(
 			[
 				'ordered_ids' => $result['ordered_ids'],
+				'revision'    => $result['revision'],
 				'message'     => __( 'Shot order saved.', 'worldgraph' ),
 			]
 		);

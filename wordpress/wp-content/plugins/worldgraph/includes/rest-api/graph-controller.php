@@ -48,7 +48,7 @@ class Graph_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/graph/(?P<id>\d+)', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'get_graph' ],
-			'permission_callback' => [ $this, 'check_read_permission' ],
+			'permission_callback' => [ $this, 'check_graph_read_permission' ],
 			'args'                => [
 				'id'     => [
 					'description' => 'Node ID.',
@@ -86,7 +86,7 @@ class Graph_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/graph/relationships', [
 			'methods'             => 'GET',
 			'callback'            => [ $this, 'get_relationships' ],
-			'permission_callback' => [ $this, 'check_read_permission' ],
+			'permission_callback' => [ $this, 'check_relationship_read_permission' ],
 			'args'                => [
 				'from_id'  => [ 'type' => 'integer' ],
 				'to_id'    => [ 'type' => 'integer' ],
@@ -100,7 +100,7 @@ class Graph_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/graph/relationships', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'create_relationship' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_relationship_create_permission' ],
 			'args'                => [
 				'from_id'  => [
 					'description' => 'Source node ID.',
@@ -134,12 +134,215 @@ class Graph_Controller extends Base_Controller {
 		register_rest_route( 'worldgraph/v1', '/graph/relationships/(?P<from_id>\d+)/(?P<to_id>\d+)', [
 			'methods'             => 'DELETE',
 			'callback'            => [ $this, 'delete_relationship' ],
-			'permission_callback' => [ $this, 'check_delete_permission' ],
+			'permission_callback' => [ $this, 'check_relationship_delete_permission' ],
 			'args'                => [
 				'from_id'  => [ 'required' => true ],
 				'to_id'    => [ 'required' => true ],
 			],
 		] );
+	}
+
+	/**
+	 * Require object-level read access to the graph traversal root.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_graph_read_permission( WP_REST_Request $request ) {
+		$permission = parent::check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		return $this->check_post_capability( absint( $request->get_param( 'id' ) ), 'read_post' );
+	}
+
+	/**
+	 * Require object-level read access to explicitly queried relationship ends.
+	 *
+	 * Every returned edge is filtered separately in get_relationships(); these
+	 * checks make a direct query for an unreadable endpoint fail explicitly.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_relationship_read_permission( WP_REST_Request $request ) {
+		$permission = parent::check_read_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		foreach ( [ 'from_id', 'to_id' ] as $parameter ) {
+			$post_id = absint( $request->get_param( $parameter ) );
+			if ( ! $post_id ) {
+				continue;
+			}
+
+			$permission = $this->check_post_capability( $post_id, 'read_post' );
+			if ( is_wp_error( $permission ) ) {
+				return $permission;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Preserve the generic create gate and require edit access to both nodes.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_relationship_create_permission( WP_REST_Request $request ) {
+		$permission = parent::check_create_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		return $this->check_relationship_endpoint_edit_permissions( $request );
+	}
+
+	/**
+	 * Preserve the generic delete gate and require edit access to both nodes.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	public function check_relationship_delete_permission( WP_REST_Request $request ) {
+		$permission = parent::check_delete_permission( $request );
+		if ( is_wp_error( $permission ) ) {
+			return $permission;
+		}
+
+		return $this->check_relationship_endpoint_edit_permissions( $request );
+	}
+
+	/**
+	 * Require a capability for one existing endpoint post.
+	 *
+	 * @param int    $post_id    Post ID.
+	 * @param string $capability Meta capability to check.
+	 * @return true|WP_Error
+	 */
+	private function check_post_capability( int $post_id, string $capability ) {
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			return new WP_Error( 'rest_post_not_found', 'Post not found.', [ 'status' => 404 ] );
+		}
+
+		if ( ! current_user_can( $capability, $post_id ) ) {
+			$message = 'read_post' === $capability ? 'You cannot read this post.' : 'You cannot edit this post.';
+			return new WP_Error( 'rest_forbidden', $message, [ 'status' => 403 ] );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Require edit access to both endpoints of a relationship mutation.
+	 *
+	 * @param WP_REST_Request $request REST request.
+	 * @return true|WP_Error
+	 */
+	private function check_relationship_endpoint_edit_permissions( WP_REST_Request $request ) {
+		foreach ( [ 'from_id', 'to_id' ] as $parameter ) {
+			$permission = $this->check_post_capability( absint( $request->get_param( $parameter ) ), 'edit_post' );
+			if ( is_wp_error( $permission ) ) {
+				return $permission;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Whether the current user may read both endpoint posts of an edge.
+	 *
+	 * @param array<string, mixed> $relationship Relationship record.
+	 * @return bool
+	 */
+	private static function can_read_relationship( array $relationship ): bool {
+		$from_id = absint( $relationship['from_id'] ?? 0 );
+		$to_id   = absint( $relationship['to_id'] ?? 0 );
+		if ( ! $from_id || ! $to_id ) {
+			return false;
+		}
+
+		$can_read_from = current_user_can( 'read_post', $from_id );
+		$can_read_to   = current_user_can( 'read_post', $to_id );
+		return $can_read_from && $can_read_to;
+	}
+
+	/**
+	 * Traverse only readable nodes over edges whose endpoints are both readable.
+	 *
+	 * @param int    $post_id   Traversal root.
+	 * @param string $node_type Root post type.
+	 * @param int    $depth     Maximum traversal depth.
+	 * @return array<string, array<string, mixed>>
+	 */
+	private static function get_readable_graph_entities( int $post_id, string $node_type, int $depth ): array {
+		$visited = [];
+		$queue   = [ [ 'id' => $post_id, 'type' => $node_type, 'depth' => 0 ] ];
+		$result  = [];
+
+		while ( ! empty( $queue ) ) {
+			$current = array_shift( $queue );
+			if ( absint( $current['depth'] ?? 0 ) > $depth ) {
+				continue;
+			}
+
+			$current_id = absint( $current['id'] ?? 0 );
+			$post       = $current_id ? get_post( $current_id ) : null;
+			if ( ! $post instanceof \WP_Post || ! current_user_can( 'read_post', $current_id ) ) {
+				continue;
+			}
+
+			$current_type = (string) $post->post_type;
+			$key          = $current_type . '_' . $current_id;
+			if ( isset( $visited[ $key ] ) ) {
+				continue;
+			}
+
+			$visited[ $key ] = true;
+			$result[ $key ]  = [
+				'id'          => $post->ID,
+				'external_id' => (string) get_post_meta( $post->ID, 'external_id', true ),
+				'type'        => $post->post_type,
+				'title'       => $post->post_title,
+				'status'      => $post->post_status,
+			];
+
+			$current_depth = absint( $current['depth'] ?? 0 );
+			if ( $current_depth >= $depth ) {
+				continue;
+			}
+
+			$outgoing = \WorldGraph\Utils\get_relationships( $current_id, $current_type, 'outgoing' );
+			foreach ( $outgoing as $relationship ) {
+				if ( ! self::can_read_relationship( $relationship ) ) {
+					continue;
+				}
+				$queue[] = [
+					'id'    => absint( $relationship['to_id'] ?? 0 ),
+					'type'  => (string) ( $relationship['to_type'] ?? '' ),
+					'depth' => $current_depth + 1,
+				];
+			}
+
+			$incoming = \WorldGraph\Utils\get_relationships( $current_id, $current_type, 'incoming' );
+			foreach ( $incoming as $relationship ) {
+				if ( ! self::can_read_relationship( $relationship ) ) {
+					continue;
+				}
+				$queue[] = [
+					'id'    => absint( $relationship['from_id'] ?? 0 ),
+					'type'  => (string) ( $relationship['from_type'] ?? '' ),
+					'depth' => $current_depth + 1,
+				];
+			}
+		}
+
+		return $result;
 	}
 
 	/**
@@ -150,10 +353,18 @@ class Graph_Controller extends Base_Controller {
 	 */
 	public static function get_graph( WP_REST_Request $request ) {
 		$post_id = absint( $request->get_param( 'id' ) );
-		$node_type = $request->get_param( 'type' ) ?: get_post_type( $post_id );
-		$depth = absint( $request->get_param( 'depth' ) ) ?: 2;
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			return new WP_Error( 'rest_post_not_found', 'Post not found.', [ 'status' => 404 ] );
+		}
+		if ( ! current_user_can( 'read_post', $post_id ) ) {
+			return new WP_Error( 'rest_forbidden', 'You cannot read this post.', [ 'status' => 403 ] );
+		}
 
-		$entities = \WorldGraph\Utils\get_graph_entities( $post_id, $node_type, $depth );
+		$node_type = $request->get_param( 'type' ) ?: $post->post_type;
+		$depth     = absint( $request->get_param( 'depth' ) ) ?: 2;
+
+		$entities = self::get_readable_graph_entities( $post_id, $node_type, $depth );
 		return rest_ensure_response( $entities );
 	}
 
@@ -171,15 +382,25 @@ class Graph_Controller extends Base_Controller {
 		$args = [
 			'post_type'      => $type ?: 'worldgraph_project',
 			'post_status'    => 'any',
-			'posts_per_page' => $per_page,
-			'paged'          => $page,
+			'posts_per_page' => -1,
+			'nopaging'       => true,
 		];
 
 		$query = new \WP_Query( $args );
-		$entities = [];
+		$readable_posts = array_values(
+			array_filter(
+				$query->posts,
+				static function( \WP_Post $post ): bool {
+					return current_user_can( 'read_post', $post->ID );
+				}
+			)
+		);
+		$total          = count( $readable_posts );
+		$page_posts     = array_slice( $readable_posts, ( $page - 1 ) * $per_page, $per_page );
+		$entities       = [];
 
-		if ( $query->have_posts() ) {
-				foreach ( $query->posts as $post ) {
+		if ( ! empty( $page_posts ) ) {
+			foreach ( $page_posts as $post ) {
 					$entities[] = [
 						'id'          => $post->ID,
 						'external_id' => (string) get_post_meta( $post->ID, 'external_id', true ),
@@ -188,12 +409,12 @@ class Graph_Controller extends Base_Controller {
 						'slug'        => $post->post_name,
 					];
 			}
-			wp_reset_postdata();
 		}
+		wp_reset_postdata();
 
 		$response = rest_ensure_response( $entities );
-		$response->header( 'X-WP-Total', $query->found_posts );
-		$response->header( 'X-WP-TotalPages', $query->max_num_pages );
+		$response->header( 'X-WP-Total', $total );
+		$response->header( 'X-WP-TotalPages', (int) ceil( $total / $per_page ) );
 
 		return $response;
 	}
@@ -227,6 +448,13 @@ class Graph_Controller extends Base_Controller {
 			$rels = \WorldGraph\Utils\get_relationships( $params['to_id'], $params['to_type'] ?: get_post_type( $params['to_id'] ), 'incoming' );
 			$relationships = array_merge( $relationships, $rels );
 		}
+
+		$relationships = array_filter(
+			$relationships,
+			static function( array $relationship ): bool {
+				return self::can_read_relationship( $relationship );
+			}
+		);
 
 		// Filter by type if specified.
 		if ( $params['rel_type'] ) {

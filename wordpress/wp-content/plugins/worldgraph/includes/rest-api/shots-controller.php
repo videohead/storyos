@@ -102,6 +102,12 @@ class Shots_Controller extends Base_Controller {
 					'description' => 'Optional sequence term ID to assign the shots to.',
 					'type'        => 'integer',
 				],
+				'revision'    => [
+					'description' => 'Current Scene Shot-order revision returned by the display/editor.',
+					'type'        => 'string',
+					'pattern'     => '^[a-f0-9]{64}$',
+					'required'    => true,
+				],
 			],
 		] );
 	}
@@ -136,7 +142,8 @@ class Shots_Controller extends Base_Controller {
 		$scene_id    = absint( $request->get_param( 'scene_id' ) );
 		$ordered_ids = (array) $request->get_param( 'ordered_ids' );
 		$sequence_id = $request->get_param( 'sequence_id' ) ? absint( $request->get_param( 'sequence_id' ) ) : 0;
-		$result      = \WorldGraph\Utils\worldgraph_reorder_scene_shots( $scene_id, $ordered_ids, $sequence_id );
+		$revision    = sanitize_key( (string) $request->get_param( 'revision' ) );
+		$result      = \WorldGraph\Utils\worldgraph_reorder_scene_shots( $scene_id, $ordered_ids, $sequence_id, $revision );
 		if ( is_wp_error( $result ) ) {
 			return $result;
 		}

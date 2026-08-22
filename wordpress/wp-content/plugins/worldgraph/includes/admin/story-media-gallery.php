@@ -17,6 +17,9 @@ class Story_Media_Gallery {
 	/** Stable gallery metadata key shared with the generation system. */
 	private const META_KEY = '_worldgraph_asset_gallery_ids';
 
+	/** Prefix for one-shot concurrent-edit notices, scoped by user and post. */
+	private const CONFLICT_NOTICE_PREFIX = 'worldgraph_story_gallery_conflict_';
+
 	/** Post types that may own supporting display media. */
 	private const POST_TYPES = [
 		'worldgraph_project',
@@ -39,6 +42,27 @@ class Story_Media_Gallery {
 		add_action( 'add_meta_boxes', [ __CLASS__, 'register_meta_boxes' ] );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
 		add_action( 'save_post', [ __CLASS__, 'save' ], 20, 2 );
+		add_action( 'admin_notices', [ __CLASS__, 'render_conflict_notice' ] );
+	}
+
+	/** Show a one-shot notice when two editors changed gallery order at once. */
+	public static function render_conflict_notice(): void {
+		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
+		$user_id = get_current_user_id();
+		if ( ! $post_id || ! $user_id ) {
+			return;
+		}
+
+		$key = self::CONFLICT_NOTICE_PREFIX . $user_id . '_' . $post_id;
+		if ( ! get_transient( $key ) ) {
+			return;
+		}
+		delete_transient( $key );
+		?>
+		<div class="notice notice-warning is-dismissible"><p>
+			<?php esc_html_e( 'Story Media Gallery order was not saved because another editor reordered it after this screen loaded. Review the current order and save again.', 'worldgraph' ); ?>
+		</p></div>
+		<?php
 	}
 
 	/** Add the same media-curation panel to supported story entities. */
@@ -202,10 +226,39 @@ class Story_Media_Gallery {
 		// this edit screen loaded, while still honoring intentional removals and
 		// additions made in the submitted gallery.
 		if ( $revision && ! hash_equals( $current_revision, $revision ) ) {
-			$retained_current     = array_values( array_intersect( $ids, $current_ids ) );
-			$user_additions       = array_values( array_diff( $ids, $original_ids ) );
-			$concurrent_additions = array_values( array_diff( $current_ids, $original_ids ) );
-			$ids                  = array_values( array_unique( array_merge( $retained_current, $user_additions, $concurrent_additions ) ) );
+			$submitted_original_order = array_values( array_intersect( $ids, $original_ids ) );
+			$original_for_submit      = array_values( array_intersect( $original_ids, $ids ) );
+			$current_original_order   = array_values( array_intersect( $current_ids, $original_ids ) );
+			$original_for_current     = array_values( array_intersect( $original_ids, $current_ids ) );
+			$user_reordered           = $submitted_original_order !== $original_for_submit;
+			$concurrent_reordered     = $current_original_order !== $original_for_current;
+
+			$shared_original_ids = array_values( array_intersect( $original_ids, $ids, $current_ids ) );
+			$user_shared_order   = array_values( array_intersect( $ids, $shared_original_ids ) );
+			$current_shared_order = array_values( array_intersect( $current_ids, $shared_original_ids ) );
+			if ( $user_reordered && $concurrent_reordered && $user_shared_order !== $current_shared_order ) {
+				set_transient( self::CONFLICT_NOTICE_PREFIX . get_current_user_id() . '_' . $post_id, 1, MINUTE_IN_SECONDS );
+				return;
+			}
+
+			$user_additions = array_values( array_diff( $ids, $original_ids ) );
+			if ( ! $user_reordered ) {
+				// The submitter did not change relative order, so preserve another
+				// editor's current ordering while honoring removals and new media.
+				$retained_current = array_values(
+					array_filter(
+						$current_ids,
+						static function( int $attachment_id ) use ( $ids, $original_ids ): bool {
+							return in_array( $attachment_id, $ids, true ) || ! in_array( $attachment_id, $original_ids, true );
+						}
+					)
+				);
+				$ids = array_values( array_unique( array_merge( $retained_current, $user_additions ) ) );
+			} else {
+				$retained_current     = array_values( array_intersect( $ids, $current_ids ) );
+				$concurrent_additions = array_values( array_diff( $current_ids, $original_ids ) );
+				$ids                  = array_values( array_unique( array_merge( $retained_current, $user_additions, $concurrent_additions ) ) );
+			}
 		}
 
 		$ids     = array_values(

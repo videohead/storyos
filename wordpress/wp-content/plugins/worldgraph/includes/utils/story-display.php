@@ -145,10 +145,10 @@ function worldgraph_story_display_related_posts( int $post_id, string $post_type
 /**
  * Resolve the single canonical Scene owned by a Shot.
  *
- * Named `scene` edges written by SCF take precedence. Older unnamed
- * child-owned edges remain supported; when legacy data contains more than one,
- * the scalar SCF value breaks the tie without allowing one Shot to appear in
- * multiple Scene sequencers.
+ * Named `scene` edges written by SCF take precedence, followed by older
+ * unnamed child-owned edges, the scalar SCF projection, and finally a legacy
+ * parent-owned Scene edge. Each tier chooses one deterministic owner so a Shot
+ * cannot appear in multiple Scene sequencers.
  *
  * @param int $shot_id Shot post ID.
  * @return int Scene post ID, or zero when the Shot has no canonical owner.
@@ -176,13 +176,15 @@ function worldgraph_get_shot_canonical_scene_id( int $shot_id ): int {
 	}
 
 	$named_scene_ids = array_values( array_unique( $named_scene_ids ) );
+	sort( $named_scene_ids, SORT_NUMERIC );
 	if ( ! empty( $named_scene_ids ) ) {
 		return (int) $named_scene_ids[0];
 	}
 
 	$scene_ids = array_values( array_unique( $scene_ids ) );
-	if ( empty( $scene_ids ) ) {
-		return 0;
+	sort( $scene_ids, SORT_NUMERIC );
+	if ( ! empty( $scene_ids ) ) {
+		return (int) $scene_ids[0];
 	}
 
 	$meta_scene = worldgraph_get_field_value( $shot_id, 'scene' );
@@ -193,11 +195,20 @@ function worldgraph_get_shot_canonical_scene_id( int $shot_id ): int {
 		$meta_scene       = $first_meta_scene instanceof \WP_Post ? $first_meta_scene->ID : $first_meta_scene;
 	}
 	$meta_scene_id = absint( $meta_scene );
-	if ( $meta_scene_id && in_array( $meta_scene_id, $scene_ids, true ) ) {
+	if ( $meta_scene_id && 'worldgraph_scene' === get_post_type( $meta_scene_id ) ) {
 		return $meta_scene_id;
 	}
 
-	return (int) $scene_ids[0];
+	$legacy_scene_ids = [];
+	foreach ( get_relationships( $shot_id, 'worldgraph_shot', 'incoming' ) as $relationship ) {
+		if ( 'worldgraph_scene' === (string) ( $relationship['from_type'] ?? '' ) && in_array( (string) ( $relationship['type'] ?? '' ), [ 'contains', 'belongs_to' ], true ) ) {
+			$legacy_scene_ids[] = absint( $relationship['from_id'] ?? 0 );
+		}
+	}
+	$legacy_scene_ids = array_values( array_unique( array_filter( $legacy_scene_ids ) ) );
+	sort( $legacy_scene_ids, SORT_NUMERIC );
+
+	return empty( $legacy_scene_ids ) ? 0 : (int) $legacy_scene_ids[0];
 }
 
 /**
@@ -797,12 +808,16 @@ function worldgraph_get_story_display_payload( int $post_id, bool $expanded = fa
 	}
 
 	if ( $expanded && 'worldgraph_scene' === $post->post_type ) {
+		$scene_shots = worldgraph_get_scene_display_shots( $post_id, $include_private );
 		$payload['shots'] = array_map(
 			static function( \WP_Post $shot ) use ( $include_private ): array {
 				return worldgraph_story_display_shot_payload( $shot, $include_private );
 			},
-			worldgraph_get_scene_display_shots( $post_id, $include_private )
+			$scene_shots
 		);
+		if ( $include_private && function_exists( __NAMESPACE__ . '\\worldgraph_scene_shot_order_revision' ) ) {
+			$payload['shot_order_revision'] = worldgraph_scene_shot_order_revision( worldgraph_get_scene_shots_for_reorder( $post_id ) );
+		}
 	}
 
 	if ( $expanded && 'worldgraph_world' === $post->post_type ) {

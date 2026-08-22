@@ -699,6 +699,34 @@ class Comfy_Manifest {
 	}
 
 	/**
+	 * Which of a catalog entry's declared models a live ComfyUI does not
+	 * actually have installed. Fields ComfyUI can't enumerate (unverifiable)
+	 * are not counted as missing, matching {@see self::validate()}.
+	 *
+	 * @param array $models   Declared `node_class`/`field`/`filename` requirements.
+	 * @param array $catalog  Decoded `/object_info` payload.
+	 * @return array<int, array>
+	 */
+	public static function unresolved_models( array $models, array $catalog ): array {
+		$missing = [];
+		foreach ( $models as $model ) {
+			if ( ! is_array( $model ) || empty( $model['node_class'] ) || empty( $model['field'] ) || empty( $model['filename'] ) ) {
+				continue;
+			}
+
+			$installed = self::installed_options( $catalog, (string) $model['node_class'], (string) $model['field'] );
+			if ( null === $installed ) {
+				continue;
+			}
+			if ( ! in_array( (string) $model['filename'], $installed, true ) ) {
+				$missing[] = $model;
+			}
+		}
+
+		return $missing;
+	}
+
+	/**
 	 * The filenames ComfyUI currently offers for a loader input, or null when
 	 * the input is not an enumerated file list (so it cannot be validated).
 	 *
