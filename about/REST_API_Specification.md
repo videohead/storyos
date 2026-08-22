@@ -569,6 +569,8 @@ shape:
 }
 ```
 
-The stable current namespace is `worldgraph/v1`. Extensions should use their
-own namespace when they do not implement the core contract, and clients should
+The stable current compatibility namespace is `worldgraph/v1`. It remains
+supported for existing clients, but it is not the canonical product model or
+the automatic contract for new headless work. Extensions should use their own
+namespace when they do not implement the core contract, and clients should
 feature-detect optional integration routes rather than assume they are active.

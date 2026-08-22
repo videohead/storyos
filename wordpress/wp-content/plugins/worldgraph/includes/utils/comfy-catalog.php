@@ -36,6 +36,22 @@ class Comfy_Catalog {
 	const ENABLED_META = 'enabled_templates';
 
 	/**
+	 * How many published templates per modality are considered during a sync.
+	 */
+	const REGISTRY_CANDIDATES = 40;
+
+	/**
+	 * How many of those have their workflow fetched to resolve readiness.
+	 * Each probe is an HTTP round trip, so this bounds how long a sync runs.
+	 */
+	const REGISTRY_PROBES = 8;
+
+	/**
+	 * How many published templates per modality reach the catalog.
+	 */
+	const REGISTRY_LISTED = 12;
+
+	/**
 	 * Discover everything a Connection's provider advertises and cache it.
 	 *
 	 * @param int $connection_id Connection post ID.
@@ -320,6 +336,59 @@ class Comfy_Catalog {
 			];
 		}
 
+		return array_merge( $entries, self::registry_entries( $endpoint ) );
+	}
+
+	/**
+	 * The workflows ComfyUI publishes, ranked against this instance.
+	 *
+	 * The built-in graphs above describe what World Graph Studio can assemble
+	 * unaided, which is deliberately conservative. The published registry is
+	 * where the current generation of models actually lives, so an operator who
+	 * has installed Flux or Qwen-Image should be offered them rather than left
+	 * on a Stable Diffusion 1.5 fallback.
+	 *
+	 * @param string $endpoint ComfyUI base URL.
+	 * @return array<int, array>
+	 */
+	private static function registry_entries( string $endpoint ): array {
+		if ( '' === $endpoint ) {
+			return [];
+		}
+
+		$modalities = [
+			Generation_Modality::TEXT_TO_IMAGE,
+			Generation_Modality::IMAGE_TO_IMAGE,
+			Generation_Modality::TEXT_TO_VIDEO,
+			Generation_Modality::TEXT_IMAGE_TO_VIDEO,
+		];
+
+		$entries = [];
+		foreach ( $modalities as $modality ) {
+			$ranked = Comfy_Template_Registry::ranked(
+				[ 'modality' => $modality, 'local_only' => true, 'limit' => self::REGISTRY_CANDIDATES ],
+				$endpoint,
+				self::REGISTRY_PROBES
+			);
+			if ( is_wp_error( $ranked ) ) {
+				Generation_Log::add( 'debug', 'comfy_catalog', 'Registry discovery skipped: ' . $ranked->get_error_message(), [ 'modality' => $modality ] );
+				continue;
+			}
+
+			foreach ( array_slice( $ranked, 0, self::REGISTRY_LISTED ) as $ranked_entry ) {
+				$entry = Comfy_Template_Registry::catalog_entry( $ranked_entry );
+
+				// Readiness is only present for the candidates that were probed;
+				// null means unknown rather than unavailable.
+				$entry['models']        = (array) ( $ranked_entry['models_required'] ?? $entry['models'] );
+				$entry['missing_nodes'] = (array) ( $ranked_entry['missing_nodes'] ?? [] );
+				$entry['missing_models'] = (array) ( $ranked_entry['missing'] ?? [] );
+				$entry['installable']   = isset( $ranked_entry['ready'] ) ? (bool) $ranked_entry['ready'] : null;
+
+				$entries[] = $entry;
+			}
+		}
+
 		return $entries;
 	}
 
@@ -380,6 +449,13 @@ class Comfy_Catalog {
 		}
 		if ( ! empty( $entry['missing_nodes'] ) ) {
 			return 'needs_nodes';
+		}
+		if ( 'registry' === ( $entry['source'] ?? '' ) ) {
+			if ( ! isset( $entry['installable'] ) || null === $entry['installable'] ) {
+				return 'unverified';
+			}
+
+			return $entry['installable'] ? 'ready' : 'needs_models';
 		}
 		if ( ! empty( $entry['models'] ) && empty( $entry['model_urls'] ) ) {
 			return 'needs_models';

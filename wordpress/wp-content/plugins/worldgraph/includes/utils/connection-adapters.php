@@ -47,6 +47,8 @@ class Connection_Adapters {
 					'includes/utils/comfy-cloud-mcp.php',
 					'includes/utils/local-comfyui.php',
 					'includes/utils/comfy-manifest.php',
+					'includes/utils/comfy-graph.php',
+					'includes/utils/comfy-template-registry.php',
 					'includes/utils/comfy-catalog.php',
 					'includes/utils/comfy-bootstrap.php',
 				],

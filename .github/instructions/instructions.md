@@ -76,6 +76,10 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
   HTTP API and must not be treated as MCP.
 - The Story Graph is the canonical model for projects, story worlds,
   characters, locations, scenes, shots, and assets.
+- `headless/` is optional to deploy, but parity is a required repository
+  deliverable for applicable delivered functionality and user-facing behavior.
+  Follow the scoped headless parity instructions and maintain
+  `headless/PARITY.md`; WordPress-only exceptions must be explicit.
 - Keep architecture and API changes synchronized with the specifications in
   `about/`.
 
@@ -89,6 +93,8 @@ This is a diagnostic fallback, not a general replacement for WP-CLI commands.
   - `instructions/` - Build and development instructions (this file)
   - `testing/` - Testing documentation and utilities
 - `about/` - Comprehensive documentation, specifications, and roadmap
+- `headless/` - Optional Next.js deployment with a required, tracked parity
+  deliverable for applicable WordPress capabilities
 - `scripts/` - Setup and utility scripts (database, initialization, etc.)
 - `wordpress/` - WordPress core and plugins
   - `wp-content/plugins/worldgraph/` - Main World Graph Studio plugin with expanded structure:
@@ -220,8 +226,11 @@ outside Lando.
   surface.
 - Use Structured Content Fields via SCF in
   `wordpress/wp-content/plugins/secure-custom-fields`.
-- Register core REST endpoints under the `worldgraph/v1` namespace, exposed by
-  WordPress beneath `/wp-json/worldgraph/v1/`.
+- Preserve the established `worldgraph/v1` REST compatibility surface beneath
+  `/wp-json/worldgraph/v1/` for existing clients. Do not make its wire shape the
+  automatic product model or contract for new headless work; a new or changed
+  headless API contract requires an explicit architecture and specification
+  decision.
 - All World Graph Studio custom post types must support the REST API.
 - Use WordPress nonces for form submissions.
 - Sanitize input and escape output.
@@ -313,6 +322,10 @@ existing definition and guard duplicates with the established
    changes.
 6. Ask before guessing when a specification is ambiguous.
 7. Preserve working code unless its removal is explicitly required.
+8. Treat applicable WordPress/headless parity as part of the same deliverable;
+   update `headless/PARITY.md` when coverage or status changes.
+9. For headless parity, prioritize complete working behavior and accessible
+   controls over visual polish; an inert or simulated UI is not parity.
 
 ## VS Code Agent System
 
@@ -360,6 +373,7 @@ Key testing principles:
 - Script EDL Integration: `about/Script_EDL_Integration.md`
 - CPT and SCF Schema: `about/CPT_and_SCF_Schema.md`
 - Deployment: `about/Deployment_and_Connections.md`
+- Headless parity: `headless/PARITY.md`
 
 ## Key Utilities and Components
 

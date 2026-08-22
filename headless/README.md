@@ -1,8 +1,21 @@
-# World Graph Studio — Headless Frontend (optional)
+# World Graph Studio — Headless Frontend (optional deployment)
 
-A minimal Next.js App Router frontend for the WordPress site, modeled on
-[9d8dev/next-wp](https://github.com/9d8dev/next-wp). It is entirely optional —
+The current implementation is a minimal Next.js App Router frontend for the
+WordPress site, modeled on
+[9d8dev/next-wp](https://github.com/9d8dev/next-wp). Deploying it is optional;
 the WordPress site and `worldgraph` plugin work fully without it.
+
+## Parity commitment
+
+Optional deployment does not make headless maintenance optional. Applicable
+delivered functionality and user-facing behavior must be assessed and delivered
+for both WordPress and headless as one repository change. The tracked scope,
+current gaps, exception rules, and definition of done live in
+[Headless Parity Deliverable](PARITY.md).
+
+Functional coverage comes first: a simple, accessible control that completes
+the real workflow is preferable to a polished interface with missing or inert
+actions.
 
 ## What's here
 
@@ -33,6 +46,10 @@ WORLDGRAPH_ADMIN_APP_PASSWORD="xxxx xxxx xxxx xxxx xxxx xxxx"
 
 These are consumed server-side by Next API routes under
 `/api/worldgraph/connections/*` and are never sent to the browser.
+
+The current Connections interface is a development prototype and remains
+production-blocked until it authenticates and authorizes the browser user
+independently of these server credentials. See the parity ledger.
 
 Via Lando (recommended, matches the rest of the stack):
 

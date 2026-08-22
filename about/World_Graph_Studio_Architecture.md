@@ -118,10 +118,12 @@ verification where applicable, input sanitization, and output escaping.
 
 ### REST API
 
-The main API uses the `worldgraph/v1` namespace. Controllers expose Story
-Graph entities, relationships, agents, generation, connections, production,
-editorial workflows, and JSON import. Child integrations use their own
-namespaces when they own the external contract.
+The established REST compatibility API uses the `worldgraph/v1` namespace.
+Controllers expose Story Graph entities, relationships, agents, generation,
+connections, production, editorial workflows, and JSON import. The namespace
+remains supported for existing clients, but it is not the canonical product
+model or the automatic contract for new headless work. Child integrations use
+their own namespaces when they own the external contract.
 
 REST is an application boundary, not a second data model. Controllers call the
 same WordPress services used by admin and Ability surfaces. See the

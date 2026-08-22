@@ -1,3 +1,7 @@
+# Keep the optional Next.js application's source library trackable.
+!headless/lib/
+!headless/lib/**
+
 .env
 .venv
 .lando/

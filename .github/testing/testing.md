@@ -113,6 +113,29 @@ lando wp option get siteurl
 lando wp cron event list
 ```
 
+## Headless parity validation
+
+For a change classified as a headless `contract`, `behavior`, or `visual`
+impact, validate the affected PHP contracts and the Next.js consumer in the
+same change. The minimum headless gate is a production build:
+
+```bash
+lando headless-build
+```
+
+The equivalent command in the shared Node service is:
+
+```bash
+lando exec cli -- sh -lc 'cd /app/headless && npm ci && npm run build'
+```
+
+A successful build proves compilation, not behavioral parity. Add and run the
+narrowest applicable contract or browser test for the shared outcome,
+authorization boundary, error states, and cache invalidation. Update
+`headless/PARITY.md` whenever coverage, exceptions, or validation status
+changes. Until a checked-in headless test suite exists, report that limitation
+rather than treating the build as complete parity evidence.
+
 ## External connections
 
 Tests should mock LLM, ComfyUI, Comfy Cloud, fal, ElevenLabs, SunoAPI.org REST,

@@ -1181,6 +1181,18 @@ class Connection {
 			return new \WP_Error( 'worldgraph_catalog_entry_unmappable', __( 'This provider template cannot be mapped to a World Graph Studio modality.', 'worldgraph' ) );
 		}
 
+		if ( \WorldGraph\Utils\Comfy_Template_Registry::owns( $entry_id ) ) {
+			$workflow = self::registry_workflow( $connection_id, $entry_id );
+			if ( is_wp_error( $workflow ) ) {
+				return $workflow;
+			}
+			$entry = self::registry_requirements( $connection_id, $entry_id, $entry );
+		} else {
+			$raw = \WorldGraph\Utils\Comfy_Cloud_MCP::get_template( $entry_id, [], $connection_id );
+			$raw = is_array( $raw ) ? $raw : [];
+			$workflow = is_array( $raw['workflow'] ?? null ) ? $raw['workflow'] : [];
+		}
+
 		$existing = get_posts( [
 			'post_type'      => 'worldgraph_template',
 			'post_status'    => 'any',
@@ -1202,10 +1214,6 @@ class Connection {
 		if ( is_wp_error( $template_id ) || ! $template_id ) {
 			return new \WP_Error( 'worldgraph_template_materialize_failed', __( 'Unable to materialize a Template post for that provider entry.', 'worldgraph' ) );
 		}
-
-		$raw = \WorldGraph\Utils\Comfy_Cloud_MCP::get_template( $entry_id, [], $connection_id );
-		$raw = is_array( $raw ) ? $raw : [];
-		$workflow = is_array( $raw['workflow'] ?? null ) ? $raw['workflow'] : [];
 
 		update_post_meta( $template_id, 'template_name', (string) ( $entry['name'] ?? $entry_id ) );
 		update_post_meta( $template_id, 'provider_type', 'comfyui' );
@@ -1243,6 +1251,55 @@ class Connection {
 		\WorldGraph\Utils\Comfy_Catalog::link_template( $connection_id, $entry_id, (int) $template_id );
 
 		return (int) $template_id;
+	}
+
+	/**
+	 * Convert a published ComfyUI template into a workflow this Connection's
+	 * instance can execute.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id      Registry entry ID.
+	 * @return array|\WP_Error
+	 */
+	private static function registry_workflow( int $connection_id, string $entry_id ) {
+		$endpoint = (string) get_post_meta( $connection_id, 'endpoint_url', true );
+		if ( '' === trim( $endpoint ) ) {
+			return new \WP_Error( 'worldgraph_registry_no_endpoint', __( 'Set this Connection\'s ComfyUI URL before installing a published template.', 'worldgraph' ) );
+		}
+
+		return \WorldGraph\Utils\Comfy_Template_Registry::workflow( $entry_id, $endpoint );
+	}
+
+	/**
+	 * Fold a published template's resolved model files and download sources
+	 * back onto its catalog entry, so the Template records what to install.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id      Registry entry ID.
+	 * @param array  $entry         Catalog entry.
+	 * @return array
+	 */
+	private static function registry_requirements( int $connection_id, string $entry_id, array $entry ): array {
+		$endpoint = (string) get_post_meta( $connection_id, 'endpoint_url', true );
+		$readiness = \WorldGraph\Utils\Comfy_Template_Registry::readiness( $entry_id, $endpoint );
+		if ( is_wp_error( $readiness ) ) {
+			return $entry;
+		}
+
+		$entry['models'] = array_values( array_filter(
+			(array) ( $readiness['models_required'] ?? [] ),
+			static function ( $model ): bool {
+				return is_array( $model ) && ! empty( $model['filename'] ) && ! empty( $model['folder'] );
+			}
+		) );
+		$entry['model_urls'] = array_values( array_filter( array_map(
+			static function ( array $model ): string {
+				return (string) ( $model['url'] ?? '' );
+			},
+			$entry['models']
+		) ) );
+
+		return $entry;
 	}
 
 	/**
