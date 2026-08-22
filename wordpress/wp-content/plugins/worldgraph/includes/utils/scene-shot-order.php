@@ -150,7 +150,9 @@ function worldgraph_rollback_scene_shot_order( array $original_orders, array $or
 			]
 		);
 		if ( isset( $original_terms[ $shot_id ] ) ) {
-			wp_set_object_terms( $shot_id, $original_terms[ $shot_id ], 'worldgraph_sequence', false );
+			$sequence_terms = array_values( array_filter( array_map( 'absint', $original_terms[ $shot_id ] ) ) );
+			$sequence_value = 1 === count( $sequence_terms ) ? $sequence_terms[0] : $sequence_terms;
+			worldgraph_update_field_value( $shot_id, 'sequence', $sequence_value );
 		}
 	}
 }
@@ -198,9 +200,21 @@ function worldgraph_acquire_shot_order_lock(): string|false {
 
 /** Release the global Shot ordering lock. */
 function worldgraph_release_shot_order_lock( string $token ): void {
-	$key = 'worldgraph_shot_order_lock';
-	if ( '' !== $token && hash_equals( $token, (string) get_option( $key, '' ) ) ) {
-		delete_option( $key );
+	if ( '' === $token ) {
+		return;
+	}
+
+	global $wpdb;
+	$key     = 'worldgraph_shot_order_lock';
+	$deleted = $wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Token-qualified delete cannot release a newer request's lock.
+		$wpdb->options,
+		[ 'option_name' => $key, 'option_value' => $token ],
+		[ '%s', '%s' ]
+	);
+	if ( $deleted ) {
+		wp_cache_delete( $key, 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
 	}
 }
 
@@ -294,10 +308,13 @@ function worldgraph_reorder_scene_shots( int $scene_id, array $raw_ordered_ids, 
 
 		if ( $sequence ) {
 			foreach ( $ordered_ids as $shot_id ) {
-				$result = wp_set_object_terms( $shot_id, [ (int) $sequence->term_id ], 'worldgraph_sequence', false );
-				if ( is_wp_error( $result ) ) {
+				worldgraph_update_field_value( $shot_id, 'sequence', (int) $sequence->term_id );
+				$assigned_terms = wp_get_object_terms( $shot_id, 'worldgraph_sequence', [ 'fields' => 'ids' ] );
+				if ( is_wp_error( $assigned_terms ) || [ (int) $sequence->term_id ] !== array_map( 'absint', $assigned_terms ) ) {
 					worldgraph_rollback_scene_shot_order( $original_orders, $original_terms );
-					return $result;
+					return is_wp_error( $assigned_terms )
+						? $assigned_terms
+						: new \WP_Error( 'worldgraph_shot_sequence_write_failed', __( 'A Shot Sequence could not be saved.', 'worldgraph' ), [ 'status' => 500 ] );
 				}
 			}
 		}

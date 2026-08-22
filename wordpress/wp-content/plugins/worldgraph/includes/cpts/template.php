@@ -17,6 +17,7 @@ class Template {
 	public static function init(): void {
 		self::register_cpt();
 		self::register_meta_boxes();
+		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_requirements_script' ] );
 		add_filter( 'manage_worldgraph_template_posts_columns', [ __CLASS__, 'admin_columns' ] );
 		add_action( 'manage_worldgraph_template_posts_custom_column', [ __CLASS__, 'admin_column_content' ], 10, 2 );
 		add_filter( 'acf/update_value', [ __CLASS__, 'sanitize_scf_value' ], 30, 4 );
@@ -49,14 +50,14 @@ class Template {
 
 	public static function admin_column_content( string $column, int $post_id ): void {
 		if ( 'worldgraph_template_status' === $column ) {
-			$status = get_post_meta( $post_id, 'status', true );
+			$status = \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'status' );
 			$status = '' === (string) $status ? 'draft' : (string) $status;
 			echo esc_html( ucfirst( $status ) );
 			return;
 		}
 
 		if ( 'worldgraph_template_connection' === $column ) {
-			$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+			$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'connection_id' ) );
 			if ( ! $connection_id ) {
 				echo '—';
 				return;
@@ -72,8 +73,8 @@ class Template {
 		}
 
 		if ( 'worldgraph_template_model' === $column ) {
-			$checkpoint = (string) get_post_meta( $post_id, 'checkpoint', true );
-			$model_family = (string) get_post_meta( $post_id, 'model_family', true );
+			$checkpoint = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'checkpoint' );
+			$model_family = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'model_family' );
 			$label = $checkpoint ?: $model_family;
 			echo esc_html( $label ?: '—' );
 			return;
@@ -91,11 +92,11 @@ class Template {
 		}
 
 		if ( 'worldgraph_template_summary' === $column ) {
-			$modality = (string) get_post_meta( $post_id, 'modality', true );
+			$modality = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'modality' );
 			$modality_label = '' !== $modality ? (string) \WorldGraph\Utils\Generation_Modality::get( $modality )['label'] : '';
-			$provider = (string) get_post_meta( $post_id, 'provider_type', true );
-			$checkpoint = (string) get_post_meta( $post_id, 'checkpoint', true );
-			$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+			$provider = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'provider_type' );
+			$checkpoint = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'checkpoint' );
+			$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'connection_id' ) );
 			$connection_label = $connection_id ? get_the_title( $connection_id ) : '';
 			$summary = array_filter( [ $modality_label ?: 'Template', $provider ? ucfirst( $provider ) : '', $connection_label ? 'Connection: ' . $connection_label : '', $checkpoint ? 'Model: ' . $checkpoint : '' ] );
 			echo esc_html( implode( ' • ', $summary ) );
@@ -149,7 +150,7 @@ class Template {
 		if ( in_array( $name, [ 'workflow_json', 'configuration_json', 'input_bindings', 'model_requirements', 'default_values' ], true ) ) {
 			$normalized = self::normalize_json( (string) $value );
 			return null === $normalized
-				? get_post_meta( (int) $post_id, $name, true )
+				? \WorldGraph\Utils\worldgraph_get_field_value( (int) $post_id, $name )
 				: $normalized;
 		}
 
@@ -313,7 +314,7 @@ class Template {
 			'Templates',
 			[
 				'menu_icon' => 'dashicons-media-document',
-				'show_in_menu' => 'worldgraph-administration',
+				'show_in_menu' => 'worldgraph-generate',
 			],
 			$fields
 		);
@@ -336,64 +337,61 @@ class Template {
 	}
 
 	/**
-	 * Render the template details meta box.
+	 * Enqueue the ComfyUI requirements controller on Template edit screens.
 	 *
-	 * @param \WP_Post $post Post object.
+	 * @param string $hook_suffix Current admin page.
 	 */
-	public static function render_template_meta_box( \WP_Post $post ): void {
-		wp_nonce_field( 'worldgraph_template_details', 'worldgraph_template_nonce' );
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_template' );
-		?>
-		<p><em><?php echo esc_html__( 'Use SCF-backed field names in the configuration JSON when a template should preload from Story Graph content.', 'worldgraph' ); ?></em></p>
-		<table class="form-table">
-			<?php foreach ( $fields as $field_name => $field ) : ?>
-				<?php $value = get_post_meta( $post->ID, $field_name, true ); ?>
-				<tr>
-					<th><label for="<?php echo esc_attr( $field_name ); ?>"><?php echo esc_html( $field['label'] ); ?></label></th>
-					<td>
-						<?php
-						switch ( $field['type'] ) {
-							case 'textarea':
-								?>
-								<textarea name="<?php echo esc_attr( $field_name ); ?>" id="<?php echo esc_attr( $field_name ); ?>" class="large-text" rows="5"><?php echo esc_textarea( $value ); ?></textarea>
-								<?php
-								break;
-							case 'wysiwyg':
-								wp_editor(
-									$value,
-									$field_name,
-									[
-										'tinymce'      => true,
-										'quicktags'    => true,
-										'editor_height' => 140,
-									]
-								);
-								break;
-							case 'select':
-								?>
-								<select name="<?php echo esc_attr( $field_name ); ?>" id="<?php echo esc_attr( $field_name ); ?>">
-									<option value=""><?php echo esc_html__( 'Select...', 'worldgraph' ); ?></option>
-									<?php foreach ( (array) $field['options'] as $option_value => $option_label ) : ?>
-										<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( $value, $option_value ); ?>><?php echo esc_html( $option_label ); ?></option>
-									<?php endforeach; ?>
-								</select>
-								<?php
-								break;
-							default:
-								?>
-								<input type="text" name="<?php echo esc_attr( $field_name ); ?>" id="<?php echo esc_attr( $field_name ); ?>" value="<?php echo esc_attr( $value ); ?>" class="regular-text" />
-								<?php
-								break;
-						}
-						if ( ! empty( $field['description'] ) ) {
-							echo '<p class="description">' . esc_html( $field['description'] ) . '</p>';
-						}
-					?>
-					</td>
-				</tr>
-			<?php endforeach; ?>
-		</table>
-		<?php
+	public static function enqueue_requirements_script( string $hook_suffix ): void {
+		if ( 'post.php' !== $hook_suffix ) {
+			return;
+		}
+
+		$screen = get_current_screen();
+		if ( ! $screen || 'worldgraph_template' !== $screen->post_type ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Screen routing only.
+		$post_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0;
+		if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		$handle      = 'worldgraph-template-requirements';
+		$script_path = WORLDGRAPH_PLUGIN_DIR . 'assets/js/template-requirements.js';
+
+		wp_enqueue_script(
+			$handle,
+			WORLDGRAPH_PLUGIN_URL . 'assets/js/template-requirements.js',
+			[],
+			is_file( $script_path ) ? (string) filemtime( $script_path ) : WORLDGRAPH_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			$handle,
+			'worldgraphTemplateRequirements',
+			[
+				'ajaxUrl'                  => admin_url( 'admin-ajax.php' ),
+				'nonce'                    => wp_create_nonce( 'worldgraph_template_requirements' ),
+				'postId'                   => $post_id,
+				'providerTemplateFieldIds' => [
+					'acf-field_worldgraph_template_provider_template_id',
+					'provider_template_id',
+					'acf-field_worldgraph_template_comfy_template_id',
+					'comfy_template_id',
+				],
+				'i18n'                     => [
+					'checking'             => __( 'Checking…', 'worldgraph' ),
+					'requirementFailed'    => __( 'The requirement check could not be completed.', 'worldgraph' ),
+					'searching'            => __( 'Searching Comfy MCP...', 'worldgraph' ),
+					'discoveryFailed'      => __( 'Template discovery failed.', 'worldgraph' ),
+					'selectTemplate'       => __( 'Select a ComfyUI MCP Template first.', 'worldgraph' ),
+					'runningSmokeTest'     => __( 'Running smoke test…', 'worldgraph' ),
+					'smokeTestFailed'      => __( 'The smoke test could not be completed.', 'worldgraph' ),
+				],
+			]
+		);
 	}
 
 	/**
@@ -403,7 +401,7 @@ class Template {
 	 * @param \WP_Post $post Post object.
 	 */
 	public static function render_requirements_meta_box( \WP_Post $post ): void {
-		$connection_id = absint( get_post_meta( $post->ID, 'connection_id', true ) );
+		$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, 'connection_id' ) );
 		$connection = \WorldGraph\Utils\Connection_Repository::get( $connection_id );
 		if ( ! $connection || 'comfyui' !== $connection['provider_type'] ) {
 			echo '<p>' . esc_html__( 'This Template is paired with a non-ComfyUI provider. Use that provider connection\'s adapter to discover and download its requirements.', 'worldgraph' ) . '</p>';
@@ -456,90 +454,6 @@ class Template {
 		<p><button type="button" class="button" id="worldgraph-download-comfy-requirements"><?php echo esc_html__( 'Download selected requirements', 'worldgraph' ); ?></button></p>
 		<p><button type="button" class="button" id="worldgraph-run-template-smoke-test"><?php echo esc_html__( 'Run smoke test', 'worldgraph' ); ?></button></p>
 		<div id="worldgraph-requirements-result" aria-live="polite"></div>
-		<script>
-			(function () {
-				var result = document.getElementById('worldgraph-requirements-result');
-				var nonce = '<?php echo esc_js( wp_create_nonce( 'worldgraph_template_requirements' ) ); ?>';
-				var postId = '<?php echo esc_js( (string) $post->ID ); ?>';
-				var providerTemplateId = document.getElementById('provider_template_id') || document.getElementById('comfy_template_id');
-
-				function call(action, button) {
-					button.disabled = true;
-					result.textContent = '<?php echo esc_js( __( 'Checking…', 'worldgraph' ) ); ?>';
-					fetch(ajaxurl, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-						body: new URLSearchParams({ action: action, nonce: nonce, post_id: postId, provider_template_id: providerTemplateId ? providerTemplateId.value : '' })
-					})
-						.then(function (response) { return response.json(); })
-						.then(function (response) {
-							result.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'The requirement check could not be completed.', 'worldgraph' ) ); ?>';
-							result.style.color = response.success ? '#008a20' : '#b32d2e';
-						})
-						.catch(function () {
-							result.textContent = '<?php echo esc_js( __( 'The requirement check could not be completed.', 'worldgraph' ) ); ?>';
-							result.style.color = '#b32d2e';
-						})
-						.finally(function () { button.disabled = false; });
-				}
-
-				document.getElementById('worldgraph-check-requirements').addEventListener('click', function () {
-					call('worldgraph_check_template_requirements', this);
-				});
-				document.getElementById('worldgraph-install-models').addEventListener('click', function () {
-					call('worldgraph_install_template_models', this);
-				});
-				 document.getElementById('worldgraph-discover-comfy-templates').addEventListener('click', function () {
-					var button = this;
-					var results = document.getElementById('worldgraph-comfy-template-results');
-					button.disabled = true;
-					results.textContent = '<?php echo esc_js( __( 'Searching Comfy MCP...', 'worldgraph' ) ); ?>';
-					fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: new URLSearchParams({ action: 'worldgraph_discover_comfy_templates', nonce: nonce, post_id: postId, search: document.getElementById('worldgraph-comfy-template-search').value }) })
-						.then(function (response) { return response.json(); })
-						.then(function (response) {
-							results.replaceChildren();
-							if (!response.success) { results.textContent = response.data && response.data.message ? response.data.message : '<?php echo esc_js( __( 'Template discovery failed.', 'worldgraph' ) ); ?>'; return; }
-							(response.data.templates || []).forEach(function (template) {
-								var row = document.createElement('p');
-								var select = document.createElement('button');
-								select.type = 'button'; select.className = 'button-link'; select.textContent = template.name || template.id;
-								select.addEventListener('click', function () { providerTemplateId.value = template.id; results.querySelectorAll('.button-link').forEach(function (item) { item.classList.remove('current'); }); select.classList.add('current'); });
-								row.append(select, document.createTextNode(' (' + template.id + ')')); results.append(row);
-							});
-						})
-						.catch(function () { results.textContent = '<?php echo esc_js( __( 'Template discovery failed.', 'worldgraph' ) ); ?>'; })
-						.finally(function () { button.disabled = false; });
-				});
-				document.getElementById('worldgraph-download-comfy-requirements').addEventListener('click', function () {
-					if (!providerTemplateId.value) { result.textContent = '<?php echo esc_js( __( 'Select a ComfyUI MCP Template first.', 'worldgraph' ) ); ?>'; return; }
-					call('worldgraph_download_comfy_template_requirements', this);
-				});
-				document.getElementById('worldgraph-import-provider-template').addEventListener('click', function () {
-					if (!providerTemplateId.value) { result.textContent = '<?php echo esc_js( __( 'Select a ComfyUI MCP Template first.', 'worldgraph' ) ); ?>'; return; }
-					call('worldgraph_import_provider_template_definition', this);
-				});
-				document.getElementById('worldgraph-run-template-smoke-test').addEventListener('click', function () {
-					var button = this;
-					button.disabled = true;
-					result.textContent = '<?php echo esc_js( __( 'Running smoke test…', 'worldgraph' ) ); ?>';
-					fetch(ajaxurl, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-						body: new URLSearchParams({ action: 'worldgraph_run_template_smoke_test', nonce: nonce, post_id: postId })
-					})
-					.then(function (response) { return response.json(); })
-					.then(function (response) {
-						result.textContent = (response.data && response.data.message) || '<?php echo esc_js( __( 'The smoke test could not be completed.', 'worldgraph' ) ); ?>';
-						result.style.color = response.success ? '#008a20' : '#b32d2e';
-					})
-					.catch(function () {
-						result.textContent = '<?php echo esc_js( __( 'The smoke test could not be completed.', 'worldgraph' ) ); ?>';
-						result.style.color = '#b32d2e';
-					})
-					.finally(function () { button.disabled = false; });
-				});
-			}());
-		</script>
 		<?php
 	}
 
@@ -622,7 +536,7 @@ class Template {
 	/** Search the connected Comfy MCP template catalog. */
 	public static function ajax_discover_comfy_templates(): void {
 		$post_id = self::authorize_requirements_request();
-		$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+		$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'connection_id' ) );
 		$result = \WorldGraph\Utils\Comfy_Manifest::discover_provider_templates( sanitize_text_field( wp_unslash( $_POST['search'] ?? '' ) ), $connection_id );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
@@ -634,12 +548,12 @@ class Template {
 	/** Download requirements advertised by the selected Comfy MCP template. */
 	public static function ajax_download_comfy_template_requirements(): void {
 		$post_id = self::authorize_requirements_request();
-		$provider_template_id = sanitize_text_field( (string) ( $_POST['provider_template_id'] ?? get_post_meta( $post_id, 'provider_template_id', true ) ?: get_post_meta( $post_id, 'comfy_template_id', true ) ) );
+		$provider_template_id = self::requested_provider_template_id( $post_id );
 		if ( '' === $provider_template_id ) {
 			wp_send_json_error( [ 'message' => __( 'Save a ComfyUI MCP Template ID first.', 'worldgraph' ) ] );
 		}
 
-		$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+		$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'connection_id' ) );
 		$result = \WorldGraph\Utils\Comfy_Manifest::request_provider_template_downloads( $provider_template_id, $connection_id );
 		if ( is_wp_error( $result ) ) {
 			wp_send_json_error( [ 'message' => $result->get_error_message() ] );
@@ -651,12 +565,12 @@ class Template {
 	/** Import a provider template definition into this World Graph Studio Template post. */
 	public static function ajax_import_provider_template_definition(): void {
 		$post_id = self::authorize_requirements_request();
-		$provider_template_id = sanitize_text_field( (string) ( $_POST['provider_template_id'] ?? get_post_meta( $post_id, 'provider_template_id', true ) ?: get_post_meta( $post_id, 'comfy_template_id', true ) ) );
+		$provider_template_id = self::requested_provider_template_id( $post_id );
 		if ( '' === $provider_template_id ) {
 			wp_send_json_error( [ 'message' => __( 'Select a provider Template first.', 'worldgraph' ) ] );
 		}
 
-		$connection_id = absint( get_post_meta( $post_id, 'connection_id', true ) );
+		$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'connection_id' ) );
 		$raw = \WorldGraph\Utils\Comfy_Cloud_MCP::get_template( $provider_template_id, [], $connection_id );
 		if ( is_wp_error( $raw ) ) {
 			wp_send_json_error( [ 'message' => $raw->get_error_message() ] );
@@ -664,7 +578,7 @@ class Template {
 
 		$normalized = \WorldGraph\Utils\Comfy_Manifest::normalize_entry( array_merge( [
 			'id'   => $provider_template_id,
-			'name' => (string) get_post_meta( $post_id, 'template_name', true ),
+			'name' => (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'template_name' ),
 		], is_array( $raw ) ? $raw : [] ) );
 		if ( ! is_array( $normalized ) ) {
 			wp_send_json_error( [ 'message' => __( 'Provider template payload was unreadable.', 'worldgraph' ) ] );
@@ -677,38 +591,59 @@ class Template {
 			if ( ! \WorldGraph\Utils\Comfy_Graph::is_editor_graph( $workflow ) ) {
 				$workflow = \WorldGraph\Utils\Comfy_Graph::apply_prompt_placeholders( $workflow );
 			}
-			update_post_meta( $post_id, 'workflow_json', wp_slash( (string) wp_json_encode( $workflow ) ) );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'workflow_json', (string) wp_json_encode( $workflow ) );
 		}
 
 		if ( ! empty( $normalized['parameters'] ) && is_array( $normalized['parameters'] ) ) {
-			update_post_meta( $post_id, 'configuration_json', wp_slash( (string) wp_json_encode( [ 'parameters' => $normalized['parameters'] ] ) ) );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( [ 'parameters' => $normalized['parameters'] ] ) );
 		}
 
 		$requirements = self::requirements_from_provider_entry( $normalized );
 		if ( ! empty( $requirements ) ) {
-			update_post_meta( $post_id, 'model_requirements', wp_slash( (string) wp_json_encode( $requirements ) ) );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'model_requirements', (string) wp_json_encode( $requirements ) );
 		}
 
 		if ( ! empty( $normalized['modality'] ) ) {
 			$modality = \WorldGraph\Utils\Generation_Modality::sanitize( (string) $normalized['modality'] );
-			update_post_meta( $post_id, 'modality', $modality );
-			update_post_meta( $post_id, 'generation_structure', \WorldGraph\Utils\Generation_Modality::output_type( $modality ) );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'modality', $modality );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'generation_structure', \WorldGraph\Utils\Generation_Modality::output_type( $modality ) );
 		}
 
-		update_post_meta( $post_id, 'provider_type', 'comfyui' );
-		update_post_meta( $post_id, 'provider_template_id', $provider_template_id );
+		\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'provider_type', 'comfyui' );
+		\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'provider_template_id', $provider_template_id );
 		if ( ! empty( $normalized['model_family'] ) ) {
-			update_post_meta( $post_id, 'model_family', \WorldGraph\Utils\Model_Family::sanitize( (string) $normalized['model_family'] ) );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'model_family', \WorldGraph\Utils\Model_Family::sanitize( (string) $normalized['model_family'] ) );
 		}
 
 		foreach ( (array) ( $normalized['models'] ?? [] ) as $model ) {
 			if ( is_array( $model ) && 'checkpoints' === (string) ( $model['folder'] ?? '' ) && ! empty( $model['filename'] ) ) {
-				update_post_meta( $post_id, 'checkpoint', (string) $model['filename'] );
+				\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'checkpoint', (string) $model['filename'] );
 				break;
 			}
 		}
 
 		wp_send_json_success( [ 'message' => __( 'Provider template definition imported into this Template. Save the post to persist any unsaved field edits.', 'worldgraph' ) ] );
+	}
+
+	/**
+	 * The provider template the request names, falling back to the one already
+	 * stored on the Template. The nonce is verified before any caller reaches
+	 * this helper.
+	 *
+	 * @param int $post_id Template post ID.
+	 * @return string
+	 */
+	private static function requested_provider_template_id( int $post_id ): string {
+		$posted = isset( $_POST['provider_template_id'] )
+			? sanitize_text_field( wp_unslash( $_POST['provider_template_id'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified in authorize_requirements_request().
+			: '';
+		if ( '' !== $posted ) {
+			return $posted;
+		}
+
+		$stored = (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'provider_template_id' );
+
+		return '' !== $stored ? $stored : (string) get_post_meta( $post_id, 'comfy_template_id', true );
 	}
 
 	/**
@@ -766,53 +701,6 @@ class Template {
 	}
 
 	/**
-	 * Save template meta fields.
-	 *
-	 * @param int      $post_id Post ID.
-	 * @param \WP_Post $post    Post object.
-	 */
-	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
-
-		if ( ! isset( $_POST['worldgraph_template_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['worldgraph_template_nonce'] ) ), 'worldgraph_template_details' ) ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_template' );
-		foreach ( $fields as $field_name => $field ) {
-			if ( ! array_key_exists( $field_name, $_POST ) ) {
-				continue;
-			}
-
-			$value = sanitize_textarea_field( wp_unslash( $_POST[ $field_name ] ) );
-			if ( 'status' === $field_name || 'provider_type' === $field_name || 'version' === $field_name || 'generation_structure' === $field_name || 'checkpoint' === $field_name ) {
-				$value = sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) );
-			}
-			if ( 'modality' === $field_name ) {
-				$value = \WorldGraph\Utils\Generation_Modality::sanitize( sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) );
-			}
-			if ( 'model_family' === $field_name ) {
-				$value = \WorldGraph\Utils\Model_Family::sanitize( sanitize_text_field( wp_unslash( $_POST[ $field_name ] ) ) );
-			}
-			if ( 'connection_id' === $field_name ) {
-				$value = (string) absint( wp_unslash( $_POST[ $field_name ] ) );
-			}
-
-			if ( 'status' === $field_name && ! in_array( $value, [ 'draft', 'active', 'archived' ], true ) ) {
-				$value = 'draft';
-			}
-
-			update_post_meta( $post_id, $field_name, $value );
-		}
-	}
-
-	/**
 	 * Create or update the single Template post managed for a given setup-wizard
 	 * slot, so a Connection's checkpoint/workflow configuration lives on one
 	 * default Template instead of a separate global option.
@@ -845,9 +733,9 @@ class Template {
 		}
 
 		update_post_meta( $post_id, 'worldgraph_wizard_slot', $slot );
-		update_post_meta( $post_id, 'template_name', $title );
+		\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'template_name', $title );
 		foreach ( $meta as $key => $value ) {
-			update_post_meta( $post_id, $key, $value );
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, (string) $key, $value );
 		}
 
 		return (int) $post_id;

@@ -201,6 +201,9 @@ module. Implementation files are located in:
 The full feature specification is in `about/AI_Editor.md`.
 
 ## Coding Conventions
+For WordPress PHP code, templates, CPTs and other WordPress specific work, follow
+https://codex.wordpress.org/WordPress_Coding_Standards
+
 
 ### Node and npm usage
 

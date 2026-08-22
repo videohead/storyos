@@ -60,6 +60,7 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( 'worldgraph_story_display_intent_rank', $source );
 		$this->assertStringContainsString( "'shot-video'", $source );
 		$this->assertStringContainsString( "get_post_meta( \$asset_id, '_worldgraph_gen_intent', true )", $source );
+		$this->assertStringContainsString( "worldgraph_story_display_can_read( (int) \$attachment->post_parent, \$include_private )", $source );
 		$this->assertStringContainsString( "return '';", $source );
 	}
 
@@ -85,6 +86,7 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( '$order_slots[ $index ]', $service );
 		$this->assertStringContainsString( "'post__not_in'   => \$scene_shot_ids", $service );
 		$this->assertStringContainsString( 'worldgraph_acquire_shot_order_lock', $service );
+		$this->assertStringContainsString( "[ 'option_name' => \$key, 'option_value' => \$token ]", $service );
 		$this->assertStringContainsString( 'worldgraph_scene_shot_order_revision', $service );
 		$this->assertStringContainsString( 'worldgraph_scene_shot_conflict', $service );
 		$this->assertStringContainsString( 'worldgraph_rollback_scene_shot_order', $service );
@@ -94,13 +96,51 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "current_user_can( 'edit_post', \$post_id )", $base_rest );
 		$this->assertStringContainsString( "current_user_can( 'delete_post', \$post_id )", $base_rest );
 		$this->assertStringNotContainsString( "'page-attributes'", $shot_cpt );
-		$this->assertStringContainsString( 'set_relationships_for_field', $shot_cpt );
+		$this->assertStringNotContainsString( 'set_relationships_for_field', $shot_cpt );
+		$this->assertStringNotContainsString( 'save_post_worldgraph_shot', $shot_cpt );
 		$this->assertStringContainsString( "data-shot-move=\"up\"", $controller );
 		$this->assertStringContainsString( 'aria-live="polite"', $controller );
 		$this->assertStringContainsString( "'revision'", $rest );
 		$this->assertStringContainsString( 'edit access to the Scene and every Shot', $controller );
+		$this->assertStringContainsString( "current_user_can( 'read_post', \$shot->ID )", $controller );
 		$this->assertStringContainsString( 'sortable', $script );
 		$this->assertStringContainsString( 'queuedSave', $script );
+	}
+
+	/** Legacy Scene and Sequence reorder routes must be scoped transactions. */
+	public function test_legacy_story_reorder_routes_are_complete_authorized_and_atomic(): void {
+		$scenes    = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/scenes-controller.php' );
+		$sequences = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/sequences-controller.php' );
+
+		$this->assertNotFalse( $scenes );
+		$this->assertNotFalse( $sequences );
+		$this->assertStringContainsString( "'permission_callback' => [ \$this, 'check_reorder_permission' ]", $scenes );
+		$this->assertStringContainsString( 'A valid sequence_id is required.', $scenes );
+		$this->assertStringContainsString( 'Submit every Scene assigned to this Sequence exactly once.', $scenes );
+		$this->assertStringContainsString( "current_user_can( \$taxonomy->cap->assign_terms )", $scenes );
+		$this->assertStringContainsString( "current_user_can( 'edit_post', \$scene_id )", $scenes );
+		$this->assertStringContainsString( 'worldgraph_scene_reorder_lock_', $scenes );
+		$this->assertStringContainsString( 'INSERT IGNORE INTO', $scenes );
+		$this->assertStringContainsString( 'has_verified_order_meta', $scenes );
+		$this->assertStringContainsString( "get_metadata_raw( \$meta_type, \$object_id, \$meta_key, false )", $scenes );
+		$this->assertStringContainsString( 'rollback_order_meta', $scenes );
+		$this->assertStringNotContainsString( 'wp_update_post', $scenes );
+		$this->assertStringNotContainsString( 'wp_set_object_terms', $scenes );
+
+		$this->assertStringContainsString( 'validate_complete_sequence_order', $sequences );
+		$this->assertStringContainsString( 'ordered_ids cannot contain duplicate Sequence term IDs.', $sequences );
+		$this->assertStringContainsString( 'Submit every existing Sequence term exactly once.', $sequences );
+		$this->assertStringContainsString( "'fields'          => 'ids'", $sequences );
+		$this->assertStringContainsString( 'worldgraph_sequence_reorder_lock', $sequences );
+		$this->assertStringContainsString( 'INSERT IGNORE INTO', $sequences );
+		$this->assertStringContainsString( 'has_verified_sequence_order', $sequences );
+		$this->assertStringContainsString( "get_metadata_raw( 'term'", $sequences );
+		$this->assertStringContainsString( 'rollback_sequence_order_meta', $sequences );
+		$this->assertStringContainsString( 'get_raw_scene_order_meta', $sequences );
+		$this->assertStringContainsString( 'has_verified_scene_order', $sequences );
+		$this->assertStringContainsString( 'restore_sequence_terms( $original_terms )', $sequences );
+		$this->assertStringContainsString( 'rollback_scene_order_meta( $original_order_meta )', $sequences );
+		$this->assertStringContainsString( 'in_array( $scene_id, $existing, true )', $sequences );
 	}
 
 	/** The gallery editor must use core media selection and validate attachments. */
@@ -120,6 +160,8 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( '$user_reordered', $controller );
 		$this->assertStringContainsString( '$concurrent_reordered', $controller );
 		$this->assertStringContainsString( 'render_conflict_notice', $controller );
+		$this->assertStringContainsString( "current_user_can( 'read_post', \$attachment_id )", $controller );
+		$this->assertStringContainsString( "__( 'Restricted media', 'worldgraph' )", $controller );
 		$this->assertStringContainsString( "[ 'image', 'audio', 'video' ]", $script );
 		$this->assertStringContainsString( 'const frame = window.wp.media', $script );
 		$this->assertStringContainsString( 'sortable', $script );
@@ -147,6 +189,8 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( '} finally {', $source );
 		$this->assertStringContainsString( 'render_failure_notice', $source );
 		$this->assertStringContainsString( "'_thumbnail_id'", $source );
+		$this->assertStringContainsString( "'_wp_attachment_metadata'", $source );
+		$this->assertStringContainsString( "add_action( 'edit_attachment'", $source );
 		$this->assertStringContainsString( "'production_stage'", $source );
 		$this->assertStringContainsString( "'publish' !== \$post->post_status", $source );
 		$this->assertStringContainsString( "add_action( 'set_object_terms'", $source );

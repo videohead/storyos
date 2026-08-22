@@ -150,11 +150,11 @@ class Sync {
 			$project_data = [
 				'post_title'   => $post->post_title,
 				'post_content' => $post->post_content,
-				'project_name' => get_post_meta( $post_id, 'project_name', true ),
-				'description'  => get_post_meta( $post_id, 'description', true ),
-				'genre'        => get_post_meta( $post_id, 'genre', true ),
-				'target_medium'=> get_post_meta( $post_id, 'target_medium', true ),
-				'status'       => get_post_meta( $post_id, 'production_stage', true ),
+				'project_name'  => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'project_name' ),
+				'description'   => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'description' ),
+				'genre'         => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'genre' ),
+				'target_medium' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'target_medium' ),
+				'status'        => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'production_stage' ),
 			];
 		}
 
@@ -225,14 +225,14 @@ class Sync {
 
 			$character_data = [
 				'post_title'   => $post->post_title,
-				'display_name' => get_post_meta( $post_id, 'display_name', true ),
-				'biography'    => get_post_meta( $post_id, 'biography', true ),
-				'age'          => get_post_meta( $post_id, 'age', true ),
-				'appearance'   => get_post_meta( $post_id, 'appearance', true ),
-				'personality'  => get_post_meta( $post_id, 'personality', true ),
-				'motivation'   => get_post_meta( $post_id, 'motivation', true ),
-				'backstory'    => get_post_meta( $post_id, 'backstory', true ),
-				'voice_profile'=> get_post_meta( $post_id, 'voice_profile', true ),
+				'display_name'  => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'display_name' ),
+				'biography'     => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'biography' ),
+				'age'           => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'age' ),
+				'appearance'    => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'appearance' ),
+				'personality'   => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'personality' ),
+				'motivation'    => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'motivation' ),
+				'backstory'     => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'backstory' ),
+				'voice_profile' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'voice_profile' ),
 			];
 		}
 
@@ -326,11 +326,11 @@ class Sync {
 
 			$location_data = [
 				'post_title'      => $post->post_title,
-				'location_name'   => get_post_meta( $post_id, 'location_name', true ),
-				'description'     => get_post_meta( $post_id, 'description', true ),
-				'environment_type'=> get_post_meta( $post_id, 'environment_type', true ),
-				'geography'       => get_post_meta( $post_id, 'geography', true ),
-				'mood'            => get_post_meta( $post_id, 'mood', true ),
+				'location_name'    => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'location_name' ),
+				'description'      => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'description' ),
+				'environment_type' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'environment_type' ),
+				'geography'        => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'geography' ),
+				'mood'             => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'mood' ),
 			];
 		}
 
@@ -422,12 +422,12 @@ class Sync {
 
 			$scene_data = [
 				'post_title'     => $post->post_title,
-				'scene_number'   => get_post_meta( $post_id, 'scene_number', true ),
-				'title'          => get_post_meta( $post_id, 'title', true ),
-				'summary'        => get_post_meta( $post_id, 'summary', true ),
-				'script_content' => get_post_meta( $post_id, 'script_content', true ),
-				'time_of_day'    => get_post_meta( $post_id, 'time_of_day', true ),
-				'emotional_tone' => get_post_meta( $post_id, 'emotional_tone', true ),
+				'scene_number'   => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'scene_number' ),
+				'title'          => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'title' ),
+				'summary'        => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'summary' ),
+				'script_content' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'script_content' ),
+				'time_of_day'    => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'time_of_day' ),
+				'emotional_tone' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'emotional_tone' ),
 			];
 		}
 
@@ -521,13 +521,13 @@ class Sync {
 
 			$shot_data = [
 				'post_title'       => $post->post_title,
-				'shot_number'      => get_post_meta( $post_id, 'shot_number', true ),
-				'shot_type'        => get_post_meta( $post_id, 'shot_type', true ),
-				'camera_angle'     => get_post_meta( $post_id, 'camera_angle', true ),
-				'lens'             => get_post_meta( $post_id, 'lens', true ),
-				'duration'         => get_post_meta( $post_id, 'duration', true ),
-				'shot_description' => get_post_meta( $post_id, 'shot_description', true ),
-				'scene_id'         => get_post_meta( $post_id, 'scene', true ),
+				'shot_number'      => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'shot_number' ),
+				'shot_type'        => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'shot_type' ),
+				'camera_angle'     => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'camera_angle' ),
+				'lens'             => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'lens' ),
+				'duration'         => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'duration' ),
+				'shot_description' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'shot_description' ),
+				'scene_id'         => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'scene' ),
 			];
 		}
 

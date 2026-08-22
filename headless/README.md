@@ -61,7 +61,7 @@ lando headless-build       # production build, when needed
 lando exec cli -- sh -lc 'cd /app/headless && npm run build'
 ```
 
-The dev server is proxied at `https://headless.worldgraph.lndo.site`.
+The dev server is proxied at `http://headless.worldgraph.lndo.site`.
 
 Standalone (optional, outside Lando):
 
@@ -81,6 +81,8 @@ Settings → Headless Revalidation in wp-admin.
 Story requests use broad, type, ID, and slug cache tags. The matching webhook
 shape is `{ contentType: "story", storyType, contentId, slug }`; `storyType` is
 one of `projects`, `worlds`, `characters`, `scenes`, `props`, or `sounds`.
+Story fetches also refresh after five minutes as a bounded fallback when an
+individual webhook cannot be delivered.
 
 The sender retains WordPress safe-HTTP validation. Inside Lando it narrowly
 allows only `headless` and `headless.worldgraph.lndo.site`, so either the

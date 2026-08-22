@@ -525,23 +525,23 @@ class Prompt_Templates extends AbstractAbilityGroup {
 
                 $manifest = [];
                 foreach ( $templates as $template ) {
-                    $configuration = json_decode( (string) get_post_meta( $template->ID, 'configuration_json', true ), true );
-                    $defaults = json_decode( (string) get_post_meta( $template->ID, 'default_values', true ), true );
+                    $configuration = json_decode( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'configuration_json' ), true );
+                    $defaults = json_decode( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'default_values' ), true );
                     $requirements = \WorldGraph\Utils\Comfy_Manifest::for_template( (int) $template->ID );
 
                     $manifest[] = [
                         'id'                   => (int) $template->ID,
                         'slug'                 => (string) $template->post_name,
-                        'name'                 => (string) get_post_meta( $template->ID, 'template_name', true ),
-                        'description'          => wp_strip_all_tags( (string) get_post_meta( $template->ID, 'description', true ) ),
-                        'generation_structure' => (string) get_post_meta( $template->ID, 'generation_structure', true ),
+                        'name'                 => (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'template_name' ),
+                        'description'          => wp_strip_all_tags( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'description' ) ),
+                        'generation_structure' => (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'generation_structure' ),
                         'modality'             => is_wp_error( $requirements ) ? '' : (string) $requirements['modality'],
                         'output_type'          => is_wp_error( $requirements ) ? '' : (string) $requirements['output_type'],
                         'inputs'               => is_wp_error( $requirements ) ? [] : $requirements['inputs'],
                         'required_nodes'       => is_wp_error( $requirements ) ? [] : $requirements['nodes'],
                         'models'               => is_wp_error( $requirements ) ? [] : $requirements['models'],
-                        'provider_type'        => (string) get_post_meta( $template->ID, 'provider_type', true ),
-                        'version'              => (string) get_post_meta( $template->ID, 'version', true ),
+                        'provider_type'        => (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'provider_type' ),
+                        'version'              => (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'version' ),
                         'configuration_schema' => is_array( $configuration ) ? $configuration : [],
                         'default_values'       => is_array( $defaults ) ? $defaults : [],
                     ];

@@ -70,8 +70,8 @@ class Comfy_Manifest {
 			return new WP_Error( 'worldgraph_template_not_found', __( 'That generation Template does not exist.', 'worldgraph' ), [ 'status' => 404 ] );
 		}
 
-		$modality = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
-		$custom   = json_decode( (string) get_post_meta( $template_id, 'workflow_json', true ), true );
+		$modality = Generation_Modality::sanitize( (string) worldgraph_get_field_value( $template_id, 'modality' ) );
+		$custom   = json_decode( (string) worldgraph_get_field_value( $template_id, 'workflow_json' ), true );
 		$is_custom = is_array( $custom ) && ! empty( $custom );
 		$workflow = $is_custom
 			? $custom
@@ -79,7 +79,7 @@ class Comfy_Manifest {
 
 		return [
 			'template_id'     => $template_id,
-			'name'            => (string) ( get_post_meta( $template_id, 'template_name', true ) ?: $template->post_title ),
+			'name'            => (string) ( worldgraph_get_field_value( $template_id, 'template_name' ) ?: $template->post_title ),
 			'slug'            => (string) $template->post_name,
 			'modality'        => $modality,
 			'modality_label'  => (string) Generation_Modality::get( $modality )['label'],
@@ -186,10 +186,10 @@ class Comfy_Manifest {
 	 * @return array<string, mixed>
 	 */
 	public static function template_settings( int $template_id, string $modality, array $runtime = [] ): array {
-		$settings = [ 'checkpoint' => trim( (string) get_post_meta( $template_id, 'checkpoint', true ) ) ];
+		$settings = [ 'checkpoint' => trim( (string) worldgraph_get_field_value( $template_id, 'checkpoint' ) ) ];
 
 		foreach ( [ 'configuration_json', 'default_values' ] as $meta_key ) {
-			$decoded = json_decode( (string) get_post_meta( $template_id, $meta_key, true ), true );
+			$decoded = json_decode( (string) worldgraph_get_field_value( $template_id, $meta_key ), true );
 			if ( ! is_array( $decoded ) ) {
 				continue;
 			}
@@ -477,7 +477,7 @@ class Comfy_Manifest {
 	 * @return int
 	 */
 	private static function template_connection_id( int $template_id ): int {
-		return (int) get_post_meta( $template_id, 'connection_id', true );
+		return (int) worldgraph_get_field_value( $template_id, 'connection_id' );
 	}
 
 	/**
@@ -544,7 +544,7 @@ class Comfy_Manifest {
 	 * @return array<int, array>
 	 */
 	private static function declared_downloads( int $template_id ): array {
-		$decoded = json_decode( (string) get_post_meta( $template_id, 'model_requirements', true ), true );
+		$decoded = json_decode( (string) worldgraph_get_field_value( $template_id, 'model_requirements' ), true );
 		if ( ! is_array( $decoded ) ) {
 			return [];
 		}

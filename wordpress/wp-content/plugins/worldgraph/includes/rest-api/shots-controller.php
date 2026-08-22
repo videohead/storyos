@@ -224,7 +224,7 @@ class Shots_Controller extends Base_Controller {
 
 		$data['display_name'] = \WorldGraph\Utils\worldgraph_get_shot_display_name( $post->ID );
 		$data['shot_type_label'] = \WorldGraph\Utils\worldgraph_shot_type_label(
-			(string) get_post_meta( $post->ID, 'shot_type', true )
+			(string) \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, 'shot_type' )
 		);
 
 		// Expose the scene this shot belongs to for editorial grouping.

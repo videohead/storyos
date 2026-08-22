@@ -556,7 +556,9 @@ async function fetchStoryPosts(
   }
 
   const response = await fetch(url.toString(), {
-    next: { tags: ["wordpress", ...tags] },
+    // Webhooks normally refresh these tags immediately. The time-based fallback
+    // prevents an isolated delivery failure from leaving Story views stale.
+    next: { tags: ["wordpress", ...tags], revalidate: 300 },
   });
 
   if (!response.ok) {

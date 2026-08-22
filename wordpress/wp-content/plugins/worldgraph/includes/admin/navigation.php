@@ -42,7 +42,10 @@ class Navigation {
 		}
 
 		// Keep direct dashboard destinations valid without showing these groups in the sidebar.
+		// `worldgraph-administration` has no card of its own; it stays registered
+		// so the Plugins and legacy AI Settings pages keep a valid parent.
 		foreach ( [
+			[ 'worldgraph-generate', 'Generate' ],
 			[ 'worldgraph-administration', 'Administration' ],
 			[ 'worldgraph-plugins', 'Plugins' ],
 		] as $hidden_page ) {
@@ -81,6 +84,7 @@ class Navigation {
 	 * Remove dashboard-only groups from the visible sidebar after child pages register.
 	 */
 	public static function hide_legacy_groups(): void {
+		remove_menu_page( 'worldgraph-generate' );
 		remove_menu_page( 'worldgraph-administration' );
 		remove_menu_page( 'worldgraph-plugins' );
 	}
@@ -162,11 +166,12 @@ class Navigation {
 				[ 'title' => 'Continuity', 'description' => 'Check your story for continuity issues.', 'icon' => 'dashicons-yes-alt', 'url' => admin_url( 'admin.php?page=worldgraph-continuity' ) ],
 				[ 'title' => 'Dramaturgy', 'description' => 'Examine structure, tension, and narrative movement.', 'icon' => 'dashicons-lightbulb', 'url' => admin_url( 'admin.php?page=worldgraph-dramaturgy' ) ],
 			],
-			'worldgraph-administration' => [
+			'worldgraph-generate' => [
 				[ 'title' => 'Setup Wizard', 'description' => 'Configure World Graph Studio connections and workspace settings.', 'icon' => 'dashicons-admin-tools', 'url' => admin_url( 'admin.php?page=worldgraph-setup' ) ],
 				[ 'title' => 'Connections', 'description' => 'Manage external services and integrations.', 'icon' => 'dashicons-admin-links', 'url' => admin_url( 'admin.php?page=worldgraph-connections' ) ],
-				[ 'title' => 'Templates', 'description' => 'Manage reusable story and editorial templates.', 'icon' => 'dashicons-layout', 'url' => admin_url( 'edit.php?post_type=worldgraph_template' ) ],
-				[ 'title' => 'Logs', 'description' => 'Review generation and system activity logs.', 'icon' => 'dashicons-list-view', 'url' => admin_url( 'admin.php?page=worldgraph-generation-log' ) ],
+				[ 'title' => 'Templates', 'description' => 'Manage the generation Templates a Connection can run.', 'icon' => 'dashicons-layout', 'url' => admin_url( 'edit.php?post_type=worldgraph_template' ) ],
+				[ 'title' => 'Adapters', 'description' => 'See the provider adapters this installation can run.', 'icon' => 'dashicons-admin-plugins', 'url' => admin_url( 'admin.php?page=worldgraph-adapters' ) ],
+				[ 'title' => 'Jobs', 'description' => 'Review generation Jobs, their Connection and Template, and what the provider returned.', 'icon' => 'dashicons-database-view', 'url' => admin_url( 'edit.php?post_type=worldgraph_gen' ) ],
 			],
 		];
 

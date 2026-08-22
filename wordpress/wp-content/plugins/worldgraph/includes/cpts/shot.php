@@ -124,45 +124,9 @@ class Shot {
 		[
 			'menu_icon' => 'dashicons-camera',
 			'show_in_menu' => 'worldgraph-editorial',
-			'supports'  => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'revisions' ],
+			'supports'  => [ 'title', 'editor', 'excerpt', 'thumbnail', 'revisions' ],
 		],
 		$fields
 	);
-	}
-
-	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( ! isset( $_POST['worldgraph_shot_nonce'] ) || ! wp_verify_nonce( $_POST['worldgraph_shot_nonce'], 'worldgraph_shot_details' ) ) {
-			return;
-		}
-
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_shot' );
-
-		foreach ( $fields as $key => $field ) {
-			if ( isset( $_POST[ $key ] ) ) {
-				if ( 'taxonomy' === $field['type'] ) {
-					wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
-				} elseif ( 'relationship' === $field['type'] ) {
-					\WorldGraph\Utils\set_relationships_for_field(
-						$post_id,
-						'worldgraph_shot',
-						[ absint( $_POST[ $key ] ) ],
-						$field['related_cpt'],
-						(string) ( $field['relationship_type'] ?? 'belongs_to' ),
-						$key,
-						false
-					);
-				} else {
-					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
-				}
-			}
-		}
 	}
 }

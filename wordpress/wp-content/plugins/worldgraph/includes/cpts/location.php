@@ -88,36 +88,4 @@ class Location {
 		$fields
 	);
 	}
-
-	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( ! isset( $_POST['worldgraph_location_nonce'] ) || ! wp_verify_nonce( $_POST['worldgraph_location_nonce'], 'worldgraph_location_details' ) ) {
-			return;
-		}
-
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_location' );
-
-		foreach ( $fields as $key => $field ) {
-			if ( isset( $_POST[ $key ] ) ) {
-				if ( 'relationship' === $field['type'] ) {
-					\WorldGraph\Utils\add_relationship(
-						$post_id,
-						'worldgraph_location',
-						absint( $_POST[ $key ] ),
-						$field['related_cpt'],
-						'belongs_to'
-					);
-				} else {
-					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
-				}
-			}
-		}
-	}
 }

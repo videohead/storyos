@@ -167,24 +167,6 @@ class Editorial_Controller extends Base_Controller {
 				],
 			],
 		] );
-
-		// Get storyboard sequence.
-		register_rest_route( 'worldgraph/v1', '/editorial/(?P<project_id>\d+)/storyboard', [
-			'methods'             => 'GET',
-			'callback'            => [ $this, 'get_storyboard' ],
-			'permission_callback' => [ $this, 'check_read_permission' ],
-			'args'                => [
-				'project_id' => [
-					'description' => 'Project ID.',
-					'type'        => 'integer',
-					'required'    => true,
-				],
-				'scene_id'   => [
-					'description' => 'Filter by scene ID.',
-					'type'        => 'integer',
-				],
-			],
-		] );
 	}
 
 	/**
@@ -465,51 +447,5 @@ class Editorial_Controller extends Base_Controller {
 		update_post_meta( $project_id, '_worldgraph_reviews', $reviews );
 
 		return rest_ensure_response( $review );
-	}
-
-	/**
-	 * Get storyboard sequence.
-	 *
-	 * @param WP_REST_Request $request
-	 * @return WP_REST_Response|WP_Error
-	 */
-	public static function get_storyboard( WP_REST_Request $request ) {
-		$project_id = absint( $request->get_param( 'project_id' ) );
-		$scene_id = $request->get_param( 'scene_id' ) ? absint( $request->get_param( 'scene_id' ) ) : null;
-
-		$args = [
-			'post_type'      => 'worldgraph_board',
-			'post_status'    => 'any',
-			'posts_per_page' => -1,
-			'orderby'        => 'menu_order',
-			'order'          => 'ASC',
-		];
-
-		if ( $scene_id ) {
-			$args['meta_query'] = [
-				[
-					'key'   => 'scene',
-					'value' => $scene_id,
-				],
-			];
-		}
-
-		$query = new \WP_Query( $args );
-		$frames = [];
-
-		if ( $query->have_posts() ) {
-			foreach ( $query->posts as $post ) {
-				$frames[] = [
-					'id'             => $post->ID,
-					'frame_number'   => \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, 'frame_number' ),
-					'description'    => \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, 'frame_description' ),
-					'image_asset'    => \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, 'image_asset' ),
-					'prompt_text'    => \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, 'prompt_text' ),
-				];
-			}
-			wp_reset_postdata();
-		}
-
-		return rest_ensure_response( $frames );
 	}
 }

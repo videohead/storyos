@@ -555,7 +555,7 @@ class Suno_MCP {
 	private static function credential_reference( array $connection, int $connection_id ): string {
 		$reference = trim( (string) ( $connection['mcp_credential_reference'] ?? '' ) );
 		if ( '' === $reference && $connection_id ) {
-			$reference = trim( (string) get_post_meta( $connection_id, 'mcp_credential_reference', true ) );
+			$reference = trim( (string) worldgraph_get_field_value( $connection_id, 'mcp_credential_reference' ) );
 		}
 
 		return $reference;

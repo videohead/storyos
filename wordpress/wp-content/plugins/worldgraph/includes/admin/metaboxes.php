@@ -71,7 +71,7 @@ class MetaBoxes {
 					continue;
 				}
 
-				$value = get_post_meta( $post->ID, $field['name'], true );
+				$value = \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, (string) $field['name'] );
 				if ( empty( $value ) && isset( $field['default'] ) ) {
 					$value = $field['default'];
 				}

@@ -6,8 +6,7 @@
     "project_slug": "little-red-riding-hood-woodland-path",
     "description": "A full-featured animated fairy-tale episode demonstrating World Graph Studio story development, production planning, sound design, asset intent, storyboards, sequencing, and editorial metadata.",
     "genres": [
-      "fantasy",
-      "animation"
+      "fantasy"
     ],
     "target_medium": "tv_series",
     "production_status": "in-development",

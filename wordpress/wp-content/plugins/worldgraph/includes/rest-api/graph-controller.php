@@ -275,13 +275,13 @@ class Graph_Controller extends Base_Controller {
 
 		if ( ! empty( $page_posts ) ) {
 			foreach ( $page_posts as $post ) {
-					$entities[] = [
-						'id'          => $post->ID,
-						'external_id' => (string) get_post_meta( $post->ID, 'external_id', true ),
-						'type'        => $post->post_type,
-						'title'       => $post->post_title,
-						'slug'        => $post->post_name,
-					];
+				$entities[] = [
+					'id'          => $post->ID,
+					'external_id' => (string) get_post_meta( $post->ID, 'external_id', true ),
+					'type'        => $post->post_type,
+					'title'       => $post->post_title,
+					'slug'        => $post->post_name,
+				];
 			}
 		}
 		wp_reset_postdata();

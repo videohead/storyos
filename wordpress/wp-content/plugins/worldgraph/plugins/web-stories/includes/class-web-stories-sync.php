@@ -251,13 +251,13 @@ class Sync {
 			$scene_data = [
 				'post_title'   => $post->post_title,
 				'post_content' => $post->post_content,
-				'scene_number' => get_post_meta( $scene_id, 'scene_number', true ),
-				'title'        => get_post_meta( $scene_id, 'title', true ),
-				'summary'      => get_post_meta( $scene_id, 'summary', true ),
-				'script_content' => get_post_meta( $scene_id, 'script_content', true ),
-				'location'     => get_post_meta( $scene_id, 'location', true ),
-				'time_of_day'  => get_post_meta( $scene_id, 'time_of_day', true ),
-				'emotional_tone' => get_post_meta( $scene_id, 'emotional_tone', true ),
+				'scene_number'   => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'scene_number' ),
+				'title'          => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'title' ),
+				'summary'        => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'summary' ),
+				'script_content' => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'script_content' ),
+				'location'       => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'location' ),
+				'time_of_day'    => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'time_of_day' ),
+				'emotional_tone' => \WorldGraph\Utils\worldgraph_get_field_value( $scene_id, 'emotional_tone' ),
 			];
 		}
 
@@ -339,11 +339,11 @@ class Sync {
 		}
 
 		// Save metadata.
-		update_post_meta( $scene_id, 'scene_number', $scene_number );
-		update_post_meta( $scene_id, 'title', $scene_title );
-		update_post_meta( $scene_id, 'summary', $scene_summary );
-		update_post_meta( $scene_id, 'script_content', $script_content );
-		update_post_meta( $scene_id, 'time_of_day', 'not_set' );
+		\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'scene_number', $scene_number );
+		\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'title', $scene_title );
+		\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'summary', $scene_summary );
+		\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'script_content', $script_content );
+		\WorldGraph\Utils\worldgraph_delete_field_value( $scene_id, 'time_of_day' );
 
 		// Store mapping.
 		$mapping = [
@@ -383,8 +383,8 @@ class Sync {
 		}
 
 		// Update metadata.
-		update_post_meta( $scene_id, 'summary', $post->post_excerpt );
-		update_post_meta( $scene_id, 'script_content', $script_content );
+		\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'summary', $post->post_excerpt );
+		\WorldGraph\Utils\worldgraph_update_field_value( $scene_id, 'script_content', $script_content );
 
 		return [ 'success' => true ];
 	}
@@ -560,12 +560,25 @@ class Sync {
 	 * @return int
 	 */
 	private function generate_scene_number(): int {
-		global $wpdb;
+		$scene_ids = get_posts(
+			[
+				'post_type'      => 'worldgraph_scene',
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'orderby'        => 'none',
+			]
+		);
+		$highest = 0;
 
-		// Get the highest scene number.
-		$highest = $wpdb->get_var( "SELECT MAX(meta_value) FROM {$wpdb->postmeta} WHERE meta_key = 'scene_number' AND meta_type = 'NUMERIC'" );
+		foreach ( $scene_ids as $scene_id ) {
+			$scene_number = \WorldGraph\Utils\worldgraph_get_field_value( (int) $scene_id, 'scene_number' );
+			if ( is_numeric( $scene_number ) ) {
+				$highest = max( $highest, (int) $scene_number );
+			}
+		}
 
-		return (int) $highest + 1;
+		return $highest + 1;
 	}
 
 	/**

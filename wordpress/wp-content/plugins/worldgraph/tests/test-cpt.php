@@ -22,7 +22,7 @@ class Test_WorldGraph_CPT extends TestCase {
 			'label'        => 'Projects',
 			'public'       => true,
 			'show_ui'      => true,
-			'supports'     => [ 'title', 'editor', 'custom-fields' ],
+			'supports'     => [ 'title', 'editor' ],
 			'rewrite'      => [ 'slug' => 'project' ],
 			'capabilities' => [
 				'edit_post'          => 'edit_project',
@@ -87,6 +87,41 @@ class Test_WorldGraph_CPT extends TestCase {
 
 		$this->assertSame( 'worldgraph', $args['show_in_menu'] );
 		$this->assertTrue( $args['show_ui'] );
+	}
+
+	/**
+	 * SCF is the only custom-field editing surface for schema-backed CPTs.
+	 */
+	public function test_worldgraph_cpt_defaults_do_not_enable_native_custom_fields() {
+		$args = \WorldGraph\Utils\worldgraph_get_default_cpt_args(
+			'worldgraph_project',
+			'Project',
+			[ 'supports' => [ 'title', 'editor', 'custom-fields' ] ]
+		);
+
+		$this->assertNotContains( 'custom-fields', $args['supports'] );
+		$this->assertSame( [ 'title', 'editor' ], $args['supports'] );
+	}
+
+	/**
+	 * Content CPT files must leave canonical field rendering and persistence to SCF.
+	 */
+	public function test_content_cpts_have_no_legacy_named_field_save_paths() {
+		$files = glob( dirname( __DIR__ ) . '/includes/cpts/*.php' ) ?: [];
+
+		foreach ( $files as $path ) {
+			$file = basename( $path );
+			if ( 'class-generation-job.php' === $file ) {
+				continue;
+			}
+			$source = file_get_contents( $path );
+
+			$this->assertNotFalse( $source, "Could not read CPT source {$file}." );
+			$this->assertStringNotContainsString( 'function save_meta(', $source, "Legacy save_meta() remains in {$file}." );
+			$this->assertStringNotContainsString( 'function save_project_meta(', $source, "Legacy Project save handler remains in {$file}." );
+			$this->assertStringNotContainsString( '$_POST[ $key ]', $source, "Named-field POST persistence remains in {$file}." );
+			$this->assertStringNotContainsString( "add_action( 'save_post_worldgraph_", $source, "Legacy save_post hook remains in {$file}." );
+		}
 	}
 
 	/**

@@ -17,7 +17,7 @@ namespace WorldGraph\CPT;
 class Sound {
 
 	/**
-	 * Register the CPT and its admin save handler.
+	 * Register the CPT and its SCF validation hooks.
 	 */
 	public static function init(): void {
 		self::register_cpt();
@@ -132,7 +132,7 @@ class Sound {
 			[
 				'menu_icon'    => 'dashicons-format-audio',
 				'show_in_menu' => 'worldgraph-editorial',
-				'supports'     => [ 'title', 'editor', 'excerpt', 'custom-fields', 'revisions', 'page-attributes' ],
+				'supports'     => [ 'title', 'editor', 'excerpt', 'revisions', 'page-attributes' ],
 			],
 			$fields
 		);
@@ -223,135 +223,6 @@ class Sound {
 	private static function add_scf_error( string $field_name, string $message ): void {
 		$field_key = \WorldGraph\Utils\SCF_Fields::field_key( 'worldgraph_sound', $field_name );
 		acf_add_validation_error( 'acf[' . $field_key . ']', $message );
-	}
-
-	/**
-	 * Save Sound fields from the generic World Graph Studio Details meta box.
-	 *
-	 * @param int      $post_id Sound post ID.
-	 * @param \WP_Post $post    Sound post object.
-	 */
-	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( 'worldgraph_sound' !== $post->post_type ) {
-			return;
-		}
-
-		if ( ! isset( $_POST['worldgraph_details_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['worldgraph_details_nonce'] ) ), 'worldgraph_details' ) ) {
-			return;
-		}
-
-		if ( ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) || wp_is_post_revision( $post_id ) ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		$valid = self::validate_admin_request( $post );
-		if ( is_wp_error( $valid ) ) {
-			update_post_meta( $post_id, '_worldgraph_sound_validation_error', $valid->get_error_message() );
-			if ( ! in_array( $post->post_status, [ 'auto-draft', 'draft', 'pending' ], true ) ) {
-				remove_action( 'save_post_worldgraph_sound', [ __CLASS__, 'save_meta' ], 10 );
-				wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
-				add_action( 'save_post_worldgraph_sound', [ __CLASS__, 'save_meta' ], 10, 2 );
-			}
-			return;
-		}
-
-		delete_post_meta( $post_id, '_worldgraph_sound_validation_error' );
-
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_sound' );
-		foreach ( $fields as $key => $field ) {
-			if ( ! array_key_exists( $key, $_POST ) ) {
-				continue;
-			}
-
-			if ( 'taxonomy' === $field['type'] ) {
-				$term_id = absint( $_POST[ $key ] );
-				wp_set_object_terms( $post_id, $term_id ? [ $term_id ] : [], $field['taxonomy'], false );
-				continue;
-			}
-
-			if ( 'relationship' === $field['type'] ) {
-				\WorldGraph\Utils\set_relationship(
-					$post_id,
-					'worldgraph_sound',
-					absint( $_POST[ $key ] ),
-					$field['related_cpt'],
-					(string) ( $field['relationship_type'] ?? 'belongs_to' ),
-					[ 'field' => $key ]
-				);
-				continue;
-			}
-
-			$value = \WorldGraph\Utils\worldgraph_sanitize_field_value( $_POST[ $key ], $field );
-			if ( '' === $value ) {
-				delete_post_meta( $post_id, $key );
-			} else {
-				update_post_meta( $post_id, $key, $value );
-			}
-		}
-	}
-
-	/**
-	 * Display the last server-side Sound validation failure.
-	 */
-	public static function render_validation_notice(): void {
-		$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0;
-		if ( ! $post_id || 'worldgraph_sound' !== get_post_type( $post_id ) ) {
-			return;
-		}
-
-		$message = (string) get_post_meta( $post_id, '_worldgraph_sound_validation_error', true );
-		if ( '' !== $message ) {
-			echo '<div class="notice notice-error"><p>' . esc_html( $message ) . '</p></div>';
-		}
-	}
-
-	/**
-	 * Validate the complete Sound selector state submitted by wp-admin.
-	 *
-	 * @param \WP_Post $post Sound post.
-	 * @return true|\WP_Error
-	 */
-	private static function validate_admin_request( \WP_Post $post ) {
-		if ( '' === trim( (string) $post->post_title ) ) {
-			return new \WP_Error( 'worldgraph_sound_title_required', 'A Sound title is required. The post was kept as a draft.' );
-		}
-
-		$type_id = isset( $_POST['sound_type'] ) ? absint( $_POST['sound_type'] ) : 0;
-		$type    = $type_id ? get_term( $type_id, 'worldgraph_sound_type' ) : null;
-		if ( ! $type || is_wp_error( $type ) || \WorldGraph\Utils\worldgraph_is_reserved_sound_type( $type ) ) {
-			return new \WP_Error( 'worldgraph_sound_type_required', 'Select a valid non-dialogue Sound Type. The post was kept as a draft.' );
-		}
-
-		$scene_id = isset( $_POST['scene'] ) ? absint( $_POST['scene'] ) : 0;
-		if ( ! $scene_id || 'worldgraph_scene' !== get_post_type( $scene_id ) ) {
-			return new \WP_Error( 'worldgraph_sound_scene_required', 'Select a valid Scene. The post was kept as a draft.' );
-		}
-
-		$shot_id = isset( $_POST['shot'] ) ? absint( $_POST['shot'] ) : 0;
-		if ( $shot_id && ( 'worldgraph_shot' !== get_post_type( $shot_id ) || ! self::shot_belongs_to_scene( $shot_id, $scene_id ) ) ) {
-			return new \WP_Error( 'worldgraph_sound_shot_scene_mismatch', 'The selected Shot must belong to the selected Scene. The post was kept as a draft.' );
-		}
-
-		$character_id = isset( $_POST['character'] ) ? absint( $_POST['character'] ) : 0;
-		if ( $character_id && 'worldgraph_character' !== get_post_type( $character_id ) ) {
-			return new \WP_Error( 'worldgraph_sound_character_invalid', 'Select a valid narrator or voice Character. The post was kept as a draft.' );
-		}
-
-		$asset_id = isset( $_POST['asset'] ) ? absint( $_POST['asset'] ) : 0;
-		if ( $asset_id && ! \WorldGraph\Utils\worldgraph_is_audio_asset( $asset_id ) ) {
-			return new \WP_Error( 'worldgraph_sound_asset_invalid', 'The rendered Asset must have the Audio asset type. The post was kept as a draft.' );
-		}
-
-		$lyrics = isset( $_POST['lyrics'] ) ? trim( (string) wp_unslash( $_POST['lyrics'] ) ) : '';
-		if ( '' !== $lyrics && 'music' !== $type->slug ) {
-			return new \WP_Error( 'worldgraph_sound_lyrics_music_only', 'Lyrics may only be stored on a Music Sound. The post was kept as a draft.' );
-		}
-
-		return true;
 	}
 
 	/**

@@ -13,8 +13,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Setup_Wizard {
 
+	/**
+	 * Hook suffix for the setup admin page.
+	 *
+	 * @var string
+	 */
+	private static $page_hook = '';
+
 	public static function init(): void {
 		add_action( 'admin_menu', [ __CLASS__, 'add_menu' ] );
+		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
 		add_action( 'admin_post_worldgraph_save_setup', [ __CLASS__, 'save' ] );
 		add_action( 'wp_ajax_worldgraph_test_llm_connection', [ __CLASS__, 'test_llm_connection' ] );
 		add_action( 'wp_ajax_worldgraph_test_comfy_connection', [ __CLASS__, 'test_comfy_connection' ] );
@@ -107,13 +115,56 @@ class Setup_Wizard {
 	}
 
 	public static function add_menu(): void {
-		add_submenu_page(
-			'worldgraph-administration',
+		self::$page_hook = (string) add_submenu_page(
+			'worldgraph-generate',
 			'Setup World Graph Studio',
 			'Setup & Settings',
 			'manage_options',
 			'worldgraph-setup',
 			[ __CLASS__, 'render' ]
+		);
+	}
+
+	/**
+	 * Enqueue the setup controller only on the World Graph Studio setup page.
+	 *
+	 * @param string $hook_suffix Current admin page hook suffix.
+	 */
+	public static function enqueue_assets( string $hook_suffix ): void {
+		if ( '' === self::$page_hook || self::$page_hook !== $hook_suffix || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$handle      = 'worldgraph-setup-wizard';
+		$script_path = WORLDGRAPH_PLUGIN_DIR . 'assets/js/setup-wizard.js';
+
+		wp_enqueue_script(
+			$handle,
+			WORLDGRAPH_PLUGIN_URL . 'assets/js/setup-wizard.js',
+			[],
+			is_file( $script_path ) ? (string) filemtime( $script_path ) : WORLDGRAPH_VERSION,
+			true
+		);
+		wp_localize_script(
+			$handle,
+			'worldgraphSetupWizard',
+			[
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'actions' => [
+					'testLlm'        => 'worldgraph_test_llm_connection',
+					'testGeneration' => 'worldgraph_test_comfy_connection',
+				],
+				'nonces'  => [
+					'testLlm'        => wp_create_nonce( 'worldgraph_test_llm_connection' ),
+					'testGeneration' => wp_create_nonce( 'worldgraph_test_comfy_connection' ),
+				],
+				'i18n'    => [
+					'testing'                   => __( 'Testing...', 'worldgraph' ),
+					'connectionTestFailed'      => __( 'Connection test failed.', 'worldgraph' ),
+					'connectionTestUnavailable' => __( 'Connection test could not be completed.', 'worldgraph' ),
+					'selectModel'                => __( 'Select a model from the Model Name field.', 'worldgraph' ),
+				],
+			]
 		);
 	}
 
@@ -372,8 +423,8 @@ class Setup_Wizard {
 			'meta_value'     => 'generation', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 		] );
 		$generation_connection_id = $generation_connections ? (int) $generation_connections[0] : 0;
-		$generation_api_key = $generation_connection_id ? (string) get_post_meta( $generation_connection_id, 'credential_reference', true ) : '';
-		$generation_mcp_api_key = $generation_connection_id ? (string) get_post_meta( $generation_connection_id, 'mcp_credential_reference', true ) : '';
+		$generation_api_key = $generation_connection_id ? (string) \WorldGraph\Utils\worldgraph_get_field_value( $generation_connection_id, 'credential_reference' ) : '';
+		$generation_mcp_api_key = $generation_connection_id ? (string) \WorldGraph\Utils\worldgraph_get_field_value( $generation_connection_id, 'mcp_credential_reference' ) : '';
 
 		?>
 		<div class="wrap">
@@ -459,96 +510,6 @@ class Setup_Wizard {
 				<p><label for="worldgraph_ai_temperature">Temperature</label><br /><input type="number" class="small-text" name="worldgraph_ai_temperature" id="worldgraph_ai_temperature" value="<?php echo esc_attr( get_option( 'worldgraph_ai_temperature', '0.7' ) ); ?>" step="0.1" min="0" max="1" /> <span class="description">Creativity level (0.0 = deterministic, 1.0 = creative).</span></p>
 			<?php submit_button( 'Save All Configurations' ); ?>
 			</form>
-			<script>
-				(function () {
-					var generationMode = document.getElementById('worldgraph_gen_connection_mode');
-					var generationCredentialFields = document.getElementById('worldgraph-generation-credential-fields');
-					var generationMcpCredentialFields = document.getElementById('worldgraph-generation-mcp-credential-fields');
-					var localApiFields = document.getElementById('worldgraph-comfy-local-api-fields');
-					var localMcpFields = document.getElementById('worldgraph-comfy-local-mcp-fields');
-					var generationTestButton = document.getElementById('worldgraph-test-comfy-connection');
-					function updateGenerationFields() {
-						var mode = generationMode ? generationMode.value : 'none';
-						generationCredentialFields.hidden = mode === 'none' || mode === 'local_mcp';
-						generationMcpCredentialFields.hidden = mode !== 'suno';
-						localApiFields.hidden = mode !== 'local_mcp';
-						localMcpFields.hidden = mode !== 'local_mcp';
-						generationTestButton.hidden = mode === 'none' || mode === 'cloud';
-					}
-					if (generationMode) {
-						generationMode.addEventListener('change', updateGenerationFields);
-						updateGenerationFields();
-					}
-					var button = document.getElementById('worldgraph-test-llm-connection');
-					var result = document.getElementById('worldgraph-llm-test-result');
-					if (!button || !result) {
-						return;
-					}
-					button.addEventListener('click', function () {
-						var modelInput = document.getElementById('worldgraph_ai_model');
-						button.disabled = true;
-						result.textContent = 'Testing...';
-						var data = new URLSearchParams({
-							action: 'worldgraph_test_llm_connection',
-							nonce: '<?php echo esc_js( wp_create_nonce( 'worldgraph_test_llm_connection' ) ); ?>',
-							backend: document.getElementById('worldgraph_ai_backend').value,
-							url: document.getElementById('worldgraph_ai_url').value,
-							model: document.getElementById('worldgraph_ai_model').value,
-							api_key: document.getElementById('worldgraph_ai_api_key').value
-						});
-						fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: data })
-							.then(function (response) { return response.json(); })
-							.then(function (response) {
-								var models = response.data && Array.isArray(response.data.models) ? response.data.models : [];
-								var modelList = document.getElementById('worldgraph-ai-models');
-								modelList.replaceChildren();
-								models.forEach(function (model) {
-									modelList.append(new Option(model, model));
-								});
-								if (response.success && !modelInput.value.trim() && models.length === 1) {
-									modelInput.value = models[0];
-								}
-								result.textContent = response.data && response.data.message ? response.data.message : 'Connection test failed.';
-								if (response.success && !modelInput.value.trim() && models.length > 1) {
-									result.textContent += ' Select a model from the Model Name field.';
-								}
-								result.style.color = response.success ? '#008a20' : '#b32d2e';
-							})
-							.catch(function () {
-								result.textContent = 'Connection test could not be completed.';
-								result.style.color = '#b32d2e';
-							})
-							.finally(function () { button.disabled = false; });
-					});
-					var comfyButton = document.getElementById('worldgraph-test-comfy-connection');
-					var comfyResult = document.getElementById('worldgraph-comfy-test-result');
-					if (comfyButton && comfyResult) {
-						comfyButton.addEventListener('click', function () {
-							comfyButton.disabled = true;
-							comfyResult.textContent = 'Testing...';
-							var data = new URLSearchParams({
-								action: 'worldgraph_test_comfy_connection',
-								nonce: '<?php echo esc_js( wp_create_nonce( 'worldgraph_test_comfy_connection' ) ); ?>',
-								mode: document.getElementById('worldgraph_gen_connection_mode').value || 'none',
-								url: document.getElementById('worldgraph_comfy_local_url').value,
-								api_key: document.getElementById('worldgraph_gen_credential_reference').value,
-								mcp_api_key: document.getElementById('worldgraph_gen_mcp_credential_reference').value
-							});
-							fetch(ajaxurl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: data })
-								.then(function (response) { return response.json(); })
-								.then(function (response) {
-									comfyResult.textContent = response.data && response.data.message ? response.data.message : 'Connection test failed.';
-									comfyResult.style.color = response.success ? '#008a20' : '#b32d2e';
-								})
-								.catch(function () {
-									comfyResult.textContent = 'Connection test could not be completed.';
-									comfyResult.style.color = '#b32d2e';
-								})
-								.finally(function () { comfyButton.disabled = false; });
-						});
-					}
-				}());
-			</script>
 		</div>
 		<?php
 	}

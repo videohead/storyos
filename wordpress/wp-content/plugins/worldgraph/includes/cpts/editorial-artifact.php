@@ -85,38 +85,4 @@ class EditorialArtifact {
 		$fields
 	);
 	}
-
-	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( ! isset( $_POST['worldgraph_editorial_nonce'] ) || ! wp_verify_nonce( $_POST['worldgraph_editorial_nonce'], 'worldgraph_editorial_details' ) ) {
-			return;
-		}
-
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_editorial' );
-
-		foreach ( $fields as $key => $field ) {
-			if ( isset( $_POST[ $key ] ) ) {
-				if ( 'taxonomy' === $field['type'] ) {
-					wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
-				} elseif ( 'relationship' === $field['type'] ) {
-					\WorldGraph\Utils\add_relationship(
-						$post_id,
-						'worldgraph_editorial',
-						absint( $_POST[ $key ] ),
-						$field['related_cpt'],
-						'references'
-					);
-				} else {
-					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
-				}
-			}
-		}
-	}
 }

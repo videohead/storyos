@@ -32,7 +32,6 @@ class Story_Media_Gallery {
 		'worldgraph_scene',
 		'worldgraph_shot',
 		'worldgraph_sound',
-		'worldgraph_board',
 		'worldgraph_asset',
 		'worldgraph_editorial',
 	];
@@ -142,7 +141,7 @@ class Story_Media_Gallery {
 		?>
 		<div class="worldgraph-story-gallery" data-worldgraph-story-gallery>
 			<p class="description">
-				<?php esc_html_e( 'Choose and order supporting images, audio, or video for the WordPress and headless story displays. Featured media remains the primary image. Generated view frames with a named intent display in their canonical view order.', 'worldgraph' ); ?>
+				<?php esc_html_e( 'Build a gallery of additional supporting images, audio, or video. Featured media remains the primary image.', 'worldgraph' ); ?>
 			</p>
 			<input type="hidden" name="worldgraph_story_media_gallery_ids" value="<?php echo esc_attr( implode( ',', $attachment_ids ) ); ?>" data-gallery-input />
 			<input type="hidden" name="worldgraph_story_media_gallery_original_ids" value="<?php echo esc_attr( implode( ',', $attachment_ids ) ); ?>" />
@@ -154,19 +153,21 @@ class Story_Media_Gallery {
 					if ( ! $attachment instanceof \WP_Post || 'attachment' !== $attachment->post_type ) {
 						continue;
 					}
-					$mime_type = (string) get_post_mime_type( $attachment_id );
+					$can_read_attachment = current_user_can( 'read_post', $attachment_id );
+					$mime_type           = $can_read_attachment ? (string) get_post_mime_type( $attachment_id ) : '';
+					$attachment_label    = $can_read_attachment ? get_the_title( $attachment_id ) : __( 'Restricted media', 'worldgraph' );
 					?>
 					<li class="worldgraph-story-gallery__item" data-attachment-id="<?php echo esc_attr( (string) $attachment_id ); ?>">
 						<span class="worldgraph-story-gallery__handle dashicons dashicons-move" aria-hidden="true"></span>
 						<span class="worldgraph-story-gallery__preview">
-							<?php if ( 0 === strpos( $mime_type, 'image/' ) ) : ?>
+							<?php if ( $can_read_attachment && 0 === strpos( $mime_type, 'image/' ) ) : ?>
 								<?php echo wp_get_attachment_image( $attachment_id, 'thumbnail', true, [ 'alt' => '' ] ); ?>
 							<?php else : ?>
-								<span class="dashicons <?php echo esc_attr( 0 === strpos( $mime_type, 'audio/' ) ? 'dashicons-format-audio' : 'dashicons-format-video' ); ?>" aria-hidden="true"></span>
+								<span class="dashicons <?php echo esc_attr( 0 === strpos( $mime_type, 'audio/' ) ? 'dashicons-format-audio' : ( 0 === strpos( $mime_type, 'video/' ) ? 'dashicons-format-video' : 'dashicons-lock' ) ); ?>" aria-hidden="true"></span>
 							<?php endif; ?>
 						</span>
 						<span class="worldgraph-story-gallery__details">
-							<strong><?php echo esc_html( get_the_title( $attachment_id ) ); ?></strong>
+							<strong><?php echo esc_html( $attachment_label ); ?></strong>
 							<small><?php echo esc_html( $mime_type ); ?></small>
 						</span>
 						<span class="worldgraph-story-gallery__actions">
@@ -180,7 +181,7 @@ class Story_Media_Gallery {
 							</button>
 							<button type="button" class="button-link-delete" data-gallery-remove>
 								<?php esc_html_e( 'Remove', 'worldgraph' ); ?>
-								<span class="screen-reader-text"> <?php echo esc_html( get_the_title( $attachment_id ) ); ?></span>
+								<span class="screen-reader-text"> <?php echo esc_html( $attachment_label ); ?></span>
 							</button>
 						</span>
 					</li>

@@ -465,7 +465,7 @@ class Sounds_Controller extends Base_Controller {
 
 		$lyrics = array_key_exists( 'lyrics', $meta )
 			? (string) $meta['lyrics']
-			: ( $creating ? '' : (string) get_post_meta( absint( $request->get_param( 'id' ) ), 'lyrics', true ) );
+			: ( $creating ? '' : (string) \WorldGraph\Utils\worldgraph_get_field_value( absint( $request->get_param( 'id' ) ), 'lyrics' ) );
 		if ( '' !== trim( $lyrics ) && ( ! $sound_type_term || 'music' !== $sound_type_term->slug ) ) {
 			return new \WP_Error( 'worldgraph_sound_lyrics_music_only', 'Lyrics may only be stored on a Music Sound.', [ 'status' => 400 ] );
 		}

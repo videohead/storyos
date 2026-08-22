@@ -110,6 +110,20 @@ class Scene_Shot_Sequencer {
 				static fn( \WP_Post $shot ): bool => ! current_user_can( 'edit_post', $shot->ID )
 			)
 		);
+		$blocked_labels = array_values(
+			array_map(
+				static fn( \WP_Post $shot ): string => $shot->post_title ?: sprintf( __( 'Shot #%d', 'worldgraph' ), $shot->ID ),
+				array_filter( $blocked_shots, static fn( \WP_Post $shot ): bool => current_user_can( 'read_post', $shot->ID ) )
+			)
+		);
+		$hidden_blocked_count = count( $blocked_shots ) - count( $blocked_labels );
+		if ( $hidden_blocked_count > 0 ) {
+			$blocked_labels[] = sprintf(
+				/* translators: %d: number of Shots whose titles are not visible to this editor. */
+				_n( '%d restricted Shot', '%d restricted Shots', $hidden_blocked_count, 'worldgraph' ),
+				$hidden_blocked_count
+			);
+		}
 		?>
 		<div class="worldgraph-shot-sequencer" data-worldgraph-shot-sequencer>
 			<p class="description">
@@ -122,7 +136,7 @@ class Scene_Shot_Sequencer {
 						sprintf(
 							/* translators: %s: comma-delimited Shot titles. */
 							__( 'Reordering is unavailable because you need edit access to the Scene and every Shot. Restricted: %s', 'worldgraph' ),
-							implode( ', ', array_map( static fn( \WP_Post $shot ): string => $shot->post_title ?: sprintf( __( 'Shot #%d', 'worldgraph' ), $shot->ID ), $blocked_shots ) ) ?: __( 'this Scene', 'worldgraph' )
+							implode( ', ', $blocked_labels ) ?: __( 'this Scene', 'worldgraph' )
 						)
 					);
 					?>

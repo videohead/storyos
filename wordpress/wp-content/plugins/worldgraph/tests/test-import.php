@@ -142,11 +142,11 @@ class Test_WorldGraph_Import extends TestCase {
 			$source
 		);
 		$this->assertStringContainsString(
-			"wp_set_object_terms( \$scene_post_id, \$term_id, 'worldgraph_sequence' )",
+			"worldgraph_update_field_value( (int) \$scene_post_id, 'sequence', \$term_id )",
 			$source
 		);
 		$this->assertStringContainsString(
-			"wp_set_object_terms( \$shot_post_id, \$term_id, 'worldgraph_sequence', false )",
+			"worldgraph_update_field_value( (int) \$shot_post_id, 'sequence', \$term_id )",
 			$source
 		);
 	}

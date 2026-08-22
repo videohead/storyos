@@ -470,69 +470,6 @@ class Plugins {
 				</div>
 			<?php endif; ?>
 
-			<h2>Connection Adapters</h2>
-			<p>Adapters load on demand when an enabled Connection uses them. Manage activation and credentials from <a href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-connections' ) ); ?>">World Graph Studio &gt; Connections</a>; there is no separate plugin toggle.</p>
-			<table class="wp-list-table widefat fixed striped">
-				<thead>
-					<tr>
-						<th>Adapter</th>
-						<th>Status</th>
-						<th>Configuration</th>
-						<th>Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ( \WorldGraph\Utils\Connection_Adapters::all() as $provider_type => $adapter ) : ?>
-						<?php
-						$has_implementation = ! empty( $adapter['files'] ) || ! empty( $adapter['loader'] );
-						if ( ! $has_implementation || ( isset( $adapter['show_in_plugins'] ) && ! $adapter['show_in_plugins'] ) ) {
-							continue;
-						}
-						$connections = \WorldGraph\Utils\Connection_Repository::get_all( [ 'provider_type' => $provider_type ] );
-						$enabled_connections = array_filter(
-							$connections,
-							static function ( array $connection ): bool {
-								return 'disabled' !== ( $connection['status'] ?? '' );
-							}
-						);
-						$verified_connections = array_filter(
-							$connections,
-							static function ( array $connection ): bool {
-								return 'verified' === ( $connection['status'] ?? '' );
-							}
-						);
-						?>
-						<tr data-connection-adapter="<?php echo esc_attr( $provider_type ); ?>">
-							<td>
-								<strong><span class="dashicons <?php echo esc_attr( $adapter['icon'] ?? 'dashicons-admin-plugins' ); ?>" style="margin-right: 5px;"></span><?php echo esc_html( $adapter['label'] ?? $provider_type ); ?></strong>
-								<br><small><?php echo esc_html( $adapter['description'] ?? '' ); ?></small>
-							</td>
-							<td>
-								<?php if ( ! empty( $enabled_connections ) ) : ?>
-									<span class="status-active">Active on demand</span>
-								<?php else : ?>
-									<span class="status-inactive">Available</span>
-								<?php endif; ?>
-								<br><small><?php echo esc_html( \WorldGraph\Utils\Connection_Adapters::is_loaded( $provider_type ) ? 'Loaded for this request' : 'Not loaded for this request' ); ?></small>
-							</td>
-							<td>
-								<?php
-								echo esc_html(
-									sprintf(
-										/* translators: 1: Connection count, 2: verified Connection count. */
-										'%1$d configured; %2$d verified',
-										count( $connections ),
-										count( $verified_connections )
-									)
-								);
-								?>
-							</td>
-							<td><a href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-connections' ) ); ?>" class="button button-small"><?php echo esc_html( empty( $connections ) ? 'Add Connection' : 'Manage Connections' ); ?></a></td>
-						</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
-
 			<h2>Feature Plugins</h2>
 
 			<?php if ( empty( self::$plugins ) ) : ?>

@@ -215,8 +215,12 @@ abstract class Base_Controller extends WP_REST_Controller {
 		if ( ! empty( $relationships ) ) {
 			$links['relationships'] = [];
 			foreach ( $relationships as $rel ) {
+				$target_id = absint( $rel['to_id'] ?? 0 );
+				if ( ! $target_id || ! current_user_can( 'read_post', $target_id ) ) {
+					continue;
+				}
 				$links['relationships'][] = [
-					'to_id'   => $rel['to_id'],
+					'to_id'   => $target_id,
 					'to_type' => $rel['to_type'],
 					'type'    => $rel['type'],
 					'href'    => rest_url( "{$this->namespace}/{$rel['to_type']}/{$rel['to_id']}" ),
@@ -441,15 +445,39 @@ abstract class Base_Controller extends WP_REST_Controller {
 					$terms     = [];
 					foreach ( $raw_terms as $raw_term ) {
 						if ( is_numeric( $raw_term ) ) {
-							$terms[] = absint( $raw_term );
+							$term = get_term( absint( $raw_term ), $taxonomy );
+							if ( $term && ! is_wp_error( $term ) ) {
+								$terms[] = (int) $term->term_id;
+							}
 							continue;
 						}
 
 						$slug = sanitize_title( (string) $raw_term );
 						$term = get_term_by( 'slug', $slug, $taxonomy );
-						$terms[] = $term ? (int) $term->term_id : sanitize_text_field( (string) $raw_term );
+						if ( $term ) {
+							$terms[] = (int) $term->term_id;
+							continue;
+						}
+
+						$term_name = sanitize_text_field( (string) $raw_term );
+						if ( '' === $term_name ) {
+							continue;
+						}
+
+						$created = wp_insert_term( $term_name, $taxonomy, [ 'slug' => $slug ] );
+						if ( ! is_wp_error( $created ) ) {
+							$terms[] = (int) $created['term_id'];
+						} elseif ( 'term_exists' === $created->get_error_code() ) {
+							$terms[] = absint( $created->get_error_data() );
+						}
 					}
-					wp_set_object_terms( $post_id, array_values( array_filter( $terms ) ), $taxonomy, false );
+
+					$terms = array_values( array_unique( array_filter( $terms ) ) );
+					\WorldGraph\Utils\worldgraph_update_field_value(
+						$post_id,
+						$key,
+						! empty( $field['multiple'] ) ? $terms : ( $terms[0] ?? '' )
+					);
 				}
 				continue;
 			}

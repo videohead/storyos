@@ -27,7 +27,7 @@ class Suno_Catalog {
 
 	/** Schedule provisioning after Connection meta has been saved. */
 	public static function schedule_after_connection_save( int $post_id, \WP_Post $post ): void {
-		if ( 'publish' !== $post->post_status || 'suno' !== get_post_meta( $post_id, 'provider_type', true ) || 'disabled' === get_post_meta( $post_id, 'status', true ) ) {
+		if ( 'publish' !== $post->post_status || 'suno' !== worldgraph_get_field_value( $post_id, 'provider_type' ) || 'disabled' === worldgraph_get_field_value( $post_id, 'status' ) ) {
 			return;
 		}
 
@@ -63,7 +63,7 @@ class Suno_Catalog {
 		$api_reference = trim( (string) ( $connection['credential_reference'] ?? '' ) );
 		$mcp_reference = trim( (string) ( $connection['mcp_credential_reference'] ?? '' ) );
 		if ( '' === $mcp_reference ) {
-			$mcp_reference = trim( (string) get_post_meta( $connection_id, 'mcp_credential_reference', true ) );
+			$mcp_reference = trim( (string) worldgraph_get_field_value( $connection_id, 'mcp_credential_reference' ) );
 		}
 
 		$definitions = [];
@@ -413,16 +413,16 @@ class Suno_Catalog {
 			'provider_schema' => (array) ( $definition['schema'] ?? [] ),
 			'transport'       => (string) ( $definition['transport'] ?? '' ),
 		];
-		update_post_meta( $post_id, 'template_name', $name );
-		update_post_meta( $post_id, 'description', wp_kses_post( $description ) );
-		update_post_meta( $post_id, 'provider_type', 'suno' );
-		update_post_meta( $post_id, 'connection_id', (string) $connection_id );
-		update_post_meta( $post_id, 'provider_template_id', $reference );
-		update_post_meta( $post_id, 'modality', (string) $definition['modality'] );
-		update_post_meta( $post_id, 'generation_structure', (string) ( $definition['structure'] ?? 'audio' ) );
-		update_post_meta( $post_id, 'configuration_json', wp_slash( (string) wp_json_encode( $configuration ) ) );
-		update_post_meta( $post_id, 'status', 'active' );
-		update_post_meta( $post_id, 'version', gmdate( 'Y-m-d' ) );
+		worldgraph_update_field_value( $post_id, 'template_name', $name );
+		worldgraph_update_field_value( $post_id, 'description', wp_kses_post( $description ) );
+		worldgraph_update_field_value( $post_id, 'provider_type', 'suno' );
+		worldgraph_update_field_value( $post_id, 'connection_id', (string) $connection_id );
+		worldgraph_update_field_value( $post_id, 'provider_template_id', $reference );
+		worldgraph_update_field_value( $post_id, 'modality', (string) $definition['modality'] );
+		worldgraph_update_field_value( $post_id, 'generation_structure', (string) ( $definition['structure'] ?? 'audio' ) );
+		worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( $configuration ) );
+		worldgraph_update_field_value( $post_id, 'status', 'active' );
+		worldgraph_update_field_value( $post_id, 'version', gmdate( 'Y-m-d' ) );
 
 		return (int) $post_id;
 	}

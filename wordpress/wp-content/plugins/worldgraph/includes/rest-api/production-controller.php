@@ -195,7 +195,7 @@ class Production_Controller extends Base_Controller {
 		$episode_count = count_user_posts( $project_id, 'worldgraph_episode' );
 
 		// Get production stage.
-		$stage = get_post_meta( $project_id, 'production_stage', true ) ?: 'draft';
+		$stage = \WorldGraph\Utils\worldgraph_get_field_value( $project_id, 'production_stage' ) ?: 'draft';
 
 		return rest_ensure_response( [
 			'project'       => [

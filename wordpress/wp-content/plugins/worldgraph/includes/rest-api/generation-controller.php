@@ -315,18 +315,18 @@ class Generation_Controller extends Base_Controller {
 		if ( is_wp_error( $template ) ) {
 			return $template;
 		}
-		$connection_id = absint( get_post_meta( $template->ID, 'connection_id', true ) );
+		$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'connection_id' ) );
 		$connection = \WorldGraph\Utils\Connection_Repository::get( $connection_id );
-		$template_provider = sanitize_key( (string) get_post_meta( $template->ID, 'provider_type', true ) );
+		$template_provider = sanitize_key( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'provider_type' ) );
 		if ( ! $connection || '' === $template_provider || 'disabled' === $connection['status'] || $template_provider !== $connection['provider_type'] ) {
 			return new WP_Error( 'invalid_template_connection', 'The selected Template and Connection must use the same provider.', [ 'status' => 400 ] );
 		}
-		$template_modality = sanitize_key( (string) get_post_meta( $template->ID, 'modality', true ) );
+		$template_modality = sanitize_key( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'modality' ) );
 		if ( $template_modality && $type !== \WorldGraph\Utils\Generation_Modality::output_type( $template_modality ) ) {
 			return new WP_Error( 'generation_type_mismatch', 'The requested type must match the selected Template output type.', [ 'status' => 400 ] );
 		}
 		\WorldGraph\Utils\Connection_Adapters::load( (string) $connection['provider_type'] );
-		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template->ID, 'provider_template_id', true ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
+		$provider_template_id = sanitize_text_field( (string) ( \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'provider_template_id' ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
 		if ( 'fal' === $connection['provider_type'] && '' === $provider_template_id ) {
 			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
 		}
@@ -395,7 +395,7 @@ class Generation_Controller extends Base_Controller {
 			$template = $templates ? $templates[0] : null;
 		}
 
-		if ( ! $template instanceof \WP_Post || 'worldgraph_template' !== $template->post_type || 'publish' !== $template->post_status || 'active' !== get_post_meta( $template->ID, 'status', true ) ) {
+		if ( ! $template instanceof \WP_Post || 'worldgraph_template' !== $template->post_type || 'publish' !== $template->post_status || 'active' !== \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'status' ) ) {
 			return new WP_Error( 'invalid_template', 'An active Template is required for generation.', [ 'status' => 400 ] );
 		}
 

@@ -24,6 +24,13 @@ class Comfy_Readiness {
 	const NONCE = 'worldgraph_comfy_readiness';
 
 	/**
+	 * Whether the component script has already been localized this request.
+	 *
+	 * @var bool
+	 */
+	private static $script_enqueued = false;
+
+	/**
 	 * Register the checklist AJAX handlers.
 	 */
 	public static function init(): void {
@@ -38,6 +45,7 @@ class Comfy_Readiness {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+		self::enqueue_script();
 		\WorldGraph\Utils\Connection_Adapters::load( 'comfyui' );
 		?>
 		<div class="worldgraph-comfy-readiness">
@@ -50,46 +58,45 @@ class Comfy_Readiness {
 				<span id="worldgraph-comfy-readiness-message" aria-live="polite"></span>
 			</p>
 		</div>
-		<script>
-			(function () {
-				var steps = document.getElementById('worldgraph-comfy-readiness-steps');
-				var message = document.getElementById('worldgraph-comfy-readiness-message');
-				var nonce = '<?php echo esc_js( wp_create_nonce( self::NONCE ) ); ?>';
-
-				function call(action, button) {
-					var buttons = document.querySelectorAll('#worldgraph-comfy-recheck, #worldgraph-comfy-provision');
-					buttons.forEach(function (item) { item.disabled = true; });
-					message.textContent = '<?php echo esc_js( __( 'Checking ComfyUI…', 'worldgraph' ) ); ?>';
-					fetch(ajaxurl, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-						body: new URLSearchParams({ action: action, nonce: nonce })
-					})
-						.then(function (response) { return response.json(); })
-						.then(function (response) {
-							var data = response.data || {};
-							if (data.html) {
-								steps.innerHTML = data.html;
-							}
-							message.textContent = data.message || '';
-						})
-						.catch(function () {
-							message.textContent = '<?php echo esc_js( __( 'The ComfyUI check could not be completed.', 'worldgraph' ) ); ?>';
-						})
-						.finally(function () {
-							buttons.forEach(function (item) { item.disabled = false; });
-						});
-				}
-
-				document.getElementById('worldgraph-comfy-recheck').addEventListener('click', function () {
-					call('worldgraph_comfy_readiness', this);
-				});
-				document.getElementById('worldgraph-comfy-provision').addEventListener('click', function () {
-					call('worldgraph_comfy_provision_template', this);
-				});
-			}());
-		</script>
 		<?php
+	}
+
+	/**
+	 * Enqueue and localize the controller only when the readiness panel renders.
+	 */
+	private static function enqueue_script(): void {
+		if ( self::$script_enqueued ) {
+			return;
+		}
+
+		$handle      = 'worldgraph-comfy-readiness';
+		$script_path = WORLDGRAPH_PLUGIN_DIR . 'assets/js/comfy-readiness.js';
+
+		wp_enqueue_script(
+			$handle,
+			WORLDGRAPH_PLUGIN_URL . 'assets/js/comfy-readiness.js',
+			[],
+			is_file( $script_path ) ? (string) filemtime( $script_path ) : WORLDGRAPH_VERSION,
+			true
+		);
+		wp_localize_script(
+			$handle,
+			'worldgraphComfyReadiness',
+			[
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'actions' => [
+					'check'     => 'worldgraph_comfy_readiness',
+					'provision' => 'worldgraph_comfy_provision_template',
+				],
+				'nonce'   => wp_create_nonce( self::NONCE ),
+				'i18n'    => [
+					'checking' => __( 'Checking ComfyUI…', 'worldgraph' ),
+					'failed'   => __( 'The ComfyUI check could not be completed.', 'worldgraph' ),
+				],
+			]
+		);
+
+		self::$script_enqueued = true;
 	}
 
 	/**

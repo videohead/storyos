@@ -78,7 +78,7 @@ class Summary_Tool {
 					'label'   => $config['label'],
 					'title'   => $post->post_title ?: __( '(Untitled)', 'worldgraph' ),
 					'field'   => $config['field'],
-					'summary' => get_post_meta( $post->ID, $config['field'], true ),
+					'summary' => \WorldGraph\Utils\worldgraph_get_field_value( $post->ID, (string) $config['field'] ),
 				];
 			}
 		}
@@ -177,7 +177,7 @@ class Summary_Tool {
 		if ( ! $post || ! isset( $fields[ $post->post_type ] ) || ! current_user_can( 'edit_post', $post_id ) || '' === $summary ) {
 			wp_send_json_error( [ 'message' => __( 'Unable to save this summary.', 'worldgraph' ) ], 400 );
 		}
-		update_post_meta( $post_id, $fields[ $post->post_type ], $summary );
+		\WorldGraph\Utils\worldgraph_update_field_value( $post_id, $fields[ $post->post_type ], $summary );
 		wp_send_json_success( [ 'message' => __( 'Summary saved.', 'worldgraph' ) ] );
 	}
 }

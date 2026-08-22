@@ -27,7 +27,7 @@ class VideoDraft_Catalog {
 
 	/** Schedule provisioning after Connection metadata is stored. */
 	public static function schedule_after_connection_save( int $post_id, \WP_Post $post ): void {
-		if ( 'publish' !== $post->post_status || 'videodraft' !== get_post_meta( $post_id, 'provider_type', true ) || 'disabled' === get_post_meta( $post_id, 'status', true ) ) {
+		if ( 'publish' !== $post->post_status || 'videodraft' !== worldgraph_get_field_value( $post_id, 'provider_type' ) || 'disabled' === worldgraph_get_field_value( $post_id, 'status' ) ) {
 			return;
 		}
 		if ( ! wp_next_scheduled( self::HOOK, [ $post_id ] ) ) {
@@ -74,12 +74,12 @@ class VideoDraft_Catalog {
 		$available = array_values( array_filter( array_map( static function ( $tool ): string {
 			return is_array( $tool ) ? (string) ( $tool['name'] ?? '' ) : '';
 		}, $catalog ) ) );
-		update_post_meta( $connection_id, 'capabilities', wp_slash( (string) wp_json_encode( [
+		worldgraph_update_field_value( $connection_id, 'capabilities', (string) wp_json_encode( [
 			'provider'         => 'videodraft',
 			'generation_tools' => $tool_names,
 			'project_sync'     => empty( array_diff( [ 'list_projects', 'get_project', 'create_blank_project', 'update_project' ], $available ) ),
 			'tools'            => $available,
-		] ) ) );
+		] ) );
 		update_post_meta( $connection_id, 'videodraft_catalog_synced_at', gmdate( 'Y-m-d H:i:s' ) );
 		delete_post_meta( $connection_id, 'videodraft_catalog_error' );
 
@@ -129,15 +129,15 @@ class VideoDraft_Catalog {
 			'provider_schema' => $schema,
 			'provider_tool'   => $name,
 		];
-		update_post_meta( $post_id, 'template_name', $definition['label'] );
-		update_post_meta( $post_id, 'provider_type', 'videodraft' );
-		update_post_meta( $post_id, 'connection_id', (string) $connection_id );
-		update_post_meta( $post_id, 'provider_template_id', $name );
-		update_post_meta( $post_id, 'modality', $definition['modality'] );
-		update_post_meta( $post_id, 'generation_structure', $definition['output'] );
-		update_post_meta( $post_id, 'configuration_json', wp_slash( (string) wp_json_encode( $configuration ) ) );
-		update_post_meta( $post_id, 'status', 'active' );
-		update_post_meta( $post_id, 'version', substr( hash( 'sha256', (string) wp_json_encode( $schema ) ), 0, 12 ) );
+		worldgraph_update_field_value( $post_id, 'template_name', $definition['label'] );
+		worldgraph_update_field_value( $post_id, 'provider_type', 'videodraft' );
+		worldgraph_update_field_value( $post_id, 'connection_id', (string) $connection_id );
+		worldgraph_update_field_value( $post_id, 'provider_template_id', $name );
+		worldgraph_update_field_value( $post_id, 'modality', $definition['modality'] );
+		worldgraph_update_field_value( $post_id, 'generation_structure', $definition['output'] );
+		worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( $configuration ) );
+		worldgraph_update_field_value( $post_id, 'status', 'active' );
+		worldgraph_update_field_value( $post_id, 'version', substr( hash( 'sha256', (string) wp_json_encode( $schema ) ), 0, 12 ) );
 
 		return (int) $post_id;
 	}

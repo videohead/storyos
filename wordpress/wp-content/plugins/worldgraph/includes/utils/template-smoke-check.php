@@ -47,7 +47,7 @@ class Template_Smoke_Check {
 	 * @return array<string, mixed>
 	 */
 	public static function run_for_template( int $template_id ): array {
-		$modality = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
+		$modality = Generation_Modality::sanitize( (string) worldgraph_get_field_value( $template_id, 'modality' ) );
 		$type     = Generation_Modality::output_type( $modality );
 		if ( ! in_array( $type, [ 'image', 'video' ], true ) ) {
 			return self::store_result( $template_id, [
@@ -185,7 +185,7 @@ class Template_Smoke_Check {
 			'Template smoke check: ' . (string) ( $result['message'] ?? '' ),
 			[ 'template_id' => $template_id, 'result' => $result ],
 			'',
-			absint( get_post_meta( $template_id, 'connection_id', true ) )
+			absint( worldgraph_get_field_value( $template_id, 'connection_id' ) )
 		);
 
 		return $result;

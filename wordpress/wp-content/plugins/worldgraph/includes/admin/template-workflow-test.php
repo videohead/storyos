@@ -105,6 +105,7 @@ class Template_Workflow_Test {
 				'assetNumber'   => __( 'Asset', 'worldgraph' ),
 				'attachment'    => __( 'Attachment', 'worldgraph' ),
 				'openAsset'     => __( 'Open Asset', 'worldgraph' ),
+				'openJob'       => __( 'Open Job record', 'worldgraph' ),
 				'openMedia'     => __( 'Open media file', 'worldgraph' ),
 				'selectMedia'   => __( 'Select', 'worldgraph' ),
 				'clearMedia'    => __( 'Clear', 'worldgraph' ),
@@ -135,7 +136,7 @@ class Template_Workflow_Test {
 	 * @return array<string, mixed>
 	 */
 	private static function capability( int $template_id ): array {
-		$modality   = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
+		$modality   = Generation_Modality::sanitize( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template_id, 'modality' ) );
 		$definition = Generation_Modality::get( $modality );
 		$inputs     = Generation_Modality::inputs( $modality );
 
@@ -171,13 +172,13 @@ class Template_Workflow_Test {
 		if ( 'publish' !== get_post_status( $template_id ) ) {
 			$blockers[] = __( 'Publish this Template before running a test.', 'worldgraph' );
 		}
-		if ( 'active' !== (string) get_post_meta( $template_id, 'status', true ) ) {
+		if ( 'active' !== (string) \WorldGraph\Utils\worldgraph_get_field_value( $template_id, 'status' ) ) {
 			$blockers[] = __( 'Set this Template’s status to Active before running a test.', 'worldgraph' );
 		}
 
-		$connection_id     = absint( get_post_meta( $template_id, 'connection_id', true ) );
+		$connection_id     = absint( \WorldGraph\Utils\worldgraph_get_field_value( $template_id, 'connection_id' ) );
 		$connection        = Connection_Repository::get( $connection_id );
-		$template_provider = sanitize_key( (string) get_post_meta( $template_id, 'provider_type', true ) );
+		$template_provider = sanitize_key( (string) \WorldGraph\Utils\worldgraph_get_field_value( $template_id, 'provider_type' ) );
 		if ( ! $connection ) {
 			$blockers[] = __( 'Select a Connection for this Template.', 'worldgraph' );
 		} elseif ( 'disabled' === $connection['status'] ) {
@@ -186,7 +187,7 @@ class Template_Workflow_Test {
 			$blockers[] = __( 'This Template and its Connection must use the same provider.', 'worldgraph' );
 		}
 
-		$provider_template_id = (string) ( get_post_meta( $template_id, 'provider_template_id', true ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) );
+		$provider_template_id = (string) ( \WorldGraph\Utils\worldgraph_get_field_value( $template_id, 'provider_template_id' ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) );
 		if ( '' === trim( $provider_template_id ) && ( ! $connection || 'fal' !== $connection['provider_type'] || '' === trim( (string) ( $connection['model'] ?? '' ) ) ) ) {
 			$blockers[] = __( 'Select a provider Template (or provider model) for this Template.', 'worldgraph' );
 		}

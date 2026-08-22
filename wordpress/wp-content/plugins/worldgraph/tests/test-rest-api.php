@@ -177,6 +177,21 @@ if ( ! function_exists( 'is_user_logged_in' ) ) {
 	}
 }
 
+if ( ! function_exists( 'current_user_can' ) ) {
+	function current_user_can( string $capability, ...$args ): bool {
+		$capabilities = (array) ( $GLOBALS['worldgraph_rest_api_capabilities'] ?? [] );
+		$object_key   = $capability . ( empty( $args ) ? '' : ':' . implode( ':', array_map( 'strval', $args ) ) );
+		if ( array_key_exists( $object_key, $capabilities ) ) {
+			return (bool) $capabilities[ $object_key ];
+		}
+		if ( array_key_exists( $capability, $capabilities ) ) {
+			return (bool) $capabilities[ $capability ];
+		}
+
+		return true;
+	}
+}
+
 if ( ! function_exists( 'get_post_meta' ) ) {
 	function get_post_meta( $post_id, $key = '', $single = false ) {
 		$value = $GLOBALS['worldgraph_rest_api_post_meta'][ (int) $post_id ][ (string) $key ] ?? null;
@@ -739,6 +754,7 @@ final class Test_WorldGraph_REST_API extends TestCase {
 		$GLOBALS['worldgraph_rest_api_term_meta']    = [];
 		$GLOBALS['worldgraph_rest_api_term_objects'] = [];
 		$GLOBALS['worldgraph_rest_api_query_posts']  = [];
+		$GLOBALS['worldgraph_rest_api_capabilities'] = [];
 		$GLOBALS['worldgraph_generation_auth_meta']  = [];
 		$GLOBALS['worldgraph_generation_auth_posts'] = [];
 		$GLOBALS['worldgraph_import_journal_state']['meta'] = [];

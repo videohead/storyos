@@ -101,13 +101,6 @@ class Asset {
 			'related_cpt'       => 'worldgraph_scene',
 			'relationship_type' => 'linked_to',
 		],
-		'storyboard'        => [
-			'type'              => 'relationship',
-			'label'             => 'Source Storyboard Frame',
-			'required'          => false,
-			'related_cpt'       => 'worldgraph_board',
-			'relationship_type' => 'linked_to',
-		],
 	];
 
 	\WorldGraph\Utils\register_cpt(
@@ -120,39 +113,4 @@ class Asset {
 		$fields
 	);
 	}
-
-	public static function save_meta( int $post_id, \WP_Post $post ): void {
-		if ( ! isset( $_POST['worldgraph_asset_nonce'] ) || ! wp_verify_nonce( $_POST['worldgraph_asset_nonce'], 'worldgraph_asset_details' ) ) {
-			return;
-		}
-
-		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
-			return;
-		}
-
-		if ( ! current_user_can( 'edit_post', $post_id ) ) {
-			return;
-		}
-
-		$fields = \WorldGraph\Utils\worldgraph_get_fields( 'worldgraph_asset' );
-
-		foreach ( $fields as $key => $field ) {
-			if ( isset( $_POST[ $key ] ) ) {
-				if ( 'taxonomy' === $field['type'] ) {
-					wp_set_object_terms( $post_id, absint( $_POST[ $key ] ), $field['taxonomy'] );
-				} elseif ( 'relationship' === $field['type'] ) {
-					\WorldGraph\Utils\add_relationship(
-						$post_id,
-						'worldgraph_asset',
-						absint( $_POST[ $key ] ),
-						$field['related_cpt'],
-						'linked_to'
-					);
-				} else {
-					update_post_meta( $post_id, $key, sanitize_textarea_field( $_POST[ $key ] ) );
-				}
-			}
-		}
-	}
 }
-add_action( 'save_post_worldgraph_asset', [ __NAMESPACE__ . '\Asset', 'save_meta' ], 10, 2 );

@@ -29,7 +29,7 @@ class Fal_Catalog {
 
 	/** Schedule discovery after a fal Connection has finished saving its meta. */
 	public static function schedule_after_connection_save( int $post_id, \WP_Post $post ): void {
-		if ( 'publish' !== $post->post_status || 'fal' !== get_post_meta( $post_id, 'provider_type', true ) || 'disabled' === get_post_meta( $post_id, 'status', true ) ) {
+		if ( 'publish' !== $post->post_status || 'fal' !== worldgraph_get_field_value( $post_id, 'provider_type' ) || 'disabled' === worldgraph_get_field_value( $post_id, 'status' ) ) {
 			return;
 		}
 		if ( ! wp_next_scheduled( self::HOOK, [ $post_id ] ) ) {
@@ -63,7 +63,7 @@ class Fal_Catalog {
 			$catalog = self::models_from_result( $search );
 			if ( ! empty( $catalog[0]['endpoint_id'] ) ) {
 				$endpoint_ids[] = (string) $catalog[0]['endpoint_id'];
-				update_post_meta( $connection_id, 'model', $endpoint_ids[0] );
+				worldgraph_update_field_value( $connection_id, 'model', $endpoint_ids[0] );
 			}
 		}
 
@@ -154,15 +154,15 @@ class Fal_Catalog {
 			'input'           => self::schema_defaults( $schema ),
 			'provider_schema' => $schema,
 		];
-		update_post_meta( $post_id, 'template_name', $name );
-		update_post_meta( $post_id, 'provider_type', 'fal' );
-		update_post_meta( $post_id, 'connection_id', (string) $connection_id );
-		update_post_meta( $post_id, 'provider_template_id', $endpoint_id );
-		update_post_meta( $post_id, 'modality', Generation_Modality::TEXT_TO_IMAGE );
-		update_post_meta( $post_id, 'generation_structure', 'image' );
-		update_post_meta( $post_id, 'configuration_json', wp_slash( (string) wp_json_encode( $configuration ) ) );
-		update_post_meta( $post_id, 'status', 'active' );
-		update_post_meta( $post_id, 'version', (string) ( $metadata['updated_at'] ?? gmdate( 'Y-m-d' ) ) );
+		worldgraph_update_field_value( $post_id, 'template_name', $name );
+		worldgraph_update_field_value( $post_id, 'provider_type', 'fal' );
+		worldgraph_update_field_value( $post_id, 'connection_id', (string) $connection_id );
+		worldgraph_update_field_value( $post_id, 'provider_template_id', $endpoint_id );
+		worldgraph_update_field_value( $post_id, 'modality', Generation_Modality::TEXT_TO_IMAGE );
+		worldgraph_update_field_value( $post_id, 'generation_structure', 'image' );
+		worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( $configuration ) );
+		worldgraph_update_field_value( $post_id, 'status', 'active' );
+		worldgraph_update_field_value( $post_id, 'version', (string) ( $metadata['updated_at'] ?? gmdate( 'Y-m-d' ) ) );
 
 		return (int) $post_id;
 	}

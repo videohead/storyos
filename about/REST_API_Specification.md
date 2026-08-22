@@ -111,6 +111,14 @@ POST /wp-json/worldgraph/v1/scenes/reorder
 POST /wp-json/worldgraph/v1/shots/reorder
 ```
 
+`scenes/reorder` requires a valid `sequence_id` and `ordered_ids` containing
+that Sequence's complete Scene membership exactly once. The caller needs the
+Sequence taxonomy's `assign_terms` capability and `edit_post` for every Scene.
+The endpoint serializes requests per Sequence, updates only each Scene's
+`sequence_order` metadata, verifies every stored position, and restores all
+original values (including missing or duplicate raw metadata) if a write
+fails.
+
 `shots/reorder` requires `scene_id`, the current 64-character `revision`, and
 `ordered_ids` containing that Scene's complete Shot membership exactly once.
 It checks `edit_post` for the Scene and every Shot, preserves the Scene's
@@ -274,6 +282,16 @@ Sequence collection entries and single-Sequence responses expose
 `external_id`, read from `external_id` term metadata, alongside the numeric term
 `id`. Imported version 1.2 Sequences use this value for portable correlation;
 Sequences created without an external ID return an empty string.
+
+`sequences/reorder` requires `ordered_ids` to contain every existing Sequence
+term exactly once and rejects duplicate, unknown, or omitted IDs. Sequence
+management capability is required. A short taxonomy-wide lock serializes the
+batch; each `worldgraph_sequence_order` write is verified, and all original raw
+term-meta values are restored if any position cannot be saved.
+
+Scene assignment through `sequences/{id}/scenes` snapshots both the prior
+Sequence terms and raw `sequence_order` metadata before writing either. If an
+order write cannot be verified, both sets of values are restored and verified.
 
 ## World Graph Studio JSON Import
 

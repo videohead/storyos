@@ -243,6 +243,7 @@ class Generation_Batch {
 				return;
 			}
 			$job_id = (int) $job_id;
+			Generation_Log::set_current_job( $job_id );
 			if ( ! self::claim_job( $job_id, 'queued', 'submitting' ) ) {
 				continue;
 			}
@@ -320,42 +321,18 @@ class Generation_Batch {
 			}
 
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Submitting job %d via %s.', $job_id, $provider_type ), [], (string) $job_id );
+			if ( Local_ComfyUI::class === $client ) {
+				// The local runner reads the Template post's own workflow, so
+				// address it by record rather than by provider template name.
+				$workflow = (string) absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) ) ?: $workflow;
+				update_post_meta( $job_id, '_worldgraph_gen_adapter', 'local_comfyui' );
+			}
 			$result = $client::run_template(
 				$workflow,
 				(string) get_post_meta( $job_id, '_worldgraph_gen_prompt', true ),
 				$params,
 				$connection_id
 			);
-
-			if ( is_wp_error( $result ) && Comfy_Cloud_MCP::class === $client && 'local' === ( $connection['environment'] ?? '' ) ) {
-				$template_ref = (string) absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) );
-				if ( '' === $template_ref ) {
-					$template_ref = (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true );
-				}
-
-				Generation_Log::add(
-					'warning',
-					'generation_batch',
-					sprintf( 'Job %d MCP submission failed (%s). Retrying via local ComfyUI API.', $job_id, $result->get_error_message() ),
-					[],
-					(string) $job_id
-				);
-
-				$fallback_params = $params;
-				$fallback_params['_worldgraph_job_id'] = $job_id;
-				$fallback = Local_ComfyUI::run_template(
-					$template_ref,
-					(string) get_post_meta( $job_id, '_worldgraph_gen_prompt', true ),
-					$fallback_params,
-					$connection_id
-				);
-
-				if ( ! is_wp_error( $fallback ) ) {
-					$result = $fallback;
-					$client = Local_ComfyUI::class;
-					update_post_meta( $job_id, '_worldgraph_gen_adapter', 'local_comfyui' );
-				}
-			}
 
 			if ( is_wp_error( $result ) ) {
 				$attempts = absint( get_post_meta( $job_id, '_worldgraph_gen_submit_attempts', true ) ) + 1;
@@ -402,6 +379,8 @@ class Generation_Batch {
 			self::clear_job_claim( $job_id );
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Job %d submitted as remote job %s.', $job_id, $remote_job_id ), [], (string) $job_id );
 		}
+
+		Generation_Log::set_current_job( 0 );
 	}
 
 	private static function poll_submitted_jobs(): void {
@@ -420,6 +399,7 @@ class Generation_Batch {
 				return;
 			}
 			$job_id = (int) $job_id;
+			Generation_Log::set_current_job( $job_id );
 			if ( ! self::claim_job( $job_id, 'submitted', 'polling' ) ) {
 				continue;
 			}
@@ -481,6 +461,8 @@ class Generation_Batch {
 				self::clear_job_claim( $job_id );
 			}
 		}
+
+		Generation_Log::set_current_job( 0 );
 	}
 
 	private static function has_active_jobs(): bool {
@@ -531,12 +513,10 @@ class Generation_Batch {
 			return Local_ComfyUI::class;
 		}
 
-		// Backward compatibility for older jobs that predate adapter metadata.
+		// A local ComfyUI Connection runs on its own HTTP API. Its MCP endpoint
+		// serves template discovery and model downloads, not generation.
 		if ( 'local' === ( $connection['environment'] ?? '' ) ) {
-			$template = trim( (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) );
-			if ( '' !== $template && ctype_digit( $template ) ) {
-				return Local_ComfyUI::class;
-			}
+			return Local_ComfyUI::class;
 		}
 
 		return Comfy_Cloud_MCP::class;
@@ -748,7 +728,7 @@ class Generation_Batch {
 
 	/** Read provider defaults provisioned onto a Template. */
 	private static function template_input( int $template_id ): array {
-		$configuration = json_decode( (string) get_post_meta( $template_id, 'configuration_json', true ), true );
+		$configuration = json_decode( (string) worldgraph_get_field_value( $template_id, 'configuration_json' ), true );
 		return is_array( $configuration ) && is_array( $configuration['input'] ?? null ) ? $configuration['input'] : [];
 	}
 }

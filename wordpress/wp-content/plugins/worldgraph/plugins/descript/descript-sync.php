@@ -23,6 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'WORLDGRAPH_DESCRIPT_VERSION', '1.0.0' );
 define( 'WORLDGRAPH_DESCRIPT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'WORLDGRAPH_DESCRIPT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 require_once WORLDGRAPH_DESCRIPT_PLUGIN_DIR . 'includes/class-descript-mapper.php';
 require_once WORLDGRAPH_DESCRIPT_PLUGIN_DIR . 'includes/class-descript-sync.php';

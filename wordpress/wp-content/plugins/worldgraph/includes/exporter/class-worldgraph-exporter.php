@@ -118,7 +118,6 @@ class WorldGraph_Exporter {
 		$world_title   = $this->clean_text( $project['world'] ?? 'Story World' );
 		$scenes        = $this->get_project_scenes( $project_id_or_data );
 		$shot_count    = 0;
-		$frame_count   = 0;
 		$lines         = [];
 
 		$lines[] = '# ' . $project_title . ' Storyboard';
@@ -134,15 +133,10 @@ class WorldGraph_Exporter {
 			$lines[] = '';
 		} else {
 			foreach ( $scenes as $index => $scene ) {
-				$shots        = $this->get_scene_shots( $scene );
-				$scene_frames = $this->get_scene_storyboard_frames( $scene );
+				$shots = $this->get_scene_shots( $scene );
 				$shot_count += count( $shots );
-				$frame_count += count( $scene_frames );
-				foreach ( $shots as $shot ) {
-					$frame_count += count( $this->get_shot_storyboard_frames( $shot, (int) ( $scene['id'] ?? 0 ) ) );
-				}
 
-				$lines[] = $this->format_storyboard_scene_block( $scene, $index + 1, $shots, $scene_frames );
+				$lines[] = $this->format_storyboard_scene_block( $scene, $index + 1, $shots );
 				$lines[] = '';
 			}
 		}
@@ -156,13 +150,12 @@ class WorldGraph_Exporter {
 		$lines[] = 'world: ' . $world_title;
 		$lines[] = 'scenes: ' . count( $scenes );
 		$lines[] = 'shots: ' . $shot_count;
-		$lines[] = 'storyboard_frames: ' . $frame_count;
 		$lines[] = 'export_format:';
 		$lines[] = '  - markdown';
 		$lines[] = '  - storyboard';
 		$lines[] = '```';
 		$lines[] = '';
-		$lines[] = 'This storyboard export was generated from the live World Graph Studio project data and reflects the current scenes, shots, and storyboard frames in WordPress.';
+		$lines[] = 'This storyboard export was generated from the live World Graph Studio project data and reflects the current scenes and shots in WordPress.';
 
 		return implode( "\n", $lines ) . "\n";
 	}
@@ -245,11 +238,11 @@ class WorldGraph_Exporter {
 			$scene_meta = [
 				'id' => $scene_post->ID,
 				'title' => $scene_post->post_title,
-				'summary' => get_post_meta( $scene_post->ID, 'summary', true ),
-				'script_content' => get_post_meta( $scene_post->ID, 'script_content', true ),
+				'summary' => \WorldGraph\Utils\worldgraph_get_field_value( $scene_post->ID, 'summary' ),
+				'script_content' => \WorldGraph\Utils\worldgraph_get_field_value( $scene_post->ID, 'script_content' ),
 				'location' => $this->get_scene_location_name( $scene_post->ID ),
-				'time_of_day' => get_post_meta( $scene_post->ID, 'time_of_day', true ),
-				'scene_number' => (int) get_post_meta( $scene_post->ID, 'scene_number', true ),
+				'time_of_day' => \WorldGraph\Utils\worldgraph_get_field_value( $scene_post->ID, 'time_of_day' ),
+				'scene_number' => (int) \WorldGraph\Utils\worldgraph_get_field_value( $scene_post->ID, 'scene_number' ),
 				'content' => $scene_post->post_content,
 			];
 
@@ -387,10 +380,9 @@ class WorldGraph_Exporter {
 	 * @param array $scene Scene data.
 	 * @param int   $fallback_number Fallback scene number.
 	 * @param array $shots Shots linked to the scene.
-	 * @param array $scene_frames Storyboard frames linked directly to the scene.
 	 * @return string
 	 */
-	private function format_storyboard_scene_block( array $scene, int $fallback_number, array $shots, array $scene_frames ): string {
+	private function format_storyboard_scene_block( array $scene, int $fallback_number, array $shots ): string {
 		$scene_number = $scene['scene_number'] ?? $fallback_number;
 		$title        = $this->clean_text( $scene['title'] ?? 'Untitled Scene' );
 		$location     = $this->clean_text( $scene['location'] ?? 'Location' );
@@ -407,24 +399,13 @@ class WorldGraph_Exporter {
 		}
 		$lines[] = '';
 
-		if ( ! empty( $scene_frames ) ) {
-			$lines[] = '### Scene Storyboard Frames';
-			foreach ( $scene_frames as $frame ) {
-				$lines[] = $this->format_storyboard_frame_line( $frame );
-			}
-			$lines[] = '';
-		}
-
 		if ( empty( $shots ) ) {
-			if ( ! empty( $scene_frames ) ) {
-				return rtrim( implode( "\n", $lines ) );
-			}
 			$lines[] = '_No shots found for this scene yet._';
 			return implode( "\n", $lines );
 		}
 
 		foreach ( $shots as $shot ) {
-			$lines[] = $this->format_storyboard_shot_block( $shot, (int) ( $scene['id'] ?? 0 ) );
+			$lines[] = $this->format_storyboard_shot_block( $shot );
 			$lines[] = '';
 		}
 
@@ -435,10 +416,9 @@ class WorldGraph_Exporter {
 	 * Build one storyboard shot block.
 	 *
 	 * @param array $shot Shot data.
-	 * @param int   $scene_id Scene ID.
 	 * @return string
 	 */
-	private function format_storyboard_shot_block( array $shot, int $scene_id ): string {
+	private function format_storyboard_shot_block( array $shot ): string {
 		$description = $this->clean_text( $shot['shot_description'] ?? $shot['description'] ?? $shot['content'] ?? '' );
 		$notes       = $this->clean_text( $shot['editorial_notes'] ?? '' );
 		$details     = [];
@@ -470,19 +450,6 @@ class WorldGraph_Exporter {
 			$lines[] = '**Editorial Notes:** ' . $notes;
 		}
 
-		$frames = $this->get_shot_storyboard_frames( $shot, $scene_id );
-		if ( empty( $frames ) ) {
-			$lines[] = '';
-			$lines[] = '_No storyboard frames linked to this shot yet._';
-			return implode( "\n", $lines );
-		}
-
-		$lines[] = '';
-		$lines[] = '#### Storyboard Frames';
-		foreach ( $frames as $frame ) {
-			$lines[] = $this->format_storyboard_frame_line( $frame );
-		}
-
 		return implode( "\n", $lines );
 	}
 
@@ -508,36 +475,6 @@ class WorldGraph_Exporter {
 		return $shots;
 	}
 
-	/**
-	 * Retrieve storyboard frames linked directly to a scene.
-	 *
-	 * @param array $scene Scene data.
-	 * @return array
-	 */
-	private function get_scene_storyboard_frames( array $scene ): array {
-		if ( ! empty( $scene['storyboard_frames'] ) && is_array( $scene['storyboard_frames'] ) ) {
-			$frames = $scene['storyboard_frames'];
-		} elseif ( ! empty( $scene['frames'] ) && is_array( $scene['frames'] ) ) {
-			$frames = $scene['frames'];
-		} else {
-			$frames = $this->get_live_scene_storyboard_frames( (int) ( $scene['id'] ?? 0 ) );
-		}
-
-		usort( $frames, function ( array $a, array $b ): int {
-			$a_order = (int) ( $a['frame_number'] ?? $a['menu_order'] ?? 0 );
-			$b_order = (int) ( $b['frame_number'] ?? $b['menu_order'] ?? 0 );
-			return $a_order <=> $b_order;
-		} );
-
-		return $frames;
-	}
-
-	/**
-	 * Retrieve live World Graph Studio shots linked to a scene.
-	 *
-	 * @param int $scene_id Scene ID.
-	 * @return array
-	 */
 	private function get_live_scene_shots( int $scene_id ): array {
 		if ( ! $scene_id || ! function_exists( 'get_posts' ) ) {
 			return [];
@@ -569,179 +506,20 @@ class WorldGraph_Exporter {
 			$scene_shots[] = [
 				'id'               => $shot->ID,
 				'title'            => \WorldGraph\Utils\worldgraph_get_shot_display_name( $shot->ID ),
-				'shot_number'      => (int) get_post_meta( $shot->ID, 'shot_number', true ),
-				'shot_name'        => get_post_meta( $shot->ID, 'shot_name', true ),
-				'shot_type'        => get_post_meta( $shot->ID, 'shot_type', true ),
-				'camera_angle'     => get_post_meta( $shot->ID, 'camera_angle', true ),
-				'lens'             => get_post_meta( $shot->ID, 'lens', true ),
-				'duration'         => get_post_meta( $shot->ID, 'duration', true ),
-				'slate_id'         => get_post_meta( $shot->ID, 'slate_id', true ),
-				'shot_description' => get_post_meta( $shot->ID, 'shot_description', true ) ?: $shot->post_content,
-				'editorial_notes'  => get_post_meta( $shot->ID, 'editorial_notes', true ),
+				'shot_number'      => (int) \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'shot_number' ),
+				'shot_name'        => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'shot_name' ),
+				'shot_type'        => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'shot_type' ),
+				'camera_angle'     => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'camera_angle' ),
+				'lens'             => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'lens' ),
+				'duration'         => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'duration' ),
+				'slate_id'         => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'slate_id' ),
+				'shot_description' => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'shot_description' ) ?: $shot->post_content,
+				'editorial_notes'  => \WorldGraph\Utils\worldgraph_get_field_value( $shot->ID, 'editorial_notes' ),
 				'menu_order'       => (int) $shot->menu_order,
 			];
 		}
 
 		return $scene_shots;
-	}
-
-	/**
-	 * Retrieve storyboard frames for a shot.
-	 *
-	 * @param array $shot Shot data.
-	 * @param int   $scene_id Scene ID.
-	 * @return array
-	 */
-	private function get_shot_storyboard_frames( array $shot, int $scene_id ): array {
-		if ( ! empty( $shot['storyboard_frames'] ) && is_array( $shot['storyboard_frames'] ) ) {
-			$frames = $shot['storyboard_frames'];
-		} elseif ( ! empty( $shot['frames'] ) && is_array( $shot['frames'] ) ) {
-			$frames = $shot['frames'];
-		} else {
-			$frames = $this->get_live_shot_storyboard_frames( (int) ( $shot['id'] ?? 0 ), $scene_id );
-		}
-
-		usort( $frames, function ( array $a, array $b ): int {
-			$a_order = (int) ( $a['frame_number'] ?? $a['menu_order'] ?? 0 );
-			$b_order = (int) ( $b['frame_number'] ?? $b['menu_order'] ?? 0 );
-			return $a_order <=> $b_order;
-		} );
-
-		return $frames;
-	}
-
-	/**
-	 * Retrieve live World Graph Studio storyboard frames linked to a shot or scene.
-	 *
-	 * @param int $shot_id Shot ID.
-	 * @param int $scene_id Scene ID.
-	 * @return array
-	 */
-	private function get_live_shot_storyboard_frames( int $shot_id, int $scene_id ): array {
-		if ( ! $shot_id || ! function_exists( 'get_posts' ) ) {
-			return [];
-		}
-
-		$frames = get_posts( [
-			'post_type'      => 'worldgraph_board',
-			'post_status'    => 'any',
-			'posts_per_page' => -1,
-			'orderby'        => 'meta_value_num',
-			'meta_key'       => 'frame_number',
-			'order'          => 'ASC',
-		] );
-
-		$shot_frames = [];
-		foreach ( $frames as $frame ) {
-			$matches_shot = false;
-			$matches_scene = false;
-
-			foreach ( \WorldGraph\Utils\get_relationships( $frame->ID, 'worldgraph_board', 'outgoing' ) as $rel ) {
-				$to_id = (int) ( $rel['to_id'] ?? 0 );
-				if ( $shot_id === $to_id && 'worldgraph_shot' === ( $rel['to_type'] ?? '' ) ) {
-					$matches_shot = true;
-				}
-				if ( $scene_id === $to_id && 'worldgraph_scene' === ( $rel['to_type'] ?? '' ) ) {
-					$matches_scene = true;
-				}
-			}
-
-			if ( ! $matches_shot && ! $matches_scene ) {
-				continue;
-			}
-
-			$shot_frames[] = [
-				'id'                => $frame->ID,
-				'title'             => $frame->post_title,
-				'frame_number'      => (int) get_post_meta( $frame->ID, 'frame_number', true ),
-				'frame_description' => get_post_meta( $frame->ID, 'frame_description', true ) ?: $frame->post_content,
-				'prompt_text'       => get_post_meta( $frame->ID, 'prompt_text', true ),
-				'camera_notes'      => get_post_meta( $frame->ID, 'camera_notes', true ),
-				'image_asset'       => $this->get_storyboard_frame_image_name( $frame->ID ),
-				'menu_order'        => (int) $frame->menu_order,
-			];
-		}
-
-		return $shot_frames;
-	}
-
-	/**
-	 * Retrieve live storyboard frames linked to a scene but not a specific shot.
-	 *
-	 * @param int $scene_id Scene ID.
-	 * @return array
-	 */
-	private function get_live_scene_storyboard_frames( int $scene_id ): array {
-		if ( ! $scene_id || ! function_exists( 'get_posts' ) ) {
-			return [];
-		}
-
-		$frames = get_posts( [
-			'post_type'      => 'worldgraph_board',
-			'post_status'    => 'any',
-			'posts_per_page' => -1,
-			'orderby'        => 'meta_value_num',
-			'meta_key'       => 'frame_number',
-			'order'          => 'ASC',
-		] );
-
-		$scene_frames = [];
-		foreach ( $frames as $frame ) {
-			$matches_scene = false;
-			$matches_shot  = false;
-
-			foreach ( \WorldGraph\Utils\get_relationships( $frame->ID, 'worldgraph_board', 'outgoing' ) as $rel ) {
-				$to_id = (int) ( $rel['to_id'] ?? 0 );
-				if ( $scene_id === $to_id && 'worldgraph_scene' === ( $rel['to_type'] ?? '' ) ) {
-					$matches_scene = true;
-				}
-				if ( 'worldgraph_shot' === ( $rel['to_type'] ?? '' ) ) {
-					$matches_shot = true;
-				}
-			}
-
-			if ( ! $matches_scene || $matches_shot ) {
-				continue;
-			}
-
-			$scene_frames[] = [
-				'id'                => $frame->ID,
-				'title'             => $frame->post_title,
-				'frame_number'      => (int) get_post_meta( $frame->ID, 'frame_number', true ),
-				'frame_description' => get_post_meta( $frame->ID, 'frame_description', true ) ?: $frame->post_content,
-				'prompt_text'       => get_post_meta( $frame->ID, 'prompt_text', true ),
-				'camera_notes'      => get_post_meta( $frame->ID, 'camera_notes', true ),
-				'image_asset'       => $this->get_storyboard_frame_image_name( $frame->ID ),
-				'menu_order'        => (int) $frame->menu_order,
-			];
-		}
-
-		return $scene_frames;
-	}
-
-	/**
-	 * Get image asset name linked to a storyboard frame.
-	 *
-	 * @param int $frame_id Storyboard frame ID.
-	 * @return string
-	 */
-	private function get_storyboard_frame_image_name( int $frame_id ): string {
-		if ( ! function_exists( 'get_post' ) ) {
-			return '';
-		}
-
-		foreach ( \WorldGraph\Utils\get_relationships( $frame_id, 'worldgraph_board', 'outgoing' ) as $rel ) {
-			if ( 'worldgraph_asset' !== ( $rel['to_type'] ?? '' ) ) {
-				continue;
-			}
-
-			$post = get_post( (int) ( $rel['to_id'] ?? 0 ) );
-			if ( $post ) {
-				return $post->post_title;
-			}
-		}
-
-		return '';
 	}
 
 	/**
@@ -762,36 +540,6 @@ class WorldGraph_Exporter {
 		return trim( $label );
 	}
 
-	/**
-	 * Format one storyboard frame line.
-	 *
-	 * @param array $frame Storyboard frame data.
-	 * @return string
-	 */
-	private function format_storyboard_frame_line( array $frame ): string {
-		$frame_number = $frame['frame_number'] ?? '';
-		$description  = $this->clean_text( $frame['frame_description'] ?? $frame['description'] ?? $frame['content'] ?? '' );
-		$camera_notes = $this->clean_text( $frame['camera_notes'] ?? '' );
-		$prompt       = $this->clean_text( $frame['prompt_text'] ?? $frame['prompt'] ?? '' );
-		$image_asset  = $this->clean_text( $frame['image_asset'] ?? '' );
-		$parts        = [];
-
-		if ( $description ) {
-			$parts[] = $description;
-		}
-		if ( $camera_notes ) {
-			$parts[] = 'Camera: ' . $camera_notes;
-		}
-		if ( $image_asset ) {
-			$parts[] = 'Image: ' . $image_asset;
-		}
-		if ( $prompt ) {
-			$parts[] = 'Prompt: ' . $prompt;
-		}
-
-		$label = $frame_number ? 'Frame ' . $frame_number : 'Frame';
-		return '- **' . $label . ':** ' . ( $parts ? implode( ' | ', $parts ) : 'No frame description available.' );
-	}
 
 	/**
 	 * Normalize export text for Markdown output.

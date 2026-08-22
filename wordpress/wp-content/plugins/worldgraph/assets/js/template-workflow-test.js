@@ -181,6 +181,14 @@
 		var host = document.getElementById( 'worldgraph-template-test-result' );
 		host.replaceChildren();
 
+		if ( generation.id ) {
+			var jobLine = text( 'p', '' );
+			var jobLink = text( 'a', '', i18n.openJob + ' #' + generation.id );
+			jobLink.href = config.assetEditUrlBase + generation.id;
+			jobLine.append( jobLink );
+			host.append( jobLine );
+		}
+
 		if ( generation.error ) {
 			host.append( text( 'p', 'worldgraph-template-test__status-error', generation.error ) );
 		}

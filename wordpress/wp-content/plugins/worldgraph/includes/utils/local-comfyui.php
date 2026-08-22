@@ -233,7 +233,7 @@ class Local_ComfyUI {
 	 * @return string
 	 */
 	private static function modality( int $template_id ): string {
-		return Generation_Modality::sanitize( $template_id ? (string) get_post_meta( $template_id, 'modality', true ) : '' );
+		return Generation_Modality::sanitize( $template_id ? (string) worldgraph_get_field_value( $template_id, 'modality' ) : '' );
 	}
 
 	/**
@@ -247,7 +247,7 @@ class Local_ComfyUI {
 	 */
 	private static function workflow( int $template_id, string $modality, array $runtime = [] ): array {
 		$raw = $template_id
-			? (string) get_post_meta( $template_id, 'workflow_json', true )
+			? (string) worldgraph_get_field_value( $template_id, 'workflow_json' )
 			: (string) get_option( 'worldgraph_comfy_local_workflow', '' );
 		$workflow = json_decode( $raw, true );
 		if ( is_array( $workflow ) && ! empty( $workflow ) ) {

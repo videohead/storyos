@@ -27,7 +27,7 @@ class ElevenLabs_Catalog {
 
 	/** Schedule provisioning after Connection meta has been saved. */
 	public static function schedule_after_connection_save( int $post_id, \WP_Post $post ): void {
-		if ( 'publish' !== $post->post_status || 'elevenlabs' !== get_post_meta( $post_id, 'provider_type', true ) || 'disabled' === get_post_meta( $post_id, 'status', true ) ) {
+		if ( 'publish' !== $post->post_status || 'elevenlabs' !== worldgraph_get_field_value( $post_id, 'provider_type' ) || 'disabled' === worldgraph_get_field_value( $post_id, 'status' ) ) {
 			return;
 		}
 		if ( ! wp_next_scheduled( self::HOOK, [ $post_id ] ) ) {
@@ -57,7 +57,7 @@ class ElevenLabs_Catalog {
 
 		$model_id = self::select_model( (string) ( $connection['model'] ?? '' ), $models );
 		if ( '' === (string) ( $connection['model'] ?? '' ) ) {
-			update_post_meta( $connection_id, 'model', $model_id );
+			worldgraph_update_field_value( $connection_id, 'model', $model_id );
 		}
 		$selected_voices = self::select_voices( (string) ( $connection['model_access'] ?? '' ), $voices );
 		if ( empty( $selected_voices ) ) {
@@ -188,15 +188,15 @@ class ElevenLabs_Catalog {
 		}
 
 		$configuration = [ 'input' => (array) ( $definition['input'] ?? [] ), 'provider_schema' => (array) ( $definition['schema'] ?? [] ) ];
-		update_post_meta( $post_id, 'template_name', $name );
-		update_post_meta( $post_id, 'provider_type', 'elevenlabs' );
-		update_post_meta( $post_id, 'connection_id', (string) $connection_id );
-		update_post_meta( $post_id, 'provider_template_id', $reference );
-		update_post_meta( $post_id, 'modality', (string) $definition['modality'] );
-		update_post_meta( $post_id, 'generation_structure', 'audio' );
-		update_post_meta( $post_id, 'configuration_json', wp_slash( (string) wp_json_encode( $configuration ) ) );
-		update_post_meta( $post_id, 'status', 'active' );
-		update_post_meta( $post_id, 'version', gmdate( 'Y-m-d' ) );
+		worldgraph_update_field_value( $post_id, 'template_name', $name );
+		worldgraph_update_field_value( $post_id, 'provider_type', 'elevenlabs' );
+		worldgraph_update_field_value( $post_id, 'connection_id', (string) $connection_id );
+		worldgraph_update_field_value( $post_id, 'provider_template_id', $reference );
+		worldgraph_update_field_value( $post_id, 'modality', (string) $definition['modality'] );
+		worldgraph_update_field_value( $post_id, 'generation_structure', 'audio' );
+		worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( $configuration ) );
+		worldgraph_update_field_value( $post_id, 'status', 'active' );
+		worldgraph_update_field_value( $post_id, 'version', gmdate( 'Y-m-d' ) );
 		return (int) $post_id;
 	}
 

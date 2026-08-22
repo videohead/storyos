@@ -464,9 +464,9 @@ function handle_confirm_import(): void {
 		wp_send_json_error( $post_id->get_error_message() );
 	}
 
-	update_post_meta( $post_id, 'artifact_type', 'edl' );
-	update_post_meta( $post_id, 'export_format', $preview['format'] ?? 'cmx3600' );
-	update_post_meta( $post_id, 'generated_date', current_time( 'Y-m-d' ) );
+	\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'artifact_type', 'edl' );
+	\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'export_format', $preview['format'] ?? 'cmx3600' );
+	\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'generated_date', current_time( 'Y-m-d' ) );
 	update_post_meta( $post_id, '_worldgraph_edl_fps', (float) ( $preview['fps'] ?? 24 ) );
 	update_post_meta( $post_id, '_worldgraph_edl_clips', wp_json_encode( $preview['clips'] ) );
 
@@ -1017,7 +1017,7 @@ function get_timeline_data( string $target_type, int $target_id ) {
 	foreach ( $episode_ids as $episode_id ) {
 		foreach ( \WorldGraph\Utils\get_relationships( $episode_id, 'worldgraph_episode', 'incoming' ) as $rel ) {
 			if ( 'worldgraph_scene' === ( $rel['from_type'] ?? '' ) ) {
-				$scenes[ (int) $rel['from_id'] ] = (int) get_post_meta( (int) $rel['from_id'], 'scene_number', true );
+				$scenes[ (int) $rel['from_id'] ] = (int) \WorldGraph\Utils\worldgraph_get_field_value( (int) $rel['from_id'], 'scene_number' );
 			}
 		}
 	}
@@ -1028,7 +1028,7 @@ function get_timeline_data( string $target_type, int $target_id ) {
 		$scene_shots = [];
 		foreach ( \WorldGraph\Utils\get_relationships( $scene_id, 'worldgraph_scene', 'incoming' ) as $rel ) {
 			if ( 'worldgraph_shot' === ( $rel['from_type'] ?? '' ) ) {
-				$scene_shots[ (int) $rel['from_id'] ] = (int) get_post_meta( (int) $rel['from_id'], 'shot_number', true );
+				$scene_shots[ (int) $rel['from_id'] ] = (int) \WorldGraph\Utils\worldgraph_get_field_value( (int) $rel['from_id'], 'shot_number' );
 			}
 		}
 		asort( $scene_shots );
@@ -1047,11 +1047,11 @@ function get_timeline_data( string $target_type, int $target_id ) {
 			continue;
 		}
 
-		$duration_raw    = get_post_meta( $shot_id, 'duration', true );
+		$duration_raw    = \WorldGraph\Utils\worldgraph_get_field_value( $shot_id, 'duration' );
 		$duration_secs   = is_numeric( $duration_raw ) ? (float) $duration_raw : 2.0;
 		$duration_frames = max( 1, (int) round( $duration_secs * 24 ) );
 
-		$clip_name = get_post_meta( $shot_id, 'shot_name', true );
+		$clip_name = \WorldGraph\Utils\worldgraph_get_field_value( $shot_id, 'shot_name' );
 		if ( ! $clip_name ) {
 			$clip_name = $shot->post_title ?: ( 'SHOT' . $shot_id );
 		}

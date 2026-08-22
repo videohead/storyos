@@ -87,69 +87,284 @@ class Scenes_Controller extends Base_Controller {
 			'permission_callback' => [ $this, 'check_read_permission' ],
 		] );
 
-		// Reorder scenes within a sequence (or across the project by menu_order).
+		// Reorder the complete Scene membership of one Sequence.
 		register_rest_route( 'worldgraph/v1', '/scenes/reorder', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'reorder_items' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_reorder_permission' ],
 			'args'                => [
 				'ordered_ids' => [
-					'description' => 'Scene post IDs in the new order.',
+					'description' => 'Every Scene post ID assigned to the Sequence, in the new order.',
 					'type'        => 'array',
 					'items'       => [ 'type' => 'integer' ],
 					'required'    => true,
 				],
 				'sequence_id' => [
-					'description' => 'Optional sequence term ID the scenes belong to.',
+					'description' => 'Sequence term whose complete Scene membership is being reordered.',
 					'type'        => 'integer',
+					'minimum'     => 1,
+					'required'    => true,
 				],
 			],
 		] );
 	}
 
 	/**
-	 * Reorder scenes and optionally assign them to a sequence.
+	 * Check whether the current request may reorder every Scene in a Sequence.
 	 *
-	 * @param \WP_REST_Request $request
+	 * @param \WP_REST_Request $request REST request.
+	 * @return true|\WP_Error
+	 */
+	public function check_reorder_permission( \WP_REST_Request $request ) {
+		$validated = self::validate_reorder_request( $request, true );
+
+		return is_wp_error( $validated ) ? $validated : true;
+	}
+
+	/**
+	 * Reorder the complete Scene membership of one Sequence.
+	 *
+	 * Only `sequence_order` is changed. Original metadata is restored in full if
+	 * any write cannot be verified.
+	 *
+	 * @param \WP_REST_Request $request REST request.
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public static function reorder_items( \WP_REST_Request $request ) {
-		$ordered_ids = array_values( array_unique( array_map( 'absint', (array) $request->get_param( 'ordered_ids' ) ) ) );
-		$sequence_id = $request->get_param( 'sequence_id' ) ? absint( $request->get_param( 'sequence_id' ) ) : 0;
-
-		if ( empty( $ordered_ids ) ) {
-			return new WP_Error( 'rest_invalid_ordered_ids', 'ordered_ids cannot be empty.', [ 'status' => 400 ] );
+		$validated = self::validate_reorder_request( $request, true );
+		if ( is_wp_error( $validated ) ) {
+			return $validated;
 		}
 
-		$sequence = null;
-		if ( $sequence_id ) {
-			$sequence = get_term( $sequence_id, 'worldgraph_sequence' );
-			if ( ! $sequence || is_wp_error( $sequence ) ) {
-				return new WP_Error( 'rest_invalid_sequence', 'Sequence term not found.', [ 'status' => 404 ] );
+		$sequence_id = $validated['sequence_id'];
+		$lock_token  = self::acquire_sequence_reorder_lock( $sequence_id );
+		if ( false === $lock_token ) {
+			return new \WP_Error( 'rest_scene_reorder_locked', 'Another Scene order is being saved for this Sequence. Try again.', [ 'status' => 409 ] );
+		}
+
+		try {
+			// Membership and capabilities may have changed after permission dispatch.
+			$validated = self::validate_reorder_request( $request, true );
+			if ( is_wp_error( $validated ) ) {
+				return $validated;
+			}
+
+			$ordered_ids   = $validated['ordered_ids'];
+			$original_meta = [];
+			foreach ( $ordered_ids as $scene_id ) {
+				$original_meta[ $scene_id ] = self::get_raw_order_meta( 'post', $scene_id, 'sequence_order' );
+			}
+
+			foreach ( $ordered_ids as $index => $scene_id ) {
+				update_post_meta( $scene_id, 'sequence_order', $index + 1 );
+				if ( ! self::has_verified_order_meta( 'post', $scene_id, 'sequence_order', $index + 1 ) ) {
+					$rolled_back = self::rollback_order_meta( 'post', $original_meta, 'sequence_order' );
+					$message     = $rolled_back
+						? 'A Scene order could not be saved; the original order was restored.'
+						: 'A Scene order could not be saved, and restoration could not be fully verified.';
+					return new \WP_Error( 'rest_scene_reorder_failed', $message, [ 'status' => 500 ] );
+				}
+			}
+
+			return rest_ensure_response( [ 'updated' => $ordered_ids ] );
+		} catch ( \Throwable $error ) {
+			$rolled_back = true;
+			if ( isset( $original_meta ) ) {
+				$rolled_back = self::rollback_order_meta( 'post', $original_meta, 'sequence_order' );
+			}
+
+			$message = $rolled_back
+				? 'The Scene order could not be saved; the original order was restored.'
+				: 'The Scene order could not be saved, and restoration could not be fully verified.';
+			return new \WP_Error( 'rest_scene_reorder_failed', $message, [ 'status' => 500 ] );
+		} finally {
+			self::release_sequence_reorder_lock( $sequence_id, $lock_token );
+		}
+	}
+
+	/**
+	 * Validate one complete, authorized Sequence-scoped Scene order.
+	 *
+	 * @param \WP_REST_Request $request           REST request.
+	 * @param bool             $check_permissions Whether to enforce assignment and edit capabilities.
+	 * @return array{sequence_id:int,ordered_ids:array<int,int>}|\WP_Error
+	 */
+	private static function validate_reorder_request( \WP_REST_Request $request, bool $check_permissions ) {
+		$raw_sequence_id = $request->get_param( 'sequence_id' );
+		$is_integer      = is_int( $raw_sequence_id ) || ( is_string( $raw_sequence_id ) && ctype_digit( $raw_sequence_id ) );
+		$sequence_id     = $is_integer ? (int) $raw_sequence_id : 0;
+		if ( $sequence_id < 1 ) {
+			return new \WP_Error( 'rest_invalid_sequence', 'A valid sequence_id is required.', [ 'status' => 400 ] );
+		}
+
+		$sequence = get_term( $sequence_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $sequence || is_wp_error( $sequence ) ) {
+			return new \WP_Error( 'rest_invalid_sequence', 'Sequence term not found.', [ 'status' => 404 ] );
+		}
+
+		$taxonomy = get_taxonomy( \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( ! $taxonomy ) {
+			return new \WP_Error( 'rest_sequence_taxonomy_unavailable', 'Sequence taxonomy is unavailable.', [ 'status' => 500 ] );
+		}
+		if ( $check_permissions && ! current_user_can( $taxonomy->cap->assign_terms ) ) {
+			return new \WP_Error( 'rest_forbidden', 'You cannot assign this Sequence taxonomy.', [ 'status' => is_user_logged_in() ? 403 : 401 ] );
+		}
+
+		$submitted = $request->get_param( 'ordered_ids' );
+		if ( ! is_array( $submitted ) || empty( $submitted ) ) {
+			return new \WP_Error( 'rest_invalid_ordered_ids', 'ordered_ids cannot be empty.', [ 'status' => 400 ] );
+		}
+
+		$ordered_ids = [];
+		foreach ( $submitted as $submitted_id ) {
+			$is_integer = is_int( $submitted_id ) || ( is_string( $submitted_id ) && ctype_digit( $submitted_id ) );
+			$scene_id   = $is_integer ? (int) $submitted_id : 0;
+			if ( $scene_id < 1 || 'worldgraph_scene' !== get_post_type( $scene_id ) ) {
+				return new \WP_Error( 'rest_invalid_ordered_ids', 'ordered_ids must contain only valid Scene post IDs.', [ 'status' => 400 ] );
+			}
+			$ordered_ids[] = $scene_id;
+		}
+
+		if ( count( $ordered_ids ) !== count( array_unique( $ordered_ids ) ) ) {
+			return new \WP_Error( 'rest_invalid_ordered_ids', 'ordered_ids cannot contain duplicate Scene IDs.', [ 'status' => 400 ] );
+		}
+
+		$object_ids = get_objects_in_term( $sequence_id, \WorldGraph\Taxonomies\Sequence::TAXONOMY );
+		if ( is_wp_error( $object_ids ) ) {
+			return new \WP_Error( 'rest_sequence_membership_unavailable', 'Sequence membership could not be read.', [ 'status' => 500 ] );
+		}
+		$expected_ids = array_values(
+			array_filter(
+				array_unique( array_map( 'absint', (array) $object_ids ) ),
+				static fn( int $post_id ): bool => 'worldgraph_scene' === get_post_type( $post_id )
+			)
+		);
+		$submitted_set = $ordered_ids;
+		$expected_set  = $expected_ids;
+		sort( $submitted_set, SORT_NUMERIC );
+		sort( $expected_set, SORT_NUMERIC );
+		if ( $submitted_set !== $expected_set ) {
+			return new \WP_Error( 'rest_scene_reorder_membership', 'Submit every Scene assigned to this Sequence exactly once.', [ 'status' => 400 ] );
+		}
+
+		if ( $check_permissions ) {
+			foreach ( $ordered_ids as $scene_id ) {
+				if ( ! current_user_can( 'edit_post', $scene_id ) ) {
+					return new \WP_Error( 'rest_forbidden', 'You cannot edit one or more Scenes in this Sequence.', [ 'status' => 403 ] );
+				}
 			}
 		}
 
-		$updated = [];
-		foreach ( $ordered_ids as $index => $scene_id ) {
-			$post = get_post( $scene_id );
-			if ( ! $post || 'worldgraph_scene' !== $post->post_type ) {
-				continue;
-			}
+		return [
+			'sequence_id' => $sequence_id,
+			'ordered_ids' => $ordered_ids,
+		];
+	}
 
-			wp_update_post( [
-				'ID'         => $post->ID,
-				'menu_order' => $index + 1,
-			] );
+	/** Acquire a short, Sequence-scoped lock for Scene order writes. */
+	private static function acquire_sequence_reorder_lock( int $sequence_id ): string|false {
+		global $wpdb;
 
-			if ( $sequence ) {
-				wp_set_object_terms( $post->ID, [ (int) $sequence->term_id ], 'worldgraph_sequence', false );
-				update_post_meta( $post->ID, 'sequence_order', $index + 1 );
-			}
-
-			$updated[] = $post->ID;
+		$key      = 'worldgraph_scene_reorder_lock_' . $sequence_id;
+		$now      = time();
+		$token    = $now . ':' . wp_generate_uuid4();
+		$inserted = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic mutex row; cache is explicitly invalidated.
+			$wpdb->prepare(
+				"INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, %s)",
+				$key,
+				$token,
+				'no'
+			)
+		);
+		if ( 1 === $inserted ) {
+			self::clear_reorder_lock_cache( $key );
+			return $token;
 		}
 
-		return rest_ensure_response( [ 'updated' => $updated ] );
+		$current_token = (string) $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Lock ownership must bypass the option cache.
+			$wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", $key )
+		);
+		$locked_at     = absint( strtok( $current_token, ':' ) );
+		if ( $locked_at && $now - $locked_at > 300 ) {
+			$claimed = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Atomic compare-and-swap lock ownership.
+				$wpdb->options,
+				[ 'option_value' => $token ],
+				[ 'option_name' => $key, 'option_value' => $current_token ],
+				[ '%s' ],
+				[ '%s', '%s' ]
+			);
+			if ( 1 === $claimed ) {
+				self::clear_reorder_lock_cache( $key );
+				return $token;
+			}
+		}
+
+		return false;
+	}
+
+	/** Release a Scene ordering lock only while this request still owns it. */
+	private static function release_sequence_reorder_lock( int $sequence_id, string $token ): void {
+		global $wpdb;
+
+		if ( '' === $token ) {
+			return;
+		}
+
+		$key     = 'worldgraph_scene_reorder_lock_' . $sequence_id;
+		$deleted = $wpdb->delete( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Token-qualified delete cannot release another request's lock.
+			$wpdb->options,
+			[ 'option_name' => $key, 'option_value' => $token ],
+			[ '%s', '%s' ]
+		);
+		if ( $deleted ) {
+			self::clear_reorder_lock_cache( $key );
+		}
+	}
+
+	/** Clear all core option-cache locations touched by the direct lock row. */
+	private static function clear_reorder_lock_cache( string $key ): void {
+		wp_cache_delete( $key, 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+	}
+
+	/** Read every current value for one order key, preserving absence and duplicates. */
+	private static function get_raw_order_meta( string $meta_type, int $object_id, string $meta_key ): array {
+		$values = get_metadata_raw( $meta_type, $object_id, $meta_key, false );
+
+		return is_array( $values ) ? $values : [];
+	}
+
+	/** Verify that an order write produced exactly one value with the requested position. */
+	private static function has_verified_order_meta( string $meta_type, int $object_id, string $meta_key, int $order ): bool {
+		$values = self::get_raw_order_meta( $meta_type, $object_id, $meta_key );
+
+		return 1 === count( $values ) && (string) $order === (string) reset( $values );
+	}
+
+	/** Restore every original raw order-meta value after a failed batch. */
+	private static function rollback_order_meta( string $meta_type, array $original_meta, string $meta_key ): bool {
+		$restored = true;
+		foreach ( $original_meta as $object_id => $values ) {
+			delete_metadata( $meta_type, $object_id, $meta_key );
+			foreach ( $values as $value ) {
+				if ( false === add_metadata( $meta_type, $object_id, $meta_key, wp_slash( $value ), false ) ) {
+					$restored = false;
+				}
+			}
+			if ( ! self::raw_order_meta_matches( $values, self::get_raw_order_meta( $meta_type, $object_id, $meta_key ) ) ) {
+				$restored = false;
+			}
+		}
+
+		return $restored;
+	}
+
+	/** Compare metadata by the exact values WordPress serializes to storage. */
+	private static function raw_order_meta_matches( array $expected, array $actual ): bool {
+		$serialize = static fn( $value ): string => (string) maybe_serialize( $value );
+
+		return array_map( $serialize, $expected ) === array_map( $serialize, $actual );
 	}
 
 	/**

@@ -644,25 +644,25 @@ class Generation_Workflows {
 
 		$options = [];
 		foreach ( $templates as $template ) {
-			$modality = Generation_Modality::sanitize( (string) get_post_meta( $template->ID, 'modality', true ) );
+			$modality = Generation_Modality::sanitize( (string) worldgraph_get_field_value( $template->ID, 'modality' ) );
 			if ( $type !== Generation_Modality::output_type( $modality ) || ! empty( Template_Bindings::missing_required( $template->ID, $post_id ) ) ) {
 				continue;
 			}
-			$connection_id = absint( get_post_meta( $template->ID, 'connection_id', true ) );
+			$connection_id = absint( worldgraph_get_field_value( $template->ID, 'connection_id' ) );
 			$connection    = $connection_id ? Connection_Repository::get( $connection_id ) : null;
-			$provider      = sanitize_key( (string) get_post_meta( $template->ID, 'provider_type', true ) );
+			$provider      = sanitize_key( (string) worldgraph_get_field_value( $template->ID, 'provider_type' ) );
 			if ( ! $connection || ! Connection_Repository::is_available( $connection_id ) || $provider !== ( $connection['provider_type'] ?? '' ) || ! in_array( $provider, [ 'comfyui', 'fal', 'videodraft', 'openrouter' ], true ) ) {
 				continue;
 			}
 			$requires_media       = ! empty( Generation_Modality::media_inputs( $modality ) );
-			$provider_template_id = trim( (string) ( get_post_meta( $template->ID, 'provider_template_id', true ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
+			$provider_template_id = trim( (string) ( worldgraph_get_field_value( $template->ID, 'provider_template_id' ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
 			$media_supported      = 'videodraft' === $provider || ( 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' ) && '' === $provider_template_id );
 			if ( $requires_media && ! $media_supported ) {
 				continue;
 			}
 			$options[] = [
 				'id'             => (int) $template->ID,
-				'name'           => (string) ( get_post_meta( $template->ID, 'template_name', true ) ?: $template->post_title ),
+				'name'           => (string) ( worldgraph_get_field_value( $template->ID, 'template_name' ) ?: $template->post_title ),
 				'modality'       => $modality,
 				'provider_type'  => $provider,
 				'connection_id'  => $connection_id,

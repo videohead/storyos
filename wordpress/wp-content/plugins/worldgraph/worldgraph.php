@@ -43,7 +43,6 @@ function worldgraph_scf_group_keys(): array {
 		'group_worldgraph_scene',
 		'group_worldgraph_shot',
 		'group_worldgraph_sound',
-		'group_worldgraph_board',
 		'group_worldgraph_asset',
 		'group_worldgraph_editorial',
 		'group_worldgraph_template',
@@ -252,6 +251,7 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/asset-generator-metabox.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/template-workflow-test.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/comfy-readiness.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/adapters.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/plugins.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/continuity-panel.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/summary-tool.php';
@@ -261,7 +261,6 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/editorial-cut.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/scene-shot-sequencer.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/story-media-gallery.php';
-	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/generation-log-viewer.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/exporter/class-worldgraph-exporter.php';
 
 	// Register CPTs.
@@ -275,12 +274,12 @@ function init(): void {
 	CPT\Scene::init();
 	CPT\Shot::init();
 	CPT\Sound::init();
-	CPT\StoryboardFrame::init();
 	CPT\Asset::init();
 	CPT\EditorialArtifact::init();
 	CPT\Template::init();
 	CPT\Connection::init();
 	Utils\worldgraph_register_generation_record_type();
+	CPT\Generation_Job::init();
 	Utils\worldgraph_maybe_migrate_cpt_keys();
 	Utils\Template_Smoke_Check::init();
 	Utils\Connection_Adapters::load_configured();
@@ -313,7 +312,6 @@ function init(): void {
 	REST\Shots_Controller::init();
 	REST\Sounds_Controller::init();
 	REST\Sequences_Controller::init();
-	REST\StoryboardFrames_Controller::init();
 	REST\Assets_Controller::init();
 	REST\Asset_Generation_Controller::init();
 	REST\EditorialArtifacts_Controller::init();
@@ -333,6 +331,7 @@ function init(): void {
 	Admin\Asset_Generator_MetaBox::init();
 	Admin\Template_Workflow_Test::init();
 	Admin\Comfy_Readiness::init();
+	Admin\Adapters::init();
 	Admin\Plugins::init();
 	Admin\Continuity_Panel::init();
 	Admin\Summary_Tool::init();
@@ -344,7 +343,6 @@ function init(): void {
 	Admin\Editorial_Cut::init();
 	Admin\Scene_Shot_Sequencer::init();
 	Admin\Story_Media_Gallery::init();
-	Admin\Generation_Log_Viewer::init();
 	Utils\Generation_Workflows::init();
 	Utils\Generation_Batch::init();
 

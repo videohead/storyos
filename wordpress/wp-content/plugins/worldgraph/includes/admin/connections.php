@@ -5,9 +5,9 @@
  * Admin page under World Graph Studio > Connections. Lists all provider connections
  * with status, environment, and quota configuration, and provides:
  *
- * - "Test Connection" per row (validates Comfy Cloud MCP configuration)
- * - "Sync Capabilities" (refreshes Comfy Cloud MCP provider descriptor)
- * - Environment and quota management via the worldgraph_conn CPT meta box
+ * - Connection health checks
+ * - Workflow readiness and setup summaries
+ * - Environment and quota management through the Connection editor
  *
  * @package WorldGraph
  */
@@ -55,7 +55,7 @@ class Connections {
 	 */
 	public static function add_menu(): void {
 		add_submenu_page(
-			'worldgraph-administration',
+			'worldgraph-generate',
 			'Connections',
 			'Connections',
 			'manage_options',
@@ -72,6 +72,14 @@ class Connections {
 
 		$connection_id = isset( $_GET['connection_id'] ) ? absint( $_GET['connection_id'] ) : 0;
 		$result        = Connection_Tester::test( $connection_id );
+		\WorldGraph\Utils\Generation_Log::add(
+			$result['success'] ? 'info' : 'error',
+			'connection_tester',
+			(string) $result['message'],
+			[],
+			'',
+			$connection_id
+		);
 
 		$redirect = add_query_arg(
 			[
@@ -116,7 +124,7 @@ class Connections {
 		$connection_id = isset( $_GET['connection_id'] ) ? absint( $_GET['connection_id'] ) : 0;
 		$connection    = Connection_Repository::get( $connection_id );
 		if ( $connection ) {
-			update_post_meta( $connection_id, 'is_default', 'yes' );
+			\WorldGraph\Utils\worldgraph_update_field_value( $connection_id, 'is_default', 'yes' );
 			\WorldGraph\CPT\Connection::after_scf_save( $connection_id );
 		}
 
@@ -153,9 +161,9 @@ class Connections {
 	 * Render the connections management page.
 	 */
 	public static function render_page(): void {
-		$connections = Connection_Repository::get_all();
-		$capabilities = Capability_Sync::get_cached();
-		$provider_types = Capability_Sync::provider_types();
+		$connections       = Connection_Repository::get_all();
+		$template_counts   = self::template_counts_by_connection();
+		$latest_activities = self::latest_activity_by_connection();
 
 		$notice = '';
 		$notice_type = 'success';
@@ -169,10 +177,17 @@ class Connections {
 		}
 		?>
 		<div class="wrap worldgraph-connections-wrap">
-			<h1><?php esc_html_e( 'Provider Connections', 'worldgraph' ); ?></h1>
+			<h1><?php esc_html_e( 'Connections', 'worldgraph' ); ?></h1>
 			<p class="description">
-				<?php esc_html_e( 'Connections bind a provider type to a concrete endpoint, environment, credential reference, and quota configuration. Generation jobs reference connections by ID: {"provider_type": "comfyui", "connection_id": 32}. Raw credentials are never stored here.', 'worldgraph' ); ?>
+				<?php esc_html_e( 'Connections tell Studio where provider work runs and which reusable generation workflows are ready to use. Use environment-backed credential references for managed deployments.', 'worldgraph' ); ?>
 			</p>
+
+			<h2><?php esc_html_e( 'How provider setup works', 'worldgraph' ); ?></h2>
+			<ol style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;max-width:1100px;margin:12px 0 18px;list-style-position:inside;">
+				<li style="padding:12px;background:#fff;border:1px solid #dcdcde;"><strong><?php esc_html_e( 'Check the connection', 'worldgraph' ); ?></strong><br><span class="description"><?php esc_html_e( 'Confirm Studio can reach the provider with the saved endpoint and credentials.', 'worldgraph' ); ?></span></li>
+				<li style="padding:12px;background:#fff;border:1px solid #dcdcde;"><strong><?php esc_html_e( 'Review available workflows', 'worldgraph' ); ?></strong><br><span class="description"><?php esc_html_e( 'See what the provider offers and which model files or custom nodes are still required.', 'worldgraph' ); ?></span></li>
+				<li style="padding:12px;background:#fff;border:1px solid #dcdcde;"><strong><?php esc_html_e( 'Add ready workflows', 'worldgraph' ); ?></strong><br><span class="description"><?php esc_html_e( 'Create reusable Generation Templates without duplicating workflows already in Studio.', 'worldgraph' ); ?></span></li>
+			</ol>
 
 			<?php if ( $notice ) : ?>
 				<div class="notice notice-<?php echo esc_attr( $notice_type ); ?> is-dismissible"><p><?php echo esc_html( $notice ); ?></p></div>
@@ -185,35 +200,34 @@ class Connections {
 			</div>
 
 			<table class="widefat striped" style="max-width:1200px;">
+				<caption class="screen-reader-text"><?php esc_html_e( 'Connection health and workflow setup status', 'worldgraph' ); ?></caption>
 				<thead>
 					<tr>
-						<th><?php esc_html_e( 'ID', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Name', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Provider', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Environment', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Status', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Active', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Endpoint', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Rate Limits', 'worldgraph' ); ?></th>
-						<th><?php esc_html_e( 'Cost Controls', 'worldgraph' ); ?></th>
+						<th><?php esc_html_e( 'Connection', 'worldgraph' ); ?></th>
+						<th><?php esc_html_e( 'Connection health', 'worldgraph' ); ?></th>
+						<th><?php esc_html_e( 'Workflow setup', 'worldgraph' ); ?></th>
+						<th><?php esc_html_e( 'Default', 'worldgraph' ); ?></th>
 						<th><?php esc_html_e( 'Actions', 'worldgraph' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if ( empty( $connections ) ) : ?>
-						<tr><td colspan="9"><?php esc_html_e( 'No connections yet. Add one to start routing generation jobs.', 'worldgraph' ); ?></td></tr>
+						<tr><td colspan="5"><?php esc_html_e( 'No connections yet. Add one to connect Studio to a generation or integration provider.', 'worldgraph' ); ?></td></tr>
 					<?php else : ?>
 						<?php foreach ( $connections as $connection ) : ?>
 							<?php
-							$rate_limits   = self::summarize_json( $connection['rate_limits'] );
-							$cost_controls = self::summarize_json( $connection['cost_controls'] );
-							$status        = $connection['status'] ?: 'unverified';
-							$color         = 'verified' === $status ? '#00a32a' : ( 'error' === $status ? '#d63638' : '#996800' );
+							$connection_id = (int) $connection['id'];
+							$health        = self::connection_health( $connection );
+							$setup         = self::workflow_setup_status(
+								$connection,
+								(int) ( $template_counts[ $connection_id ] ?? 0 ),
+								$latest_activities[ $connection_id ] ?? []
+							);
 							$test_url      = wp_nonce_url(
 								add_query_arg(
 									[
 										'action'        => 'worldgraph_test_connection',
-										'connection_id' => $connection['id'],
+										'connection_id' => $connection_id,
 									],
 									admin_url( 'admin-post.php' )
 								),
@@ -224,97 +238,275 @@ class Connections {
 								add_query_arg(
 									[
 										'action'        => 'worldgraph_set_active_connection',
-										'connection_id' => $connection['id'],
+										'connection_id' => $connection_id,
 									],
 									admin_url( 'admin-post.php' )
 								),
 								'worldgraph_set_active_connection'
 							);
+							$edit_url      = get_edit_post_link( $connection_id );
+							$endpoint_host = $connection['endpoint_url'] ? (string) wp_parse_url( (string) $connection['endpoint_url'], PHP_URL_HOST ) : '';
 							?>
 							<tr>
-								<td><?php echo esc_html( (string) $connection['id'] ); ?></td>
-								<td><a href="<?php echo esc_url( get_edit_post_link( $connection['id'] ) ); ?>"><strong><?php echo esc_html( $connection['connection_name'] ?: $connection['title'] ); ?></strong></a></td>
-								<td><?php echo esc_html( $connection['provider_type'] ?: '—' ); ?></td>
-								<td><?php echo esc_html( $connection['environment'] ?: '—' ); ?></td>
-								<td><span style="color:<?php echo esc_attr( $color ); ?>;font-weight:600;"><?php echo esc_html( $status ); ?></span></td>
+								<td style="min-width:190px;">
+									<a href="<?php echo esc_url( (string) $edit_url ); ?>"><strong><?php echo esc_html( $connection['connection_name'] ?: $connection['title'] ); ?></strong></a>
+									<div class="description"><?php echo esc_html( ucwords( str_replace( '_', ' ', (string) ( $connection['provider_type'] ?: __( 'Provider not selected', 'worldgraph' ) ) ) ) ); ?> · <?php echo esc_html( (string) ( $connection['environment'] ?: __( 'Environment not set', 'worldgraph' ) ) ); ?></div>
+									<?php if ( '' !== $endpoint_host ) : ?><div class="description"><?php echo esc_html( $endpoint_host ); ?></div><?php endif; ?>
+								</td>
+								<td style="min-width:150px;">
+									<strong style="color:<?php echo esc_attr( self::tone_color( $health['tone'] ) ); ?>;"><?php echo esc_html( $health['label'] ); ?></strong>
+									<div class="description"><?php echo esc_html( $health['detail'] ); ?></div>
+								</td>
+								<td style="min-width:280px;">
+									<strong style="color:<?php echo esc_attr( self::tone_color( $setup['tone'] ) ); ?>;"><?php echo esc_html( $setup['label'] ); ?></strong>
+									<div><?php echo esc_html( $setup['summary'] ); ?></div>
+									<?php if ( '' !== $setup['refreshed'] ) : ?><div class="description"><?php echo esc_html( $setup['refreshed'] ); ?></div><?php endif; ?>
+									<?php if ( '' !== $setup['activity'] ) : ?><div class="description" style="margin-top:4px;"><?php echo esc_html( $setup['activity'] ); ?></div><?php endif; ?>
+								</td>
 								<td>
 									<?php if ( $is_default ) : ?>
-										<span style="color:#00a32a;font-weight:600;">&#10003; <?php esc_html_e( 'Active', 'worldgraph' ); ?></span>
+										<span style="color:#00a32a;font-weight:600;">&#10003; <?php esc_html_e( 'Used by default', 'worldgraph' ); ?></span>
 									<?php else : ?>
-										<a href="<?php echo esc_url( $activate_url ); ?>"><?php esc_html_e( 'Set Active', 'worldgraph' ); ?></a>
+										<a href="<?php echo esc_url( $activate_url ); ?>"><?php esc_html_e( 'Use by default', 'worldgraph' ); ?></a>
 									<?php endif; ?>
 								</td>
-								<td><?php echo esc_html( $connection['endpoint_url'] ? wp_parse_url( $connection['endpoint_url'], PHP_URL_HOST ) : '—' ); ?></td>
-								<td><?php echo esc_html( $rate_limits ); ?></td>
-								<td><?php echo esc_html( $cost_controls ); ?></td>
-								<td>
-									<a href="<?php echo esc_url( $test_url ); ?>"><?php esc_html_e( 'Test', 'worldgraph' ); ?></a> |
-									<a href="<?php echo esc_url( get_edit_post_link( $connection['id'] ) ); ?>"><?php esc_html_e( 'Edit', 'worldgraph' ); ?></a>
+								<td style="white-space:nowrap;">
+									<a class="button button-small" href="<?php echo esc_url( $test_url ); ?>"><?php esc_html_e( 'Check connection', 'worldgraph' ); ?></a>
+									<a class="button button-small" href="<?php echo esc_url( (string) $edit_url ); ?>"><?php esc_html_e( 'Manage setup', 'worldgraph' ); ?></a>
 								</td>
 							</tr>
 						<?php endforeach; ?>
 					<?php endif; ?>
 				</tbody>
 			</table>
-			<div>
-			<h2><?php esc_html_e( 'Synced Provider Types', 'worldgraph' ); ?></h2>
-			<p>
-				<?php
-				echo wp_kses_post(
-					implode(
-						', ',
-						array_map(
-							static function ( string $type ): string {
-								return '<strong>' . esc_html( $type ) . '</strong>';
-							},
-							$provider_types
-						)
-					)
-				);
-				?>
-			</p>
-			<p>
-			<a class="button" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=worldgraph_sync_capabilities' ), 'worldgraph_sync_capabilities' ) ); ?>">
-					<?php esc_html_e( 'Sync Capabilities', 'worldgraph' ); ?>
-				</a>
-						</p><p>
-				<span class="description" style="margin-left:8px;">
-					<?php
-					printf(
-						/* translators: %s: timestamp */
-						esc_html__( 'Capabilities last synced: %s', 'worldgraph' ),
-						esc_html( $capabilities['synced_at'] ?: '—' )
-					);
-					?>
-				</span>
-						</p>
-			</div>
 		</div>
 		<?php
 	}
 
 	/**
-	 * Build a short human-readable summary of a JSON quota field.
+	 * Summarize whether Studio can currently use a Connection.
 	 *
-	 * @param string $raw Raw JSON meta value.
-	 * @return string
+	 * @param array<string, mixed> $connection Connection repository record.
+	 * @return array{label:string,tone:string,detail:string}
 	 */
-	private static function summarize_json( string $raw ): string {
-		$trimmed = trim( $raw );
-		if ( '' === $trimmed ) {
-			return '—';
+	private static function connection_health( array $connection ): array {
+		$status  = (string) ( $connection['status'] ?: 'unverified' );
+		$checked = self::display_timestamp( (string) ( $connection['last_validated_at'] ?? '' ) );
+
+		if ( 'disabled' === $status ) {
+			return [
+				'label'  => __( 'Disabled', 'worldgraph' ),
+				'tone'   => 'neutral',
+				'detail' => __( 'Not used for new generation jobs.', 'worldgraph' ),
+			];
+		}
+		if ( empty( $connection['provider_type'] ) || empty( $connection['endpoint_url'] ) ) {
+			return [
+				'label'  => __( 'Needs setup', 'worldgraph' ),
+				'tone'   => 'warning',
+				'detail' => __( 'Choose a provider and endpoint.', 'worldgraph' ),
+			];
+		}
+		if ( 'verified' === $status ) {
+			return [
+				'label'  => __( 'Connected', 'worldgraph' ),
+				'tone'   => 'success',
+				'detail' => $checked ? sprintf( __( 'Checked %s', 'worldgraph' ), $checked ) : __( 'Provider responded successfully.', 'worldgraph' ),
+			];
+		}
+		if ( 'error' === $status ) {
+			return [
+				'label'  => __( 'Needs attention', 'worldgraph' ),
+				'tone'   => 'error',
+				'detail' => $checked ? sprintf( __( 'Last checked %s', 'worldgraph' ), $checked ) : __( 'The last connection check failed.', 'worldgraph' ),
+			];
 		}
 
-		$decoded = json_decode( $trimmed, true );
-		if ( ! is_array( $decoded ) ) {
-			return '—';
+		return [
+			'label'  => __( 'Not checked', 'worldgraph' ),
+			'tone'   => 'warning',
+			'detail' => __( 'Run a connection check before relying on it.', 'worldgraph' ),
+		];
+	}
+
+	/**
+	 * Summarize provider workflow discovery and reusable Template readiness.
+	 *
+	 * @param array<string, mixed> $connection      Connection repository record.
+	 * @param int                  $template_count  Templates assigned to this Connection.
+	 * @param array<string, mixed> $latest_activity Latest non-Job activity entry.
+	 * @return array{label:string,tone:string,summary:string,refreshed:string,activity:string}
+	 */
+	private static function workflow_setup_status( array $connection, int $template_count, array $latest_activity ): array {
+		$connection_id = (int) $connection['id'];
+		$provider       = sanitize_key( (string) ( $connection['provider_type'] ?? '' ) );
+		$activity       = '';
+		if ( ! empty( $latest_activity['message'] ) ) {
+			$activity_time = self::display_timestamp( (string) ( $latest_activity['time'] ?? '' ), false );
+			$activity      = sprintf(
+				/* translators: 1: latest setup message, 2: activity timestamp. */
+				__( 'Latest activity: %1$s%2$s', 'worldgraph' ),
+				(string) $latest_activity['message'],
+				$activity_time ? ' · ' . $activity_time : ''
+			);
 		}
 
-		$parts = [];
-		foreach ( $decoded as $key => $value ) {
-			$parts[] = $key . '=' . ( is_scalar( $value ) ? (string) $value : '…' );
+		if ( 'disabled' === (string) ( $connection['status'] ?? '' ) ) {
+			return [
+				'label'     => __( 'Paused', 'worldgraph' ),
+				'tone'      => 'neutral',
+				'summary'   => sprintf( _n( '%d existing Generation Template is retained.', '%d existing Generation Templates are retained.', $template_count, 'worldgraph' ), $template_count ),
+				'refreshed' => '',
+				'activity'  => $activity,
+			];
 		}
 
-		return implode( ', ', $parts );
+		if ( 'comfyui' === $provider ) {
+			$snapshot = json_decode( (string) get_post_meta( $connection_id, 'comfy_template_catalog', true ), true );
+			$snapshot = is_array( $snapshot ) ? $snapshot : [];
+			$entries  = array_values( array_filter( (array) ( $snapshot['entries'] ?? [] ), 'is_array' ) );
+			$ready    = count( array_filter( $entries, [ __CLASS__, 'stored_workflow_is_ready' ] ) );
+			$total    = count( $entries );
+			$attention = max( 0, $total - $ready );
+			$synced_at = self::display_timestamp( (string) ( $snapshot['synced_at'] ?? '' ) );
+
+			if ( '' === $synced_at ) {
+				$label = __( 'Not checked', 'worldgraph' );
+				$tone  = 'warning';
+			} elseif ( 0 === $total ) {
+				$label = __( 'No workflows found', 'worldgraph' );
+				$tone  = 'warning';
+			} elseif ( $attention > 0 ) {
+				$label = __( 'Review needed', 'worldgraph' );
+				$tone  = 'warning';
+			} else {
+				$label = __( 'Ready', 'worldgraph' );
+				$tone  = 'success';
+			}
+
+			return [
+				'label'     => $label,
+				'tone'      => $tone,
+				'summary'   => sprintf( __( '%1$d available · %2$d ready now · %3$d added to Studio · %4$d need attention', 'worldgraph' ), $total, $ready, $template_count, $attention ),
+				'refreshed' => $synced_at ? sprintf( __( 'Workflows refreshed %s', 'worldgraph' ), $synced_at ) : __( 'Open setup to refresh available workflows.', 'worldgraph' ),
+				'activity'  => $activity,
+			];
+		}
+
+		$catalog_prefixes = [
+			'fal'         => 'fal_catalog',
+			'elevenlabs'  => 'elevenlabs_catalog',
+			'suno'        => 'suno_catalog',
+			'videodraft'  => 'videodraft_catalog',
+		];
+		if ( isset( $catalog_prefixes[ $provider ] ) ) {
+			$prefix     = $catalog_prefixes[ $provider ];
+			$synced_at  = self::display_timestamp( (string) get_post_meta( $connection_id, $prefix . '_synced_at', true ) );
+			$error      = (string) get_post_meta( $connection_id, $prefix . '_error', true );
+			$has_error  = '' !== trim( $error );
+
+			return [
+				'label'     => $has_error ? __( 'Needs attention', 'worldgraph' ) : ( $synced_at ? __( 'Ready', 'worldgraph' ) : __( 'Setup pending', 'worldgraph' ) ),
+				'tone'      => $has_error ? 'error' : ( $synced_at ? 'success' : 'warning' ),
+				'summary'   => $has_error ? $error : sprintf( _n( '%d Generation Template is available.', '%d Generation Templates are available.', $template_count, 'worldgraph' ), $template_count ),
+				'refreshed' => $synced_at ? sprintf( __( 'Workflows refreshed %s', 'worldgraph' ), $synced_at ) : __( 'Save or check this Connection to discover workflows.', 'worldgraph' ),
+				'activity'  => $activity,
+			];
+		}
+
+		return [
+			'label'     => $template_count ? __( 'Ready', 'worldgraph' ) : __( 'No workflow setup', 'worldgraph' ),
+			'tone'      => $template_count ? 'success' : 'neutral',
+			'summary'   => $template_count
+				? sprintf( _n( '%d Generation Template is available.', '%d Generation Templates are available.', $template_count, 'worldgraph' ), $template_count )
+				: __( 'This provider does not publish reusable workflows through the Connection screen.', 'worldgraph' ),
+			'refreshed' => '',
+			'activity'  => $activity,
+		];
+	}
+
+	/**
+	 * Estimate readiness from the last stored discovery result without making a
+	 * provider network request while rendering the Connections list.
+	 *
+	 * @param array<string, mixed> $entry Stored provider workflow.
+	 */
+	private static function stored_workflow_is_ready( array $entry ): bool {
+		if ( empty( $entry['modality'] ) || ! empty( $entry['missing_nodes'] ) || ! empty( $entry['missing_models'] ) ) {
+			return false;
+		}
+		if ( isset( $entry['installable'] ) && false === $entry['installable'] ) {
+			return false;
+		}
+		if ( ! empty( $entry['models'] ) && empty( $entry['model_urls'] ) && ( ! isset( $entry['installable'] ) || null === $entry['installable'] ) ) {
+			return false;
+		}
+		if ( 'registry' === (string) ( $entry['source'] ?? '' ) ) {
+			return isset( $entry['installable'] ) && true === $entry['installable'];
+		}
+
+		return true;
+	}
+
+	/**
+	 * Count reusable Templates assigned to every Connection in one query.
+	 *
+	 * @return array<int, int>
+	 */
+	private static function template_counts_by_connection(): array {
+		$template_ids = get_posts( [
+			'post_type'      => 'worldgraph_template',
+			'post_status'    => 'any',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+		] );
+		$counts = [];
+		foreach ( $template_ids as $template_id ) {
+			$connection_id = absint( \WorldGraph\Utils\worldgraph_get_field_value( (int) $template_id, 'connection_id' ) );
+			if ( $connection_id ) {
+				$counts[ $connection_id ] = ( $counts[ $connection_id ] ?? 0 ) + 1;
+			}
+		}
+
+		return $counts;
+	}
+
+	/**
+	 * Index the latest persistent, non-Job activity for each Connection.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function latest_activity_by_connection(): array {
+		$latest = [];
+		foreach ( array_reverse( \WorldGraph\Utils\Generation_Log::all() ) as $entry ) {
+			$connection_id = (int) ( $entry['connection_id'] ?? 0 );
+			if ( $connection_id > 0 && 0 === (int) ( $entry['generation_id'] ?? 0 ) && ! isset( $latest[ $connection_id ] ) ) {
+				$latest[ $connection_id ] = is_array( $entry ) ? $entry : [];
+			}
+		}
+
+		return $latest;
+	}
+
+	/** Convert a stored timestamp into the site's date and time format. */
+	private static function display_timestamp( string $value, bool $gmt = true ): string {
+		if ( '' === trim( $value ) ) {
+			return '';
+		}
+
+		$format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
+		return $gmt ? get_date_from_gmt( $value, $format ) : mysql2date( $format, $value );
+	}
+
+	/** Return an accessible status accent color for a semantic tone. */
+	private static function tone_color( string $tone ): string {
+		$colors = [
+			'success' => '#008a20',
+			'error'   => '#d63638',
+			'warning' => '#996800',
+			'neutral' => '#50575e',
+		];
+
+		return $colors[ $tone ] ?? $colors['neutral'];
 	}
 }

@@ -79,17 +79,6 @@
 	color: #135e96;
 }
 
-.worldgraph-area-card-content strong a {
-	color: #1d2327;
-	text-decoration: none;
-}
-
-.worldgraph-area-card-content strong a:hover,
-.worldgraph-area-card-content strong a:focus {
-	color: #135e96;
-	text-decoration: underline;
-}
-
 .worldgraph-area-icon {
 	color: #2271b1;
 	font-size: 34px;
@@ -113,27 +102,8 @@
 	line-height: 1.45;
 }
 
-.worldgraph-area-card-content .worldgraph-area-actions {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12px;
-	margin-top: 4px;
-}
-
-.worldgraph-area-actions a {
-	color: #2271b1;
-	font-weight: 600;
-}
-
-.worldgraph-area-card-open {
+.worldgraph-area-card > .dashicons:last-child {
 	color: #646970;
-	display: flex;
-	text-decoration: none;
-}
-
-.worldgraph-area-card-open:hover,
-.worldgraph-area-card-open:focus {
-	color: #135e96;
 }
 
 .worldgraph-group-intro {

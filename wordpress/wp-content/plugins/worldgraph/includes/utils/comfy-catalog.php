@@ -99,7 +99,7 @@ class Comfy_Catalog {
 		];
 
 		update_post_meta( $connection_id, self::CATALOG_META, wp_slash( (string) wp_json_encode( $snapshot ) ) );
-		Generation_Log::add( 'info', 'comfy_catalog', sprintf( 'Synced %d template(s).', count( $entries ) ), [ 'tier' => $capability['tier'] ], '', $connection_id );
+		Generation_Log::add( 'info', 'comfy_catalog', sprintf( __( 'Found %d available provider workflow(s).', 'worldgraph' ), count( $entries ) ), [ 'tier' => $capability['tier'] ], '', $connection_id );
 
 		return $snapshot;
 	}
@@ -129,7 +129,7 @@ class Comfy_Catalog {
 	 * @return array<int, array>
 	 */
 	public static function enabled( int $connection_id ): array {
-		$decoded = json_decode( (string) get_post_meta( $connection_id, self::ENABLED_META, true ), true );
+		$decoded = json_decode( (string) worldgraph_get_field_value( $connection_id, self::ENABLED_META ), true );
 		if ( ! is_array( $decoded ) ) {
 			return [];
 		}
@@ -167,10 +167,10 @@ class Comfy_Catalog {
 	public static function enable( int $connection_id, string $entry_id ) {
 		$entry = self::find( $connection_id, $entry_id );
 		if ( null === $entry ) {
-			return new WP_Error( 'worldgraph_catalog_entry_missing', __( 'That template is not in this Connection\'s catalog. Sync the catalog and try again.', 'worldgraph' ), [ 'status' => 404 ] );
+			return new WP_Error( 'worldgraph_catalog_entry_missing', __( 'That workflow is no longer in this Connection\'s available list. Refresh the workflows and try again.', 'worldgraph' ), [ 'status' => 404 ] );
 		}
 		if ( empty( $entry['modality'] ) ) {
-			return new WP_Error( 'worldgraph_catalog_entry_unmappable', __( 'This template\'s task type does not map to a World Graph Studio modality, so it cannot be enabled automatically.', 'worldgraph' ), [ 'status' => 400 ] );
+			return new WP_Error( 'worldgraph_catalog_entry_unmappable', __( 'This provider workflow does not map to a Studio generation type, so it cannot be added automatically.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 
 		$enabled = self::enabled( $connection_id );
@@ -189,7 +189,7 @@ class Comfy_Catalog {
 
 		$enabled[] = $record;
 		self::store_enabled( $connection_id, $enabled );
-		Generation_Log::add( 'info', 'comfy_catalog', sprintf( 'Enabled template "%s".', $record['id'] ), $record, '', $connection_id );
+		Generation_Log::add( 'info', 'comfy_catalog', sprintf( __( 'Selected provider workflow "%s" for Studio.', 'worldgraph' ), $record['id'] ), $record, '', $connection_id );
 
 		return $record;
 	}
@@ -207,7 +207,7 @@ class Comfy_Catalog {
 		} ) );
 
 		self::store_enabled( $connection_id, $remaining );
-		Generation_Log::add( 'info', 'comfy_catalog', sprintf( 'Disabled template "%s".', $entry_id ), [], '', $connection_id );
+		Generation_Log::add( 'info', 'comfy_catalog', sprintf( __( 'Removed provider workflow "%s" from this Connection.', 'worldgraph' ), $entry_id ), [], '', $connection_id );
 
 		return $remaining;
 	}
@@ -488,6 +488,6 @@ class Comfy_Catalog {
 	 * @param array $enabled       Allow-list entries.
 	 */
 	private static function store_enabled( int $connection_id, array $enabled ): void {
-		update_post_meta( $connection_id, self::ENABLED_META, wp_slash( (string) wp_json_encode( array_values( $enabled ) ) ) );
+		worldgraph_update_field_value( $connection_id, self::ENABLED_META, (string) wp_json_encode( array_values( $enabled ) ) );
 	}
 }

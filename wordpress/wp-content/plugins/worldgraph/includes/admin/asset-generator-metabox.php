@@ -37,7 +37,6 @@ class Asset_Generator_MetaBox {
 		'worldgraph_episode',
 		'worldgraph_scene',
 		'worldgraph_shot',
-		'worldgraph_board',
 		'worldgraph_asset',
 		'worldgraph_editorial',
 	];

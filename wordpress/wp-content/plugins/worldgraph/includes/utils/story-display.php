@@ -28,7 +28,6 @@ function worldgraph_story_display_post_types(): array {
 		'worldgraph_shot',
 		'worldgraph_prop',
 		'worldgraph_sound',
-		'worldgraph_board',
 		'worldgraph_asset',
 	];
 }
@@ -54,7 +53,6 @@ function worldgraph_story_display_graph_post_types(): array {
 		'worldgraph_scene',
 		'worldgraph_shot',
 		'worldgraph_sound',
-		'worldgraph_board',
 		'worldgraph_asset',
 		'worldgraph_editorial',
 	];
@@ -295,11 +293,23 @@ function worldgraph_get_scene_display_shots( int $scene_id, bool $include_privat
  *
  * @param int    $attachment_id Attachment ID.
  * @param string $origin        How the media is connected to the story item.
+ * @param bool   $include_private Whether readable private media may appear.
  * @return array<string, mixed>|null
  */
-function worldgraph_story_display_attachment( int $attachment_id, string $origin = 'gallery' ): ?array {
+function worldgraph_story_display_attachment( int $attachment_id, string $origin = 'gallery', bool $include_private = false ): ?array {
 	$attachment = get_post( $attachment_id );
 	if ( ! $attachment instanceof \WP_Post || 'attachment' !== $attachment->post_type ) {
+		return null;
+	}
+
+	$can_read = $include_private && current_user_can( 'read_post', $attachment_id );
+	if ( ! $can_read && 'publish' === $attachment->post_status ) {
+		$can_read = true;
+	}
+	if ( ! $can_read && 'inherit' === $attachment->post_status ) {
+		$can_read = ! $attachment->post_parent || worldgraph_story_display_can_read( (int) $attachment->post_parent, $include_private );
+	}
+	if ( ! $can_read ) {
 		return null;
 	}
 
@@ -407,14 +417,14 @@ function worldgraph_story_display_asset_media( int $asset_id, bool $include_priv
 	$media       = [];
 	$featured_id = get_post_thumbnail_id( $asset_id );
 	if ( $featured_id ) {
-		$item = worldgraph_story_display_attachment( $featured_id, 'asset' );
+		$item = worldgraph_story_display_attachment( $featured_id, 'asset', $include_private );
 		if ( $item ) {
 			$media[] = $item;
 		}
 	}
 
 	foreach ( array_filter( array_map( 'absint', (array) get_post_meta( $asset_id, '_worldgraph_asset_gallery_ids', true ) ) ) as $attachment_id ) {
-		$item = worldgraph_story_display_attachment( $attachment_id, 'asset_gallery' );
+		$item = worldgraph_story_display_attachment( $attachment_id, 'asset_gallery', $include_private );
 		if ( $item ) {
 			$media[] = $item;
 		}
@@ -459,14 +469,14 @@ function worldgraph_get_story_display_media( int $post_id, bool $include_private
 	$media       = [];
 	$featured_id = get_post_thumbnail_id( $post_id );
 	if ( $featured_id ) {
-		$item = worldgraph_story_display_attachment( $featured_id, 'featured' );
+		$item = worldgraph_story_display_attachment( $featured_id, 'featured', $include_private );
 		if ( $item ) {
 			$media[] = $item;
 		}
 	}
 
 	foreach ( array_filter( array_map( 'absint', (array) get_post_meta( $post_id, '_worldgraph_asset_gallery_ids', true ) ) ) as $attachment_id ) {
-		$item = worldgraph_story_display_attachment( $attachment_id, 'gallery' );
+		$item = worldgraph_story_display_attachment( $attachment_id, 'gallery', $include_private );
 		if ( $item ) {
 			$media[] = $item;
 		}
@@ -672,7 +682,6 @@ function worldgraph_story_display_relationship_counts( int $post_id, string $pos
 		'worldgraph_scene',
 		'worldgraph_shot',
 		'worldgraph_sound',
-		'worldgraph_board',
 		'worldgraph_asset',
 	];
 	foreach ( $related_types as $related_type ) {

@@ -61,10 +61,10 @@ class AI_Context_Builder {
 	 */
 	private function build_character_context( int $post_id ): array {
 		$context = [
-			'character_name' => get_post_meta( $post_id, 'character_name', true ) ?: get_the_title( $post_id ),
+			'character_name' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'display_name' ) ?: get_the_title( $post_id ),
 			'character_arc'  => get_post_meta( $post_id, 'character_arc', true ) ?: '',
-			'personality'    => get_post_meta( $post_id, 'personality', true ) ?: '',
-			'motivation'     => get_post_meta( $post_id, 'motivation', true ) ?: '',
+			'personality'    => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'personality' ) ?: '',
+			'motivation'     => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'motivation' ) ?: '',
 		];
 
 		// Get relationships.
@@ -106,11 +106,11 @@ class AI_Context_Builder {
 	 */
 	private function build_scene_context( int $post_id ): array {
 		$context = [
-			'scene_title'   => get_post_meta( $post_id, 'scene_title', true ) ?: get_the_title( $post_id ),
+			'scene_title'   => get_the_title( $post_id ),
 			'setting'       => get_post_meta( $post_id, 'setting', true ) ?: '',
-			'time_of_day'   => get_post_meta( $post_id, 'time_of_day', true ) ?: '',
-			'tone'          => get_post_meta( $post_id, 'tone', true ) ?: '',
-			'scene_content' => get_post_meta( $post_id, 'scene_content', true ) ?: $post->post_content,
+			'time_of_day'   => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'time_of_day' ) ?: '',
+			'tone'          => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'emotional_tone' ) ?: '',
+			'scene_content' => \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'script_content' ) ?: (string) get_post_field( 'post_content', $post_id ),
 		];
 
 		// Get characters in this scene.

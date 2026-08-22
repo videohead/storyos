@@ -78,7 +78,6 @@ class Asset_Generator {
 		'worldgraph_character'        => 'character',
 		'worldgraph_location'         => 'location',
 		'worldgraph_scene'            => 'scene',
-		'worldgraph_board'       => 'storyboard',
 	];
 
 	/**
@@ -189,19 +188,19 @@ class Asset_Generator {
 		if ( ! $template_id || ! self::is_active_template( $template_id ) ) {
 			return new WP_Error( 'worldgraph_asset_invalid_template', __( 'That Template is not available to generate from.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
-		$template_modality = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
+		$template_modality = Generation_Modality::sanitize( (string) worldgraph_get_field_value( $template_id, 'modality' ) );
 		if ( $type !== Generation_Modality::output_type( $template_modality ) ) {
 			return new WP_Error( 'worldgraph_asset_template_type_mismatch', __( 'The selected Template does not produce the required representative-media type.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
-		$connection_id = absint( get_post_meta( $template_id, 'connection_id', true ) );
+		$connection_id = absint( worldgraph_get_field_value( $template_id, 'connection_id' ) );
 		$connection = Connection_Repository::get( $connection_id );
-		$template_provider = sanitize_key( (string) get_post_meta( $template_id, 'provider_type', true ) );
+		$template_provider = sanitize_key( (string) worldgraph_get_field_value( $template_id, 'provider_type' ) );
 		if ( ! $connection || '' === $template_provider || 'disabled' === $connection['status'] || $template_provider !== $connection['provider_type'] ) {
 			return new WP_Error( 'worldgraph_asset_invalid_connection', __( 'That Template and Connection must use the same provider.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 		$provider = $connection['provider_type'];
 		Connection_Adapters::load( (string) $provider );
-		$provider_template_id = sanitize_text_field( (string) ( get_post_meta( $template_id, 'provider_template_id', true ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) ) );
+		$provider_template_id = sanitize_text_field( (string) ( worldgraph_get_field_value( $template_id, 'provider_template_id' ) ?: get_post_meta( $template_id, 'comfy_template_id', true ) ) );
 		if ( 'fal' === $provider && '' === $provider_template_id ) {
 			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
 		}
@@ -400,7 +399,7 @@ class Asset_Generator {
 	 * {"parameters": {...}}, or a flat object for simple configurations.
 	 */
 	private static function fal_template_input( int $template_id ): array {
-		$decoded = json_decode( (string) get_post_meta( $template_id, 'configuration_json', true ), true );
+		$decoded = json_decode( (string) worldgraph_get_field_value( $template_id, 'configuration_json' ), true );
 		if ( ! is_array( $decoded ) ) {
 			return [];
 		}
@@ -484,10 +483,10 @@ class Asset_Generator {
 		];
 
 		if ( $project_id ) {
-			$profile['width']        = max( 1, absint( get_post_meta( $project_id, 'frame_width', true ) ?: $profile['width'] ) );
-			$profile['height']       = max( 1, absint( get_post_meta( $project_id, 'frame_height', true ) ?: $profile['height'] ) );
-			$profile['aspect_ratio'] = sanitize_text_field( (string) ( get_post_meta( $project_id, 'aspect_ratio', true ) ?: $profile['aspect_ratio'] ) );
-			$profile['frame_rate']   = max( 0.001, (float) ( get_post_meta( $project_id, 'frame_rate', true ) ?: $profile['frame_rate'] ) );
+			$profile['width']        = max( 1, absint( worldgraph_get_field_value( $project_id, 'frame_width' ) ?: $profile['width'] ) );
+			$profile['height']       = max( 1, absint( worldgraph_get_field_value( $project_id, 'frame_height' ) ?: $profile['height'] ) );
+			$profile['aspect_ratio'] = sanitize_text_field( (string) ( worldgraph_get_field_value( $project_id, 'aspect_ratio' ) ?: $profile['aspect_ratio'] ) );
+			$profile['frame_rate']   = max( 0.001, (float) ( worldgraph_get_field_value( $project_id, 'frame_rate' ) ?: $profile['frame_rate'] ) );
 		}
 
 		$profile['size'] = $profile['width'] . 'x' . $profile['height'];
@@ -534,7 +533,7 @@ class Asset_Generator {
 		return $template instanceof \WP_Post
 			&& 'worldgraph_template' === $template->post_type
 			&& 'publish' === $template->post_status
-			&& 'active' === get_post_meta( $template_id, 'status', true );
+			&& 'active' === worldgraph_get_field_value( $template_id, 'status' );
 	}
 
 	/**
@@ -1575,7 +1574,7 @@ class Asset_Generator {
 		}
 		if ( ! is_wp_error( $term ) ) {
 			$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term;
-			wp_set_object_terms( $asset_id, [ $term_id ], 'worldgraph_asset_type', false );
+			worldgraph_update_field_value( $asset_id, 'asset_type', $term_id );
 		}
 
 		if ( isset( self::ASSET_RELATIONSHIP_FIELDS[ $post->post_type ] ) ) {

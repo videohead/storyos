@@ -16,6 +16,14 @@ function mediaKind(mimeType: string): "image" | "video" | "audio" | "other" {
   return "other";
 }
 
+function pauseOtherMedia(current: HTMLMediaElement): void {
+  document.querySelectorAll<HTMLMediaElement>("audio, video").forEach((player) => {
+    if (player !== current && !player.paused) {
+      player.pause();
+    }
+  });
+}
+
 export function MediaPlayer({
   media,
   compact = false,
@@ -64,6 +72,7 @@ export function MediaPlayer({
         preload="metadata"
         poster={media.posterUrl || media.thumbnailUrl}
         aria-label={label}
+        onPlay={(event) => pauseOtherMedia(event.currentTarget)}
         onError={() => setFailed(true)}
         className={`w-full bg-wg-ink ${compact ? "aspect-video object-cover" : "max-h-[72vh]"}`}
       >
@@ -80,6 +89,7 @@ export function MediaPlayer({
         controls
         preload="metadata"
         aria-label={label}
+        onPlay={(event) => pauseOtherMedia(event.currentTarget)}
         onError={() => setFailed(true)}
         className="w-full accent-wg-sepia"
       >
@@ -89,4 +99,3 @@ export function MediaPlayer({
     </div>
   );
 }
-

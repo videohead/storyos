@@ -29,7 +29,7 @@ class Template_Bindings {
 	 * @return array<string, array{source: string}>
 	 */
 	public static function bindings( int $template_id ): array {
-		$decoded = json_decode( (string) get_post_meta( $template_id, 'input_bindings', true ), true );
+		$decoded = json_decode( (string) worldgraph_get_field_value( $template_id, 'input_bindings' ), true );
 
 		return is_array( $decoded ) ? $decoded : [];
 	}
@@ -42,7 +42,7 @@ class Template_Bindings {
 	 * @return array<string, string> Slot => attachment ID or URL, for slots that resolved.
 	 */
 	public static function resolve( int $template_id, int $post_id ): array {
-		$modality = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
+		$modality = Generation_Modality::sanitize( (string) worldgraph_get_field_value( $template_id, 'modality' ) );
 		$bindings = self::bindings( $template_id );
 
 		$resolved = [];
@@ -71,7 +71,7 @@ class Template_Bindings {
 	 * @return array<int, string> Missing slot names.
 	 */
 	public static function missing_required( int $template_id, int $post_id ): array {
-		$modality = Generation_Modality::sanitize( (string) get_post_meta( $template_id, 'modality', true ) );
+		$modality = Generation_Modality::sanitize( (string) worldgraph_get_field_value( $template_id, 'modality' ) );
 		$resolved = self::resolve( $template_id, $post_id );
 
 		$missing = [];
@@ -116,8 +116,8 @@ class Template_Bindings {
 			return isset( $gallery_ids[ $index ] ) ? (string) $gallery_ids[ $index ] : '';
 		}
 
-		// Fall back to a World Graph Studio Details / SCF post meta field.
-		$value = get_post_meta( $post_id, $source, true );
+		// Fall back to a World Graph Studio Details / SCF field.
+		$value = worldgraph_get_field_value( $post_id, $source );
 		if ( is_array( $value ) ) {
 			$value = reset( $value );
 		}

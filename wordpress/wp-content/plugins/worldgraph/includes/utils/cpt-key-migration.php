@@ -37,9 +37,6 @@ function worldgraph_legacy_cpt_key_map(): array {
 		'storyos_scene'                 => 'worldgraph_scene',
 		'storyos_shot'                  => 'worldgraph_shot',
 		'storyos_sound'                 => 'worldgraph_sound',
-		'storyos_storyboard_frame'      => 'worldgraph_board',
-		'storyos_storyboard_f'          => 'worldgraph_board',
-		'storyos_storyboard'            => 'worldgraph_board',
 		'storyos_asset'                 => 'worldgraph_asset',
 		'storyos_editorial_artifact'    => 'worldgraph_editorial',
 		'storyos_editorial_ar'          => 'worldgraph_editorial',
@@ -47,8 +44,6 @@ function worldgraph_legacy_cpt_key_map(): array {
 		'storyos_template'              => 'worldgraph_template',
 		'storyos_connection'            => 'worldgraph_conn',
 		'storyos_generation'            => 'worldgraph_gen',
-		'worldgraph_board_frame'        => 'worldgraph_board',
-		'worldgraph_board_f'            => 'worldgraph_board',
 		'worldgraph_editorial_artifact' => 'worldgraph_editorial',
 		'worldgraph_editorial_ar'       => 'worldgraph_editorial',
 	];
@@ -86,8 +81,6 @@ function worldgraph_migrate_machine_identifier( string $value ): string {
 			'storyos-celtx/v1'                             => 'worldgraph/v1',
 			'storyos-web-stories/v1'                       => 'worldgraph-web-stories/v1',
 			'field_storyos_editorial_artifact_type'        => 'field_worldgraph_editorial_artifact_type',
-			'field_storyos_storyboard_frame_number'        => 'field_worldgraph_board_frame_number',
-			'field_storyos_storyboard_frame_description'   => 'field_worldgraph_board_frame_description',
 		]
 	);
 	if ( isset( $identifier_map[ $value ] ) ) {

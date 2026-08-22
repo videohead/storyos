@@ -83,6 +83,12 @@ class Dashboard {
 	public static function render_dashboard(): void {
 		$areas = [
 			[
+				'title'       => 'Generate',
+				'description' => 'Set up Connections, Templates, and adapters, and review generation Jobs.',
+				'icon'        => 'dashicons-images-alt2',
+				'url'         => admin_url( 'admin.php?page=worldgraph-generate' ),
+			],
+			[
 				'title'       => 'Story Elements',
 				'description' => 'Build the people, places, worlds, props, and projects that make up your story.',
 				'icon'        => 'dashicons-book-alt',
@@ -101,59 +107,39 @@ class Dashboard {
 				'url'         => admin_url( 'admin.php?page=worldgraph-analysis' ),
 			],
 			[
-				'title'       => 'Administration',
-				'description' => 'Manage setup, connections, templates, and World Graph Studio logs.',
-				'icon'        => 'dashicons-admin-generic',
-				'url'         => admin_url( 'admin.php?page=worldgraph-administration' ),
-			],
-			[
 				'title'       => 'Plugins',
 				'description' => 'Import, export, and connect World Graph Studio with Celtx, EDL, and Google Story.',
 				'icon'        => 'dashicons-admin-plugins',
 				'url'         => admin_url( 'admin.php?page=worldgraph-plugins' ),
-				'actions'     => [
-					[ 'label' => 'Import JSON', 'url' => admin_url( 'admin.php?page=worldgraph-import' ) ],
-					[ 'label' => 'Export Markdown', 'url' => admin_url( 'admin.php?page=worldgraph-export' ) ],
-				],
 			],
 		];
 		?>
 		<div class="wrap worldgraph-dashboard">
 			<h1>World Graph Studio</h1>
-			<p class="worldgraph-dashboard-intro">Choose where you want to work.</p>
-
-			<section class="worldgraph-setup-panel" aria-labelledby="worldgraph-setup-title">
-				<div class="worldgraph-setup-icon"><span class="dashicons dashicons-admin-tools" aria-hidden="true"></span></div>
-				<div class="worldgraph-setup-content">
-					<h2 id="worldgraph-setup-title">Set up World Graph Studio</h2>
-					<p>Connect your services and configure the workspace before you begin building.</p>
-				</div>
-				<a class="button button-primary button-hero" href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-setup' ) ); ?>">Open Setup</a>
-			</section>
-
+			<p class="worldgraph-dashboard-intro">Set up your workspace, connections, and templates. These steps are required before you can begin generating AI content.</p>
 			<section aria-labelledby="worldgraph-areas-title">
 				<h2 id="worldgraph-areas-title">Workspaces</h2>
 				<div class="worldgraph-area-cards">
 					<?php foreach ( $areas as $area ) : ?>
-						<div class="worldgraph-area-card">
+						<a class="worldgraph-area-card" href="<?php echo esc_url( $area['url'] ); ?>">
 							<span class="worldgraph-area-icon dashicons <?php echo esc_attr( $area['icon'] ); ?>" aria-hidden="true"></span>
 							<span class="worldgraph-area-card-content">
-								<strong><a href="<?php echo esc_url( $area['url'] ); ?>"><?php echo esc_html( $area['title'] ); ?></a></strong>
+								<strong><?php echo esc_html( $area['title'] ); ?></strong>
 								<span><?php echo esc_html( $area['description'] ); ?></span>
-								<?php if ( ! empty( $area['actions'] ) ) : ?>
-									<span class="worldgraph-area-actions">
-										<?php foreach ( $area['actions'] as $action ) : ?>
-											<a href="<?php echo esc_url( $action['url'] ); ?>"><?php echo esc_html( $action['label'] ); ?></a>
-										<?php endforeach; ?>
-									</span>
-								<?php endif; ?>
 							</span>
-							<a class="worldgraph-area-card-open" href="<?php echo esc_url( $area['url'] ); ?>" aria-label="Open <?php echo esc_attr( $area['title'] ); ?>">
-								<span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
-							</a>
-						</div>
+							<span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
+						</a>
 					<?php endforeach; ?>
 				</div>
+			</section>
+			<br />
+			<section class="worldgraph-setup-panel" aria-labelledby="worldgraph-setup-title">
+				<div class="worldgraph-setup-icon"><span class="dashicons dashicons-admin-tools" aria-hidden="true"></span></div>
+				<div class="worldgraph-setup-content">
+					<h2 id="worldgraph-setup-title">Setup Wizard</h2>
+					<p>A helpful wizard for configuring a first Connection and Templates with simplified user interaction.</p>
+				</div>
+				<a class="button button-primary button-hero" href="<?php echo esc_url( admin_url( 'admin.php?page=worldgraph-setup' ) ); ?>">Open Setup</a>
 			</section>
 		</div>
 		<?php

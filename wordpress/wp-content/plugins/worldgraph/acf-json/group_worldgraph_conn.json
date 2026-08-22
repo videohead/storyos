@@ -370,11 +370,11 @@
         },
         {
             "key": "field_worldgraph_conn_enabled_templates",
-            "label": "Enabled Templates",
+            "label": "Added Workflows (Managed JSON)",
             "name": "enabled_templates",
             "aria-label": "",
             "type": "textarea",
-            "instructions": "JSON array of provider templates enabled on this connection. Managed by the Template Catalog panel; edit only to recover from a bad sync.",
+            "instructions": "Internal links between provider workflows added through Workflow Setup and their reusable Generation Templates. Managed automatically; edit only for recovery.",
             "required": 0,
             "conditional_logic": 0,
             "wrapper": {

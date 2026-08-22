@@ -19,6 +19,29 @@ class Generation_Log {
 	const LOG_SUBDIR = 'worldgraph/logs';
 	const LOG_FILENAME = 'generation.log';
 
+	/** Per-Job event journal, so a Job record carries its own provider history. */
+	const EVENTS_META = '_worldgraph_gen_events';
+
+	/** Journal entries retained per Job. */
+	const MAX_JOB_EVENTS = 100;
+
+	/**
+	 * Job record the current worker step belongs to, so provider adapters that
+	 * only know a provider-side ID still log against the right Job.
+	 *
+	 * @var int
+	 */
+	private static int $current_job = 0;
+
+	/**
+	 * Attribute subsequent log entries to a Job record. Pass 0 to clear.
+	 *
+	 * @param int $job_id worldgraph_gen post ID.
+	 */
+	public static function set_current_job( int $job_id ): void {
+		self::$current_job = max( 0, $job_id );
+	}
+
 	/**
 	 * Append a log entry.
 	 *
@@ -30,23 +53,80 @@ class Generation_Log {
 	 * @param int    $connection_id Optional parent worldgraph_conn post ID.
 	 */
 	public static function add( string $level, string $source, string $message, array $context = [], string $job_id = '', int $connection_id = 0 ): void {
-		$entries = self::all();
-
-		$entries[] = [
+		$generation_id = self::$current_job ?: ( ctype_digit( $job_id ) ? (int) $job_id : 0 );
+		$entry = [
 			'time'          => current_time( 'mysql' ),
 			'level'         => $level,
 			'source'        => $source,
 			'job_id'        => $job_id,
+			'generation_id' => $generation_id,
 			'connection_id' => $connection_id,
 			'message'       => $message,
 			'context'       => $context,
 		];
+
+		$entries   = self::all();
+		$entries[] = $entry;
 
 		if ( count( $entries ) > self::MAX_ENTRIES ) {
 			$entries = array_slice( $entries, -self::MAX_ENTRIES );
 		}
 
 		self::write_entries( $entries );
+		self::record_job_event( $generation_id, $entry );
+	}
+
+	/**
+	 * Persist an event on its Job record so the Job survives the ring buffer.
+	 *
+	 * @param int   $generation_id worldgraph_gen post ID.
+	 * @param array $entry         Log entry.
+	 */
+	private static function record_job_event( int $generation_id, array $entry ): void {
+		if ( ! $generation_id || ! function_exists( 'get_post_type' ) || 'worldgraph_gen' !== get_post_type( $generation_id ) ) {
+			return;
+		}
+
+		$events = get_post_meta( $generation_id, self::EVENTS_META, true );
+		$events = is_array( $events ) ? $events : [];
+		$events[] = $entry;
+
+		if ( count( $events ) > self::MAX_JOB_EVENTS ) {
+			$events = array_slice( $events, -self::MAX_JOB_EVENTS );
+		}
+
+		update_post_meta( $generation_id, self::EVENTS_META, wp_slash( $events ) );
+	}
+
+	/**
+	 * The event journal stored on one Job record, oldest first.
+	 *
+	 * @param int $generation_id worldgraph_gen post ID.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function for_job( int $generation_id ): array {
+		$events = get_post_meta( $generation_id, self::EVENTS_META, true );
+
+		return is_array( $events ) ? $events : [];
+	}
+
+	/**
+	 * Recent activity for one Connection that no Job owns, such as template
+	 * catalog syncs and capability probes.
+	 *
+	 * @param int $connection_id worldgraph_conn post ID.
+	 * @param int $limit         Maximum entries to return, newest first.
+	 * @return array<int, array<string, mixed>>
+	 */
+	public static function for_connection( int $connection_id, int $limit = 25 ): array {
+		$entries = array_filter(
+			self::all( $connection_id ),
+			static function ( array $entry ): bool {
+				return 0 === (int) ( $entry['generation_id'] ?? 0 );
+			}
+		);
+
+		return array_slice( array_reverse( array_values( $entries ) ), 0, max( 1, $limit ) );
 	}
 
 	/**
@@ -115,7 +195,7 @@ class Generation_Log {
 			return [];
 		}
 
-		$lines = @file( $file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
+		$lines = is_readable( $file ) ? file( $file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES ) : false;
 		if ( ! is_array( $lines ) ) {
 			return [];
 		}

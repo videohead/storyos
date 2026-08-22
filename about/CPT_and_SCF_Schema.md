@@ -83,6 +83,11 @@ SCF's field APIs when a declared field exists. Compatibility hooks also
 maintain SCF's hidden field-key reference when legacy code writes named post
 meta directly.
 
+Schema-backed CPTs do not enable WordPress's native Custom Fields editor. SCF
+is the single authoring surface for declared fields; private operational,
+mapping, health, and generation-job metadata remains ordinary post meta when
+it is not part of a CPT's declared field group.
+
 Committed core fields use deterministic, per-CPT keys so common field names
 remain globally unique:
 
@@ -597,6 +602,7 @@ rather than as a Story Graph edge.
 - `provider_type` (select)
 - `environment` (select)
 - `status` (select)
+- `is_default` (select: `yes` or `no`; unique per provider and environment)
 - `endpoint_url` (text)
 - `mcp_endpoint_url` (text)
 - `credential_reference` (text)

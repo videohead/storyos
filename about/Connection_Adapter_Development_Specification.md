@@ -830,14 +830,14 @@ readiness. A provisioning failure must be visible; decide explicitly whether
 it makes the whole Connection test fail or returns a verified transport with a
 separate provisioning warning, and cover that policy in tests.
 
-Do not substitute `Connection::upsert_managed()` or direct
-`update_post_meta()` for the common save lifecycle. `upsert_managed()` writes
-raw meta and does not run SCF sanitation, validation, single-default
-enforcement, or `after_scf_save()`; the current Setup Wizard compensates with
-explicit adapter loading and catalog scheduling. Likewise,
-`Connection::render_connection_meta_box()` and `Connection::save_meta()` are
-legacy, unhooked methods. SCF owns the fields, and only
-`render_configurator_meta_box()` is currently registered.
+Do not substitute `Connection::upsert_managed()` or direct post-meta writes for
+the common save lifecycle. `upsert_managed()` routes registered fields through
+the SCF helpers, but programmatic callers remain responsible for any lifecycle
+work normally triggered after an editor save, including single-default
+enforcement and provider scheduling. The current Setup Wizard performs its
+required adapter loading and catalog scheduling explicitly. SCF owns the
+Connection fields; `render_configurator_meta_box()` adds provider guidance and
+actions without implementing a second field save path.
 
 ## 14. Wire Connection Testing
 
@@ -998,13 +998,32 @@ Connections**:
 
 - the provider appears in the provider choices;
 - default endpoints populate accurately;
-- its status and environment are visible;
-- Test returns a precise result;
+- connection health is separate from workflow setup readiness;
+- its environment and last connection check are visible;
+- **Check connection** returns a precise result;
 - disabling the Connection prevents new work;
 - one instance can be marked active per provider/environment;
-- provider-specific catalog state or recovery actions are shown only where
+- provider workflow counts, the last refresh, and the latest setup activity are
+  visible without opening a technical log;
+- provider-specific discovery state or recovery actions are shown only where
   implemented;
 - credentials never appear in list tables, notices, URLs, or logs.
+
+Operator-facing controls describe outcomes rather than storage mechanics:
+
+- use **Refresh Available Workflows**, not “sync catalog”;
+- use **Add to Studio** or **Add All Ready Workflows**, not “enable” or
+  “materialize”;
+- explain that adding a workflow creates or updates an idempotent Generation
+  Template;
+- distinguish **ready now**, **model files required**, **custom nodes required**,
+  **availability not checked**, **not supported**, and **no longer offered**;
+- show immediate progress in the Connection editor and retain setup events in
+  the Connection activity history.
+
+Internal class names, method names, log source tags, and REST/AJAX action slugs
+may continue to use `catalog` and `materialize`; those are implementation terms,
+not primary interface copy.
 
 `Connection::render_configurator_meta_box()` contains hard-coded provider
 branches and has no manifest callback. A third-party provider needing custom

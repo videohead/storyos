@@ -5,9 +5,9 @@
  * Data-access layer for the worldgraph_conn CPT. Generation jobs reference
  * connections by ID: { "provider_type": "comfyui", "connection_id": 32 }.
  *
- * The repository only ever exposes non-secret configuration. Raw credentials
- * are never read from or written to WordPress; the credential_reference field
- * is a pointer (e.g. env://COMFYUI_API_KEY) that the environment or configuration provides.
+ * The repository exposes Connection configuration to trusted provider adapters.
+ * Credential fields can contain provider-issued values or references such as
+ * env://COMFYUI_API_KEY, so callers must treat the resolved record as sensitive.
  *
  * @package WorldGraph
  */
@@ -27,7 +27,7 @@ class Connection_Repository {
 	const CPT = 'worldgraph_conn';
 
 	/**
-	 * Non-secret fields exposed to the generation engine and UI.
+	 * Fields exposed to trusted generation-engine and admin consumers.
 	 *
 	 * @var array<int, string>
 	 */
@@ -223,7 +223,7 @@ class Connection_Repository {
 		];
 
 		foreach ( self::PUBLIC_FIELDS as $field ) {
-			$record[ $field ] = get_post_meta( $post->ID, $field, true );
+			$record[ $field ] = worldgraph_get_field_value( $post->ID, $field );
 		}
 
 		$record['last_validated_at'] = get_post_meta( $post->ID, 'last_validated_at', true );

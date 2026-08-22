@@ -290,7 +290,7 @@ class Connection_Tester {
 	private static function record_result( int $connection_id, bool $success, string $message, array $health ): array {
 		$status = $success ? 'verified' : 'error';
 
-		update_post_meta( $connection_id, 'status', $status );
+		worldgraph_update_field_value( $connection_id, 'status', $status );
 		update_post_meta( $connection_id, 'last_validated_at', gmdate( 'Y-m-d H:i:s' ) );
 		if ( ! empty( $health ) ) {
 			update_post_meta( $connection_id, 'last_health_report', wp_json_encode( $health ) );

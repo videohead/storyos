@@ -20,6 +20,9 @@ class Settings {
 	/** @var Settings|null */
 	private static $instance = null;
 
+	/** @var string Descript settings page hook suffix. */
+	private $settings_page_hook = '';
+
 	/** Register the admin page once. */
 	public static function init(): Settings {
 		if ( null === self::$instance ) {
@@ -31,17 +34,47 @@ class Settings {
 	/** Install admin hooks. */
 	private function __construct() {
 		add_action( 'admin_menu', [ $this, 'add_settings_menu' ] );
+		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 	}
 
 	/** Add the sync page under the World Graph Studio plugin manager. */
 	public function add_settings_menu(): void {
-		add_submenu_page(
+		$this->settings_page_hook = (string) add_submenu_page(
 			'worldgraph-plugins',
 			'Descript Sync',
 			'Descript Sync',
 			'manage_options',
 			'worldgraph-descript',
 			[ $this, 'render_settings_page' ]
+		);
+	}
+
+	/**
+	 * Enqueue settings-page behavior only on the Descript admin screen.
+	 *
+	 * @param string $hook_suffix Current admin page hook suffix.
+	 */
+	public function enqueue_assets( string $hook_suffix ): void {
+		if ( '' === $this->settings_page_hook || $this->settings_page_hook !== $hook_suffix ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'worldgraph-descript-settings',
+			WORLDGRAPH_DESCRIPT_PLUGIN_URL . 'js/descript-settings.js',
+			[],
+			WORLDGRAPH_DESCRIPT_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'worldgraph-descript-settings',
+			'worldgraphDescriptSettings',
+			[
+				'i18n' => [
+					'confirmUnsync' => __( 'Remove the local Descript mapping? Neither project will be deleted.', 'worldgraph' ),
+				],
+			]
 		);
 	}
 
@@ -240,7 +273,7 @@ class Settings {
 					<button type="submit" name="descript_action" value="pull" class="button"><?php esc_html_e( 'Pull Transcript', 'worldgraph' ); ?></button>
 					<button type="submit" name="descript_action" value="push" class="button"><?php esc_html_e( 'Push Project Media', 'worldgraph' ); ?></button>
 					<button type="submit" name="descript_action" value="poll" class="button"><?php esc_html_e( 'Poll Job', 'worldgraph' ); ?></button>
-					<button type="submit" name="descript_action" value="unsync" class="button" onclick="return confirm('<?php echo esc_js( __( 'Remove the local Descript mapping? Neither project will be deleted.', 'worldgraph' ) ); ?>');"><?php esc_html_e( 'Remove Mapping', 'worldgraph' ); ?></button>
+					<button type="submit" name="descript_action" value="unsync" class="button" data-worldgraph-descript-confirm-unsync><?php esc_html_e( 'Remove Mapping', 'worldgraph' ); ?></button>
 				</p>
 			</form>
 

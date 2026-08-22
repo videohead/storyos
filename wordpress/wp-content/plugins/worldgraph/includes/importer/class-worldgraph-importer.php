@@ -105,7 +105,6 @@ class WorldGraph_Importer {
 		$this->import_scenes();
 		$this->import_shots();
 		$this->import_sounds();
-		$this->import_storyboards();
 		$this->import_assets();
 		$this->import_editorial_artifacts();
 		$this->import_sequence();
@@ -166,7 +165,7 @@ class WorldGraph_Importer {
 		}
 
 		// Validate required top-level sections.
-		$required = [ 'project', 'world', 'characters', 'locations', 'props', 'scenes', 'shots', 'storyboards', 'sequence' ];
+		$required = [ 'project', 'world', 'characters', 'locations', 'props', 'scenes', 'shots', 'sequence' ];
 		foreach ( $required as $section ) {
 			if ( ! isset( $data[ $section ] ) ) {
 				return new \WP_Error(
@@ -187,7 +186,7 @@ class WorldGraph_Importer {
 		}
 
 		// Validate arrays.
-		foreach ( [ 'characters', 'locations', 'props', 'organizations', 'episodes', 'scenes', 'shots', 'sounds', 'storyboards', 'assets', 'editorial_artifacts' ] as $section ) {
+		foreach ( [ 'characters', 'locations', 'props', 'organizations', 'episodes', 'scenes', 'shots', 'sounds', 'assets', 'editorial_artifacts' ] as $section ) {
 			if ( ! is_array( $data[ $section ] ) ) {
 				return new \WP_Error(
 					'worldgraph_invalid_section',
@@ -247,7 +246,7 @@ class WorldGraph_Importer {
 			'Project' => [ $data['project'] ],
 			'World'   => [ $data['world'] ],
 		];
-		foreach ( [ 'characters' => 'Character', 'locations' => 'Location', 'props' => 'Prop', 'organizations' => 'Organization', 'episodes' => 'Episode', 'scenes' => 'Scene', 'shots' => 'Shot', 'sounds' => 'Sound', 'storyboards' => 'Storyboard', 'assets' => 'Asset', 'editorial_artifacts' => 'Editorial Artifact' ] as $section => $label ) {
+		foreach ( [ 'characters' => 'Character', 'locations' => 'Location', 'props' => 'Prop', 'organizations' => 'Organization', 'episodes' => 'Episode', 'scenes' => 'Scene', 'shots' => 'Shot', 'sounds' => 'Sound', 'assets' => 'Asset', 'editorial_artifacts' => 'Editorial Artifact' ] as $section => $label ) {
 			$records[ $label ] = $data[ $section ];
 		}
 
@@ -479,7 +478,7 @@ class WorldGraph_Importer {
 				$errors[] = sprintf( 'Project %s must be a positive number.', $field );
 			}
 		}
-		foreach ( [ 'episodes' => 'episode_number', 'scenes' => 'scene_number', 'shots' => 'shot_number', 'storyboards' => 'frame_number', 'assets' => 'seed' ] as $section => $field ) {
+		foreach ( [ 'episodes' => 'episode_number', 'scenes' => 'scene_number', 'shots' => 'shot_number', 'assets' => 'seed' ] as $section => $field ) {
 			foreach ( $data[ $section ] as $item ) {
 				$minimum = 'seed' === $field ? 0 : 1;
 				if ( isset( $item[ $field ] ) && ( ! is_numeric( $item[ $field ] ) || (float) $item[ $field ] < $minimum ) ) {
@@ -558,7 +557,7 @@ class WorldGraph_Importer {
 			$all_ids[ $external_id ] = $section;
 		}
 
-		foreach ( [ 'characters', 'locations', 'props', 'organizations', 'episodes', 'scenes', 'shots', 'sounds', 'storyboards', 'assets', 'editorial_artifacts' ] as $section ) {
+		foreach ( [ 'characters', 'locations', 'props', 'organizations', 'episodes', 'scenes', 'shots', 'sounds', 'assets', 'editorial_artifacts' ] as $section ) {
 			$id_sets[ $section ] = [];
 			foreach ( $data[ $section ] as $index => $entity ) {
 				if ( ! is_array( $entity ) || empty( $entity['id'] ) ) {

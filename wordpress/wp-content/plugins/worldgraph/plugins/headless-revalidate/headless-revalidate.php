@@ -66,6 +66,9 @@ function init(): void {
 	add_action( 'transition_post_status', __NAMESPACE__ . '\\on_post_status_transition', 10, 3 );
 	add_action( 'save_post', __NAMESPACE__ . '\\on_story_post_saved', 100, 3 );
 	add_action( 'delete_post', __NAMESPACE__ . '\\on_post_deleted' );
+	add_action( 'add_attachment', __NAMESPACE__ . '\\on_attachment_changed' );
+	add_action( 'edit_attachment', __NAMESPACE__ . '\\on_attachment_changed' );
+	add_action( 'delete_attachment', __NAMESPACE__ . '\\on_attachment_changed' );
 	add_action( 'added_post_meta', __NAMESPACE__ . '\\on_story_display_meta_changed', 100, 3 );
 	add_action( 'updated_post_meta', __NAMESPACE__ . '\\on_story_display_meta_changed', 100, 3 );
 	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\on_story_display_meta_changed', 100, 3 );
@@ -474,9 +477,20 @@ function on_story_post_saved( int $post_id, \WP_Post $post, bool $update ): void
  */
 function on_story_display_meta_changed( int|array $meta_id, int $post_id, string $meta_key ): void {
 	unset( $meta_id );
-	if ( in_array( $meta_key, [ '_thumbnail_id', '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', 'storage_uri', 'worldgraph_relationships', 'production_stage' ], true ) ) {
+	if ( in_array( $meta_key, [ '_thumbnail_id', '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', '_wp_attachment_image_alt', '_wp_attached_file', '_wp_attachment_metadata', 'storage_uri', 'worldgraph_relationships', 'production_stage' ], true ) ) {
 		queue_story_revalidation( $post_id );
 	}
+}
+
+/**
+ * Invalidate media projections when WordPress creates, regenerates, or removes
+ * an attachment. These lifecycle hooks cover changes that do not consistently
+ * pass through the generic post-save callback.
+ *
+ * @param int $post_id Attachment post ID.
+ */
+function on_attachment_changed( int $post_id ): void {
+	queue_story_revalidation( $post_id, true );
 }
 
 /**

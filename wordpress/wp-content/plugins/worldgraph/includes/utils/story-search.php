@@ -55,12 +55,6 @@ function search_config(): array {
 				'icon'        => 'admin-appearance',
 				'color'       => '#c36d17',
 			],
-			'storyboard_frames' => [
-				'label'       => 'Storyboard Frames',
-				'post_type'   => 'worldgraph_board',
-				'icon'        => 'slides',
-				'color'       => '#2563eb',
-			],
 			'editorial_artifacts' => [
 				'label'       => 'Editorial',
 				'post_type'   => 'worldgraph_editorial',
