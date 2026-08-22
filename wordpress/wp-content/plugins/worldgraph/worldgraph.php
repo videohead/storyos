@@ -236,6 +236,7 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/generation-log.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/template-smoke-check.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/generation-modality.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/template-run-controls.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/connection-adapters.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/generation-batch.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/relationships.php';

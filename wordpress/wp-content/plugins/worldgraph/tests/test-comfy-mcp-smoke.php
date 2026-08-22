@@ -23,15 +23,15 @@ class Test_Comfy_MCP_Smoke extends TestCase {
 	}
 
 	/**
-	 * A local Comfy connection should retry through Local_ComfyUI when MCP
-	 * submission fails.
+	 * A local Comfy connection generates through its own HTTP API. Its MCP
+	 * endpoint serves discovery and downloads, never generation.
 	 */
-	public function test_generation_batch_keeps_local_comfy_fallback_path(): void {
+	public function test_generation_batch_routes_local_comfy_to_local_api(): void {
 		$batch = file_get_contents( dirname( __DIR__ ) . '/includes/utils/generation-batch.php' );
 
 		$this->assertNotFalse( $batch );
-		$this->assertStringContainsString( "if ( is_wp_error( \$result ) && Comfy_Cloud_MCP::class === \$client && 'local' === ( \$connection['environment'] ?? '' ) )", $batch );
-		$this->assertStringContainsString( 'Retrying via local ComfyUI API', $batch );
+		$this->assertStringContainsString( "if ( 'local' === ( \$connection['environment'] ?? '' ) ) {", $batch );
 		$this->assertStringContainsString( "update_post_meta( \$job_id, '_worldgraph_gen_adapter', 'local_comfyui' );", $batch );
+		$this->assertStringNotContainsString( 'Retrying via local ComfyUI API', $batch );
 	}
 }

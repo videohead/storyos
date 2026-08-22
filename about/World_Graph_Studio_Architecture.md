@@ -87,7 +87,7 @@ The release registers 15 content types:
 | --- | --- |
 | Project structure | Project, Story World, Episode |
 | World entities | Character, Location, Prop, Organization |
-| Narrative and production | Scene, Shot, Sound, Storyboard Frame |
+| Narrative and production | Scene, Shot, Sound |
 | Media and editorial | Asset, Editorial Artifact |
 | Generation configuration | Template, Connection |
 

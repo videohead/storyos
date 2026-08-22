@@ -48,7 +48,6 @@ Counts reflect current mapping in code (`exact`, `close`, `weak`):
 - `worldgraph_scene`: 3, 3, 4
 - `worldgraph_shot`: 3, 2, 3
 - `worldgraph_sound`: 3, 6, 3
-- `worldgraph_board`: 1, 5, 1
 - `worldgraph_asset`: 2, 8, 4
 - `worldgraph_editorial`: 1, 6, 0
 

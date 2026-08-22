@@ -97,7 +97,7 @@ emotional tone, not the Scene's complete script or dialogue transcript.
 ## Template-conditional run controls
 
 Every Template summary returned by the story-aware prompt and plan operations
-can include a sanitized `run_controls` object. The object has `version: 1`, a
+includes a sanitized `run_controls` object. The object has `version: 1`, a
 deterministic `fingerprint`, and an ordered `fields` list. The fingerprint lets
 a client detect that the effective form changed; it is not an authorization
 token, and the server never trusts a client-cached descriptor when a run

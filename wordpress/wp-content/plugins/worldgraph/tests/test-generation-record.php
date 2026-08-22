@@ -12,13 +12,14 @@ use PHPUnit\Framework\TestCase;
  */
 class Test_WorldGraph_Generation_Record extends TestCase {
 
-	/** Generation jobs must remain hidden behind their dedicated REST routes. */
+	/** Jobs are readable in wp-admin but never public, creatable, or REST-exposed. */
 	public function test_generation_record_type_is_internal(): void {
 		$args = \WorldGraph\Utils\worldgraph_get_generation_record_cpt_args();
 
 		$this->assertFalse( $args['public'] );
 		$this->assertFalse( $args['publicly_queryable'] );
-		$this->assertFalse( $args['show_ui'] );
+		$this->assertTrue( $args['show_ui'] );
+		$this->assertSame( 'do_not_allow', $args['capabilities']['create_posts'] );
 		$this->assertFalse( $args['show_in_rest'] );
 		$this->assertFalse( $args['has_archive'] );
 		$this->assertFalse( $args['rewrite'] );

@@ -67,7 +67,6 @@ The current application registers 15 content/configuration types:
 | `worldgraph_scene` | Scene content and continuity |
 | `worldgraph_shot` | Shot planning and coverage |
 | `worldgraph_sound` | Narration, dialogue, effects, ambience, Foley, music, or silence cue |
-| `worldgraph_board` | Storyboard frame |
 | `worldgraph_asset` | Managed media and provenance |
 | `worldgraph_editorial` | Editorial artifact |
 | `worldgraph_template` | Reusable generation/provider configuration |
@@ -232,7 +231,7 @@ Primary route groups are:
 
 | Group | Representative routes |
 | --- | --- |
-| Story content | `/projects`, `/storyworlds`, `/characters`, `/locations`, `/props`, `/organizations`, `/episodes`, `/scenes`, `/shots`, `/sounds`, `/storyboard-frames`, `/assets`, `/editorial-artifacts` |
+| Story content | `/projects`, `/storyworlds`, `/characters`, `/locations`, `/props`, `/organizations`, `/episodes`, `/scenes`, `/shots`, `/sounds`, `/assets`, `/editorial-artifacts` |
 | Graph | `/graph/{id}`, `/graph/entities`, `/graph/relationships` |
 | Generation | `/assets/generate`, `/assets/generate/prompt`, `/generation`, `/generation/{id}`, `/generation/{id}/cancel`, `/generation/asset/{id}/history`, `/generation/templates/{id}/requirements` |
 | Connections | `/connections`, `/connections/{id}`, `/connections/{id}/resolve`, `/connections/{id}/test`, `/connections/sync` |

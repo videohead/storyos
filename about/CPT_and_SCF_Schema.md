@@ -118,10 +118,9 @@ SCF complex fields participate in the wider WordPress and World Graph Studio mod
   description, and sequence values. Its value is read-only in the content edit
   form so manual edits cannot diverge from the imported screenplay structure.
 
-The canonical WordPress post-type keys for Storyboard Frame and Editorial
-Artifact are `worldgraph_board` and `worldgraph_editorial`. The longer names
-`worldgraph_board_frame` and `worldgraph_editorial_artifact` are REST-facing
-bases and legacy identifiers, not valid current CPT keys.
+The canonical WordPress post-type key for Editorial Artifact is
+`worldgraph_editorial`. The longer name `worldgraph_editorial_artifact` is a
+REST-facing base and legacy identifier, not a valid current CPT key.
 
 ---
 
@@ -343,7 +342,6 @@ delete the remote record.
 
 - belongs_to Scene
 - linked_from Sounds
-- references Storyboard Frames
 - references Assets
 
 `menu_order` remains the Shot's project-wide editorial position. The Scene edit
@@ -356,25 +354,6 @@ they are explicitly ordered. The Shot editor does not expose WordPress Page
 Attributes ordering, and the custom REST create/update resources reject direct
 `menu_order` writes; interactive order changes use the complete Scene-scoped
 sequencer.
-
----
-
-# CPT: Storyboard Frame
-
-Canonical CPT key: `worldgraph_board`.
-
-## Fields
-
-- frame_number
-- frame_description
-- image_asset
-- prompt_text
-- camera_notes
-
-## Relationships
-
-- belongs_to Scene
-- belongs_to Shot
 
 ---
 
@@ -434,7 +413,6 @@ an extension can add a reusable composition entity for repeated music works.
 - `character` (relationship to `worldgraph_character`)
 - `location` (relationship to `worldgraph_location`)
 - `scene` (relationship to `worldgraph_scene`)
-- `storyboard` (relationship to `worldgraph_board`)
 
 ## Relationships
 
@@ -799,8 +777,6 @@ Sound -> Character
 Sound -> Asset
 Scene -> Character
 Scene -> Location
-Shot -> Storyboard Frame
-Storyboard Frame -> Asset
 Asset -> Character
 Asset -> Location
 Editorial Artifact -> Scene
@@ -861,7 +837,6 @@ Implementation note:
 - Continuity context: represented by graph relationships across Scene, Shot,
   Sound, Asset, Character, and Location; the current local checker itself
   reports empty Scene/Shot content
-- Storyboard: represented by Storyboard Frame entities linked to Scene/Shot
 - EDL: catalogued as an Editorial Artifact with links to source Scene/Shot;
   current EDL formatting does not yet derive live clips from those links
 
@@ -902,10 +877,10 @@ When a relationship implies generic association, keep Linked wording.
 
 # Current Schema
 
-The current release registers 15 schema-backed content types:
+The current release registers 14 schema-backed content types:
 
 - Project, Story World, Character, Location, Prop, Organization, and Episode
-- Scene, Shot, Sound, and Storyboard Frame
+- Scene, Shot, and Sound
 - Asset and Editorial Artifact
 - Generation Template and Connection
 

@@ -51,7 +51,6 @@ class Settings {
 		'sync_enabled'          => false,
 		'sync_direction'        => 'bidirectional',
 		'auto_sync_on_save'     => true,
-		'sync_storyboard'       => false,
 		'sync_shots'            => false,
 		'default_status'        => 'draft',
 		'create_pages_from'     => 'summary',
@@ -176,20 +175,6 @@ class Settings {
 				'field'  => 'auto_sync_on_save',
 				'label'  => 'Automatically sync when a Story or Scene is saved',
 				'default' => true,
-			]
-		);
-
-		// Sync storyboard frames.
-		add_settings_field(
-			'sync_storyboard',
-			'Sync Storyboard Frames',
-			[ $this, 'render_field_toggle' ],
-			$this->page_slug,
-			'worldgraph_web_stories_sync',
-			[
-				'field'  => 'sync_storyboard',
-				'label'  => 'Include Storyboard Frames in sync (creates additional pages)',
-				'default' => false,
 			]
 		);
 
@@ -343,7 +328,7 @@ class Settings {
 		$sanitized = [];
 
 		// Boolean fields.
-		$boolean_fields = [ 'sync_enabled', 'auto_sync_on_save', 'sync_storyboard' ];
+		$boolean_fields = [ 'sync_enabled', 'auto_sync_on_save' ];
 		foreach ( $boolean_fields as $field ) {
 			$sanitized[ $field ] = isset( $input[ $field ] ) ? (bool) $input[ $field ] : $this->default_settings[ $field ];
 		}
@@ -402,16 +387,6 @@ class Settings {
 	public static function is_auto_sync_enabled(): bool {
 		$settings = self::init()->get_settings();
 		return (bool) ( $settings['auto_sync_on_save'] ?? true );
-	}
-
-	/**
-	 * Check if storyboard sync is enabled.
-	 *
-	 * @return bool
-	 */
-	public static function is_storyboard_sync_enabled(): bool {
-		$settings = self::init()->get_settings();
-		return (bool) ( $settings['sync_storyboard'] ?? false );
 	}
 
 	/**

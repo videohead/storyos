@@ -254,11 +254,11 @@ class Asset_Generator_MetaBox {
 					<p class="description worldgraph-generate-asset__video-template-help"></p>
 				</div>
 			</div>
-			<section class="worldgraph-generate-asset__run-controls" aria-labelledby="worldgraph-generate-asset-run-controls-heading-<?php echo esc_attr( $post->ID ); ?>" hidden>
-				<h5 id="worldgraph-generate-asset-run-controls-heading-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Run controls', 'worldgraph' ); ?></h5>
-				<p class="description"><?php esc_html_e( 'These controls come from the selected Template and apply only to this run.', 'worldgraph' ); ?></p>
+			<details class="worldgraph-generate-asset__run-controls" hidden>
+				<summary><strong><?php esc_html_e( 'Run controls (optional)', 'worldgraph' ); ?></strong></summary>
+				<p class="description"><?php esc_html_e( 'Output framing defaults come from the Project. Sampling and negative-prompt defaults come from the selected Template. Changes here apply only to this run.', 'worldgraph' ); ?></p>
 				<div class="worldgraph-generate-asset__run-control-panels"></div>
-			</section>
+			</details>
 			<fieldset class="worldgraph-generate-asset__direct-options" hidden>
 				<legend class="screen-reader-text"><?php esc_html_e( 'Options for this output', 'worldgraph' ); ?></legend>
 				<label class="worldgraph-generate-asset__featured-option"><input type="checkbox" class="worldgraph-generate-asset__featured" checked /> <?php esc_html_e( 'Set this image as the featured asset', 'worldgraph' ); ?></label>

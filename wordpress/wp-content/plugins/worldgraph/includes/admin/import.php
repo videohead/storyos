@@ -130,7 +130,7 @@ class Import {
 			<?php endif; ?>
 
 			<p class="description">
-				<?php esc_html_e( 'Upload a World Graph Studio JSON file (for example, the full-featured Little Red Riding Hood version 1.2 example) to create a complete miniature project: Project, World, Characters, Locations, Props, Organizations, Episodes, Scenes, Shots, Sounds, Assets, Storyboard Frames, Editorial Artifacts, and Sequence.', 'worldgraph' ); ?>
+				<?php esc_html_e( 'Upload a World Graph Studio JSON file (for example, the full-featured Little Red Riding Hood version 1.2 example) to create a complete miniature project: Project, World, Characters, Locations, Props, Organizations, Episodes, Scenes, Shots, Sounds, Assets, Editorial Artifacts, and Sequence.', 'worldgraph' ); ?>
 			</p>
 
 			<form method="post" id="worldgraph-import-form" enctype="multipart/form-data" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

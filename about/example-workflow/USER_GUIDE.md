@@ -68,7 +68,7 @@ In WordPress:
 
 The full-featured importer example creates the Project, Story World,
 Characters, Locations, Props, Organization, Episode, Scenes, Shots, Sounds,
-Assets, Storyboard Frames, Editorial Artifact, Sequence data, taxonomies, and
+Assets, Editorial Artifact, Sequence data, taxonomies, and
 relationships. The [JSON import contract](JSON_import_spec.md) documents the
 exact mapping, compatibility behavior, and expected record counts.
 

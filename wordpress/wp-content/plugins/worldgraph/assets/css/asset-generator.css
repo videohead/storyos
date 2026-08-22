@@ -142,13 +142,13 @@
 	border-radius: 3px;
 }
 
-.worldgraph-generate-asset__run-controls > h5 {
-	margin: 0 0 4px;
+.worldgraph-generate-asset__run-controls > summary {
+	cursor: pointer;
 	font-size: 14px;
 }
 
 .worldgraph-generate-asset__run-controls > .description {
-	margin: 0 0 12px;
+	margin: 10px 0 12px;
 }
 
 .worldgraph-generate-asset__run-control-template + .worldgraph-generate-asset__run-control-template {

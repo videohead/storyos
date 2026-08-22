@@ -13,7 +13,7 @@ Two examples are maintained:
 - `little-red-riding-hood-full-featured.worldgraph.json` is the comprehensive
   version 1.2 example. It exercises every story/content CPT exposed by the
   custom `worldgraph/v1` REST API: Project, Story World, Character, Location,
-  Prop, Organization, Episode, Scene, Shot, Sound, Storyboard Frame, Asset, and
+  Prop, Organization, Episode, Scene, Shot, Sound, Asset, and
   Editorial Artifact.
 
 Connections, Templates, and internal generation records are configuration or
@@ -32,7 +32,7 @@ runtime state and are deliberately excluded from the interchange example.
   `line` key. Readers normalize either key to stored dialogue `line` metadata.
 - Version 1.0/1.1 Character `archetype` values remain valid compatibility input.
   Version 1.2 writers use `roles` taxonomy slugs.
-- Explicit Scene, Shot, Storyboard Frame, dialogue, and Sequence ordering added
+- Explicit Scene, Shot, dialogue, and Sequence ordering added
   in 1.2 falls back to array order for legacy documents.
 - Fields added in 1.2 are optional when reading older documents. Their absence
   must not prevent import.
@@ -476,32 +476,11 @@ describe a planned result whose `storage_uri` will be fulfilled later.
 | `character` | string | `meta.character`, relationship | Optional Character external ID. |
 | `location` | string | `meta.location`, relationship | Optional Location external ID. |
 | `scene` | string | `meta.scene`, relationship | Optional Scene external ID. |
-| `storyboard` | string | `meta.storyboard`, relationship | Optional Storyboard Frame external ID. |
 
 Sound `asset` references must resolve to an Asset whose `asset_type` is `audio`.
-Character avatars, Location visual references, and Storyboard images must resolve
+Character avatars and Location visual references must resolve
 to Assets typed `image`, `character`, `environment`, `prop`, `storyboard`,
 `lookbook`, or `concept-art`.
-
-## Storyboard Frames
-
-### Target
-
-```text
-storyboards[] -> worldgraph_board
-```
-
-| JSON field | Type | WordPress/API target | Notes |
-| --- | --- | --- | --- |
-| `id` | string | `external_id` | Required and unique. |
-| `title` | string | `post_title` | Human-friendly frame title. |
-| `frame_number` | number | `meta.frame_number`, `menu_order` | Required positive storyboard order. |
-| `description` | string | `post_content`, `meta.frame_description` | Visible action and composition. |
-| `image_asset` | string | `meta.image_asset`, relationship | Optional visual Asset external ID. |
-| `prompt_text` | string | `meta.prompt_text` | Generation-ready visual prompt. |
-| `camera_notes` | string | `meta.camera_notes` | Camera, lens, framing, or movement note. |
-| `scene` | string | `meta.scene`, relationship | Scene external ID; must agree with the Shot's Scene. |
-| `shot` | string | `meta.shot`, relationship | Required Shot external ID. |
 
 ## Editorial Artifacts
 
@@ -584,7 +563,6 @@ Scenes:             3
 Shots:              9
 Sounds:             7
 Assets:              0
-Storyboard Frames:  9
 Editorial Artifacts: 0
 Sequences:          1 taxonomy term
 ```
@@ -603,7 +581,6 @@ Scenes:              4
 Shots:              12
 Sounds:              9
 Assets:               6
-Storyboard Frames:  12
 Editorial Artifacts: 1
 Sequences:           1 taxonomy term
 ```
@@ -631,6 +608,6 @@ Importing the full-featured example should create a complete miniature productio
 graph in one action: a richly described Project and World, production-ready
 Characters and Locations, continuity-aware Props, an Organization and Episode,
 full Scenes and dialogue, camera-specific Shots, planned Sounds and Assets,
-generation-ready Storyboard Frames, an Editorial Artifact, and a stable ordered
+an Editorial Artifact, and a stable ordered
 Sequence. The same values must be discoverable through the World Graph Studio
 REST API using their external IDs.

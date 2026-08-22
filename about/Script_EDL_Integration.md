@@ -59,7 +59,7 @@ POST /wp-json/worldgraph/v1/import
 
 Validation can run without writes. A committed import creates or updates the
 supported Project, Story World, Character, Location, Prop, Scene, Shot, Sound,
-Storyboard Frame, and Sequence records; resolves external IDs; assigns terms;
+and Sequence records; resolves external IDs; assigns terms;
 builds relationships; and verifies the resulting counts and references.
 
 The JSON engine is the canonical structured project importer. FDX and
@@ -106,7 +106,7 @@ when it is already represented in `script_content`. The download uses a
 ### Markdown Storyboard Export
 
 The same screen can derive a storyboard Markdown document from live Scenes,
-Shots, Storyboard Frames, descriptions, prompts, image references, camera
+Shots, descriptions, framing, lens, duration, editorial
 notes, and ordering. The download uses a `-storyboard.md` suffix.
 
 Markdown output is intentionally readable, diffable, and suitable for version
@@ -202,14 +202,13 @@ An interchange adapter should preserve these meanings:
 
 - Scene order, title/heading, summary, script content, structured dialogue,
   location, time of day, and production notes remain distinct fields.
-- Shots, Sounds, Storyboard Frames, Characters, and Assets remain linked rather
+- Shots, Sounds, Characters, and Assets remain linked rather
   than flattened into one document.
 
-### Shot and Storyboard
+### Shot
 
 - Shot order, camera/lens information, duration, slate/take data, and editorial
   notes remain attached to the Shot.
-- Storyboard Frames link to a Scene or Shot and can link to an image Asset.
 
 ## EDL Integration
 

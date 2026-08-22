@@ -297,7 +297,7 @@ events with WP-CLI. A queued generation cannot progress if WP-Cron never runs.
 ## Generate a test asset
 
 1. Open a Project, Story World, Character, Location, Prop, Organization,
-   Episode, Scene, Shot, Storyboard Frame, Asset, or Editorial Artifact.
+   Episode, Scene, Shot, Asset, or Editorial Artifact.
 2. Find **World Graph Studio Assets**.
 3. Choose **Image**, then select the exact image intent and active Template.
    (A Shot also offers **Video**; multi-output recipes offer **Sequence**.)

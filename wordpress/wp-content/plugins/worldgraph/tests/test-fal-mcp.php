@@ -78,12 +78,12 @@ class Test_Fal_MCP extends TestCase {
 		$bootstrap = file_get_contents( dirname( __DIR__ ) . '/worldgraph.php' );
 		$registry = file_get_contents( dirname( __DIR__ ) . '/includes/utils/connection-adapters.php' );
 		$wizard = file_get_contents( dirname( __DIR__ ) . '/includes/admin/setup-wizard.php' );
-		$plugins = file_get_contents( dirname( __DIR__ ) . '/includes/admin/plugins.php' );
+		$adapters = file_get_contents( dirname( __DIR__ ) . '/includes/admin/adapters.php' );
 
 		$this->assertNotFalse( $bootstrap );
 		$this->assertNotFalse( $registry );
 		$this->assertNotFalse( $wizard );
-		$this->assertNotFalse( $plugins );
+		$this->assertNotFalse( $adapters );
 		$this->assertStringContainsString( "includes/utils/connection-adapters.php", $bootstrap );
 		$this->assertStringNotContainsString( "require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/fal-mcp.php'", $bootstrap );
 		$this->assertStringNotContainsString( "require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/comfy-cloud-mcp.php'", $bootstrap );
@@ -91,7 +91,7 @@ class Test_Fal_MCP extends TestCase {
 		$this->assertStringContainsString( "'setup_options'", $registry );
 		$this->assertStringContainsString( 'name="worldgraph_gen_connection_mode"', $wizard );
 		$this->assertStringNotContainsString( 'type="radio" name="worldgraph_comfy_connection_mode"', $wizard );
-		$this->assertStringContainsString( '<h2>Connection Adapters</h2>', $plugins );
-		$this->assertStringContainsString( 'there is no separate plugin toggle', $plugins );
+		$this->assertStringContainsString( 'Connection Adapters', $adapters );
+		$this->assertStringContainsString( 'there is no separate adapter toggle', $adapters );
 	}
 }

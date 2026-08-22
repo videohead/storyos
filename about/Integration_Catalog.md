@@ -26,7 +26,7 @@ integration's exact contract.
 | --- | --- | --- | --- |
 | World Graph Studio JSON | JSON → Story Graph | Dry-run validation, entity creation or update, taxonomy assignment, relationship construction, and import reporting | WordPress admin and `worldgraph/v1/import*` REST routes |
 | Markdown screenplay export | Story Graph → Markdown | Derives a screenplay-style view from the live Project, ordered Scenes, Scene summary/script content, linked Character names, and Shot headings; structured dialogue appears only when already represented in Scene script content | WordPress Export screen |
-| Markdown storyboard export | Story Graph → Markdown | Derives a storyboard view from live Scenes, Shots, Storyboard Frames, prompts, and image references | WordPress Export screen |
+| Markdown storyboard export | Story Graph → Markdown | Derives a storyboard view from live Scenes and Shots, including framing, lens, duration, and editorial notes | WordPress Export screen |
 | Manual external asset intake | External media → WordPress | Stores uploaded or registered media with source, prompt, model, rights, and provenance context | Media Library and Asset workflows |
 
 See [Script and Editorial Interchange](Script_EDL_Integration.md) for field

@@ -171,10 +171,7 @@ class Sync_Controller {
 							'required' => false,
 							'type'     => 'boolean',
 						],
-						'sync_storyboard'    => [
-							'required' => false,
-							'type'     => 'boolean',
-						],
+
 						'default_status'     => [
 							'required' => false,
 							'type'     => 'string',
@@ -346,7 +343,6 @@ class Sync_Controller {
 			'sync_enabled',
 			'sync_direction',
 			'auto_sync_on_save',
-			'sync_storyboard',
 			'default_status',
 			'create_pages_from',
 		];

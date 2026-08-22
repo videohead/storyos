@@ -72,7 +72,6 @@ The implemented resource bases are:
 | `scenes` | `worldgraph_scene` |
 | `shots` | `worldgraph_shot` |
 | `sounds` | `worldgraph_sound` |
-| `storyboard-frames` | `worldgraph_board` |
 | `assets` | `worldgraph_asset` |
 | `editorial-artifacts` | `worldgraph_editorial` |
 

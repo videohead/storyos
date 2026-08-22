@@ -64,6 +64,13 @@ class Local_ComfyUI {
 		}
 
 		$job_id   = absint( $parameters['_worldgraph_job_id'] ?? 0 );
+		if ( $job_id && metadata_exists( 'post', $job_id, '_worldgraph_gen_run_values' ) ) {
+			$submitted = get_post_meta( $job_id, '_worldgraph_gen_run_values', true );
+			$submitted = is_array( $submitted ) ? $submitted : [];
+			if ( ! array_key_exists( 'seed', $submitted ) && ! array_key_exists( 'noise_seed', $submitted ) ) {
+				unset( $parameters['seed'], $parameters['noise_seed'] );
+			}
+		}
 		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id, $job_id );
 		if ( is_wp_error( $resolved ) ) {
 			Generation_Log::add( 'error', 'local_comfyui', $resolved->get_error_message(), [], '', $connection_id );
@@ -280,7 +287,9 @@ class Local_ComfyUI {
 			$settings['checkpoint'] = Comfy_Bootstrap::DEFAULT_CHECKPOINT;
 		}
 
-		return Generation_Modality::default_workflow( $modality, $settings );
+		$workflow = Generation_Modality::default_workflow( $modality, $settings );
+
+		return $template_id ? Template_Run_Controls::apply_to_workflow( $template_id, $workflow, $runtime ) : $workflow;
 	}
 
 	/**
@@ -299,7 +308,13 @@ class Local_ComfyUI {
 		}
 		$workflow = Template_Run_Controls::apply_to_workflow( $template_id, $workflow, $runtime );
 
-		$fixed_seed = isset( $runtime['seed'] ) && preg_match( '/^\d+$/', (string) $runtime['seed'] );
+		$fixed_seed = false;
+		foreach ( [ 'seed', 'noise_seed' ] as $seed_key ) {
+			if ( isset( $runtime[ $seed_key ] ) && preg_match( '/^\d+$/', (string) $runtime[ $seed_key ] ) ) {
+				$fixed_seed = true;
+				break;
+			}
+		}
 
 		return $fixed_seed ? $workflow : Comfy_Graph::randomize_seeds( $workflow );
 	}

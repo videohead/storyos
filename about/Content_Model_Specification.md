@@ -275,25 +275,7 @@ Represents a fictional universe.
 
 - Belongs To Scene
 - Linked From Sounds
-- References Storyboard Frames
 - References Assets
-
----
-
-# CPT: Storyboard Frame
-
-## Fields
-
-- Frame Number
-- Description
-- Prompt
-- Image Asset
-- Camera Notes
-
-## Relationships
-
-- Belongs To Scene
-- Belongs To Shot
 
 ---
 
@@ -711,7 +693,6 @@ Current model coverage:
 - Shot List is a view derived from ordered Scene -> Shot relations.
 - The local continuity checker currently reports empty Scene/Shot content;
   configured AI assistance can perform broader contextual review.
-- Storyboard is represented through Storyboard Frame entities and links.
 - EDL can be catalogued as an Editorial Artifact linked to source Scene/Shot
   records. The optional EDL formatter does not yet derive those live links into
   its admin export clip list.
