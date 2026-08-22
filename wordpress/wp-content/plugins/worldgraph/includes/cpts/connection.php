@@ -1141,6 +1141,8 @@ class Connection {
 	 * @return array|\WP_Error
 	 */
 	public static function catalog_materialize_entry( int $connection_id, string $entry_id ) {
+		\WorldGraph\Utils\Connection_Adapters::load( 'comfyui' );
+
 		$template_id = self::materialize_catalog_entry( $connection_id, $entry_id );
 		if ( is_wp_error( $template_id ) ) {
 			return $template_id;
@@ -1162,6 +1164,8 @@ class Connection {
 	 * @return array|\WP_Error
 	 */
 	public static function catalog_download_entry( int $connection_id, string $entry_id ) {
+		\WorldGraph\Utils\Connection_Adapters::load( 'comfyui' );
+
 		if ( \WorldGraph\Utils\Comfy_Template_Registry::owns( $entry_id ) ) {
 			return self::catalog_download_registry_entry( $connection_id, $entry_id );
 		}

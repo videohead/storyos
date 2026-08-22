@@ -77,16 +77,16 @@ class Comfy_Template_Registry {
 	 */
 	const TAG_MODALITIES = [
 		'Text to Video'      => Generation_Modality::TEXT_TO_VIDEO,
-		'Image to Video'     => 'text_image_to_video',
-		'Reference to Video' => 'text_image_to_video',
-		'Video Edit'         => 'video_to_video',
-		'Text to Music'      => 'text_to_music',
-		'Text to Audio'      => 'text_to_speech',
+		'Image to Video'     => Generation_Modality::TEXT_IMAGE_TO_VIDEO,
+		'Reference to Video' => Generation_Modality::TEXT_IMAGE_TO_VIDEO,
+		'Video Edit'         => Generation_Modality::VIDEO_TO_VIDEO,
+		'Text to Music'      => Generation_Modality::TEXT_TO_MUSIC,
+		'Text to Audio'      => Generation_Modality::TEXT_TO_MUSIC,
 		'Text to Image'      => Generation_Modality::TEXT_TO_IMAGE,
-		'Image Edit'         => 'image_to_image',
-		'Inpainting'         => 'image_to_image',
-		'Outpainting'        => 'image_to_image',
-		'Image Upscale'      => 'image_to_image',
+		'Image Edit'         => Generation_Modality::IMAGE_TO_IMAGE,
+		'Inpainting'         => Generation_Modality::IMAGE_TO_IMAGE,
+		'Outpainting'        => Generation_Modality::IMAGE_TO_IMAGE,
+		'Image Upscale'      => Generation_Modality::IMAGE_TO_IMAGE,
 	];
 
 	/**

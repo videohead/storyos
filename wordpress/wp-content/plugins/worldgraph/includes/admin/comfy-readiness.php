@@ -46,7 +46,7 @@ class Comfy_Readiness {
 			</div>
 			<p>
 				<button type="button" class="button" id="worldgraph-comfy-recheck"><?php esc_html_e( 'Re-check ComfyUI', 'worldgraph' ); ?></button>
-				<button type="button" class="button" id="worldgraph-comfy-provision"><?php esc_html_e( 'Create text-to-image Template', 'worldgraph' ); ?></button>
+				<button type="button" class="button" id="worldgraph-comfy-provision"><?php esc_html_e( 'Prepare local image Template', 'worldgraph' ); ?></button>
 				<span id="worldgraph-comfy-readiness-message" aria-live="polite"></span>
 			</p>
 		</div>
@@ -167,7 +167,7 @@ class Comfy_Readiness {
 			Comfy_Bootstrap::status( true ),
 			sprintf(
 				/* translators: %s: Template title. */
-				__( 'Using the "%s" Template.', 'worldgraph' ),
+				__( 'Using %s. This is a local baseline text-to-image workflow for ComfyUI; it generates images with the checkpoint/model installed on this connection, and quality depends on that model. If no better model is present, the system falls back to a built-in Stable Diffusion 1.5 pipeline.', 'worldgraph' ),
 				get_the_title( $template_id )
 			)
 		);

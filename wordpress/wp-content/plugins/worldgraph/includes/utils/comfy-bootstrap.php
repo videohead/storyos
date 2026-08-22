@@ -158,7 +158,7 @@ class Comfy_Bootstrap {
 
 		$template_id = \WorldGraph\CPT\Template::upsert_managed(
 			self::TEMPLATE_SLOT,
-			__( 'Local ComfyUI Text to Image', 'worldgraph' ),
+			__( 'Local ComfyUI Text-to-Image (Baseline)', 'worldgraph' ),
 			[
 				'connection_id'        => (string) $connection_id,
 				'generation_structure' => Generation_Modality::output_type( Generation_Modality::TEXT_TO_IMAGE ),
