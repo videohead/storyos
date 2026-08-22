@@ -533,8 +533,10 @@ per-type Template override. A non-empty values object without that Template ID
 is invalid. The plan then persists the normalized values frozen per task, and
 those values are included in the idempotency request fingerprint. WP-Cron
 materializes and activates children in bounded groups instead of holding one
-request open for the complete Project run. Omitting run values preserves the
-prior Template-default behavior.
+request open for the complete Project run. Each task also freezes the Project
+output values supported by its resolved Template, separately from explicit run
+values. Omitting run values therefore uses compatible Project framing followed
+by the Template sampling and negative-conditioning defaults.
 
 WP-Cron processes bounded batches, submits or polls the configured adapter,
 supports cancellation, imports completed media for supported Template

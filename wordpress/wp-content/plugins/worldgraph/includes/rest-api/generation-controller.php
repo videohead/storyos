@@ -66,11 +66,15 @@ class Generation_Controller extends Base_Controller {
 					'type'        => 'integer',
 				],
 				'params'     => [
-					'description' => 'Generation parameters.',
+					'description' => 'Legacy provider parameters retained for backward compatibility.',
+					'type'        => 'object',
+				],
+				'run_values' => [
+					'description' => 'Template-declared scalar overrides validated for this run.',
 					'type'        => 'object',
 				],
 				'inputs'     => [
-					'description' => 'Template input slots (prompt, negative_prompt).',
+					'description' => 'Template prompt and media input slots.',
 					'type'        => 'object',
 				],
 				'workflow'   => [
@@ -297,6 +301,8 @@ class Generation_Controller extends Base_Controller {
 		$asset_id = $request->get_param( 'asset_id' ) ? absint( $request->get_param( 'asset_id' ) ) : null;
 		$params = $request->get_param( 'params' );
 		$params = is_array( $params ) ? $params : [];
+		$run_values = $request->get_param( 'run_values' );
+		$run_values = is_array( $run_values ) ? $run_values : [];
 		$inputs = self::sanitize_inputs( $request->get_param( 'inputs' ) );
 		$workflow = sanitize_text_field( (string) $request->get_param( 'workflow' ) );
 
@@ -326,23 +332,56 @@ class Generation_Controller extends Base_Controller {
 		if ( $template_modality && $type !== \WorldGraph\Utils\Generation_Modality::output_type( $template_modality ) ) {
 			return new WP_Error( 'generation_type_mismatch', 'The requested type must match the selected Template output type.', [ 'status' => 400 ] );
 		}
+		$modality = \WorldGraph\Utils\Generation_Modality::sanitize( $template_modality );
+		$inputs   = self::resolve_template_media_inputs( (int) $template->ID, absint( $asset_id ), $inputs );
+		$authorization = Generation_Authorization::authorize_submission( $type, absint( $asset_id ), $inputs, $requester_id );
+		if ( is_wp_error( $authorization ) ) {
+			return $authorization;
+		}
+		$missing_inputs = self::missing_required_media_inputs( $modality, $inputs );
+		if ( ! empty( $missing_inputs ) ) {
+			return new WP_Error(
+				'worldgraph_generation_required_input_missing',
+				sprintf(
+					/* translators: %s: comma-separated required media input names. */
+					__( 'The selected Template requires these media inputs: %s.', 'worldgraph' ),
+					implode( ', ', $missing_inputs )
+				),
+				[ 'status' => 400, 'missing_inputs' => $missing_inputs ]
+			);
+		}
 		\WorldGraph\Utils\Connection_Adapters::load( (string) $connection['provider_type'] );
+
+		// Local ComfyUI needs its nodes/models physically installed; refuse the
+		// request here (consulting the Connection's MCP server to auto-fetch
+		// what it can) instead of letting it queue and fail in the WP-Cron worker.
+		$use_local_comfyui = 'comfyui' === $connection['provider_type'] && 'local' === ( $connection['environment'] ?? '' );
+		if ( $use_local_comfyui ) {
+			$ready = \WorldGraph\Utils\Comfy_Manifest::ensure_ready( $template->ID, $connection_id );
+			if ( is_wp_error( $ready ) ) {
+				return $ready;
+			}
+		}
 		$provider_template_id = sanitize_text_field( (string) ( \WorldGraph\Utils\worldgraph_get_field_value( $template->ID, 'provider_template_id' ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
 		if ( 'fal' === $connection['provider_type'] && '' === $provider_template_id ) {
 			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
 		}
-		if ( '' === $provider_template_id ) {
+		if ( '' === $provider_template_id && ! $use_local_comfyui ) {
 			return new WP_Error( 'missing_provider_template', 'The selected Template must reference a provider MCP Template.', [ 'status' => 400 ] );
 		}
 		if ( 'fal' === $connection['provider_type'] && ! \WorldGraph\Utils\Fal_MCP::endpoint_is_allowed( $connection, $provider_template_id ) ) {
 			return new WP_Error( 'fal_endpoint_not_allowed', 'That fal model endpoint is not allowed by the selected Connection.', [ 'status' => 400 ] );
 		}
 		$provider_type = $connection['provider_type'];
-		$workflow = $provider_template_id;
-		$params = \WorldGraph\Utils\Template_Run_Controls::validate( (int) $template->ID, $params );
-		if ( is_wp_error( $params ) ) {
-			return $params;
+		$workflow = '' !== $provider_template_id ? $provider_template_id : (string) $template->ID;
+		$run_values = \WorldGraph\Utils\Template_Run_Controls::validate( (int) $template->ID, $run_values );
+		if ( is_wp_error( $run_values ) ) {
+			return $run_values;
 		}
+		// Provider/Template defaults are applied by the worker. Preserve the
+		// original generic `params` contract, then let validated v1 run controls
+		// override colliding legacy keys.
+		$params = array_merge( $params, $run_values );
 
 		// Create generation request post.
 		$post_id = wp_insert_post( [
@@ -360,13 +399,16 @@ class Generation_Controller extends Base_Controller {
 		update_post_meta( $post_id, '_worldgraph_gen_type', $type );
 		update_post_meta( $post_id, '_worldgraph_gen_prompt', $prompt );
 		update_post_meta( $post_id, '_worldgraph_gen_params', $params );
-		update_post_meta( $post_id, '_worldgraph_gen_run_values', $params );
+		update_post_meta( $post_id, '_worldgraph_gen_run_values', $run_values );
 		update_post_meta( $post_id, '_worldgraph_gen_inputs', $inputs );
 		update_post_meta( $post_id, Generation_Authorization::REQUESTER_META, $requester_id );
 		update_post_meta( $post_id, '_worldgraph_gen_workflow', $workflow );
 		update_post_meta( $post_id, '_worldgraph_gen_template_id', $template->ID );
 		update_post_meta( $post_id, '_worldgraph_gen_provider_type', $provider_type );
 		update_post_meta( $post_id, '_worldgraph_gen_connection_id', $connection_id );
+		if ( $use_local_comfyui ) {
+			update_post_meta( $post_id, '_worldgraph_gen_adapter', 'local_comfyui' );
+		}
 		update_post_meta( $post_id, '_worldgraph_gen_status', 'queued' );
 		update_post_meta( $post_id, '_worldgraph_gen_created', current_time( 'mysql' ) );
 
@@ -381,6 +423,39 @@ class Generation_Controller extends Base_Controller {
 			'connection_id' => $connection_id,
 			'created_at' => current_time( 'mysql' ),
 		] );
+	}
+
+	/**
+	 * Merge server-owned Template media bindings beneath explicit request inputs.
+	 *
+	 * @param int                  $template_id Template post ID.
+	 * @param int                  $source_id   Optional source Asset/post ID.
+	 * @param array<string, mixed> $inputs      Sanitized explicit inputs.
+	 * @return array<string, mixed>
+	 */
+	private static function resolve_template_media_inputs( int $template_id, int $source_id, array $inputs ): array {
+		$bound = $source_id ? \WorldGraph\Utils\Template_Bindings::resolve( $template_id, $source_id ) : [];
+
+		return array_merge( $bound, $inputs );
+	}
+
+	/**
+	 * Required prompt text arrives through the top-level `prompt`; this check is
+	 * only for required media slots declared by the resolved Template modality.
+	 *
+	 * @param string               $modality Registered Template modality.
+	 * @param array<string, mixed> $inputs   Merged bound and explicit inputs.
+	 * @return array<int, string>
+	 */
+	private static function missing_required_media_inputs( string $modality, array $inputs ): array {
+		$required_media = array_intersect(
+			\WorldGraph\Utils\Generation_Modality::required_inputs( $modality ),
+			\WorldGraph\Utils\Generation_Modality::MEDIA_SLOTS
+		);
+
+		return array_values( array_filter( $required_media, static function ( string $slot ) use ( $inputs ): bool {
+			return ! isset( $inputs[ $slot ] ) || ! is_scalar( $inputs[ $slot ] ) || '' === trim( (string) $inputs[ $slot ] );
+		} ) );
 	}
 
 	/**

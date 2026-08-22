@@ -152,6 +152,8 @@ class Asset_Generator {
 			'create_asset'       => true,
 			'template_id'        => 0,
 			'run_values'         => [],
+			'profile_values'     => [],
+			'profile_values_frozen' => false,
 			'run_values_validated' => false,
 			'intent'             => '',
 			'batch_id'           => 0,
@@ -266,17 +268,22 @@ class Asset_Generator {
 			}
 		}
 
-		$batch_id   = absint( $args['batch_id'] );
-		$batch_step = (int) $args['batch_step'];
-		$run_values = is_array( $args['run_values'] ) ? $args['run_values'] : [];
-		if ( ! $batch_id || ! rest_sanitize_boolean( $args['run_values_validated'] ) ) {
-			$run_values = Template_Run_Controls::validate( $template_id, $run_values );
+		$batch_id             = absint( $args['batch_id'] );
+		$batch_step           = (int) $args['batch_step'];
+		$trusted_batch_values = $batch_id && rest_sanitize_boolean( $args['run_values_validated'] );
+		$description          = Template_Run_Controls::describe( $template_id );
+		$run_values           = is_array( $args['run_values'] ) ? $args['run_values'] : [];
+		if ( ! $trusted_batch_values ) {
+			$run_values = Template_Run_Controls::validate_description( $description, $run_values );
 			if ( is_wp_error( $run_values ) ) {
 				return $run_values;
 			}
 		}
+		$profile_values = $trusted_batch_values && rest_sanitize_boolean( $args['profile_values_frozen'] ) && is_array( $args['profile_values'] )
+			? $args['profile_values']
+			: self::project_template_defaults( $template_id, $profile, $description );
 		if ( $batch_id ) {
-			$batch_validation = self::validate_batch_task( $batch_id, $batch_step, $post_id, $type, $intent, $template_id, $requester_id, $run_values );
+			$batch_validation = self::validate_batch_task( $batch_id, $batch_step, $post_id, $type, $intent, $template_id, $requester_id, $run_values, $profile_values );
 			if ( is_wp_error( $batch_validation ) ) {
 				return $batch_validation;
 			}
@@ -302,8 +309,8 @@ class Asset_Generator {
 		// workflow name so existing jobs without a Template keep working.
 		$template       = $use_local_template ? (string) $template_id : $provider_template_id;
 		$adapter        = 'fal' === $provider ? 'fal_mcp' : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? $provider : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
-		$template_input = array_merge( Template_Run_Controls::defaults( $template_id ), self::fal_template_input( $template_id ) );
-		$params         = 'fal' === $provider ? [] : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
+		$template_input = array_merge( self::fal_template_input( $template_id ), Template_Run_Controls::defaults( $template_id ) );
+		$params         = $profile_values;
 		$params         = array_merge( $params, $run_values );
 		$initial_status = in_array( $args['initial_status'], [ 'staged', 'queued' ], true ) ? (string) $args['initial_status'] : 'queued';
 		if ( 'staged' === $initial_status && ! $batch_id ) {
@@ -317,6 +324,7 @@ class Asset_Generator {
 			'_worldgraph_gen_prompt_hash'      => hash( 'sha256', $prompt ),
 			'_worldgraph_gen_params'           => $params,
 			'_worldgraph_gen_run_values'       => $run_values,
+			'_worldgraph_gen_profile_values'   => $profile_values,
 			'_worldgraph_gen_template_input'   => $template_input,
 			'_worldgraph_gen_workflow'         => $template,
 			'_worldgraph_gen_adapter'          => $adapter,
@@ -363,7 +371,7 @@ class Asset_Generator {
 	}
 
 	/** Validate that a staged child exactly matches its frozen parent task. */
-	private static function validate_batch_task( int $batch_id, int $step, int $post_id, string $type, string $intent, int $template_id, int $requester_id, array $run_values = [] ) {
+	private static function validate_batch_task( int $batch_id, int $step, int $post_id, string $type, string $intent, int $template_id, int $requester_id, array $run_values = [], array $profile_values = [] ) {
 		$batch = get_post( $batch_id );
 		$plan  = get_post_meta( $batch_id, Generation_Workflows::BATCH_PLAN_META, true );
 		$task  = is_array( $plan ) && isset( $plan[ $step ] ) && is_array( $plan[ $step ] ) ? $plan[ $step ] : [];
@@ -380,6 +388,7 @@ class Asset_Generator {
 			|| $intent !== ( $task['intent'] ?? '' )
 			|| $template_id !== absint( $task['template_id'] ?? 0 )
 			|| $run_values !== (array) ( $task['run_values'] ?? [] )
+			|| ( array_key_exists( 'profile_values', $task ) && $profile_values !== (array) $task['profile_values'] )
 			|| ( '' !== $expected_fingerprint && ! hash_equals( $expected_fingerprint, $current_fingerprint ) )
 		) {
 			return new WP_Error( 'worldgraph_asset_batch_task_invalid', __( 'The generation job does not match its frozen representative-media batch task.', 'worldgraph' ), [ 'status' => 409 ] );
@@ -424,55 +433,16 @@ class Asset_Generator {
 	}
 
 	/**
-	 * Validate local ComfyUI Template requirements before queueing. When MCP
-	 * download support is available, attempt to fetch missing checkpoint files
-	 * and re-validate once.
+	 * Validate local ComfyUI Template requirements before queueing. Delegates
+	 * to the shared gate so submission, smoke checks, and panel listing agree
+	 * on what "ready" means and equally benefit from MCP-assisted install.
 	 *
 	 * @param int $template_id   Template post ID.
 	 * @param int $connection_id Connection post ID.
 	 * @return true|WP_Error
 	 */
 	private static function ensure_local_template_requirements( int $template_id, int $connection_id ) {
-		$report = Comfy_Manifest::validate( $template_id );
-		if ( is_wp_error( $report ) ) {
-			return $report;
-		}
-		if ( ! empty( $report['ok'] ) ) {
-			return true;
-		}
-
-		if ( ! empty( $report['missing_models'] ) && Comfy_Cloud_MCP::supports_tool( 'download_models', $connection_id ) ) {
-			$download = Comfy_Manifest::request_downloads( $template_id );
-			if ( ! is_wp_error( $download ) ) {
-				Comfy_Manifest::flush_catalog();
-				$report = Comfy_Manifest::validate( $template_id );
-				if ( is_wp_error( $report ) ) {
-					return $report;
-				}
-				if ( ! empty( $report['ok'] ) ) {
-					return true;
-				}
-			}
-		}
-
-		$missing = [];
-		foreach ( (array) ( $report['missing_models'] ?? [] ) as $model ) {
-			if ( ! empty( $model['filename'] ) ) {
-				$missing[] = (string) $model['filename'];
-			}
-		}
-
-		return new WP_Error(
-			'worldgraph_local_comfyui_requirements_missing',
-			empty( $missing )
-				? __( 'ComfyUI is missing one or more Template requirements. Open the Template requirements panel and install missing models before generating.', 'worldgraph' )
-				: sprintf(
-					/* translators: %s: comma-separated missing model filenames. */
-					__( 'ComfyUI is missing required model files: %s. Use the Template requirements panel to install them, then try again.', 'worldgraph' ),
-					implode( ', ', $missing )
-				),
-			[ 'status' => 400 ]
-		);
+		return Comfy_Manifest::ensure_ready( $template_id, $connection_id );
 	}
 
 	/**
@@ -501,6 +471,37 @@ class Asset_Generator {
 		$profile['size'] = $profile['width'] . 'x' . $profile['height'];
 
 		return $profile;
+	}
+
+	/**
+	 * Build the Project-derived provider parameters for one Template.
+	 *
+	 * The descriptor projection validates each output value independently and
+	 * adds aliases such as `fps` only when the Template proves it accepts them.
+	 * VideoDraft and OpenRouter retain their documented aspect-ratio baseline
+	 * even when an older catalog record omitted that schema field.
+	 *
+	 * @param int   $template_id Template post ID.
+	 * @param array $profile     Project media profile.
+	 * @param array $description Optional already-derived run-control DTO.
+	 * @return array<string,scalar>
+	 */
+	public static function project_template_defaults( int $template_id, array $profile, array $description = [] ): array {
+		if ( empty( $description ) ) {
+			$description = Template_Run_Controls::describe( $template_id );
+		}
+		$defaults = Template_Run_Controls::profile_defaults( $description, $profile );
+		$provider = sanitize_key( (string) worldgraph_get_field_value( $template_id, 'provider_type' ) );
+		if ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) && ! isset( $defaults['aspect_ratio'] ) ) {
+			$fallback = Template_Run_Controls::describe_configuration( [
+				'provider_schema' => [
+					'properties' => [ 'aspect_ratio' => [ 'type' => 'string' ] ],
+				],
+			] );
+			$defaults = array_merge( Template_Run_Controls::profile_defaults( $fallback, $profile ), $defaults );
+		}
+
+		return $defaults;
 	}
 
 	/**
@@ -818,7 +819,13 @@ class Asset_Generator {
 		$prompt   = (string) get_post_meta( $job_id, '_worldgraph_gen_prompt', true );
 		$asset_id = 0;
 		if ( ( ! $has_story_source || rest_sanitize_boolean( get_post_meta( $job_id, '_worldgraph_gen_create_asset', true ) ) ) && 'worldgraph_asset' !== $post->post_type ) {
-			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $media, [ 'model' => $provider ?: 'generation-mcp', 'size' => (string) ( get_post_meta( $job_id, '_worldgraph_gen_params', true )['size'] ?? '' ), 'revised_prompt' => '', 'workflow' => (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) ] ), $job_id );
+			$job_params     = get_post_meta( $job_id, '_worldgraph_gen_params', true );
+			$profile_values = get_post_meta( $job_id, '_worldgraph_gen_profile_values', true );
+			$output_size    = is_array( $job_params ) ? (string) ( $job_params['size'] ?? '' ) : '';
+			if ( '' === $output_size && is_array( $profile_values ) && isset( $profile_values['width'], $profile_values['height'] ) ) {
+				$output_size = $profile_values['width'] . 'x' . $profile_values['height'];
+			}
+			$asset_id = self::create_asset_record( $post, $attachment_id, $prompt, array_merge( $media, [ 'model' => $provider ?: 'generation-mcp', 'size' => $output_size, 'revised_prompt' => '', 'workflow' => (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) ] ), $job_id );
 		}
 
 		if ( ! in_array( $attachment_id, $generated_attachment_ids, true ) ) {

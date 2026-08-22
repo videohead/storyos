@@ -344,6 +344,13 @@ Template/workflow reference, parameters, and optional target Asset and bound
 inputs. The controller accepts `image`, `video`, `audio`, and `text` type values,
 but the Template and Connection must name the same registered provider adapter
 and the requested output must match an available Template modality.
+`params` remains the backward-compatible provider parameter map. New clients
+may send Template-advertised scalar overrides in `run_values`; those values are
+validated against the resolved Template and win over colliding legacy
+parameters. Server-resolved Template media bindings sit beneath explicit
+`inputs`, and required image/start-frame inputs are authorized and checked
+before the job is queued. A local ComfyUI Template runs by its WordPress
+Template ID and therefore does not require a cloud provider-template ID.
 
 The editor-facing story-aware image/video workflow is also available through:
 
@@ -423,11 +430,13 @@ WordPress selects the Template, re-derives its run-control contract, and
 normalizes the submitted object before creating a job. Unknown fields, nested
 arrays or objects, wrong scalar types, out-of-range numbers, and values outside
 advertised select `options` fail validation rather than being forwarded to a
-provider.
+provider. The server applies compatible output framing from the owning Project
+before the submitted overrides; sampling and negative-conditioning defaults
+remain owned by the Template.
 Omitting `seed` means no fixed-seed override and preserves the Template or
 provider's existing randomization behavior; an explicitly submitted integer
-`0` remains a valid fixed seed. An omitted or empty `run_values` object keeps
-the prior behavior and uses Template/provider defaults. Direct video is
+`0` remains a valid fixed seed. An omitted or empty `run_values` object uses
+compatible Project framing and Template/provider defaults. Direct video is
 defined by the Shot recipe; Project-wide Shot videos use the durable batch
 route.
 

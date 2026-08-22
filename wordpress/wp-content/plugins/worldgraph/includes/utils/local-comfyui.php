@@ -71,20 +71,56 @@ class Local_ComfyUI {
 				unset( $parameters['seed'], $parameters['noise_seed'] );
 			}
 		}
-		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id, $job_id );
-		if ( is_wp_error( $resolved ) ) {
-			Generation_Log::add( 'error', 'local_comfyui', $resolved->get_error_message(), [], '', $connection_id );
-			return $resolved;
+		$workflow = self::workflow( $template_id, $modality, $parameters );
+		if ( is_wp_error( $workflow ) ) {
+			Generation_Log::add( 'error', 'local_comfyui', $workflow->get_error_message(), [], '', $connection_id );
+			return $workflow;
+		}
+		if ( empty( $workflow ) ) {
+			return new WP_Error( 'local_comfyui_unconfigured', __( 'This Template has no runnable ComfyUI workflow.', 'worldgraph' ) );
 		}
 
-		$workflow = self::workflow( $template_id, $modality, $parameters );
-		if ( ! is_array( $workflow ) || empty( $workflow ) ) {
-			return new WP_Error( 'local_comfyui_unconfigured', __( 'This Template has no runnable ComfyUI workflow.', 'worldgraph' ) );
+		$media_slots     = Generation_Modality::media_inputs( $modality );
+		$requested_slots = [];
+		$definitions     = Generation_Modality::inputs( $modality );
+		foreach ( $media_slots as $slot ) {
+			$value = $inputs[ $slot ] ?? '';
+			if ( ! empty( $definitions[ $slot ]['required'] ) || ( is_scalar( $value ) && '' !== trim( (string) $value ) ) ) {
+				$requested_slots[] = $slot;
+			}
+		}
+		$workflow = Comfy_Graph::apply_media_placeholders( $workflow, $media_slots, $requested_slots );
+		if ( is_wp_error( $workflow ) ) {
+			$error_data = $workflow->get_error_data();
+			Generation_Log::add( 'error', 'local_comfyui', $workflow->get_error_message(), is_array( $error_data ) ? $error_data : [], '', $connection_id );
+			return $workflow;
 		}
 
 		$preflight = self::preflight( $template_id, $connection_id );
 		if ( is_wp_error( $preflight ) ) {
 			return $preflight;
+		}
+
+		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id, $job_id );
+		if ( is_wp_error( $resolved ) ) {
+			Generation_Log::add( 'error', 'local_comfyui', $resolved->get_error_message(), [], '', $connection_id );
+			return $resolved;
+		}
+		foreach ( Comfy_Graph::media_placeholders( $workflow ) as $slot ) {
+			if ( '' !== (string) ( $resolved[ $slot ] ?? '' ) ) {
+				continue;
+			}
+
+			$error = new WP_Error(
+				'local_comfyui_missing_workflow_media_input',
+				sprintf(
+					/* translators: %s: media input slot name. */
+					__( 'This workflow uses the %s media slot, but the Template binding did not resolve a file for it.', 'worldgraph' ),
+					$slot
+				)
+			);
+			Generation_Log::add( 'error', 'local_comfyui', $error->get_error_message(), [ 'slot' => $slot ], '', $connection_id );
+			return $error;
 		}
 
 		Generation_Log::add( 'info', 'local_comfyui', 'Submitting workflow to ' . self::url( 'prompt' ), [ 'modality' => $modality, 'inputs' => $resolved ], '', $connection_id );
@@ -255,14 +291,25 @@ class Local_ComfyUI {
 	 * @param int    $template_id Template post ID, or 0 for none.
 	 * @param string $modality    Modality slug.
 	 * @param array  $runtime     Runtime parameter overrides for this job.
-	 * @return array
+	 * @return array|WP_Error
 	 */
-	private static function workflow( int $template_id, string $modality, array $runtime = [] ): array {
+	private static function workflow( int $template_id, string $modality, array $runtime = [] ) {
 		$raw = $template_id
 			? (string) worldgraph_get_field_value( $template_id, 'workflow_json' )
 			: (string) get_option( 'worldgraph_comfy_local_workflow', '' );
 		$workflow = json_decode( $raw, true );
 		if ( is_array( $workflow ) && ! empty( $workflow ) ) {
+			if ( Comfy_Graph::is_editor_graph( $workflow ) ) {
+				$object_info = Comfy_Manifest::object_info( self::endpoint() );
+				if ( is_wp_error( $object_info ) ) {
+					return $object_info;
+				}
+				$workflow = Comfy_Graph::to_api( $workflow, $object_info );
+				if ( is_wp_error( $workflow ) ) {
+					return $workflow;
+				}
+			}
+
 			return self::prepare_pasted_workflow( $template_id, $workflow, $runtime );
 		}
 

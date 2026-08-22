@@ -267,8 +267,9 @@ class Comfy_Catalog {
 			$task_types[ (string) $modality['task_type'] ] = true;
 		}
 
-		$entries = [];
-		$errors  = [];
+		$descriptors        = [];
+		$filtered_task_types = [];
+		$errors             = [];
 		foreach ( array_merge( [ '' ], array_keys( $task_types ) ) as $task_type ) {
 			$result = Comfy_Cloud_MCP::list_templates( '' !== $task_type ? [ 'task_type' => $task_type ] : [], $connection_id );
 			if ( is_wp_error( $result ) ) {
@@ -280,15 +281,36 @@ class Comfy_Catalog {
 				if ( ! is_array( $template ) ) {
 					continue;
 				}
-				$entry = Comfy_Manifest::normalize_entry( $template, $connection_id );
-				if ( null === $entry ) {
+
+				$id = trim( (string) ( $template['id'] ?? $template['template_id'] ?? $template['name'] ?? '' ) );
+				if ( '' === $id ) {
 					continue;
 				}
-				// A task-type-filtered hit is more trustworthy about modality
-				// than the unfiltered sweep, so let it win the merge.
-				if ( ! isset( $entries[ $entry['id'] ] ) || ( empty( $entries[ $entry['id'] ]['modality'] ) && ! empty( $entry['modality'] ) ) ) {
-					$entries[ $entry['id'] ] = $entry;
+
+				// Some providers omit task_type from rows even when the list was
+				// filtered by it. Remember that context, but only trust it when the
+				// template appears under one filter: an MCP server that ignores
+				// filters would otherwise assign every template an arbitrary type.
+				if ( '' !== $task_type && '' === trim( (string) ( $template['task_type'] ?? '' ) ) ) {
+					$filtered_task_types[ $id ][ $task_type ] = true;
 				}
+
+				$descriptors[ $id ] = isset( $descriptors[ $id ] )
+					? self::merge_template_descriptors( $descriptors[ $id ], $template )
+					: $template;
+			}
+		}
+
+		$entries = [];
+		foreach ( $descriptors as $id => $template ) {
+			$candidates = array_keys( $filtered_task_types[ $id ] ?? [] );
+			if ( '' === trim( (string) ( $template['task_type'] ?? '' ) ) && 1 === count( $candidates ) ) {
+				$template['task_type'] = $candidates[0];
+			}
+
+			$entry = Comfy_Manifest::normalize_entry( $template, $connection_id );
+			if ( null !== $entry ) {
+				$entries[ $entry['id'] ] = $entry;
 			}
 		}
 
@@ -297,6 +319,27 @@ class Comfy_Catalog {
 		}
 
 		return array_values( $entries );
+	}
+
+	/**
+	 * Merge duplicate list rows without letting an omitted or empty value erase
+	 * metadata already advertised by another discovery call.
+	 *
+	 * @param array $base     Existing provider descriptor.
+	 * @param array $incoming Duplicate descriptor with additional metadata.
+	 * @return array
+	 */
+	private static function merge_template_descriptors( array $base, array $incoming ): array {
+		foreach ( $incoming as $key => $value ) {
+			$is_missing = null === $value
+				|| ( is_string( $value ) && '' === trim( $value ) )
+				|| ( is_array( $value ) && empty( $value ) );
+			if ( ! $is_missing || ! array_key_exists( $key, $base ) ) {
+				$base[ $key ] = $value;
+			}
+		}
+
+		return $base;
 	}
 
 	/**

@@ -40,7 +40,9 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'worldgraph-generate-asset__image-template-option', $metabox );
 		$this->assertStringContainsString( 'worldgraph-generate-asset__video-template-option', $metabox );
 		$this->assertStringContainsString( 'worldgraph-generate-asset__run-controls', $metabox );
-		$this->assertStringContainsString( 'These controls come from the selected Template', $metabox );
+		$this->assertStringContainsString( '<details class="worldgraph-generate-asset__run-controls"', $metabox );
+		$this->assertStringContainsString( 'Run controls (optional)', $metabox );
+		$this->assertStringContainsString( 'Output framing defaults come from the Project', $metabox );
 		$this->assertStringContainsString( 'Additional instructions for this run', $metabox );
 		$this->assertStringContainsString( 'Review the generated prompt or workflow plan', $metabox );
 		$this->assertStringContainsString( "self::asset_version( 'assets/js/asset-generator.js' )", $metabox );
@@ -70,6 +72,11 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'option.textContent =', $script );
 		$this->assertStringContainsString( 'description.textContent = String( field.description )', $script );
 		$this->assertStringContainsString( 'panel._worldgraphRunValues = {}', $script );
+		$this->assertStringContainsString( 'function effectiveRunControlDefault( panel, field )', $script );
+		$this->assertStringContainsString( "source: 'project'", $script );
+		$this->assertStringContainsString( 'input._worldgraphRunHasDefault', $script );
+		$this->assertStringContainsString( 'input._worldgraphRunDirty', $script );
+		$this->assertStringContainsString( 'Use Template default', $metabox );
 		$this->assertStringContainsString( 'input.disabled = controlsLocked', $script );
 		$this->assertStringContainsString( 'payload.run_values = runValues', $script );
 		$this->assertStringContainsString( 'payload.image_run_values = imageRunValues', $script );
@@ -79,5 +86,19 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( "select.textContent = '';", $script );
 		$this->assertStringNotContainsString( 'worldgraph-generate-asset__run-set', $script );
 		$this->assertStringNotContainsString( 'worldgraph-generate-asset__run-project', $script );
+	}
+
+	/** Project framing is frozen separately from explicit per-run overrides. */
+	public function test_project_output_defaults_are_projected_and_frozen(): void {
+		$generator = file_get_contents( dirname( __DIR__ ) . '/includes/utils/class-asset-generator.php' );
+		$workflows = file_get_contents( dirname( __DIR__ ) . '/includes/utils/class-generation-workflows.php' );
+
+		$this->assertNotFalse( $generator );
+		$this->assertNotFalse( $workflows );
+		$this->assertStringContainsString( 'self::project_template_defaults( $template_id, $profile, $description )', $generator );
+		$this->assertStringContainsString( 'Template_Run_Controls::profile_defaults( $description, $profile )', $generator );
+		$this->assertStringContainsString( "'_worldgraph_gen_profile_values'", $generator );
+		$this->assertStringContainsString( "'profile_values' => (array) ( \$task['profile_values'] ?? [] )", $workflows );
+		$this->assertStringContainsString( "'profile_values'     => (array) ( \$task['profile_values'] ?? [] )", $workflows );
 	}
 }

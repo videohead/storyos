@@ -58,6 +58,25 @@ class Template_Smoke_Check {
 			] );
 		}
 
+		// Check ComfyUI readiness directly and first: a Template with missing
+		// nodes/models must never read as "passed" regardless of whether a
+		// source story element exists to simulate a queue against.
+		$connection_id = absint( worldgraph_get_field_value( $template_id, 'connection_id' ) );
+		$connection    = $connection_id ? Connection_Repository::get( $connection_id ) : null;
+		$provider      = sanitize_key( (string) worldgraph_get_field_value( $template_id, 'provider_type' ) );
+		if ( is_array( $connection ) && 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' ) ) {
+			Connection_Adapters::load( 'comfyui' );
+			$ready = Comfy_Manifest::ensure_ready( $template_id, $connection_id );
+			if ( is_wp_error( $ready ) ) {
+				return self::store_result( $template_id, [
+					'passed'  => false,
+					'status'  => 'failed',
+					'message' => $ready->get_error_message(),
+					'type'    => $type,
+				] );
+			}
+		}
+
 		$source_id = self::find_source_post( $type );
 		if ( ! $source_id ) {
 			return self::store_result( $template_id, [

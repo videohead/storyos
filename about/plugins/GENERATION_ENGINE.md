@@ -261,6 +261,10 @@ image/video counts, and only the Template controls needed by that plan before
 confirming a durable batch. Modes not defined for the current CPT are disabled.
 The complete prompt for a single output remains server-composed and appears in
 a collapsed read-only preview; a Sequence instead previews its distinct jobs.
+Template-conditional fields live in a separate collapsed **Run controls
+(optional)** disclosure. Its effective precedence is explicit per-run value,
+compatible Project output framing, Template sampling/negative default, then
+the provider/workflow baseline. The browser sends only deliberate changes.
 
 Runnable Template lists exclude disabled Connections, mismatched output types,
 and Templates whose required bindings cannot be resolved for every applicable
@@ -274,9 +278,10 @@ corresponding tasks when it also selects an explicit Template override of that
 type. Values must be scalar, use advertised keys, and match the advertised
 types, bounds, and allowed choices. A non-empty batch map without its matching
 Template ID, unknown keys, and nested arrays/objects are errors; they are not
-silently forwarded. Omitting these maps preserves the existing behavior and
-uses the Template/provider defaults. Omitting `seed` specifically preserves
-the existing randomization behavior; integer `0` is not treated as omission.
+silently forwarded. Omitting these maps applies compatible Project framing and
+otherwise preserves the Template/provider defaults. Omitting `seed`
+specifically preserves the existing randomization behavior; integer `0` is not
+treated as omission.
 
 For each task, Template resolution follows this cascade:
 
@@ -326,8 +331,9 @@ with `_worldgraph_gen_batch_kind = representative_media`. The parent stores the
 root post, `item` or `project` scope, requester, optional idempotency key, a
 versioned frozen task plan, materialization cursor, planned total, and aggregate
 status. Each task snapshot retains its step, source, workflow, intent, output
-type, Template, prompt, prompt hash, featured behavior, and normalized run
-values. Child jobs store
+type, Template, prompt, prompt hash, featured behavior, normalized explicit run
+values, and separately projected Project output values. Both effective value
+sets are frozen before materialization. Child jobs store
 `_worldgraph_gen_batch_id`, `_worldgraph_gen_batch_step`, and
 `_worldgraph_gen_intent`. This separation lets a Project batch run for hours or
 days while every child remains independently observable through the ordinary

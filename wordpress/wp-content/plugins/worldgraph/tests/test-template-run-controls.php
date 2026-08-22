@@ -105,8 +105,8 @@ class Test_Template_Run_Controls extends TestCase {
 			'negative' => [
 				'class_type' => 'CLIPTextEncodeSDXL',
 				'inputs'     => [
-					'text_g' => 'negative demo global',
-					'text_l' => 'negative demo local',
+					'text_g' => 'negative demo',
+					'text_l' => 'negative demo',
 					'clip'   => [ 'loader', 1 ],
 				],
 			],
@@ -169,6 +169,8 @@ class Test_Template_Run_Controls extends TestCase {
 					'prompt'       => [ 'type' => 'string' ],
 					'model_id'     => [ 'type' => 'string' ],
 					'callback_url' => [ 'type' => 'string' ],
+					'access_key'   => [ 'type' => 'string', 'default' => 'do-not-leak' ],
+					'temporary_note' => [ 'type' => 'string', 'default' => 'do-not-leak', 'writeOnly' => true ],
 					'num_images'   => [ 'type' => 'integer' ],
 					'advanced'     => [ 'type' => 'object' ],
 				],
@@ -185,6 +187,8 @@ class Test_Template_Run_Controls extends TestCase {
 		$this->assertNotContains( 'prompt', $this->keys( $description ) );
 		$this->assertNotContains( 'model_id', $this->keys( $description ) );
 		$this->assertNotContains( 'callback_url', $this->keys( $description ) );
+		$this->assertNotContains( 'access_key', $this->keys( $description ) );
+		$this->assertNotContains( 'temporary_note', $this->keys( $description ) );
 		$this->assertNotContains( 'num_images', $this->keys( $description ) );
 		$this->assertNotContains( 'advanced', $this->keys( $description ) );
 
@@ -287,10 +291,16 @@ class Test_Template_Run_Controls extends TestCase {
 			$this->assertInstanceOf( WP_Error::class, $result );
 			$this->assertSame( $code, $result->get_error_code() );
 		}
+
+		$stepped = Template_Run_Controls::validate_description(
+			[ 'fields' => [ [ 'key' => 'fps', 'type' => 'number', 'min' => 1, 'max' => 240, 'step' => 0.001 ] ] ],
+			[ 'fps' => 23.9765 ]
+		);
+		$this->assertSame( 'worldgraph_run_control_range', $stepped->get_error_code() );
 	}
 
 	/**
-	 * Seed is opt-in and dual prompt defaults inherit rather than leak demo copy.
+	 * Workflow values are display defaults, except seed and positive split text.
 	 */
 	public function test_workflow_discovery_omits_seed_default_and_clears_dual_defaults(): void {
 		$description = Template_Run_Controls::describe_configuration( [], [ 'workflow' => $this->workflow() ] );
@@ -304,7 +314,9 @@ class Test_Template_Run_Controls extends TestCase {
 		$this->assertSame( 9007199254740991, $seed['max'] );
 		$this->assertSame( '', $text_g['default'] );
 		$this->assertSame( '', $text_l['default'] );
-		$this->assertSame( '', $negative['default'] );
+		$this->assertSame( 'negative demo', $negative['default'] );
+		$this->assertSame( 28, $this->field( $description, 'steps' )['default'] );
+		$this->assertSame( 0.001, $this->field( $description, 'fps' )['step'] );
 		$this->assertSame( 'textarea', $text_g['type'] );
 		$this->assertNotContains( 'clip_l', $this->keys( $description ) );
 		$this->assertNotContains( 't5xxl', $this->keys( $description ) );
@@ -312,6 +324,12 @@ class Test_Template_Run_Controls extends TestCase {
 		$defaults = Template_Run_Controls::description_defaults( $description );
 		$this->assertArrayNotHasKey( 'seed', $defaults );
 		$this->assertSame( '', $defaults['text_g'] );
+		$this->assertSame( 'negative demo', $defaults['negative_prompt'] );
+		$this->assertSame( 28, $defaults['steps'] );
+		$this->assertSame(
+			$this->workflow(),
+			Template_Run_Controls::apply_description_to_workflow( $description, $this->workflow(), [] )
+		);
 
 		$zero = Template_Run_Controls::validate_description( $description, [ 'seed' => '0' ] );
 		$this->assertSame( 0, $zero['seed'] );
@@ -379,6 +397,17 @@ class Test_Template_Run_Controls extends TestCase {
 		$this->assertSame( 1280, $applied['width']['inputs']['value'] );
 	}
 
+	/** Legacy negative placeholders never become visible Template defaults. */
+	public function test_negative_placeholder_is_not_a_template_default(): void {
+		$workflow = $this->workflow();
+		$workflow['negative']['inputs']['text_g'] = '{{negative_prompt}}';
+		$workflow['negative']['inputs']['text_l'] = '{{negative_prompt}}';
+
+		$field = $this->field( Template_Run_Controls::describe_configuration( [], [ 'workflow' => $workflow ] ), 'negative_prompt' );
+
+		$this->assertArrayNotHasKey( 'default', $field );
+	}
+
 	/**
 	 * Merged runner metadata is projected away before trusted values are applied.
 	 */
@@ -417,9 +446,9 @@ class Test_Template_Run_Controls extends TestCase {
 				'inputs'     => [ 'on_true' => [ 'cfg_a', 0 ], 'on_false' => [ 'cfg_b', 0 ], 'select' => [ 'toggle', 0 ] ],
 			],
 			'steps_a'     => [ 'class_type' => 'PrimitiveInt', 'inputs' => [ 'value' => 24 ], '_meta' => [ 'title' => 'Int (Steps)' ] ],
-			'steps_b'     => [ 'class_type' => 'PrimitiveInt', 'inputs' => [ 'value' => 32 ], '_meta' => [ 'title' => 'Int (Steps)' ] ],
+			'steps_b'     => [ 'class_type' => 'PrimitiveInt', 'inputs' => [ 'value' => 24 ], '_meta' => [ 'title' => 'Int (Steps)' ] ],
 			'cfg_a'       => [ 'class_type' => 'PrimitiveFloat', 'inputs' => [ 'value' => 5.5 ], '_meta' => [ 'title' => 'Float(CFG)' ] ],
-			'cfg_b'       => [ 'class_type' => 'PrimitiveFloat', 'inputs' => [ 'value' => 7.0 ], '_meta' => [ 'title' => 'Float (CFG)' ] ],
+			'cfg_b'       => [ 'class_type' => 'PrimitiveFloat', 'inputs' => [ 'value' => 5.5 ], '_meta' => [ 'title' => 'Float (CFG)' ] ],
 			'toggle'      => [ 'class_type' => 'PrimitiveBoolean', 'inputs' => [ 'value' => true ], '_meta' => [ 'title' => 'Quality mode' ] ],
 		];
 
@@ -433,6 +462,21 @@ class Test_Template_Run_Controls extends TestCase {
 		$this->assertSame( 0.0, $applied['cfg_a']['inputs']['value'] );
 		$this->assertSame( 0.0, $applied['cfg_b']['inputs']['value'] );
 		$this->assertTrue( $applied['toggle']['inputs']['value'] );
+	}
+
+	/**
+	 * One public control never collapses intentionally different stage values.
+	 */
+	public function test_differing_multi_target_values_are_not_advertised(): void {
+		$workflow = [
+			'sampler' => [ 'class_type' => 'KSampler', 'inputs' => [ 'steps' => [ 'switch', 0 ] ] ],
+			'switch'  => [ 'class_type' => 'ComfySwitchNode', 'inputs' => [ 'a' => [ 'low', 0 ], 'b' => [ 'high', 0 ] ] ],
+			'low'     => [ 'class_type' => 'PrimitiveInt', 'inputs' => [ 'value' => 4 ], '_meta' => [ 'title' => 'Int (Steps)' ] ],
+			'high'    => [ 'class_type' => 'PrimitiveInt', 'inputs' => [ 'value' => 20 ], '_meta' => [ 'title' => 'Int (Steps)' ] ],
+		];
+
+		$description = Template_Run_Controls::describe_configuration( [], [ 'workflow' => $workflow ] );
+		$this->assertNotContains( 'steps', $this->keys( $description ) );
 	}
 
 	/**
@@ -503,12 +547,16 @@ class Test_Template_Run_Controls extends TestCase {
 	 * Workflow choices and explicit UI-native selects remain constrained selects.
 	 */
 	public function test_workflow_choices_and_explicit_selects_use_ui_options(): void {
-		$workflow_description = Template_Run_Controls::describe_configuration( [], [ 'workflow' => $this->workflow() ] );
+		$workflow_description = Template_Run_Controls::describe_configuration(
+			[ 'provider_schema' => [ 'properties' => [ 'steps' => [ 'type' => 'integer' ] ] ] ],
+			[ 'workflow' => $this->workflow() ]
+		);
 		$sampler             = $this->field( $workflow_description, 'sampler' );
 		$scheduler           = $this->field( $workflow_description, 'scheduler' );
 		$this->assertSame( 'select', $sampler['type'] );
 		$this->assertSame( 'select', $scheduler['type'] );
 		$this->assertContains( 'euler', array_column( $sampler['options'], 'value' ) );
+		$this->assertSame( 28, $this->field( $workflow_description, 'steps' )['default'] );
 
 		$explicit = Template_Run_Controls::describe_configuration(
 			[
@@ -527,6 +575,40 @@ class Test_Template_Run_Controls extends TestCase {
 		$this->assertSame( 'select', $style['type'] );
 		$this->assertSame( 'Cinematic', $style['options'][0]['label'] );
 		$this->assertArrayNotHasKey( 'default', $style );
+	}
+
+	/** Explicit default_values override configuration input and user values win last. */
+	public function test_template_default_precedence_is_consistent(): void {
+		$description = Template_Run_Controls::describe_configuration(
+			[
+				'input'           => [ 'steps' => 20 ],
+				'provider_schema' => [
+					'properties' => [
+						'steps'           => [ 'type' => 'integer', 'default' => 10 ],
+						'negative_prompt' => [ 'type' => 'string', 'default' => 'watermark' ],
+					],
+				],
+			],
+			[ 'default_values' => [ 'steps' => 30 ] ]
+		);
+
+		$this->assertSame( 30, $this->field( $description, 'steps' )['default'] );
+		$this->assertSame( 'watermark', $this->field( $description, 'negative_prompt' )['default'] );
+		$this->assertSame( [ 'steps' => 40 ], Template_Run_Controls::validate_description( $description, [ 'steps' => 40 ] ) );
+	}
+
+	/** Different negative branches cannot be collapsed into one public override. */
+	public function test_differing_negative_branches_are_preserved_not_advertised(): void {
+		$workflow = [
+			'negative_a' => [ 'class_type' => 'CLIPTextEncode', 'inputs' => [ 'text' => 'avoid blur' ] ],
+			'negative_b' => [ 'class_type' => 'CLIPTextEncode', 'inputs' => [ 'text' => 'avoid motion' ] ],
+			'sampler_a'  => [ 'class_type' => 'KSampler', 'inputs' => [ 'negative' => [ 'negative_a', 0 ] ] ],
+			'sampler_b'  => [ 'class_type' => 'KSampler', 'inputs' => [ 'negative' => [ 'negative_b', 0 ] ] ],
+		];
+
+		$description = Template_Run_Controls::describe_configuration( [], [ 'workflow' => $workflow ] );
+
+		$this->assertNotContains( 'negative_prompt', $this->keys( $description ) );
 	}
 
 	/**
@@ -552,7 +634,7 @@ class Test_Template_Run_Controls extends TestCase {
 			$description,
 			[
 				'output'     => [ 'width' => 1, 'height' => 1080, 'aspect_ratio' => '16:9' ],
-				'frame_rate' => 29.97,
+				'frame_rate' => 23.976,
 				'steps'      => 99,
 			]
 		);
@@ -560,7 +642,7 @@ class Test_Template_Run_Controls extends TestCase {
 		$this->assertArrayNotHasKey( 'width', $defaults );
 		$this->assertSame( 1080, $defaults['height'] );
 		$this->assertSame( '16:9', $defaults['aspect_ratio'] );
-		$this->assertSame( 29.97, $defaults['frame_rate'] );
+		$this->assertSame( 23.976, $defaults['frame_rate'] );
 		$this->assertArrayNotHasKey( 'steps', $defaults );
 	}
 

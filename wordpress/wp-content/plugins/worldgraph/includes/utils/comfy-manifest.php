@@ -24,6 +24,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Comfy_Manifest {
 
 	/**
+	 * Full provider descriptors resolved during this request, keyed by
+	 * Connection and provider template ID. Catalog discovery can encounter the
+	 * same lightweight row through several filtered list calls, and resolving
+	 * it more than once only adds latency and provider load.
+	 *
+	 * A null value records a failed or unusable lookup so that failure is not
+	 * retried for every duplicate list row in the same request.
+	 *
+	 * @var array<string, array|null>
+	 */
+	private static $provider_descriptor_cache = [];
+
+	/**
 	 * Transient prefix for the cached ComfyUI `/object_info` catalog.
 	 */
 	const CATALOG_TRANSIENT = 'worldgraph_comfy_object_info_';
@@ -142,6 +155,71 @@ class Comfy_Manifest {
 			'missing_models' => $missing_models,
 			'unverified'     => $unverified,
 		];
+	}
+
+	/**
+	 * Confirm a local ComfyUI Template is actually runnable before it is
+	 * queued, tested, or exposed for selection. This is the single gate every
+	 * caller (submission, smoke check, panel listing) must share, so "ready"
+	 * cannot mean different things in different code paths.
+	 *
+	 * When the Connection's MCP server is agentic (exposes `download_models`),
+	 * a first failed check asks it to fetch the missing files and re-validates
+	 * once before giving up, instead of only ever reporting the gap.
+	 *
+	 * @param int $template_id   Template post ID.
+	 * @param int $connection_id Connection post ID, for MCP and log correlation.
+	 * @return true|WP_Error
+	 */
+	public static function ensure_ready( int $template_id, int $connection_id = 0 ) {
+		$report = self::validate( $template_id );
+		if ( is_wp_error( $report ) ) {
+			return $report;
+		}
+		if ( ! empty( $report['ok'] ) ) {
+			return true;
+		}
+
+		if ( ! empty( $report['missing_models'] ) && Comfy_Cloud_MCP::supports_tool( 'download_models', $connection_id ) ) {
+			$download = self::request_downloads( $template_id );
+			if ( ! is_wp_error( $download ) ) {
+				self::flush_catalog();
+				$report = self::validate( $template_id );
+				if ( is_wp_error( $report ) ) {
+					return $report;
+				}
+				if ( ! empty( $report['ok'] ) ) {
+					return true;
+				}
+			}
+		}
+
+		$problems = [];
+		foreach ( (array) ( $report['missing_nodes'] ?? [] ) as $node ) {
+			$problems[] = sprintf(
+				/* translators: %s: ComfyUI node class name. */
+				__( 'missing node type %s', 'worldgraph' ),
+				(string) $node
+			);
+		}
+		foreach ( (array) ( $report['missing_models'] ?? [] ) as $model ) {
+			$problems[] = sprintf(
+				/* translators: 1: model filename, 2: ComfyUI models sub-directory. */
+				__( 'missing model %1$s (install into models/%2$s)', 'worldgraph' ),
+				(string) ( $model['filename'] ?? '' ),
+				(string) ( $model['folder'] ?? '' )
+			);
+		}
+
+		return new WP_Error(
+			'worldgraph_local_comfyui_requirements_missing',
+			sprintf(
+				/* translators: %s: semicolon-separated list of unmet requirements. */
+				__( 'ComfyUI cannot run this Template yet: %s.', 'worldgraph' ),
+				implode( '; ', $problems )
+			),
+			[ 'status' => 400, 'report' => $report ]
+		);
 	}
 
 	/**
@@ -287,9 +365,25 @@ class Comfy_Manifest {
 			return new WP_Error( 'worldgraph_comfy_discovery_invalid', __( 'Comfy MCP returned no usable template list.', 'worldgraph' ) );
 		}
 
-		return array_values( array_filter( array_map( static function ( $template ) {
-			return is_array( $template ) ? self::normalize_entry( $template ) : null;
-		}, $templates ) ) );
+		$descriptors = [];
+		foreach ( $templates as $template ) {
+			if ( ! is_array( $template ) ) {
+				continue;
+			}
+
+			$id = self::provider_template_id( $template );
+			if ( '' === $id ) {
+				continue;
+			}
+
+			$descriptors[ $id ] = isset( $descriptors[ $id ] )
+				? self::merge_template_descriptors( $descriptors[ $id ], $template )
+				: $template;
+		}
+
+		return array_values( array_filter( array_map( static function ( array $template ) use ( $connection_id ) {
+			return self::normalize_entry( $template, $connection_id );
+		}, $descriptors ) ) );
 	}
 
 	/**
@@ -501,9 +595,32 @@ class Comfy_Manifest {
 	 */
 	private static function extract_nodes( array $workflow, string $modality, bool $is_custom ): array {
 		$nodes = [];
-		foreach ( $workflow as $node ) {
-			if ( is_array( $node ) && ! empty( $node['class_type'] ) && is_string( $node['class_type'] ) ) {
-				$nodes[] = $node['class_type'];
+		if ( Comfy_Graph::is_editor_graph( $workflow ) ) {
+			$subgraph_ids = [];
+			$bodies       = [ $workflow ];
+			foreach ( (array) ( $workflow['definitions']['subgraphs'] ?? [] ) as $definition ) {
+				if ( ! is_array( $definition ) ) {
+					continue;
+				}
+				$bodies[] = $definition;
+				if ( ! empty( $definition['id'] ) ) {
+					$subgraph_ids[ (string) $definition['id'] ] = true;
+				}
+			}
+
+			foreach ( $bodies as $body ) {
+				foreach ( (array) ( $body['nodes'] ?? [] ) as $node ) {
+					$class = is_array( $node ) ? (string) ( $node['type'] ?? '' ) : '';
+					if ( '' !== $class && ! isset( $subgraph_ids[ $class ] ) ) {
+						$nodes[] = $class;
+					}
+				}
+			}
+		} else {
+			foreach ( $workflow as $node ) {
+				if ( is_array( $node ) && ! empty( $node['class_type'] ) && is_string( $node['class_type'] ) ) {
+					$nodes[] = $node['class_type'];
+				}
 			}
 		}
 
@@ -626,20 +743,63 @@ class Comfy_Manifest {
 			return $template;
 		}
 
-		$id = (string) ( $template['id'] ?? $template['template_id'] ?? '' );
-		if ( '' === trim( $id ) ) {
+		$id = self::provider_template_id( $template );
+		if ( '' === $id ) {
 			return $template;
 		}
 
-		$resolved = Comfy_Cloud_MCP::get_template( $id, [], $connection_id );
-		if ( is_wp_error( $resolved ) || ! is_array( $resolved ) ) {
+		$cache_key = $connection_id . ':' . $id;
+		if ( ! array_key_exists( $cache_key, self::$provider_descriptor_cache ) ) {
+			$resolved = Comfy_Cloud_MCP::get_template( $id, [], $connection_id );
+			self::$provider_descriptor_cache[ $cache_key ] = is_wp_error( $resolved ) || ! is_array( $resolved )
+				? null
+				: $resolved;
+		}
+
+		$resolved = self::$provider_descriptor_cache[ $cache_key ];
+		if ( ! is_array( $resolved ) ) {
 			return $template;
 		}
 
-		$resolved['id'] = (string) ( $resolved['id'] ?? $id );
-		$resolved['name'] = (string) ( $resolved['name'] ?? $template['name'] ?? $resolved['id'] );
+		$resolved['id'] = $id;
+		$merged         = self::merge_template_descriptors( $template, $resolved );
+		$merged['id']   = $id;
+		if ( '' === trim( (string) ( $merged['name'] ?? '' ) ) ) {
+			$merged['name'] = $id;
+		}
 
-		return $resolved;
+		return $merged;
+	}
+
+	/**
+	 * Stable ID shared by list and detail provider descriptors.
+	 *
+	 * @param array $template Provider template descriptor.
+	 * @return string
+	 */
+	private static function provider_template_id( array $template ): string {
+		return trim( (string) ( $template['id'] ?? $template['template_id'] ?? $template['name'] ?? '' ) );
+	}
+
+	/**
+	 * Add richer descriptor metadata without erasing useful list metadata when
+	 * the detail response omits a field or returns an empty placeholder.
+	 *
+	 * @param array $base     Existing descriptor.
+	 * @param array $incoming Descriptor whose populated values take precedence.
+	 * @return array
+	 */
+	private static function merge_template_descriptors( array $base, array $incoming ): array {
+		foreach ( $incoming as $key => $value ) {
+			$is_missing = null === $value
+				|| ( is_string( $value ) && '' === trim( $value ) )
+				|| ( is_array( $value ) && empty( $value ) );
+			if ( ! $is_missing || ! array_key_exists( $key, $base ) ) {
+				$base[ $key ] = $value;
+			}
+		}
+
+		return $base;
 	}
 
 	/**
@@ -652,27 +812,87 @@ class Comfy_Manifest {
 	private static function infer_modality( array $template, array $nodes ): ?string {
 		$name = strtolower( trim( (string) ( $template['name'] ?? $template['id'] ?? '' ) ) );
 		if ( '' !== $name ) {
+			if ( false !== strpos( $name, 'video to video' ) || false !== strpos( $name, 'video-to-video' ) || false !== strpos( $name, 'vid2video' ) ) {
+				return Generation_Modality::VIDEO_TO_VIDEO;
+			}
 			if ( false !== strpos( $name, 'text to video' ) || false !== strpos( $name, 'text-to-video' ) || false !== strpos( $name, 'txt2video' ) ) {
 				return Generation_Modality::TEXT_TO_VIDEO;
 			}
-			if ( false !== strpos( $name, 'image to video' ) || false !== strpos( $name, 'image-to-video' ) || false !== strpos( $name, 'img2video' ) ) {
+			if ( false !== strpos( $name, 'image to video' ) || false !== strpos( $name, 'image-to-video' ) || false !== strpos( $name, 'img2video' ) || false !== strpos( $name, 'image and text to video' ) || false !== strpos( $name, 'text and image to video' ) ) {
 				return Generation_Modality::TEXT_IMAGE_TO_VIDEO;
 			}
-			if ( false !== strpos( $name, 'video to video' ) || false !== strpos( $name, 'video-to-video' ) || false !== strpos( $name, 'vid2video' ) ) {
-				return Generation_Modality::VIDEO_TO_VIDEO;
+			if ( false !== strpos( $name, 'image and text to image' ) || false !== strpos( $name, 'text and image to image' ) || false !== strpos( $name, 'image-text-to-image' ) ) {
+				return Generation_Modality::IMAGE_TEXT_TO_IMAGE;
+			}
+			if ( false !== strpos( $name, 'image to image' ) || false !== strpos( $name, 'image-to-image' ) || false !== strpos( $name, 'img2img' ) || false !== strpos( $name, 'image edit' ) || false !== strpos( $name, 'inpaint' ) || false !== strpos( $name, 'outpaint' ) ) {
+				return Generation_Modality::IMAGE_TO_IMAGE;
 			}
 		}
 
 		$has_video_nodes = in_array( 'SaveVideo', $nodes, true ) || in_array( 'CreateVideo', $nodes, true );
-		if ( ! $has_video_nodes ) {
-			return null;
+		$workflow        = is_array( $template['workflow'] ?? null ) ? $template['workflow'] : [];
+		$load_image_count = self::workflow_node_class_count( $workflow, 'LoadImage' );
+		if ( 0 === $load_image_count && in_array( 'LoadImage', $nodes, true ) ) {
+			$load_image_count = 1;
+		}
+		$has_source_video = (bool) array_filter( $nodes, static function ( string $node ): bool {
+			return false !== stripos( $node, 'LoadVideo' );
+		} );
+
+		if ( $has_video_nodes ) {
+			if ( $has_source_video || ( $load_image_count > 1 && in_array( 'LTXVAddGuide', $nodes, true ) ) ) {
+				return Generation_Modality::VIDEO_TO_VIDEO;
+			}
+
+			if ( $load_image_count > 0 || in_array( 'LTXVImgToVideo', $nodes, true ) || in_array( 'LTXVImgToVideoInplace', $nodes, true ) ) {
+				return Generation_Modality::TEXT_IMAGE_TO_VIDEO;
+			}
+
+			return Generation_Modality::TEXT_TO_VIDEO;
 		}
 
-		if ( in_array( 'LoadImage', $nodes, true ) || in_array( 'LTXVImgToVideo', $nodes, true ) || in_array( 'LTXVImgToVideoInplace', $nodes, true ) ) {
-			return Generation_Modality::TEXT_IMAGE_TO_VIDEO;
+		if ( $load_image_count > 0 && in_array( 'SaveImage', $nodes, true ) ) {
+			return Generation_Modality::IMAGE_TO_IMAGE;
 		}
 
-		return Generation_Modality::TEXT_TO_VIDEO;
+		return null;
+	}
+
+	/**
+	 * Count a class in either API or editor workflow format without collapsing
+	 * duplicate loader nodes, which are meaningful for start/end-frame inference.
+	 *
+	 * @param array  $workflow Workflow body.
+	 * @param string $class    Node class to count.
+	 * @return int
+	 */
+	private static function workflow_node_class_count( array $workflow, string $class ): int {
+		$count = 0;
+		if ( Comfy_Graph::is_editor_graph( $workflow ) ) {
+			$bodies = [ $workflow ];
+			foreach ( (array) ( $workflow['definitions']['subgraphs'] ?? [] ) as $definition ) {
+				if ( is_array( $definition ) ) {
+					$bodies[] = $definition;
+				}
+			}
+			foreach ( $bodies as $body ) {
+				foreach ( (array) ( $body['nodes'] ?? [] ) as $node ) {
+					if ( is_array( $node ) && $class === (string) ( $node['type'] ?? '' ) ) {
+						++$count;
+					}
+				}
+			}
+
+			return $count;
+		}
+
+		foreach ( $workflow as $node ) {
+			if ( is_array( $node ) && $class === (string) ( $node['class_type'] ?? '' ) ) {
+				++$count;
+			}
+		}
+
+		return $count;
 	}
 
 	/**

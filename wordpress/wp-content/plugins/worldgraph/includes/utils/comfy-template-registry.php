@@ -5,7 +5,7 @@
  * ComfyUI ships several hundred reference workflows covering every model family
  * it supports, and keeps them in a public index rather than inside the plugin.
  * Reading that index is what lets World Graph Studio offer a modern
- * text-to-image graph instead of the minimal SDXL fallback it
+ * text-to-image graph instead of the minimal Stable Diffusion 1.5 fallback it
  * provisions when nothing else is known to work.
  *
  * The index is metadata only. It names models but not model files, so it can
@@ -342,7 +342,19 @@ class Comfy_Template_Registry {
 			return $api;
 		}
 
-		return Comfy_Graph::randomize_seeds( Comfy_Graph::apply_prompt_placeholders( $api ) );
+		$api      = Comfy_Graph::apply_prompt_placeholders( $api );
+		$entry    = self::find( $id );
+		$modality = is_array( $entry ) ? (string) ( $entry['modality'] ?? '' ) : '';
+		if ( '' !== $modality ) {
+			$media_slots   = Generation_Modality::media_inputs( $modality );
+			$required_slots = array_values( array_intersect( Generation_Modality::required_inputs( $modality ), $media_slots ) );
+			$api = Comfy_Graph::apply_media_placeholders( $api, $media_slots, $required_slots );
+			if ( is_wp_error( $api ) ) {
+				return $api;
+			}
+		}
+
+		return Comfy_Graph::randomize_seeds( $api );
 	}
 
 	/**

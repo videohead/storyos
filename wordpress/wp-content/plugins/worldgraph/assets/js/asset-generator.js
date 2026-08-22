@@ -327,8 +327,89 @@
 		return selected;
 	}
 
+	function runControlSemantic( key ) {
+		key = String( key || '' )
+			.replace( /([a-z0-9])([A-Z])/g, '$1_$2' )
+			.replace( /[^A-Za-z0-9]+/g, '_' )
+			.replace( /^_+|_+$/g, '' )
+			.toLowerCase();
+		var aliases = {
+			width: 'width',
+			height: 'height',
+			aspect_ratio: 'aspect_ratio',
+			fps: 'fps',
+			frame_rate: 'fps'
+		};
+		return aliases[ key ] || '';
+	}
+
+	function normalizedRunControlDefault( field, value ) {
+		if ( 'select' === field.type ) {
+			return optionRunControlValue( field, value );
+		}
+		if ( 'boolean' === field.type ) {
+			return booleanRunControlValue( value );
+		}
+		if ( [ 'integer', 'number' ].indexOf( field.type ) !== -1 ) {
+			var number = finiteRunControlNumber( value );
+			var minimum = finiteRunControlNumber( field.min );
+			var maximum = finiteRunControlNumber( field.max );
+			var step = finiteRunControlNumber( field.step );
+			if ( null === number || ( 'integer' === field.type && Math.floor( number ) !== number ) ) {
+				return undefined;
+			}
+			if ( ( null !== minimum && number < minimum ) || ( null !== maximum && number > maximum ) ) {
+				return undefined;
+			}
+			if ( null !== step && step > 0 ) {
+				var quotient = ( number - ( null === minimum ? 0 : minimum ) ) / step;
+				if ( Math.abs( quotient - Math.round( quotient ) ) > Math.max( 0.000000001, Math.abs( quotient ) * 0.000000000001 ) ) {
+					return undefined;
+				}
+			}
+			return number;
+		}
+		if ( [ 'string', 'textarea' ].indexOf( field.type ) !== -1 && null !== value && 'undefined' !== typeof value ) {
+			return String( value );
+		}
+		return undefined;
+	}
+
+	function effectiveRunControlDefault( panel, field ) {
+		var semantic = runControlSemantic( field.key );
+		var profile = panel._worldgraphPromptBody && panel._worldgraphPromptBody.profile;
+		var profileKey = {
+			width: 'width',
+			height: 'height',
+			aspect_ratio: 'aspect_ratio',
+			fps: 'frame_rate'
+		}[ semantic ];
+		if ( profile && profileKey && Object.prototype.hasOwnProperty.call( profile, profileKey ) ) {
+			var projectValue = normalizedRunControlDefault( field, profile[ profileKey ] );
+			if ( 'undefined' !== typeof projectValue ) {
+				return { hasValue: true, value: projectValue, source: 'project' };
+			}
+		}
+
+		if ( Object.prototype.hasOwnProperty.call( field, 'default' ) ) {
+			var templateValue = normalizedRunControlDefault( field, field.default );
+			if ( 'undefined' !== typeof templateValue ) {
+				return { hasValue: true, value: templateValue, source: 'template' };
+			}
+		}
+
+		return { hasValue: false, value: '', source: '' };
+	}
+
+	function sameRunControlValue( left, right ) {
+		return left === right || ( 'number' === typeof left && 'number' === typeof right && isFinite( left ) && isFinite( right ) && left === right );
+	}
+
 	function readRunControlValue( input, field ) {
 		if ( 'boolean' === field.type ) {
+			if ( input._worldgraphBooleanSelect ) {
+				return '' === input.value ? undefined : booleanRunControlValue( input.value );
+			}
 			return !! input.checked;
 		}
 		if ( 'integer' === field.type ) {
@@ -362,7 +443,12 @@
 					return;
 				}
 				var value = readRunControlValue( input, field );
-				if ( 'undefined' !== typeof value ) {
+				if (
+					'undefined' !== typeof value &&
+					( input._worldgraphRunHasDefault
+						? ! sameRunControlValue( value, input._worldgraphRunDefault )
+						: input._worldgraphRunDirty )
+				) {
 					values[ safeRunControlKey( field.key ) ] = value;
 				}
 			} );
@@ -393,12 +479,13 @@
 		var wrapper = document.createElement( 'div' );
 		var inputId = nextRunControlId( panel, template.id );
 		var hasSaved = savedValues && Object.prototype.hasOwnProperty.call( savedValues, field.key );
-		var hasDefault = Object.prototype.hasOwnProperty.call( field, 'default' );
-		var value = hasSaved ? savedValues[ field.key ] : ( hasDefault ? field.default : '' );
+		var effectiveDefault = effectiveRunControlDefault( panel, field );
+		var value = hasSaved ? savedValues[ field.key ] : effectiveDefault.value;
 		var input;
 		var label = document.createElement( 'label' );
 
 		wrapper.className = 'worldgraph-generate-asset__run-control-field worldgraph-generate-asset__run-control-field--' + field.type;
+		wrapper.dataset.defaultSource = effectiveDefault.source;
 		label.htmlFor = inputId;
 
 		if ( 'textarea' === field.type ) {
@@ -407,6 +494,12 @@
 			input.value = null === value || 'undefined' === typeof value ? '' : String( value );
 		} else if ( 'select' === field.type ) {
 			input = document.createElement( 'select' );
+			if ( ! effectiveDefault.hasValue ) {
+				var defaultOption = document.createElement( 'option' );
+				defaultOption.value = '';
+				defaultOption.textContent = strings.useTemplateDefault || 'Use Template default';
+				input.appendChild( defaultOption );
+			}
 			validRunControlOptions( field ).forEach( function ( optionDefinition ) {
 				var option = document.createElement( 'option' );
 				option.value = String( optionDefinition.value );
@@ -417,6 +510,16 @@
 			if ( input.selectedIndex < 0 ) {
 				input.selectedIndex = 0;
 			}
+		} else if ( 'boolean' === field.type && ! effectiveDefault.hasValue ) {
+			input = document.createElement( 'select' );
+			input._worldgraphBooleanSelect = true;
+			[ [ '', strings.useTemplateDefault || 'Use Template default' ], [ 'true', strings.enabled || 'Enabled' ], [ 'false', strings.disabled || 'Disabled' ] ].forEach( function ( definition ) {
+				var booleanOption = document.createElement( 'option' );
+				booleanOption.value = definition[0];
+				booleanOption.textContent = definition[1];
+				input.appendChild( booleanOption );
+			} );
+			input.value = hasSaved ? String( booleanRunControlValue( value ) ) : '';
 		} else {
 			input = document.createElement( 'input' );
 			input.type = 'boolean' === field.type ? 'checkbox' : ( [ 'integer', 'number' ].indexOf( field.type ) !== -1 ? 'number' : 'text' );
@@ -431,11 +534,20 @@
 		input.className = 'worldgraph-generate-asset__run-control-input';
 		input.setAttribute( 'data-worldgraph-run-control', '' );
 		input._worldgraphRunField = field;
+		input._worldgraphRunHasDefault = effectiveDefault.hasValue;
+		input._worldgraphRunDefault = effectiveDefault.value;
+		input._worldgraphRunDirty = !! hasSaved;
+		input.addEventListener( 'input', function () {
+			input._worldgraphRunDirty = true;
+		} );
+		input.addEventListener( 'change', function () {
+			input._worldgraphRunDirty = true;
+		} );
 		if ( [ 'integer', 'number' ].indexOf( field.type ) !== -1 ) {
 			applyNumericRunControlAttributes( input, field );
 		}
 
-		if ( 'boolean' === field.type ) {
+		if ( 'boolean' === field.type && ! input._worldgraphBooleanSelect ) {
 			label.className = 'worldgraph-generate-asset__run-control-checkbox';
 			label.appendChild( input );
 			var labelText = document.createElement( 'span' );

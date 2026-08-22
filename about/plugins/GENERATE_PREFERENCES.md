@@ -127,6 +127,14 @@ Controls are conditional, not a universal form:
   only when their distinct inputs are discovered or explicitly declared. They
   are not inferred merely from a model-family label.
 
+In the Assets metabox these fields stay inside the collapsed **Run controls
+(optional)** disclosure. Supported output framing is prefilled from the owning
+Project (`frame_width`, `frame_height`, `aspect_ratio`, and `frame_rate`), while
+sampling and negative-conditioning defaults come from the selected Template.
+An explicit edit wins over both. Untouched controls—including selects and
+booleans with no declared default—are omitted from the request and continue to
+inherit the Template/provider behavior.
+
 Media inputs are not scalar run controls. Image-to-video and
 text-plus-image-to-video Templates continue to obtain their image or
 start-frame inputs through `Template_Bindings`, with required bindings checked
@@ -142,8 +150,9 @@ output type. WordPress re-derives the v1 contract from the selected Template at
 submission time, rejects unknown, nested, wrongly typed, out-of-range, or
 non-allowlisted values, and passes only normalized scalar values to generation.
 A non-empty batch values object without its matching Template ID is invalid.
-An omitted or empty values object retains the previous behavior and uses the
-Template/provider defaults.
+An omitted or empty values object uses the Project output defaults where the
+Template declares compatible controls, then retains the Template/provider
+sampling and conditioning defaults.
 
 ## Delivered intent vocabulary
 

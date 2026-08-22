@@ -49,8 +49,10 @@ if ( ! function_exists( 'wp_rand' ) ) {
 }
 
 require_once dirname( __DIR__ ) . '/includes/utils/comfy-graph.php';
+require_once dirname( __DIR__ ) . '/includes/utils/local-comfyui.php';
 
 use WorldGraph\Utils\Comfy_Graph;
+use WorldGraph\Utils\Local_ComfyUI;
 
 class Test_Comfy_Graph extends TestCase {
 
@@ -283,10 +285,9 @@ class Test_Comfy_Graph extends TestCase {
 	}
 
 	/**
-	 * Prompt text is replaced with the placeholders the runner substitutes, on
-	 * the positive and negative encoders specifically.
+	 * Positive prompt copy is replaced while Template negative text is retained.
 	 */
-	public function test_prompt_placeholders_replace_positive_and_negative_text(): void {
+	public function test_prompt_placeholders_preserve_template_negative_text(): void {
 		$api = Comfy_Graph::apply_prompt_placeholders( Comfy_Graph::to_api( $this->graph(), $this->object_info() ) );
 
 		$texts = [];
@@ -295,7 +296,159 @@ class Test_Comfy_Graph extends TestCase {
 		}
 		sort( $texts );
 
-		$this->assertSame( [ '{{negative_prompt}}', '{{prompt}}' ], $texts );
+		$this->assertSame( [ 'blurry, low quality', '{{prompt}}' ], $texts );
+	}
+
+	/** Distinct negative branches remain distinct when positive copy is bound. */
+	public function test_prompt_placeholders_preserve_multiple_negative_branches(): void {
+		$api = [
+			'positive' => [ 'class_type' => 'CLIPTextEncode', 'inputs' => [ 'text' => 'demo' ] ],
+			'negative_a' => [ 'class_type' => 'CLIPTextEncode', 'inputs' => [ 'text' => 'avoid blur' ] ],
+			'negative_b' => [ 'class_type' => 'CLIPTextEncode', 'inputs' => [ 'text' => 'avoid motion' ] ],
+			'sampler_a' => [ 'class_type' => 'KSampler', 'inputs' => [ 'positive' => [ 'positive', 0 ], 'negative' => [ 'negative_a', 0 ] ] ],
+			'sampler_b' => [ 'class_type' => 'KSampler', 'inputs' => [ 'positive' => [ 'positive', 0 ], 'negative' => [ 'negative_b', 0 ] ] ],
+		];
+
+		$bound = Comfy_Graph::apply_prompt_placeholders( $api );
+
+		$this->assertSame( '{{prompt}}', $bound['positive']['inputs']['text'] );
+		$this->assertSame( 'avoid blur', $bound['negative_a']['inputs']['text'] );
+		$this->assertSame( 'avoid motion', $bound['negative_b']['inputs']['text'] );
+	}
+
+	/** A literal demo filename is replaced by the uploaded runtime filename. */
+	public function test_single_literal_load_image_is_bound_end_to_end(): void {
+		$api = [
+			'loader' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'demo.png' ] ],
+			'save'   => [ 'class_type' => 'SaveImage', 'inputs' => [ 'images' => [ 'loader', 0 ] ] ],
+		];
+
+		$prepared = Comfy_Graph::apply_media_placeholders( $api, [ 'image' ] );
+		$this->assertIsArray( $prepared );
+		$this->assertSame( '{{image}}', $prepared['loader']['inputs']['image'] );
+
+		$substitute = new ReflectionMethod( Local_ComfyUI::class, 'apply_inputs' );
+		$substitute->setAccessible( true );
+		$submitted = $substitute->invoke( null, $prepared, [ 'image' => 'worldgraph/uploaded.png' ] );
+
+		$this->assertSame( 'worldgraph/uploaded.png', $submitted['loader']['inputs']['image'] );
+	}
+
+	/** Explicit loader placeholders are authoritative and remain unchanged. */
+	public function test_explicit_media_placeholder_is_preserved(): void {
+		$api = [
+			'loader' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => '{{image}}' ] ],
+		];
+
+		$this->assertSame( $api, Comfy_Graph::apply_media_placeholders( $api, [ 'image' ] ) );
+		$this->assertSame( [ 'image' ], Comfy_Graph::media_placeholders( $api ) );
+	}
+
+	/** Explicit bindings leave Template-owned mask/reference loaders untouched. */
+	public function test_explicit_image_placeholder_does_not_consume_auxiliary_loader(): void {
+		$api = [
+			'input' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => '{{image}}' ] ],
+			'mask'  => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'template-mask.png' ] ],
+		];
+
+		$this->assertSame( $api, Comfy_Graph::apply_media_placeholders( $api, [ 'image' ] ) );
+	}
+
+	/** Optional end-frame inference runs only when that slot has a value. */
+	public function test_explicit_start_frame_leaves_auxiliary_loader_until_end_frame_is_requested(): void {
+		$api = [
+			'start' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => '{{start_frame}}' ] ],
+			'aux'   => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'template-reference.png' ] ],
+		];
+
+		$without_end = Comfy_Graph::apply_media_placeholders( $api, [ 'start_frame', 'end_frame' ], [ 'start_frame' ] );
+		$this->assertSame( $api, $without_end );
+
+		$with_end = Comfy_Graph::apply_media_placeholders( $api, [ 'start_frame', 'end_frame' ], [ 'start_frame', 'end_frame' ] );
+		$this->assertIsArray( $with_end );
+		$this->assertSame( '{{end_frame}}', $with_end['aux']['inputs']['image'] );
+	}
+
+	/** A topology-proven requested frame also leaves unrelated literals alone. */
+	public function test_inferred_start_frame_does_not_consume_auxiliary_loader(): void {
+		$api = [
+			'start' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'demo-start.png' ] ],
+			'guide' => [ 'class_type' => 'LTXVAddGuide', 'inputs' => [ 'image' => [ 'start', 0 ], 'frame_idx' => 0 ] ],
+			'aux'   => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'template-reference.png' ] ],
+		];
+
+		$result = Comfy_Graph::apply_media_placeholders( $api, [ 'start_frame', 'end_frame' ], [ 'start_frame' ] );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( '{{start_frame}}', $result['start']['inputs']['image'] );
+		$this->assertSame( 'template-reference.png', $result['aux']['inputs']['image'] );
+	}
+
+	/** Two anonymous loaders cannot safely be guessed for a single image slot. */
+	public function test_multiple_literal_image_loaders_fail_closed(): void {
+		$api = [
+			'one' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'one.png' ] ],
+			'two' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'two.png' ] ],
+		];
+
+		$result = Comfy_Graph::apply_media_placeholders( $api, [ 'image' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'worldgraph_comfy_media_binding_ambiguous', $result->get_error_code() );
+		$this->assertCount( 2, $result->get_error_data()['candidates'] );
+	}
+
+	/** A placeholder outside a proven loader target is rejected. */
+	public function test_media_placeholder_outside_load_image_fails_closed(): void {
+		$api = [
+			'loader' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'demo.png' ] ],
+			'note'   => [ 'class_type' => 'PrimitiveString', 'inputs' => [ 'value' => '{{image}}' ] ],
+		];
+
+		$result = Comfy_Graph::apply_media_placeholders( $api, [ 'image' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'worldgraph_comfy_media_placeholder_unsafe', $result->get_error_code() );
+	}
+
+	/** Guide frame indices prove which literal loader is the first and last frame. */
+	public function test_start_and_end_frames_are_inferred_from_workflow_topology(): void {
+		$api = [
+			'start_loader' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'demo-start.png' ] ],
+			'resize'       => [ 'class_type' => 'ImageScale', 'inputs' => [ 'image' => [ 'start_loader', 0 ] ] ],
+			'start_guide'  => [ 'class_type' => 'LTXVAddGuide', 'inputs' => [ 'image' => [ 'resize', 0 ], 'frame_idx' => 0 ] ],
+			'end_loader'   => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'demo-end.png' ] ],
+			'end_guide'    => [ 'class_type' => 'LTXVAddGuide', 'inputs' => [ 'image' => [ 'end_loader', 0 ], 'frame_idx' => -1 ] ],
+		];
+
+		$result = Comfy_Graph::apply_media_placeholders( $api, [ 'start_frame', 'end_frame' ] );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( '{{start_frame}}', $result['start_loader']['inputs']['image'] );
+		$this->assertSame( '{{end_frame}}', $result['end_loader']['inputs']['image'] );
+		$this->assertEqualsCanonicalizing( [ 'start_frame', 'end_frame' ], Comfy_Graph::media_placeholders( $result ) );
+
+		$substitute = new ReflectionMethod( Local_ComfyUI::class, 'apply_inputs' );
+		$substitute->setAccessible( true );
+		$submitted = $substitute->invoke( null, $result, [
+			'start_frame' => 'worldgraph/first.png',
+			'end_frame'   => 'worldgraph/last.png',
+		] );
+		$this->assertSame( 'worldgraph/first.png', $submitted['start_loader']['inputs']['image'] );
+		$this->assertSame( 'worldgraph/last.png', $submitted['end_loader']['inputs']['image'] );
+	}
+
+	/** Anonymous two-frame graphs require explicit slot markers. */
+	public function test_two_unlabelled_frame_loaders_fail_closed(): void {
+		$api = [
+			'one' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'one.png' ] ],
+			'two' => [ 'class_type' => 'LoadImage', 'inputs' => [ 'image' => 'two.png' ] ],
+		];
+
+		$result = Comfy_Graph::apply_media_placeholders( $api, [ 'start_frame', 'end_frame' ] );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'worldgraph_comfy_media_binding_ambiguous', $result->get_error_code() );
 	}
 
 	/**

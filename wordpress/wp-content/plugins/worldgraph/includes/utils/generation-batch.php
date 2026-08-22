@@ -739,6 +739,6 @@ class Generation_Batch {
 			$input = $configuration['parameters'];
 		}
 
-		return array_merge( Template_Run_Controls::defaults( $template_id ), $input );
+		return array_merge( $input, Template_Run_Controls::defaults( $template_id ) );
 	}
 }

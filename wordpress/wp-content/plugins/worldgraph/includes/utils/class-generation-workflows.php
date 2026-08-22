@@ -660,6 +660,17 @@ class Generation_Workflows {
 			if ( $requires_media && ! $media_supported ) {
 				continue;
 			}
+			// A local ComfyUI Template whose nodes/models are not installed
+			// cannot actually run, so it must not appear as a choice until it
+			// is verified ready. A catalog read failure (connectivity) is left
+			// to surface at submission rather than hiding every Template here.
+			if ( 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' ) ) {
+				Connection_Adapters::load( 'comfyui' );
+				$report = Comfy_Manifest::validate( $template->ID );
+				if ( ! is_wp_error( $report ) && empty( $report['ok'] ) ) {
+					continue;
+				}
+			}
 			$options[] = [
 				'id'             => (int) $template->ID,
 				'name'           => (string) ( worldgraph_get_field_value( $template->ID, 'template_name' ) ?: $template->post_title ),
@@ -829,8 +840,13 @@ class Generation_Workflows {
 				continue;
 			}
 			$task['template_id'] = $template_id;
-			$task['run_values'] = $run_values[ (string) $task['type'] ];
-			$description = Template_Run_Controls::describe( $template_id );
+			$task['run_values']  = $run_values[ (string) $task['type'] ];
+			$description         = Template_Run_Controls::describe( $template_id );
+			$task['profile_values'] = Asset_Generator::project_template_defaults(
+				$template_id,
+				Asset_Generator::project_media_profile( (int) $task['source_id'] ),
+				$description
+			);
 			$task['run_controls_fingerprint'] = (string) ( $description['fingerprint'] ?? '' );
 			$resolved_tasks[]    = $task;
 		}
@@ -880,6 +896,7 @@ class Generation_Workflows {
 				'featured'     => ! empty( $task['featured'] ),
 				'template_id'  => (int) $task['template_id'],
 				'run_values'   => (array) ( $task['run_values'] ?? [] ),
+				'profile_values' => (array) ( $task['profile_values'] ?? [] ),
 				'run_controls_fingerprint' => (string) ( $task['run_controls_fingerprint'] ?? '' ),
 				'prompt'       => (string) $task['prompt'],
 				'prompt_hash'  => hash( 'sha256', (string) $task['prompt'] ),
@@ -1185,6 +1202,8 @@ class Generation_Workflows {
 				'create_asset'       => true,
 				'template_id'        => (int) $task['template_id'],
 				'run_values'         => (array) ( $task['run_values'] ?? [] ),
+				'profile_values'     => (array) ( $task['profile_values'] ?? [] ),
+				'profile_values_frozen' => array_key_exists( 'profile_values', $task ),
 				'run_values_validated' => true,
 				'intent'             => (string) $task['intent'],
 				'batch_id'           => $batch_id,

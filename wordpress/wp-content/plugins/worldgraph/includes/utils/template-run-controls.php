@@ -84,16 +84,44 @@ class Template_Run_Controls {
 	}
 
 	/**
-	 * Return advertised defaults keyed by control name.
+	 * Return explicit Template execution defaults keyed by control name.
 	 *
-	 * Seed is intentionally absent: omission retains the runner's random-seed
-	 * behavior, while an explicitly submitted integer fixes the seed.
+	 * Values inferred from a stored workflow are display defaults only: that
+	 * workflow already owns them and omission must not rewrite it. Explicit
+	 * configuration/default_values and built-in workflow defaults remain runner
+	 * inputs. Seed is always absent so omission retains random-seed behavior.
 	 *
 	 * @param int $template_id Template post ID.
 	 * @return array<string,scalar>
 	 */
 	public static function defaults( int $template_id ): array {
-		return self::description_defaults( self::describe( $template_id ) );
+		$description   = self::describe( $template_id );
+		$configuration = self::decode_object( self::template_value( $template_id, 'configuration_json' ) );
+		$workflow      = self::decode_object( self::template_value( $template_id, 'workflow_json' ) );
+		$defaults      = self::decode_object( self::template_value( $template_id, 'default_values' ) );
+
+		if ( empty( $workflow ) ) {
+			return self::description_defaults( $description );
+		}
+
+		$configured = self::description_defaults(
+			self::describe_configuration( $configuration, [ 'default_values' => $defaults ] )
+		);
+		$allowed = [];
+		foreach ( (array) ( $description['fields'] ?? [] ) as $field ) {
+			if ( is_array( $field ) && isset( $field['key'] ) ) {
+				$key             = (string) $field['key'];
+				$allowed[ $key ] = true;
+				// Preserve the inferred negative-conditioning baseline for legacy
+				// placeholder workflows and runners that accept scalar defaults,
+				// without replaying sampling/output literals the graph already owns.
+				if ( 'negative_prompt' === self::semantic_key( $key ) && array_key_exists( 'default', $field ) && is_scalar( $field['default'] ) && ! array_key_exists( $key, $configured ) ) {
+					$configured[ $key ] = $field['default'];
+				}
+			}
+		}
+
+		return array_intersect_key( $configured, $allowed );
 	}
 
 	/**
@@ -600,6 +628,15 @@ class Template_Run_Controls {
 		if ( ! self::valid_identifier( $key ) || self::excluded_key( $key ) ) {
 			return null;
 		}
+		$write_only = $schema['writeOnly'] ?? $schema['write_only'] ?? false;
+		$format     = self::snake_key( (string) ( $schema['format'] ?? '' ) );
+		if ( true === $write_only || 1 === $write_only || '1' === $write_only || ( is_string( $write_only ) && 'true' === strtolower( trim( $write_only ) ) ) || in_array( $format, [ 'password', 'secret', 'credential', 'token', 'api_key', 'private_key' ], true ) ) {
+			return null;
+		}
+		if ( ! $has_default && array_key_exists( 'default', $schema ) && is_scalar( $schema['default'] ) ) {
+			$default     = $schema['default'];
+			$has_default = true;
+		}
 
 		$semantic = self::semantic_key( $key );
 		if ( 'seed' === $semantic ) {
@@ -833,6 +870,15 @@ class Template_Run_Controls {
 			if ( array_key_exists( 'max', $field ) && $normalized > $field['max'] ) {
 				return [ 'error' => 'range' ];
 			}
+			if ( isset( $field['step'] ) && is_numeric( $field['step'] ) && (float) $field['step'] > 0 ) {
+				$step      = (float) $field['step'];
+				$origin    = isset( $field['min'] ) && is_numeric( $field['min'] ) ? (float) $field['min'] : 0.0;
+				$quotient  = ( (float) $normalized - $origin ) / $step;
+				$tolerance = max( 0.000000001, abs( $quotient ) * 0.000000000001 );
+				if ( abs( $quotient - round( $quotient ) ) > $tolerance ) {
+					return [ 'error' => 'range' ];
+				}
+			}
 		}
 
 		if ( 'aspect_ratio' === self::semantic_key( (string) ( $field['key'] ?? '' ) ) ) {
@@ -924,7 +970,7 @@ class Template_Run_Controls {
 			'aspect_ratio'    => [ 'type' => 'string', 'maxLength' => 32 ],
 			'length'          => [ 'type' => 'integer', 'minimum' => 1, 'maximum' => 10000, 'step' => 1 ],
 			'duration'        => [ 'type' => 'number', 'minimum' => 0, 'maximum' => 3600, 'step' => 0.1 ],
-			'fps'             => [ 'type' => 'number', 'minimum' => 1, 'maximum' => 240, 'step' => 0.01 ],
+			'fps'             => [ 'type' => 'number', 'minimum' => 1, 'maximum' => 240, 'step' => 0.001 ],
 			'text_g'          => [ 'type' => 'string', 'maxLength' => self::MAX_PROMPT_LENGTH ],
 			'text_l'          => [ 'type' => 'string', 'maxLength' => self::MAX_PROMPT_LENGTH ],
 			'clip_l'          => [ 'type' => 'string', 'maxLength' => self::MAX_PROMPT_LENGTH ],
@@ -957,7 +1003,9 @@ class Template_Run_Controls {
 
 	/** Discover allowlisted controls from an API-format workflow. */
 	private static function workflow_fields( array $workflow ): array {
-		$fields = [];
+		$fields          = [];
+		$semantic_values = [];
+		$conflicts       = [];
 		if ( empty( $workflow ) || count( $workflow ) > self::MAX_WORKFLOW_NODES ) {
 			return [];
 		}
@@ -970,20 +1018,30 @@ class Template_Run_Controls {
 
 			foreach ( array_slice( $node['inputs'], 0, self::MAX_NODE_INPUTS, true ) as $input => $unused ) {
 				$semantic = self::semantic_key( (string) $input );
-				if ( null === $semantic || 'negative_prompt' === $semantic ) {
+				if ( null === $semantic ) {
 					continue;
 				}
 				if ( self::is_dual_text_semantic( $semantic ) && ( ! self::is_text_encoder( $node ) || isset( $negative_nodes[ (string) $node_id ] ) ) ) {
 					continue;
 				}
-				if ( empty( self::control_input_targets( $workflow, (string) $node_id, (string) $input, $semantic ) ) ) {
+				$targets = self::control_input_targets( $workflow, (string) $node_id, (string) $input, $semantic );
+				if ( empty( $targets ) ) {
 					continue;
 				}
 
-				$default = self::resolved_input_scalar( $workflow, (string) $node_id, (string) $input );
-				$field   = self::semantic_field( $semantic, $default, null !== $default );
+				$values = self::workflow_target_values( $workflow, $targets );
+				self::record_semantic_values( $semantic_values, $conflicts, $semantic, $values );
+				$current = reset( $values );
+				$field   = self::semantic_field( $semantic, $current, ! empty( $values ) );
+				if ( 'aspect_ratio' === $semantic ) {
+					$probe = self::normalize_submitted_value( $field, $current );
+					if ( isset( $probe['error'] ) ) {
+						$conflicts[ $semantic ] = true;
+						continue;
+					}
+				}
 				if ( in_array( $semantic, [ 'sampler', 'scheduler' ], true ) ) {
-					$field = self::constrain_workflow_choice( $field, $semantic, $default );
+					$field = self::constrain_workflow_choice( $field, $semantic, $current );
 				}
 				self::store_field( $fields, $field, false );
 			}
@@ -993,20 +1051,62 @@ class Template_Run_Controls {
 				if ( null !== $semantic && ! self::is_dual_text_semantic( $semantic ) ) {
 					$input = self::primitive_input_name( $node, $semantic );
 					if ( null !== $input ) {
-						$default = self::resolved_input_scalar( $workflow, (string) $node_id, $input );
-						self::store_field( $fields, self::semantic_field( $semantic, $default, null !== $default ), false );
+						$targets = self::control_input_targets( $workflow, (string) $node_id, $input, $semantic );
+						if ( empty( $targets ) ) {
+							continue;
+						}
+						$values = self::workflow_target_values( $workflow, $targets );
+						self::record_semantic_values( $semantic_values, $conflicts, $semantic, $values );
+						$current = reset( $values );
+						self::store_field( $fields, self::semantic_field( $semantic, $current, ! empty( $values ) ), false );
 					}
 				}
 			}
 		}
 
-		if ( ! empty( self::negative_prompt_targets( $workflow ) ) ) {
-			// Stored example text is not an execution default. Only an explicitly
-			// declared Template negative prompt may become a default.
-			self::store_field( $fields, self::semantic_field( 'negative_prompt', '', true ), false );
+		$negative_targets = self::negative_prompt_targets( $workflow );
+		if ( ! empty( $negative_targets ) ) {
+			$negative_values = self::workflow_target_values( $workflow, $negative_targets );
+			self::record_semantic_values( $semantic_values, $conflicts, 'negative_prompt', $negative_values );
+			$current         = reset( $negative_values );
+			// Positive prompt copy is composed from the Story Graph, but negative
+			// conditioning is a deliberate Template-level quality default.
+			$has_default = ! empty( $negative_values ) && '{{negative_prompt}}' !== trim( (string) $current );
+			self::store_field( $fields, self::semantic_field( 'negative_prompt', $current, $has_default ), false );
+		}
+
+		foreach ( array_keys( $conflicts ) as $semantic ) {
+			foreach ( $fields as $key => $field ) {
+				if ( $semantic === self::semantic_key( (string) $key ) ) {
+					unset( $fields[ $key ] );
+				}
+			}
 		}
 
 		return array_values( $fields );
+	}
+
+	/** Read scalar values from resolved workflow targets. */
+	private static function workflow_target_values( array $workflow, array $targets ): array {
+		$values = [];
+		foreach ( $targets as $target ) {
+			$value = $workflow[ $target[0] ]['inputs'][ $target[1] ] ?? null;
+			if ( is_scalar( $value ) ) {
+				$values[] = $value;
+			}
+		}
+		return $values;
+	}
+
+	/** Track whether one public semantic would collapse distinct graph values. */
+	private static function record_semantic_values( array &$values, array &$conflicts, string $semantic, array $candidates ): void {
+		foreach ( $candidates as $candidate ) {
+			$signature = gettype( $candidate ) . ':' . (string) $candidate;
+			$values[ $semantic ][ $signature ] = true;
+		}
+		if ( count( $values[ $semantic ] ?? [] ) > 1 ) {
+			$conflicts[ $semantic ] = true;
+		}
 	}
 
 	/** Build a normalized known-semantic field. */
@@ -1088,8 +1188,14 @@ class Template_Run_Controls {
 			return;
 		}
 		$semantic = self::semantic_key( (string) $field['key'] );
-		foreach ( $fields as $existing ) {
+		foreach ( $fields as $key => $existing ) {
 			if ( null !== $semantic && $semantic === self::semantic_key( (string) ( $existing['key'] ?? '' ) ) ) {
+				if ( ! array_key_exists( 'default', $existing ) && array_key_exists( 'default', $field ) && is_scalar( $field['default'] ) ) {
+					$normalized = self::normalize_submitted_value( $existing, $field['default'] );
+					if ( ! isset( $normalized['error'] ) ) {
+						$fields[ $key ]['default'] = $normalized['value'];
+					}
+				}
 				return;
 			}
 		}
@@ -1251,20 +1357,6 @@ class Template_Run_Controls {
 			|| 'conditioning' === $input
 			|| 0 === strpos( $input, 'conditioning_' )
 			|| false !== strpos( $input, '_conditioning' );
-	}
-
-	/** Resolve the first scalar from a proven writable server-derived target. */
-	private static function resolved_input_scalar( array $workflow, string $node_id, string $input, array $visited = [], int $depth = 0 ) {
-		unset( $visited, $depth );
-		$semantic = self::semantic_key( $input );
-		if ( null === $semantic ) {
-			return null;
-		}
-		$targets = self::control_input_targets( $workflow, $node_id, $input, $semantic );
-		if ( empty( $targets ) ) {
-			return null;
-		}
-		return $workflow[ $targets[0][0] ]['inputs'][ $targets[0][1] ] ?? null;
 	}
 
 	/**
@@ -1494,6 +1586,8 @@ class Template_Run_Controls {
 			'prompt', 'positive_prompt', 'text', 'string', 'input', 'inputs',
 			'image', 'images', 'start_frame', 'end_frame', 'video', 'audio', 'mask',
 			'model', 'checkpoint', 'ckpt_name', 'vae', 'clip', 'lora',
+			'access_key', 'private_key', 'client_secret', 'access_token',
+			'refresh_token', 'bearer', 'cookie', 'session_cookie',
 			'output', 'outputs', 'num_outputs', 'output_count', 'num_images',
 			'number_of_images', 'batch_size', 'batch_count', 'count', 'n',
 			'endpoint', 'url', 'uri', 'callback', 'webhook', 'transport',
@@ -1505,7 +1599,7 @@ class Template_Run_Controls {
 		}
 
 		return (bool) preg_match(
-			'/(?:^|_)(?:api_?key|auth(?:orization)?|credential|password|secret|token|callback|webhook|url|uri|endpoint|model|checkpoint|ckpt|vae|lora|loader)(?:_|$)|(?:^|_)prompt$|_id$|(?:^|_)(?:output|image)s?_count$/',
+			'/(?:^|_)(?:api_?key|access_?key|private_?key|auth(?:orization)?|bearer|cookie|credential|password|secret|token|callback|webhook|url|uri|endpoint|model|checkpoint|ckpt|vae|lora|loader)(?:_|$)|(?:^|_)prompt$|_id$|(?:^|_)(?:output|image)s?_count$/',
 			$normalized
 		);
 	}

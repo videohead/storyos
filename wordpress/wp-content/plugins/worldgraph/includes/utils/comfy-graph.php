@@ -56,6 +56,21 @@ class Comfy_Graph {
 	const PROMPT_FIELDS = [ 'text', 'prompt', 'clip_l', 't5xxl', 'text_g', 'text_l', 'string' ];
 
 	/**
+	 * Media slots whose uploaded ComfyUI input filename can be bound to a
+	 * proven image-loader input. Other media types need their own reviewed
+	 * loader contract instead of guessing at arbitrary string widgets.
+	 */
+	const IMAGE_MEDIA_SLOTS = [ 'image', 'start_frame', 'end_frame' ];
+
+	/**
+	 * Exact executable node/input pairs known to read a filename from
+	 * ComfyUI's input directory.
+	 *
+	 * @var array<string, string>
+	 */
+	const MEDIA_LOADER_INPUTS = [ 'LoadImage' => 'image' ];
+
+	/**
 	 * Recursion ceiling for link resolution through subgraphs and reroutes.
 	 */
 	const MAX_DEPTH = 128;
@@ -213,8 +228,9 @@ class Comfy_Graph {
 	}
 
 	/**
-	 * Replace the positive and negative prompt text of a converted workflow
-	 * with the placeholders the generation runner substitutes per job.
+	 * Replace positive prompt text with the placeholder the generation runner
+	 * substitutes per job. Negative conditioning remains a Template concern:
+	 * preserving its literals also preserves distinct model/stage branches.
 	 *
 	 * @param array $api API-format workflow.
 	 * @return array
@@ -226,7 +242,7 @@ class Comfy_Graph {
 			if ( ! is_array( $node ) ) {
 				continue;
 			}
-			foreach ( [ 'positive' => '{{prompt}}', 'negative' => '{{negative_prompt}}' ] as $socket => $placeholder ) {
+			foreach ( [ 'positive' => '{{prompt}}' ] as $socket => $placeholder ) {
 				$reference = $node['inputs'][ $socket ] ?? null;
 				if ( ! self::is_reference( $reference ) ) {
 					continue;
@@ -259,6 +275,358 @@ class Comfy_Graph {
 		}
 
 		return $api;
+	}
+
+	/**
+	 * Bind a modality's image media slots to proven `LoadImage.image` inputs.
+	 *
+	 * Published and pasted workflows commonly retain a demo filename instead
+	 * of a `{{slot}}` marker. A runtime upload is useless unless that literal is
+	 * replaced. We only infer a binding when the target is unambiguous. An
+	 * explicit placeholder is authoritative and is preserved; start/end frames
+	 * can also be proven by a semantic node title or a downstream guide node's
+	 * `frame_idx` (`0` for the first frame, a negative value for the last).
+	 *
+	 * @param array                   $api             ComfyUI API-format workflow.
+	 * @param array<int, string>      $slots           Declared modality media slots.
+	 * @param array<int, string>|null $requested_slots Slots that have a value for
+	 *                                                  this run; all declared
+	 *                                                  slots when omitted.
+	 * @return array|WP_Error Workflow with media placeholders, or a closed
+	 *                        failure when a safe binding cannot be proven.
+	 */
+	public static function apply_media_placeholders( array $api, array $slots, ?array $requested_slots = null ) {
+		$declared_slots = array_values( array_unique( array_intersect( array_map( 'strval', $slots ), self::IMAGE_MEDIA_SLOTS ) ) );
+		$slots          = null === $requested_slots
+			? $declared_slots
+			: array_values( array_unique( array_intersect( array_map( 'strval', $requested_slots ), $declared_slots ) ) );
+		if ( empty( $slots ) ) {
+			return $api;
+		}
+		if ( self::is_editor_graph( $api ) ) {
+			return new WP_Error(
+				'worldgraph_comfy_media_bindings_need_api_workflow',
+				__( 'Media bindings can only be applied after a ComfyUI editor workflow has been converted to API format.', 'worldgraph' )
+			);
+		}
+
+		$targets   = self::media_loader_targets( $api );
+		$declared  = array_fill_keys( $declared_slots, true );
+		$requested = array_fill_keys( $slots, true );
+		$assigned  = [];
+		$open      = [];
+
+		foreach ( $targets as $key => $target ) {
+			$value = $target['value'];
+			if ( is_string( $value ) && preg_match_all( '/\{\{([a-z][a-z0-9_]*)\}\}/i', $value, $matches ) ) {
+				$slot = 1 === count( $matches[1] ) ? (string) $matches[1][0] : '';
+				if ( '' === $slot || $value !== '{{' . $slot . '}}' || ! isset( $declared[ $slot ] ) ) {
+					return self::media_binding_error(
+						'worldgraph_comfy_media_placeholder_unsafe',
+						__( 'A media placeholder must exactly match a declared slot on a supported LoadImage input.', 'worldgraph' ),
+						$slots,
+						array_values( $targets )
+					);
+				}
+
+				$assigned[ $slot ][] = $key;
+				continue;
+			}
+
+			$open[ $key ] = $target;
+		}
+
+		if ( self::has_unsafe_media_placeholder( $api, $declared ) ) {
+			return self::media_binding_error(
+				'worldgraph_comfy_media_placeholder_unsafe',
+				__( 'A declared media placeholder appears outside a supported LoadImage input.', 'worldgraph' ),
+				$slots,
+				array_values( $targets )
+			);
+		}
+
+		if ( in_array( 'image', $slots, true ) ) {
+			if ( ! empty( $assigned['image'] ) ) {
+				return $api;
+			}
+			if ( 1 !== count( $open ) ) {
+				return self::unresolved_media_binding_error( 'image', $slots, $targets, count( $open ) );
+			}
+			$key = (string) array_key_first( $open );
+			self::assign_media_placeholder( $api, $open[ $key ], 'image' );
+
+			return $api;
+		}
+		if ( empty( array_diff( $slots, array_keys( $assigned ) ) ) ) {
+			return $api;
+		}
+
+		$role_targets = [];
+		foreach ( $open as $key => $target ) {
+			$role = self::frame_role_for_target( $api, (string) $target['node_id'] );
+			if ( 'ambiguous' === $role ) {
+				return self::unresolved_media_binding_error( 'start_frame', $slots, $targets, count( $open ) );
+			}
+			if ( '' !== $role && isset( $requested[ $role ] ) && ! isset( $assigned[ $role ] ) ) {
+				$role_targets[ $role ][ $key ] = $target;
+			}
+		}
+
+		foreach ( $role_targets as $role => $matches ) {
+			if ( 1 !== count( $matches ) ) {
+				return self::unresolved_media_binding_error( $role, $slots, $targets, count( $matches ) );
+			}
+			$key = (string) array_key_first( $matches );
+			self::assign_media_placeholder( $api, $matches[ $key ], $role );
+			$assigned[ $role ][] = $key;
+			unset( $open[ $key ] );
+		}
+
+		// With one side explicitly or semantically proven, a sole remaining
+		// loader is unambiguously the other requested side. Once every requested
+		// slot is proven, untouched loaders are Template-owned auxiliary inputs.
+		foreach ( [ 'start_frame', 'end_frame' ] as $slot ) {
+			if ( ! isset( $requested[ $slot ] ) || isset( $assigned[ $slot ] ) ) {
+				continue;
+			}
+			if ( 1 === count( $open ) ) {
+				$key = (string) array_key_first( $open );
+				self::assign_media_placeholder( $api, $open[ $key ], $slot );
+				$assigned[ $slot ][] = $key;
+				unset( $open[ $key ] );
+				continue;
+			}
+			return self::unresolved_media_binding_error( $slot, $slots, $targets, count( $open ) );
+		}
+
+		return $api;
+	}
+
+	/**
+	 * Declared media placeholders currently attached to supported loader inputs.
+	 *
+	 * @param array $api ComfyUI API-format workflow.
+	 * @return array<int, string>
+	 */
+	public static function media_placeholders( array $api ): array {
+		$slots = [];
+		foreach ( self::media_loader_targets( $api ) as $target ) {
+			$value = $target['value'];
+			if ( ! is_string( $value ) || ! preg_match( '/^\{\{([a-z][a-z0-9_]*)\}\}$/i', $value, $match ) ) {
+				continue;
+			}
+			if ( in_array( $match[1], self::IMAGE_MEDIA_SLOTS, true ) ) {
+				$slots[] = $match[1];
+			}
+		}
+
+		return array_values( array_unique( $slots ) );
+	}
+
+	/**
+	 * Supported loader inputs in an API workflow.
+	 *
+	 * @param array $api API-format workflow.
+	 * @return array<string, array{node_id: string, field: string, value: mixed}>
+	 */
+	private static function media_loader_targets( array $api ): array {
+		$targets = [];
+		foreach ( $api as $node_id => $node ) {
+			if ( ! is_array( $node ) ) {
+				continue;
+			}
+			$class = (string) ( $node['class_type'] ?? '' );
+			if ( ! isset( self::MEDIA_LOADER_INPUTS[ $class ] ) ) {
+				continue;
+			}
+
+			$field = self::MEDIA_LOADER_INPUTS[ $class ];
+			$key   = (string) $node_id . '|' . $field;
+			$targets[ $key ] = [
+				'node_id' => (string) $node_id,
+				'field'   => $field,
+				'value'   => $node['inputs'][ $field ] ?? null,
+			];
+		}
+
+		return $targets;
+	}
+
+	/**
+	 * Whether a declared media placeholder occurs anywhere except as the exact
+	 * value of a supported loader input.
+	 *
+	 * @param array               $api      API-format workflow.
+	 * @param array<string, bool> $declared Declared slot lookup.
+	 * @return bool
+	 */
+	private static function has_unsafe_media_placeholder( array $api, array $declared ): bool {
+		foreach ( $api as $node ) {
+			if ( ! is_array( $node ) ) {
+				continue;
+			}
+			$class = (string) ( $node['class_type'] ?? '' );
+			$field = self::MEDIA_LOADER_INPUTS[ $class ] ?? '';
+			foreach ( (array) ( $node['inputs'] ?? [] ) as $name => $value ) {
+				$strings = [];
+				if ( is_array( $value ) ) {
+					array_walk_recursive( $value, static function ( $item ) use ( &$strings ): void {
+						if ( is_string( $item ) ) {
+							$strings[] = $item;
+						}
+					} );
+				} elseif ( is_string( $value ) ) {
+					$strings[] = $value;
+				}
+
+				foreach ( array_unique( $strings ) as $string ) {
+					foreach ( array_keys( $declared ) as $slot ) {
+						if ( false === strpos( $string, '{{' . $slot . '}}' ) ) {
+							continue;
+						}
+						if ( $field !== (string) $name || $string !== '{{' . $slot . '}}' ) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Assign a slot placeholder to one proven loader input.
+	 *
+	 * @param array  $api    Workflow passed by reference.
+	 * @param array  $target Loader target descriptor.
+	 * @param string $slot   Declared media slot.
+	 */
+	private static function assign_media_placeholder( array &$api, array $target, string $slot ): void {
+		$api[ $target['node_id'] ]['inputs'][ $target['field'] ] = '{{' . $slot . '}}';
+	}
+
+	/**
+	 * Infer whether a loader feeds the first or last frame of a video guide.
+	 *
+	 * @param array  $api     API-format workflow.
+	 * @param string $node_id Loader node ID.
+	 * @return string `start_frame`, `end_frame`, `ambiguous`, or an empty string.
+	 */
+	private static function frame_role_for_target( array $api, string $node_id ): string {
+		$evidence = [];
+		$queue    = [ $node_id ];
+		$seen     = [];
+
+		while ( ! empty( $queue ) && count( $seen ) <= self::MAX_DEPTH ) {
+			$current = (string) array_shift( $queue );
+			if ( isset( $seen[ $current ] ) || ! isset( $api[ $current ] ) ) {
+				continue;
+			}
+			$seen[ $current ] = true;
+
+			$role = self::frame_role_for_node( $api[ $current ] );
+			if ( '' !== $role ) {
+				$evidence[ $role ] = true;
+			}
+
+			foreach ( $api as $consumer_id => $consumer ) {
+				if ( isset( $seen[ (string) $consumer_id ] ) || ! is_array( $consumer ) ) {
+					continue;
+				}
+				foreach ( (array) ( $consumer['inputs'] ?? [] ) as $input ) {
+					if ( self::is_reference( $input ) && (string) $input[0] === $current ) {
+						$queue[] = (string) $consumer_id;
+						break;
+					}
+				}
+			}
+		}
+
+		if ( count( $evidence ) > 1 ) {
+			return 'ambiguous';
+		}
+
+		return $evidence ? (string) array_key_first( $evidence ) : '';
+	}
+
+	/**
+	 * Frame-role evidence carried by one loader or downstream guide node.
+	 *
+	 * @param array $node API-format node.
+	 * @return string
+	 */
+	private static function frame_role_for_node( array $node ): string {
+		$roles = [];
+		$title = (string) ( $node['_meta']['title'] ?? '' );
+		if ( preg_match( '/\b(start|first|initial|begin|beginning)\b/i', $title ) ) {
+			$roles['start_frame'] = true;
+		}
+		if ( preg_match( '/\b(end|last|final|ending)\b/i', $title ) ) {
+			$roles['end_frame'] = true;
+		}
+
+		foreach ( [ 'frame_idx', 'frame_index' ] as $field ) {
+			$value = $node['inputs'][ $field ] ?? null;
+			if ( ! is_numeric( $value ) ) {
+				continue;
+			}
+			if ( 0.0 === (float) $value ) {
+				$roles['start_frame'] = true;
+			} elseif ( (float) $value < 0 ) {
+				$roles['end_frame'] = true;
+			}
+		}
+
+		return 1 === count( $roles ) ? (string) array_key_first( $roles ) : ( count( $roles ) > 1 ? 'ambiguous' : '' );
+	}
+
+	/**
+	 * Construct a stable, inspectable media-binding error.
+	 *
+	 * @param string             $code    Error code.
+	 * @param string             $message Human-readable message.
+	 * @param array<int, string> $slots   Declared media slots.
+	 * @param array<int, array>  $targets Candidate loader targets.
+	 * @return WP_Error
+	 */
+	private static function media_binding_error( string $code, string $message, array $slots, array $targets ): WP_Error {
+		return new WP_Error(
+			$code,
+			$message,
+			[
+				'slots'      => $slots,
+				'candidates' => array_map( static function ( array $target ): array {
+					return [ 'node_id' => $target['node_id'], 'field' => $target['field'] ];
+				}, $targets ),
+			]
+		);
+	}
+
+	/**
+	 * Error for a missing or ambiguous automatic binding.
+	 *
+	 * @param string             $slot       Slot that could not be bound.
+	 * @param array<int, string> $slots      Declared slots.
+	 * @param array<string,array> $targets   Candidate loader targets.
+	 * @param int                $open_count Number of unresolved candidates.
+	 * @return WP_Error
+	 */
+	private static function unresolved_media_binding_error( string $slot, array $slots, array $targets, int $open_count ): WP_Error {
+		$message = 0 === $open_count
+			? sprintf(
+				/* translators: %s: media input slot name. */
+				__( 'The workflow has no supported LoadImage input for the %s media slot.', 'worldgraph' ),
+				$slot
+			)
+			: sprintf(
+				/* translators: 1: media input slot name, 2: number of possible loader inputs. */
+				__( 'The workflow has %2$d possible LoadImage inputs for %1$s; add explicit media placeholders to identify them.', 'worldgraph' ),
+				$slot,
+				$open_count
+			);
+
+		return self::media_binding_error( 'worldgraph_comfy_media_binding_ambiguous', $message, $slots, array_values( $targets ) );
 	}
 
 	/**
