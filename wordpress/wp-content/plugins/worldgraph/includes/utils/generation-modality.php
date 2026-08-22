@@ -343,14 +343,16 @@ class Generation_Modality {
 			];
 		}
 
+		// SDXL-class defaults: 1024x1024 native framing with the sampler and
+		// scheduler pairing that model family is tuned for.
 		return [
 			'width'     => 1024,
 			'height'    => 1024,
-			'steps'     => 20,
+			'steps'     => 30,
 			'cfg'       => 7.0,
 			'denoise'   => self::TEXT_TO_IMAGE === self::sanitize( $slug ) ? 1.0 : 0.65,
-			'sampler'   => 'euler',
-			'scheduler' => 'normal',
+			'sampler'   => 'dpmpp_2m',
+			'scheduler' => 'karras',
 		];
 	}
 

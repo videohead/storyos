@@ -5,7 +5,7 @@
  * ComfyUI ships several hundred reference workflows covering every model family
  * it supports, and keeps them in a public index rather than inside the plugin.
  * Reading that index is what lets World Graph Studio offer a modern
- * text-to-image graph instead of the minimal Stable Diffusion 1.5 fallback it
+ * text-to-image graph instead of the minimal SDXL fallback it
  * provisions when nothing else is known to work.
  *
  * The index is metadata only. It names models but not model files, so it can

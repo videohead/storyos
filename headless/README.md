@@ -20,8 +20,10 @@ actions.
 ## What's here
 
 - `lib/wordpress.ts` — typed wrapper around the WP REST API (`/wp-json/wp/v2`)
+- `lib/worldgraph.ts` — server-only public Story display adapter over native `wp/v2`, SCF, and the read-only `worldgraph_display` projection
 - `lib/worldgraph-admin.ts` — server-only admin wrapper for protected World Graph endpoints (`/wp-json/worldgraph/v1`)
-- `app/` — homepage, posts list/detail, and a `/api/revalidate` webhook route
+- `app/` — homepage, posts list/detail, published Story collection/detail routes, and a `/api/revalidate` webhook route
+- `app/story` — public Projects, Worlds, Characters, Scenes, Props, and Sounds/Songs with galleries and native media players
 - `app/connections` — headless ComfyUI catalog manager (sync, prepare, materialize, download)
 - `site.config.ts` / `menu.config.ts` — site metadata and nav links
 
@@ -72,6 +74,10 @@ npm run dev
 
 The optional WordPress module at
 `wordpress/wp-content/plugins/worldgraph/plugins/headless-revalidate/` posts a
-webhook to `/api/revalidate` whenever posts/pages/categories/tags change,
+webhook to `/api/revalidate` whenever supported public content changes,
 using the same `WORDPRESS_WEBHOOK_SECRET` configured here and under
 Settings → Headless Revalidation in wp-admin.
+
+Story requests use broad, type, ID, and slug cache tags. The matching webhook
+shape is `{ contentType: "story", storyType, contentId, slug }`; `storyType` is
+one of `projects`, `worlds`, `characters`, `scenes`, `props`, or `sounds`.

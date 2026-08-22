@@ -1,0 +1,76 @@
+.worldgraph-story-gallery__items {
+	display: grid;
+	gap: 8px;
+	margin: 16px 0;
+	padding: 0;
+}
+
+.worldgraph-story-gallery__item {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	display: grid;
+	gap: 12px;
+	grid-template-columns: auto 64px minmax(0, 1fr) auto;
+	margin: 0;
+	padding: 8px 12px;
+}
+
+.worldgraph-story-gallery__handle {
+	cursor: grab;
+}
+
+.worldgraph-story-gallery__preview {
+	align-items: center;
+	background: #f0f0f1;
+	display: flex;
+	height: 54px;
+	justify-content: center;
+	overflow: hidden;
+	width: 64px;
+}
+
+.worldgraph-story-gallery__preview img {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.worldgraph-story-gallery__preview .dashicons {
+	font-size: 30px;
+	height: 30px;
+	width: 30px;
+}
+
+.worldgraph-story-gallery__details,
+.worldgraph-story-gallery__details small {
+	display: block;
+}
+
+.worldgraph-story-gallery__details small {
+	color: #646970;
+	margin-top: 3px;
+}
+
+.worldgraph-story-gallery__actions {
+	align-items: center;
+	display: flex;
+	gap: 10px;
+}
+
+.worldgraph-story-gallery__placeholder {
+	background: #f0f6fc;
+	border: 2px dashed #2271b1;
+	height: 70px;
+}
+
+@media (max-width: 782px) {
+	.worldgraph-story-gallery__item {
+		grid-template-columns: auto 52px minmax(0, 1fr);
+	}
+
+	.worldgraph-story-gallery__actions {
+		grid-column: 3;
+		justify-self: start;
+	}
+}

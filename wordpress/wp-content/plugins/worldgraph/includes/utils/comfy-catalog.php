@@ -346,7 +346,7 @@ class Comfy_Catalog {
 	 * unaided, which is deliberately conservative. The published registry is
 	 * where the current generation of models actually lives, so an operator who
 	 * has installed Flux or Qwen-Image should be offered them rather than left
-	 * on a Stable Diffusion 1.5 fallback.
+	 * on the SDXL baseline fallback.
 	 *
 	 * @param string $endpoint ComfyUI base URL.
 	 * @return array<int, array>

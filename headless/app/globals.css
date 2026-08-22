@@ -45,3 +45,40 @@ a {
   text-decoration-color: var(--color-wg-sepia);
   text-underline-offset: 0.18em;
 }
+
+:is(a, button, audio, video):focus-visible {
+  outline: 3px solid var(--color-wg-blueprint);
+  outline-offset: 3px;
+}
+
+.wg-character-card {
+  perspective: 1200px;
+}
+
+.wg-character-card__inner {
+  position: relative;
+  min-height: 32rem;
+  transform-style: preserve-3d;
+  transition: transform 520ms ease;
+}
+
+.wg-character-card__inner.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.wg-character-card__face {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  backface-visibility: hidden;
+}
+
+.wg-character-card__back {
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wg-character-card__inner {
+    transition: none;
+  }
+}

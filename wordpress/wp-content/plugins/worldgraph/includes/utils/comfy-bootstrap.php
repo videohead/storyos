@@ -39,14 +39,36 @@ class Comfy_Bootstrap {
 	const STATUS_TTL = 300;
 
 	/**
-	 * The checkpoint ComfyUI's own default text-to-image workflow loads.
+	 * The checkpoint the provisioned baseline Template is built around.
+	 *
+	 * SDXL Base 1.0 is a single-file checkpoint that runs on the same stock
+	 * node set as ComfyUI's own Stable Diffusion 1.5 default, so it needs no
+	 * custom nodes, while generating natively at 1024x1024 instead of 512.
 	 */
-	const DEFAULT_CHECKPOINT = 'v1-5-pruned-emaonly-fp16.safetensors';
+	const DEFAULT_CHECKPOINT = 'sd_xl_base_1.0.safetensors';
 
 	/**
 	 * Where that checkpoint is published, for the one-click model install.
 	 */
-	const DEFAULT_CHECKPOINT_URL = 'https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive/resolve/main/v1-5-pruned-emaonly-fp16.safetensors';
+	const DEFAULT_CHECKPOINT_URL = 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors';
+
+	/**
+	 * Human-readable name of the baseline checkpoint.
+	 */
+	const DEFAULT_CHECKPOINT_LABEL = 'Stable Diffusion XL Base 1.0';
+
+	/**
+	 * Approximate download size of the baseline checkpoint.
+	 */
+	const DEFAULT_CHECKPOINT_SIZE = '6.9 GB';
+
+	/**
+	 * Filename fragments that identify an SDXL-class checkpoint already on the
+	 * instance, so an equivalent or better model is preferred over downloading.
+	 *
+	 * @var array<int, string>
+	 */
+	const PREFERRED_CHECKPOINT_MARKERS = [ 'sd_xl', 'sdxl', 'xl_base', 'xl-base', 'juggernaut', 'dreamshaperxl', 'playground-v2', 'playgroundv2', 'flux' ];
 
 	/**
 	 * The node class ComfyUI's default text-to-image graph loads its model with.
@@ -124,6 +146,15 @@ class Comfy_Bootstrap {
 	}
 
 	/**
+	 * Title of the managed local text-to-image Template.
+	 *
+	 * @return string
+	 */
+	public static function template_title(): string {
+		return __( 'Local ComfyUI Text-to-Image (SDXL Baseline)', 'worldgraph' );
+	}
+
+	/**
 	 * Provision the text-to-image Template a local ComfyUI Connection needs,
 	 * pointing it at a checkpoint the instance actually has where possible.
 	 *
@@ -135,6 +166,8 @@ class Comfy_Bootstrap {
 
 		$existing = self::template_id();
 		if ( $existing ) {
+			wp_update_post( [ 'ID' => $existing, 'post_title' => self::template_title() ] );
+			update_post_meta( $existing, 'template_name', self::template_title() );
 			update_post_meta( $existing, 'worldgraph_wizard_slot', self::TEMPLATE_SLOT );
 			update_post_meta( $existing, 'modality', Generation_Modality::TEXT_TO_IMAGE );
 			update_post_meta( $existing, 'generation_structure', Generation_Modality::output_type( Generation_Modality::TEXT_TO_IMAGE ) );
@@ -158,7 +191,7 @@ class Comfy_Bootstrap {
 
 		$template_id = \WorldGraph\CPT\Template::upsert_managed(
 			self::TEMPLATE_SLOT,
-			__( 'Local ComfyUI Text-to-Image (Baseline)', 'worldgraph' ),
+			self::template_title(),
 			[
 				'connection_id'        => (string) $connection_id,
 				'generation_structure' => Generation_Modality::output_type( Generation_Modality::TEXT_TO_IMAGE ),
@@ -182,12 +215,12 @@ class Comfy_Bootstrap {
 	 * Point the provisioned Template at the best published text-to-image
 	 * workflow this instance can already run.
 	 *
-	 * The built-in graph is a Stable Diffusion 1.5 pipeline, which is the only
-	 * thing that can be assumed of an unknown ComfyUI and is no longer close to
-	 * what the model landscape offers. Where the instance already holds the
-	 * files for something better, running the older graph is a choice nobody
-	 * asked for, so the newer workflow is adopted instead. Nothing is downloaded
-	 * here: an instance with nothing installed keeps the built-in fallback.
+	 * The built-in graph is an SDXL pipeline on stock nodes, which is the best
+	 * quality that can be asked of an unknown ComfyUI without custom nodes.
+	 * Where the instance already holds the files for something better, running
+	 * the baseline graph is a choice nobody asked for, so the newer workflow is
+	 * adopted instead. Nothing is downloaded here: an instance with nothing
+	 * installed keeps the built-in fallback.
 	 *
 	 * @param int $template_id Template post ID.
 	 * @return string The adopted registry entry ID, or '' when none was adopted.
@@ -341,8 +374,12 @@ class Comfy_Bootstrap {
 	}
 
 	/**
-	 * A checkpoint the connected ComfyUI can load, preferring the one its own
-	 * default text-to-image workflow uses.
+	 * A checkpoint the connected ComfyUI can load, preferring the baseline
+	 * checkpoint and then any other SDXL-class model already installed.
+	 *
+	 * When nothing of that class is present the baseline filename is returned
+	 * anyway, so the Template carries the requirement and the readiness
+	 * checklist can tell the operator what to install.
 	 *
 	 * @return string
 	 */
@@ -352,13 +389,53 @@ class Comfy_Bootstrap {
 			return self::DEFAULT_CHECKPOINT;
 		}
 
-		foreach ( $installed as $filename ) {
-			if ( false !== stripos( (string) $filename, 'v1-5-pruned-emaonly' ) ) {
-				return (string) $filename;
+		$preferred = self::preferred_checkpoints( $installed );
+
+		foreach ( $preferred as $filename ) {
+			if ( 0 === strcasecmp( basename( $filename ), self::DEFAULT_CHECKPOINT ) ) {
+				return $filename;
 			}
 		}
 
-		return self::DEFAULT_CHECKPOINT;
+		return $preferred ? $preferred[0] : self::DEFAULT_CHECKPOINT;
+	}
+
+	/**
+	 * The installed checkpoints that meet the SDXL-class quality baseline.
+	 *
+	 * @param array<int, mixed> $installed Checkpoint filenames reported by ComfyUI.
+	 * @return array<int, string>
+	 */
+	private static function preferred_checkpoints( array $installed ): array {
+		$preferred = [];
+		foreach ( $installed as $filename ) {
+			$filename = (string) $filename;
+			foreach ( self::PREFERRED_CHECKPOINT_MARKERS as $marker ) {
+				if ( false !== stripos( $filename, $marker ) ) {
+					$preferred[] = $filename;
+					break;
+				}
+			}
+		}
+
+		return $preferred;
+	}
+
+	/**
+	 * What the operator has to do at the ComfyUI machine to install the
+	 * baseline checkpoint by hand.
+	 *
+	 * @return string
+	 */
+	public static function manual_install_instructions(): string {
+		return sprintf(
+			/* translators: 1: checkpoint label, 2: checkpoint filename, 3: approximate download size, 4: download URL. */
+			__( 'On the machine running ComfyUI: download %1$s (%2$s, about %3$s) from %4$s, save it in ComfyUI\'s models/checkpoints folder, then use ComfyUI\'s Refresh action or restart ComfyUI and re-check here. The Template\'s "Install missing models" button can fetch it for you when ComfyUI is reachable and allowed to write there.', 'worldgraph' ),
+			self::DEFAULT_CHECKPOINT_LABEL,
+			self::DEFAULT_CHECKPOINT,
+			self::DEFAULT_CHECKPOINT_SIZE,
+			self::DEFAULT_CHECKPOINT_URL
+		);
 	}
 
 	/**
@@ -445,29 +522,43 @@ class Comfy_Bootstrap {
 			__( 'ComfyUI has loaded the checkpoint, prompt, sampler, and save nodes the built-in text-to-image graph uses.', 'worldgraph' )
 		);
 
+		$preferred = self::preferred_checkpoints( $checkpoints );
 		if ( empty( $checkpoints ) ) {
 			$steps[] = self::step(
 				'models',
-				__( 'Checkpoint installed', 'worldgraph' ),
+				__( 'Quality checkpoint installed', 'worldgraph' ),
 				'todo',
 				sprintf(
-					/* translators: 1: checkpoint filename, 2: download URL. */
-					__( 'ComfyUI has no checkpoint installed, so its default text-to-image workflow cannot run. Install one into models/checkpoints — ComfyUI\'s own default is %1$s (%2$s) — or use the Template\'s "Install missing models" button, then re-check.', 'worldgraph' ),
-					self::DEFAULT_CHECKPOINT,
-					self::DEFAULT_CHECKPOINT_URL
+					/* translators: 1: checkpoint label, 2: manual install instructions. */
+					__( 'ComfyUI has no checkpoint installed, so no text-to-image workflow can run. World Graph Studio\'s baseline is %1$s. %2$s', 'worldgraph' ),
+					self::DEFAULT_CHECKPOINT_LABEL,
+					self::manual_install_instructions()
 				)
 			);
-		} else {
+		} elseif ( empty( $preferred ) ) {
 			$sample = array_slice( array_map( 'strval', $checkpoints ), 0, 3 );
 			$steps[] = self::step(
 				'models',
-				__( 'Checkpoint installed', 'worldgraph' ),
+				__( 'Quality checkpoint installed', 'worldgraph' ),
+				'todo',
+				sprintf(
+					/* translators: 1: comma-separated installed checkpoint filenames, 2: baseline checkpoint label, 3: manual install instructions. */
+					__( 'ComfyUI only has lower-quality checkpoints installed (%1$s). World Graph Studio\'s baseline is %2$s, which generates natively at 1024x1024 on the same stock nodes. %3$s', 'worldgraph' ),
+					implode( ', ', $sample ),
+					self::DEFAULT_CHECKPOINT_LABEL,
+					self::manual_install_instructions()
+				)
+			);
+		} else {
+			$steps[] = self::step(
+				'models',
+				__( 'Quality checkpoint installed', 'worldgraph' ),
 				'ok',
 				sprintf(
-					/* translators: 1: number of checkpoints, 2: comma-separated filenames. */
-					_n( 'ComfyUI reports %1$d checkpoint: %2$s.', 'ComfyUI reports %1$d checkpoints, including %2$s.', count( $checkpoints ), 'worldgraph' ),
-					count( $checkpoints ),
-					implode( ', ', $sample )
+					/* translators: 1: number of SDXL-class checkpoints, 2: comma-separated filenames. */
+					_n( 'ComfyUI reports %1$d SDXL-class checkpoint: %2$s.', 'ComfyUI reports %1$d SDXL-class checkpoints, including %2$s.', count( $preferred ), 'worldgraph' ),
+					count( $preferred ),
+					implode( ', ', array_slice( $preferred, 0, 3 ) )
 				)
 			);
 		}

@@ -3,7 +3,7 @@
  * Plugin Name: World Graph Studio - Headless Revalidation
  * Plugin URI: https://github.com/videohead/worldgraph
  * Description: Notifies an optional headless Next.js frontend (see /headless, based on 9d8dev/next-wp) to revalidate its cache when content changes.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: World Graph Studio Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WORLDGRAPH_HEADLESS_VERSION', '1.0.0' );
+define( 'WORLDGRAPH_HEADLESS_VERSION', '1.1.0' );
 define( 'WORLDGRAPH_HEADLESS_OPTION', 'worldgraph_headless_settings' );
 
 /**
@@ -62,7 +62,15 @@ function init(): void {
 	}
 
 	add_action( 'transition_post_status', __NAMESPACE__ . '\\on_post_status_transition', 10, 3 );
+	add_action( 'save_post', __NAMESPACE__ . '\\on_story_post_saved', 100, 3 );
 	add_action( 'delete_post', __NAMESPACE__ . '\\on_post_deleted' );
+	add_action( 'added_post_meta', __NAMESPACE__ . '\\on_story_display_meta_changed', 100, 3 );
+	add_action( 'updated_post_meta', __NAMESPACE__ . '\\on_story_display_meta_changed', 100, 3 );
+	add_action( 'deleted_post_meta', __NAMESPACE__ . '\\on_story_display_meta_changed', 100, 3 );
+	add_action( 'created_term', __NAMESPACE__ . '\\on_story_term_changed', 100, 3 );
+	add_action( 'edited_term', __NAMESPACE__ . '\\on_story_term_changed', 100, 3 );
+	add_action( 'delete_term', __NAMESPACE__ . '\\on_story_term_changed', 100, 3 );
+	add_action( 'set_object_terms', __NAMESPACE__ . '\\on_story_object_terms_set', 100, 4 );
 	add_action( 'created_category', __NAMESPACE__ . '\\on_category_changed' );
 	add_action( 'edited_category', __NAMESPACE__ . '\\on_category_changed' );
 	add_action( 'delete_category', __NAMESPACE__ . '\\on_category_changed' );
@@ -183,15 +191,25 @@ function render_settings_page(): void {
 /**
  * Send the revalidation webhook to the headless frontend.
  *
- * @param string          $content_type Content type slug, e.g. "posts", "pages", "categories", "tags".
+ * @param string          $content_type Content type slug, e.g. "posts", "pages", "story".
  * @param int|string|null $content_id   Numeric ID or slug of the affected content.
  * @param string|null     $slug         Optional slug, sent alongside the ID.
+ * @param string|null     $story_type   Optional plural Story route key.
  */
-function send_webhook( string $content_type, $content_id = null, ?string $slug = null ): void {
+function send_webhook( string $content_type, $content_id = null, ?string $slug = null, ?string $story_type = null ): void {
 	$settings = get_settings();
 
 	if ( empty( $settings['next_url'] ) || empty( $settings['webhook_secret'] ) ) {
 		return;
+	}
+
+	$payload = [
+		'contentType' => $content_type,
+		'contentId'   => $content_id,
+		'slug'        => $slug,
+	];
+	if ( $story_type ) {
+		$payload['storyType'] = $story_type;
 	}
 
 	$response = wp_remote_post(
@@ -202,13 +220,7 @@ function send_webhook( string $content_type, $content_id = null, ?string $slug =
 				'Content-Type'      => 'application/json',
 				'X-Webhook-Secret'  => $settings['webhook_secret'],
 			],
-			'body'    => wp_json_encode(
-				[
-					'contentType' => $content_type,
-					'contentId'   => $content_id,
-					'slug'        => $slug,
-				]
-			),
+			'body'    => wp_json_encode( $payload ),
 		]
 	);
 
@@ -224,6 +236,165 @@ function send_webhook( string $content_type, $content_id = null, ?string $slug =
 	$status = wp_remote_retrieve_response_code( $response );
 	if ( $status >= 400 ) {
 		error_log( '[worldgraph-headless] Revalidation webhook returned HTTP ' . $status );
+	}
+}
+
+/**
+ * Resolve a public Story route key from its WordPress post type.
+ *
+ * @param string $post_type WordPress post type.
+ * @return string|null
+ */
+function story_route_type( string $post_type ): ?string {
+	$routes = [
+		'worldgraph_project'   => 'projects',
+		'worldgraph_world'     => 'worlds',
+		'worldgraph_character' => 'characters',
+		'worldgraph_scene'     => 'scenes',
+		'worldgraph_prop'      => 'props',
+		'worldgraph_sound'     => 'sounds',
+	];
+
+	return $routes[ $post_type ] ?? null;
+}
+
+/**
+ * Whether a post can affect one of the public Story views.
+ *
+ * Supporting graph entities invalidate the broad `story` tag because they can
+ * change Scene media, World counts, or Project analytics without owning a route.
+ *
+ * @param string $post_type WordPress post type.
+ * @return bool
+ */
+function is_story_display_dependency( string $post_type ): bool {
+	return in_array(
+		$post_type,
+		[
+			'worldgraph_project',
+			'worldgraph_world',
+			'worldgraph_character',
+			'worldgraph_location',
+			'worldgraph_prop',
+			'worldgraph_org',
+			'worldgraph_episode',
+			'worldgraph_scene',
+			'worldgraph_shot',
+			'worldgraph_sound',
+			'worldgraph_board',
+			'worldgraph_asset',
+			'worldgraph_editorial',
+			'attachment',
+		],
+		true
+	);
+}
+
+/**
+ * Queue Story invalidations until WordPress has finished saving all metadata.
+ *
+ * @param int $post_id Story or supporting post ID.
+ */
+function queue_story_revalidation( int $post_id ): void {
+	$post = get_post( $post_id );
+	if ( ! $post instanceof \WP_Post || ! is_story_display_dependency( $post->post_type ) ) {
+		return;
+	}
+
+	if ( ! isset( $GLOBALS['worldgraph_headless_story_queue'] ) || ! is_array( $GLOBALS['worldgraph_headless_story_queue'] ) ) {
+		$GLOBALS['worldgraph_headless_story_queue'] = [];
+		add_action( 'shutdown', __NAMESPACE__ . '\\flush_story_revalidation_queue', 20 );
+	}
+
+	$story_type = story_route_type( $post->post_type );
+	$key        = $story_type ? $story_type . ':' . $post_id : 'story';
+	$GLOBALS['worldgraph_headless_story_queue'][ $key ] = [
+		'id'         => $post_id,
+		'slug'       => $post->post_name,
+		'story_type' => $story_type,
+	];
+}
+
+/** Queue one broad Story invalidation when no single route owns the change. */
+function queue_broad_story_revalidation(): void {
+	if ( ! isset( $GLOBALS['worldgraph_headless_story_queue'] ) || ! is_array( $GLOBALS['worldgraph_headless_story_queue'] ) ) {
+		$GLOBALS['worldgraph_headless_story_queue'] = [];
+		add_action( 'shutdown', __NAMESPACE__ . '\\flush_story_revalidation_queue', 20 );
+	}
+
+	$GLOBALS['worldgraph_headless_story_queue']['story'] = [
+		'id'         => null,
+		'slug'       => null,
+		'story_type' => null,
+	];
+}
+
+/** Send each queued Story invalidation once after the current save completes. */
+function flush_story_revalidation_queue(): void {
+	$queue = $GLOBALS['worldgraph_headless_story_queue'] ?? [];
+	unset( $GLOBALS['worldgraph_headless_story_queue'] );
+
+	foreach ( $queue as $item ) {
+		send_webhook( 'story', $item['id'], $item['slug'], $item['story_type'] );
+	}
+}
+
+/**
+ * Revalidate published Story records and their presentation dependencies.
+ *
+ * @param int      $post_id Post ID.
+ * @param \WP_Post $post    Post object.
+ * @param bool     $update  Whether this is an update.
+ */
+function on_story_post_saved( int $post_id, \WP_Post $post, bool $update ): void {
+	unset( $update );
+	if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+		return;
+	}
+
+	queue_story_revalidation( $post->ID );
+}
+
+/**
+ * Catch presentation changes made directly through metadata APIs.
+ *
+ * @param int|array<int, int> $meta_id Metadata row ID, or IDs after deletion.
+ * @param int    $post_id  Post ID.
+ * @param string $meta_key Metadata key.
+ */
+function on_story_display_meta_changed( int|array $meta_id, int $post_id, string $meta_key ): void {
+	unset( $meta_id );
+	if ( in_array( $meta_key, [ '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', 'worldgraph_relationships' ], true ) ) {
+		queue_story_revalidation( $post_id );
+	}
+}
+
+/**
+ * Invalidate Story displays when a World Graph taxonomy label changes.
+ *
+ * @param int    $term_id  Term ID.
+ * @param int    $tt_id    Term-taxonomy ID.
+ * @param string $taxonomy Taxonomy name.
+ */
+function on_story_term_changed( int $term_id, int $tt_id, string $taxonomy ): void {
+	unset( $term_id, $tt_id );
+	if ( str_starts_with( $taxonomy, 'worldgraph_' ) ) {
+		queue_broad_story_revalidation();
+	}
+}
+
+/**
+ * Invalidate an item's route when its Story taxonomy assignments change.
+ *
+ * @param int          $object_id Object ID.
+ * @param array|string $terms     Submitted terms.
+ * @param array<int>   $tt_ids    Resulting term-taxonomy IDs.
+ * @param string       $taxonomy  Taxonomy name.
+ */
+function on_story_object_terms_set( int $object_id, $terms, array $tt_ids, string $taxonomy ): void {
+	unset( $terms, $tt_ids );
+	if ( str_starts_with( $taxonomy, 'worldgraph_' ) ) {
+		queue_story_revalidation( $object_id );
 	}
 }
 
@@ -254,7 +425,14 @@ function on_post_status_transition( string $new_status, string $old_status, \WP_
  */
 function on_post_deleted( int $post_id ): void {
 	$post = get_post( $post_id );
-	if ( ! $post || ! in_array( $post->post_type, [ 'post', 'page' ], true ) ) {
+	if ( ! $post ) {
+		return;
+	}
+	if ( is_story_display_dependency( $post->post_type ) ) {
+		queue_story_revalidation( $post_id );
+		return;
+	}
+	if ( ! in_array( $post->post_type, [ 'post', 'page' ], true ) ) {
 		return;
 	}
 

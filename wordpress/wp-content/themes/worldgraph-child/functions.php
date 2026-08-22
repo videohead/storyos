@@ -5,6 +5,8 @@
  * @package WorldGraphChild
  */
 
+require_once get_stylesheet_directory() . '/inc/story-templates.php';
+
 /**
  * Load translations and keep the block editor aligned with the front end.
  *

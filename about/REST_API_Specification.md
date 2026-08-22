@@ -111,6 +111,59 @@ POST /wp-json/worldgraph/v1/scenes/reorder
 POST /wp-json/worldgraph/v1/shots/reorder
 ```
 
+### Public Story Display Projection
+
+The public WordPress `wp/v2` resources for displayable Story Graph post types
+also include a read-only `worldgraph_display` object. This is the presentation
+adapter used by the optional headless frontend alongside SCF's native `acf`
+projection; it does not create writable Story Graph fields and never requires a
+server-side administrator credential for public content.
+
+Collection entries include the display `variant`, resolved featured/gallery/
+linked-Asset `media`, Project stage and production-status labels where
+applicable, and the `sound_kind` distinction (`song` for a Music Sound,
+otherwise `sound`). A by-ID resource request adds detail aggregates:
+
+- Scene responses embed the Scene's visible Shots in editorial `menu_order`,
+  with their display fields and resolved media.
+- Project responses include a published/readable-node summary from the shared
+  relationship analytics engine: entity and relationship totals, density,
+  isolated count, entity counts, and the five most-connected visible records.
+- Story World responses include visible related-entity counts.
+
+Resolved media entries have this shape:
+
+```json
+{
+  "id": 42,
+  "asset_id": 0,
+  "url": "https://example.test/media/frame.png",
+  "thumbnail_url": "https://example.test/media/frame-300x169.png",
+  "alt": "Forest path at dusk",
+  "title": "Forest path",
+  "caption": "Scene 2 continuity frame",
+  "mime_type": "image/png",
+  "width": 1280,
+  "height": 720,
+  "intent": "prop-front-view",
+  "origin": "gallery"
+}
+```
+
+`asset_id` is present for a direct Asset storage URL; attachment-backed entries
+use `id`. Unknown or non-HTTP(S) Asset storage schemes are not made playable.
+The post's Featured Media remains first. Recognized generated Character, Prop,
+Location, Shot, Scene, and Episode intents then receive their canonical recipe
+order; manually curated unlabeled media preserves the stored gallery order.
+Anonymous projections include published, non-password-protected related records
+only. An
+authenticated editor can receive only non-public related records that
+WordPress authorizes that user to read.
+
+Project completion is represented by its real production-status taxonomy and
+`production_stage`. No completion percentage is inferred because the canonical
+model does not define one.
+
 ### Computed Relationship Counts
 
 Several resource controllers add computed counts under `meta`:

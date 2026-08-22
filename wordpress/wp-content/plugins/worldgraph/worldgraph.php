@@ -243,6 +243,8 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/story-search.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/continuity-checker.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/relationship-graph.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/story-display.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/scene-shot-order.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/dashboard.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/navigation.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/setup-wizard.php';
@@ -256,6 +258,8 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/analytics-panel.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/import.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/editorial-cut.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/scene-shot-sequencer.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/story-media-gallery.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/generation-log-viewer.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/exporter/class-worldgraph-exporter.php';
 
@@ -290,6 +294,7 @@ function init(): void {
 	Taxonomies\Sequence::init();
 	Taxonomies\SoundType::init();
 	Taxonomies\TemplateCategory::init();
+	Utils\worldgraph_story_display_init();
 
 	// SCF JSON archives seed editable persisted groups; the database copies are
 	// runtime-authoritative and managed in Secure Custom Fields.
@@ -335,6 +340,8 @@ function init(): void {
 	Admin\Import::init();
 	Admin\Export::init();
 	Admin\Editorial_Cut::init();
+	Admin\Scene_Shot_Sequencer::init();
+	Admin\Story_Media_Gallery::init();
 	Admin\Generation_Log_Viewer::init();
 	Utils\Generation_Workflows::init();
 	Utils\Generation_Batch::init();

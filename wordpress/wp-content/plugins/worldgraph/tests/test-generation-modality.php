@@ -174,8 +174,8 @@ class Test_Generation_Modality extends TestCase {
 	 * The checkpoint a Template configures reaches the loader node.
 	 */
 	public function test_checkpoint_is_applied_to_the_loader(): void {
-		$graph = Generation_Modality::default_workflow( Generation_Modality::TEXT_TO_IMAGE, [ 'checkpoint' => 'v1-5-pruned-emaonly-fp16.safetensors' ] );
+		$graph = Generation_Modality::default_workflow( Generation_Modality::TEXT_TO_IMAGE, [ 'checkpoint' => 'sd_xl_base_1.0.safetensors' ] );
 
-		$this->assertSame( 'v1-5-pruned-emaonly-fp16.safetensors', $graph['4']['inputs']['ckpt_name'] );
+		$this->assertSame( 'sd_xl_base_1.0.safetensors', $graph['4']['inputs']['ckpt_name'] );
 	}
 }

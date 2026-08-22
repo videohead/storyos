@@ -166,9 +166,10 @@ class Comfy_Readiness {
 		self::respond(
 			Comfy_Bootstrap::status( true ),
 			sprintf(
-				/* translators: %s: Template title. */
-				__( 'Using %s. This is a local baseline text-to-image workflow for ComfyUI; it generates images with the checkpoint/model installed on this connection, and quality depends on that model. If no better model is present, the system falls back to a built-in Stable Diffusion 1.5 pipeline.', 'worldgraph' ),
-				get_the_title( $template_id )
+				/* translators: 1: Template title, 2: baseline checkpoint label. */
+				__( 'Using %1$s. This local text-to-image workflow runs on stock ComfyUI nodes at 1024x1024 and expects %2$s, or any other SDXL-class checkpoint already installed on this ComfyUI. If that model is missing, the checklist above states what to install.', 'worldgraph' ),
+				get_the_title( $template_id ),
+				Comfy_Bootstrap::DEFAULT_CHECKPOINT_LABEL
 			)
 		);
 	}

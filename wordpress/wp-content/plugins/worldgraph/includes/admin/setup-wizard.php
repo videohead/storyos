@@ -415,7 +415,7 @@ class Setup_Wizard {
 				<?php if ( 'local_mcp' === $comfy_mode ) : ?>
 					<?php \WorldGraph\Utils\Connection_Adapters::load( 'comfyui' ); ?>
 					<h3>ComfyUI Readiness</h3>
-					<p class="description">ComfyUI loads its default text-to-image workflow on first launch only when the matching nodes and a checkpoint are installed. World Graph Studio checks that here, provisions the text-to-image <strong>Template</strong> it generates against, and lists whatever is still missing.</p>
+					<p class="description">World Graph Studio's local baseline is <strong><?php echo esc_html( \WorldGraph\Utils\Comfy_Bootstrap::DEFAULT_CHECKPOINT_LABEL ); ?></strong> (<code><?php echo esc_html( \WorldGraph\Utils\Comfy_Bootstrap::DEFAULT_CHECKPOINT ); ?></code>, about <?php echo esc_html( \WorldGraph\Utils\Comfy_Bootstrap::DEFAULT_CHECKPOINT_SIZE ); ?>), which renders natively at 1024&times;1024 on ComfyUI's stock nodes &mdash; no custom nodes required. <strong>You must install that checkpoint on the machine running ComfyUI</strong> unless another SDXL-class checkpoint is already there: download <a href="<?php echo esc_url( \WorldGraph\Utils\Comfy_Bootstrap::DEFAULT_CHECKPOINT_URL ); ?>" rel="noopener noreferrer" target="_blank">the checkpoint file</a> into ComfyUI's <code>models/checkpoints</code> folder, then use ComfyUI's Refresh action (or restart ComfyUI) and re-check below. The checklist provisions the text-to-image <strong>Template</strong> World Graph Studio generates against and lists whatever is still missing.</p>
 					<?php \WorldGraph\Admin\Comfy_Readiness::render_panel(); ?>
 				<?php elseif ( 'fal' === $comfy_mode ) : ?>
 					<h3>fal Template Configuration</h3>

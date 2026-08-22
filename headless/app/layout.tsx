@@ -28,16 +28,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${headline.variable} ${body.variable}`}>
-      <body className="min-h-screen bg-wg-ivory text-wg-charcoal antialiased">
+      <body className="flex min-h-screen flex-col bg-wg-ivory text-wg-charcoal antialiased">
         <header className="border-b border-wg-sepia/40 bg-wg-espresso">
-          <nav className="mx-auto flex max-w-4xl items-center gap-8 px-6 py-4">
+          <nav className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-3 px-6 py-4">
             <Link
               href="/"
-              className="font-headline text-lg font-semibold tracking-wide text-wg-ivory no-underline"
+              className="mr-auto font-headline text-lg font-semibold tracking-wide text-wg-ivory no-underline"
             >
               {siteConfig.site_name}
             </Link>
-            <div className="flex gap-6">
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
               {Object.entries(mainMenu).map(([label, href]) => (
                 <Link
                   key={href}
@@ -50,7 +50,7 @@ export default function RootLayout({
             </div>
           </nav>
         </header>
-        <main className="mx-auto max-w-4xl px-6 py-12">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-12">{children}</main>
         <footer className="border-t border-wg-sepia/40 bg-wg-espresso px-6 py-6 text-center text-sm text-wg-muted">
           {siteConfig.site_name}
         </footer>

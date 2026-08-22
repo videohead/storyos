@@ -341,6 +341,14 @@ delete the remote record.
 - references Storyboard Frames
 - references Assets
 
+`menu_order` remains the Shot's project-wide editorial position. The Scene edit
+screen presents only Shots whose canonical child-owned `scene` relationship
+targets that Scene. Reordering there swaps those Shots among their existing
+editorial slots instead of renumbering every Scene from one, so other Scenes'
+global cut positions are preserved. Legacy Shots with zero or duplicate global
+positions receive new collision-free slots after the current cut the first time
+they are explicitly ordered.
+
 ---
 
 # CPT: Storyboard Frame
@@ -521,7 +529,11 @@ Templates are transport-specific for SunoAPI.org REST or AceData Cloud MCP;
 other modalities require an adapter extension. Imported attachments and Asset
 records retain generation lineage. Featured-image and
 `_worldgraph_asset_gallery_ids` updates remain separate from the Template
-configuration itself.
+configuration itself. The Story Media Gallery editor allows authorized users
+to add, remove, and reorder image, audio, and video attachments in that same
+ordered metadata value. Presentation adapters preserve manual order for
+unlabeled media and use `_worldgraph_gen_intent` to put recognized generated
+Character and Prop views in their canonical look-development order.
 
 Generated attachment filenames follow
 `{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`.

@@ -1,5 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { isStoryType } from "@/lib/worldgraph";
 
 export const maxDuration = 30;
 
@@ -21,9 +22,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { contentType, contentId, slug } = requestBody;
+    const { contentType, contentId, slug, storyType } = requestBody;
 
-    if (!contentType) {
+    if (typeof contentType !== "string" || !contentType) {
       return NextResponse.json(
         { message: "Missing content type" },
         { status: 400 }
@@ -32,6 +33,22 @@ export async function POST(request: NextRequest) {
 
     revalidateTag("wordpress");
     revalidateTag(contentType);
+
+    if (contentType === "story" && typeof storyType === "string") {
+      if (isStoryType(storyType)) {
+        revalidateTag(`story:${storyType}`);
+
+        if (contentId) {
+          revalidateTag(`story:${storyType}:${contentId}`);
+        }
+
+        if (slug) {
+          revalidateTag(`story:${storyType}:${slug}`);
+        }
+      }
+
+      return NextResponse.json({ revalidated: true, now: Date.now() });
+    }
 
     if (contentId) {
       revalidateTag(`${contentType.replace(/s$/, "")}:${contentId}`);

@@ -1,0 +1,89 @@
+.worldgraph-shot-sequencer__list {
+	display: grid;
+	gap: 8px;
+	margin: 16px 0 8px;
+	padding: 0;
+}
+
+.worldgraph-shot-sequencer__item {
+	align-items: center;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	display: grid;
+	gap: 10px;
+	grid-template-columns: auto 2rem minmax(0, 1fr) auto;
+	margin: 0;
+	min-height: 54px;
+	padding: 8px 12px;
+}
+
+.worldgraph-shot-sequencer__item.ui-sortable-helper {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+.worldgraph-shot-sequencer__handle {
+	cursor: grab;
+	padding: 8px 0;
+}
+
+.worldgraph-shot-sequencer__handle:active {
+	cursor: grabbing;
+}
+
+.worldgraph-shot-sequencer__position {
+	background: #f0f0f1;
+	border-radius: 50%;
+	display: inline-grid;
+	font-weight: 600;
+	height: 2rem;
+	place-items: center;
+	width: 2rem;
+}
+
+.worldgraph-shot-sequencer__details,
+.worldgraph-shot-sequencer__meta {
+	display: block;
+}
+
+.worldgraph-shot-sequencer__meta {
+	color: #646970;
+	font-size: 12px;
+	margin-top: 3px;
+}
+
+.worldgraph-shot-sequencer__actions {
+	display: flex;
+	gap: 10px;
+}
+
+.worldgraph-shot-sequencer__actions .button-link {
+	min-height: 32px;
+	min-width: 32px;
+}
+
+.worldgraph-shot-sequencer__placeholder {
+	background: #f0f6fc;
+	border: 2px dashed #2271b1;
+	height: 54px;
+}
+
+.worldgraph-shot-sequencer__status {
+	color: #008a20;
+	font-weight: 600;
+	min-height: 1.5em;
+}
+
+.worldgraph-shot-sequencer__status.is-error {
+	color: #b32d2e;
+}
+
+@media (max-width: 782px) {
+	.worldgraph-shot-sequencer__item {
+		grid-template-columns: auto 2rem minmax(0, 1fr);
+	}
+
+	.worldgraph-shot-sequencer__actions {
+		grid-column: 2 / -1;
+	}
+}
+
