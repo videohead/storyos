@@ -181,22 +181,28 @@ class Asset_Generation_Controller extends Base_Controller {
 
 		$image_templates = Generation_Workflows::runnable_templates( $post_id, 'image' );
 		$video_templates = Generation_Workflows::runnable_templates( $post_id, 'video' );
+		$actions         = [];
 		$outputs         = [];
 		$default_ids     = [ 'image' => 0, 'video' => 0 ];
-		foreach ( [ 'image', 'video' ] as $type ) {
-			$task = self::task_for_output( $plan, $type );
-			if ( empty( $task ) ) {
-				continue;
-			}
-			$default_ids[ $type ] = Generation_Workflows::resolve_template_id( $task );
-			$outputs[ $type ]     = [
+		foreach ( (array) ( $plan['tasks'] ?? [] ) as $task ) {
+			$type        = (string) ( $task['type'] ?? 'image' );
+			$default_id  = Generation_Workflows::resolve_template_id( $task );
+			$action      = [
 				'type'                => $type,
 				'intent'              => (string) $task['intent'],
 				'label'               => (string) $task['label'],
 				'prompt'              => (string) $task['prompt'],
-				'configured'          => 0 !== $default_ids[ $type ],
-				'default_template_id' => $default_ids[ $type ],
+				'featured'             => ! empty( $task['featured'] ),
+				'configured'          => 0 !== $default_id,
+				'default_template_id' => $default_id,
 			];
+			$actions[]   = $action;
+
+			// Preserve the original first-image/first-video response for API clients.
+			if ( ! isset( $outputs[ $type ] ) ) {
+				$outputs[ $type ]     = $action;
+				$default_ids[ $type ] = $default_id;
+			}
 		}
 		$image_output = (array) ( $outputs['image'] ?? [] );
 
@@ -210,6 +216,7 @@ class Asset_Generation_Controller extends Base_Controller {
 			'workflow'             => $plan['workflow'],
 			'counts'               => $plan['counts'],
 			'total_jobs'           => $plan['total_jobs'],
+			'actions'              => $actions,
 			'outputs'              => $outputs,
 			'available_types'      => array_keys( $outputs ),
 			'templates'            => $image_templates,

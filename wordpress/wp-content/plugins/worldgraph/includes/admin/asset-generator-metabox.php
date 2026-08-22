@@ -101,6 +101,35 @@ class Asset_Generator_MetaBox {
 			'nonce'          => wp_create_nonce( 'wp_rest' ),
 			'pollIntervalMs' => 15000,
 			'i18n'           => [
+				'loadingChoices'    => __( 'Loading available options…', 'worldgraph' ),
+				'imageMode'         => __( 'Image', 'worldgraph' ),
+				'sequenceMode'      => __( 'Sequence', 'worldgraph' ),
+				'videoMode'         => __( 'Video', 'worldgraph' ),
+				'imageSelection'    => __( 'Image to create', 'worldgraph' ),
+				'sequenceSelection' => __( 'Sequence to create', 'worldgraph' ),
+				'videoSelection'    => __( 'Video to create', 'worldgraph' ),
+				'notAvailable'      => __( 'Not defined for this item', 'worldgraph' ),
+				'stillImage'        => __( 'still image', 'worldgraph' ),
+				'video'             => __( 'video', 'worldgraph' ),
+				'outputs'           => __( 'outputs', 'worldgraph' ),
+				'create'            => __( 'Create', 'worldgraph' ),
+				'reviewQueue'       => __( 'Review and queue', 'worldgraph' ),
+				'reviewProject'     => __( 'Review and queue all Project media', 'worldgraph' ),
+				'chooseImage'       => __( 'Choose an image Template…', 'worldgraph' ),
+				'chooseVideo'       => __( 'Choose a video Template…', 'worldgraph' ),
+				'configuredPerItem' => __( 'Use each output’s configured Template', 'worldgraph' ),
+				'singleTemplateHelp' => __( 'This Template will be used only for the selected output.', 'worldgraph' ),
+				'batchTemplateHelp' => __( 'Choose a Template to override every matching output, or keep each output’s configured Template.', 'worldgraph' ),
+				'singlePromptHelp'  => __( 'These one-off instructions will be added to this output’s generated prompt.', 'worldgraph' ),
+				'batchPromptHelp'   => __( 'These one-off instructions will be added to every generated prompt in this workflow.', 'worldgraph' ),
+				'workflowPrompts'   => __( 'This workflow composes a separate detailed prompt for every output:', 'worldgraph' ),
+				'moreOutputs'       => __( 'more outputs', 'worldgraph' ),
+				'allProjectMedia'   => __( 'All Project representative media', 'worldgraph' ),
+				'sources'           => __( 'Story Graph items', 'worldgraph' ),
+				'singleChoiceHelp'  => __( 'Choose the exact output and Template. The prompt preview below updates with your choice.', 'worldgraph' ),
+				'itemChoiceHelp'    => __( 'Queue every output in this item’s defined sequence as one tracked background batch.', 'worldgraph' ),
+				'projectChoiceHelp' => __( 'Queue representative frames and videos for the Project and its owned Story Graph items. Review the plan before starting.', 'worldgraph' ),
+				'missingTemplates'  => __( 'required outputs have no runnable Template.', 'worldgraph' ),
 				'generatingImage'   => __( 'Queueing image…', 'worldgraph' ),
 				'generatingVideo'   => __( 'Queueing video…', 'worldgraph' ),
 				'queuedImage'       => __( 'Image generation queued. The background worker will import the completed media.', 'worldgraph' ),
@@ -113,7 +142,6 @@ class Asset_Generator_MetaBox {
 				'jobs'              => __( 'jobs', 'worldgraph' ),
 				'images'            => __( 'images', 'worldgraph' ),
 				'videos'            => __( 'videos', 'worldgraph' ),
-				'automaticTemplate' => __( 'Automatic per intent', 'worldgraph' ),
 				'confirmItem'       => __( 'Queue this item’s complete representative-media set? Provider charges may apply.', 'worldgraph' ),
 				'confirmProject'    => __( 'Queue all representative frames and videos for this Project? This can incur substantial provider charges and run for hours or days.', 'worldgraph' ),
 				'batchQueued'       => __( 'Representative-media batch queued.', 'worldgraph' ),
@@ -121,17 +149,14 @@ class Asset_Generator_MetaBox {
 				'cancelBatch'       => __( 'Stop work that has not reached a provider?', 'worldgraph' ),
 				'cancelled'         => __( 'Staged and queued work was stopped. Already-submitted jobs will finish and import.', 'worldgraph' ),
 				'done'              => __( 'Image generated and attached.', 'worldgraph' ),
-				'generateImage'     => __( 'Generate image', 'worldgraph' ),
-				'generateVideo'     => __( 'Generate video', 'worldgraph' ),
-				'videoOption'       => __( 'Video (text to video)', 'worldgraph' ),
-				'videoNotAvailable' => __( 'Video (not defined for this item)', 'worldgraph' ),
+				'doneVideo'         => __( 'Video generated and attached.', 'worldgraph' ),
 				'featured'          => __( 'Set as the featured asset.', 'worldgraph' ),
 				'assetCreated'      => __( 'Linked Asset record created.', 'worldgraph' ),
 				'reloadHint'        => __( 'Reload the editor to see completed media in the featured asset and gallery fields.', 'worldgraph' ),
 				'error'             => __( 'Media generation failed.', 'worldgraph' ),
 				'unconfiguredImage' => __( 'No runnable image Template is configured. Configure an active text-to-image Template and Connection first.', 'worldgraph' ),
 				'unconfiguredVideo' => __( 'No runnable video Template is configured. Configure an active text-to-video Template and Connection first.', 'worldgraph' ),
-				'videoUnavailable'  => __( 'Direct video is defined for Shot workflows. Project batches also use the Video Template for their Shot outputs.', 'worldgraph' ),
+				'noActions'         => __( 'No representative-media outputs are defined for this item.', 'worldgraph' ),
 			],
 		] );
 	}
@@ -179,7 +204,7 @@ class Asset_Generator_MetaBox {
 	}
 
 	/**
-	 * Render direct image/video and representative-workflow controls.
+	 * Render the guided single-output and representative-workflow controls.
 	 *
 	 * @param \WP_Post $post Current post.
 	 */
@@ -188,43 +213,58 @@ class Asset_Generator_MetaBox {
 		<div class="worldgraph-generate-asset" data-post-id="<?php echo esc_attr( $post->ID ); ?>" data-is-project="<?php echo esc_attr( 'worldgraph_project' === $post->post_type ? '1' : '0' ); ?>">
 			<h4><?php esc_html_e( 'Generate representative media', 'worldgraph' ); ?></h4>
 			<p class="description"><?php esc_html_e( 'Every request automatically uses the saved title, body, relevant SCF fields, inherited Project/World context, and Generation Prompt Instructions. Save or update this post before queueing so the latest details are included.', 'worldgraph' ); ?></p>
+			<fieldset class="worldgraph-generate-asset__modes">
+				<legend><strong><?php esc_html_e( 'Choose a generation type', 'worldgraph' ); ?></strong></legend>
+				<div class="worldgraph-generate-asset__mode-list">
+					<label class="worldgraph-generate-asset__mode">
+						<input type="radio" name="worldgraph-generation-mode-<?php echo esc_attr( $post->ID ); ?>" value="image" disabled />
+						<span><strong><?php esc_html_e( 'Image', 'worldgraph' ); ?></strong><small><?php esc_html_e( 'Create one selected still image', 'worldgraph' ); ?></small></span>
+					</label>
+					<label class="worldgraph-generate-asset__mode">
+						<input type="radio" name="worldgraph-generation-mode-<?php echo esc_attr( $post->ID ); ?>" value="sequence" disabled />
+						<span><strong><?php esc_html_e( 'Sequence', 'worldgraph' ); ?></strong><small><?php esc_html_e( 'Queue a complete multi-output workflow', 'worldgraph' ); ?></small></span>
+					</label>
+					<label class="worldgraph-generate-asset__mode">
+						<input type="radio" name="worldgraph-generation-mode-<?php echo esc_attr( $post->ID ); ?>" value="video" disabled />
+						<span><strong><?php esc_html_e( 'Video', 'worldgraph' ); ?></strong><small><?php esc_html_e( 'Create one selected moving shot', 'worldgraph' ); ?></small></span>
+					</label>
+				</div>
+			</fieldset>
+			<div class="worldgraph-generate-asset__selection">
+				<label class="worldgraph-generate-asset__selection-label" for="worldgraph-generate-asset-action-<?php echo esc_attr( $post->ID ); ?>"><strong><?php esc_html_e( 'Output to create', 'worldgraph' ); ?></strong></label>
+				<select class="widefat worldgraph-generate-asset__action-select" id="worldgraph-generate-asset-action-<?php echo esc_attr( $post->ID ); ?>" disabled>
+					<option><?php esc_html_e( 'Loading available options…', 'worldgraph' ); ?></option>
+				</select>
+				<p class="description worldgraph-generate-asset__choice-description"></p>
+			</div>
 			<div class="worldgraph-generate-asset__workflow" aria-live="polite"></div>
+			<div class="worldgraph-generate-asset__template-options">
+				<div class="worldgraph-generate-asset__template-option worldgraph-generate-asset__image-template-option" hidden>
+					<label for="worldgraph-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"><strong><?php esc_html_e( 'Image Template', 'worldgraph' ); ?></strong></label>
+					<select class="widefat worldgraph-generate-asset__template" id="worldgraph-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"></select>
+					<p class="description worldgraph-generate-asset__image-template-help"></p>
+				</div>
+				<div class="worldgraph-generate-asset__template-option worldgraph-generate-asset__video-template-option" hidden>
+					<label for="worldgraph-generate-asset-video-template-<?php echo esc_attr( $post->ID ); ?>"><strong><?php esc_html_e( 'Video Template', 'worldgraph' ); ?></strong></label>
+					<select class="widefat worldgraph-generate-asset__video-template" id="worldgraph-generate-asset-video-template-<?php echo esc_attr( $post->ID ); ?>"></select>
+					<p class="description worldgraph-generate-asset__video-template-help"></p>
+				</div>
+			</div>
+			<fieldset class="worldgraph-generate-asset__direct-options" hidden>
+				<legend class="screen-reader-text"><?php esc_html_e( 'Options for this output', 'worldgraph' ); ?></legend>
+				<label class="worldgraph-generate-asset__featured-option"><input type="checkbox" class="worldgraph-generate-asset__featured" checked /> <?php esc_html_e( 'Set this image as the featured asset', 'worldgraph' ); ?></label>
+				<label><input type="checkbox" class="worldgraph-generate-asset__create" checked /> <?php esc_html_e( 'Create a linked Asset record', 'worldgraph' ); ?></label>
+			</fieldset>
 			<label for="worldgraph-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Additional instructions for this run (optional)', 'worldgraph' ); ?></label>
 			<textarea class="widefat worldgraph-generate-asset__prompt" id="worldgraph-generate-asset-prompt-<?php echo esc_attr( $post->ID ); ?>" rows="4" placeholder="<?php esc_attr_e( 'For example: no watermark; slow camera push-in; preserve the established wardrobe.', 'worldgraph' ); ?>"></textarea>
-			<p class="description"><?php esc_html_e( 'Enter only one-off directions here. They are appended to the saved Story Graph context; they never replace it. Put reusable directions in the Generation Prompt Instructions SCF field.', 'worldgraph' ); ?></p>
+			<p class="description worldgraph-generate-asset__prompt-help"><?php esc_html_e( 'Enter only one-off directions here. They are appended to the saved Story Graph context; they never replace it. Put reusable directions in the Generation Prompt Instructions SCF field.', 'worldgraph' ); ?></p>
 			<details class="worldgraph-generate-asset__context">
-				<summary><?php esc_html_e( 'Review the automatically generated prompt', 'worldgraph' ); ?></summary>
+				<summary><?php esc_html_e( 'Review the generated prompt or workflow plan', 'worldgraph' ); ?></summary>
 				<pre class="worldgraph-generate-asset__context-preview"></pre>
 				<button type="button" class="button-link worldgraph-generate-asset__refresh-context"><?php esc_html_e( 'Refresh from saved fields', 'worldgraph' ); ?></button>
 			</details>
-			<p class="worldgraph-generate-asset__options">
-				<label for="worldgraph-generate-asset-output-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Direct output', 'worldgraph' ); ?></label>
-				<select class="worldgraph-generate-asset__output" id="worldgraph-generate-asset-output-<?php echo esc_attr( $post->ID ); ?>">
-					<option value="image"><?php esc_html_e( 'Still image (text to image)', 'worldgraph' ); ?></option>
-					<option value="video" disabled><?php esc_html_e( 'Video (checking workflow…)', 'worldgraph' ); ?></option>
-				</select>
-				<label for="worldgraph-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Image Template', 'worldgraph' ); ?></label>
-				<select class="worldgraph-generate-asset__template" id="worldgraph-generate-asset-template-<?php echo esc_attr( $post->ID ); ?>"></select>
-				<span class="worldgraph-generate-asset__video-option">
-					<label for="worldgraph-generate-asset-video-template-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Video Template', 'worldgraph' ); ?></label>
-					<select class="worldgraph-generate-asset__video-template" id="worldgraph-generate-asset-video-template-<?php echo esc_attr( $post->ID ); ?>"></select>
-				</span>
-				<span class="description"><?php esc_html_e( 'Template choices apply to the direct output and to matching jobs in a representative set.', 'worldgraph' ); ?></span>
-				<label><input type="checkbox" class="worldgraph-generate-asset__featured" checked /> <?php esc_html_e( 'Set as featured asset', 'worldgraph' ); ?></label>
-				<label><input type="checkbox" class="worldgraph-generate-asset__create" checked /> <?php esc_html_e( 'Create linked Asset record', 'worldgraph' ); ?></label>
-			</p>
 			<div class="worldgraph-generate-asset__actions">
-				<div class="worldgraph-generate-asset__action-group">
-					<strong><?php esc_html_e( 'Selected output', 'worldgraph' ); ?></strong>
-					<button type="button" class="button button-primary worldgraph-generate-asset__run" disabled><?php esc_html_e( 'Generate image', 'worldgraph' ); ?></button>
-				</div>
-				<div class="worldgraph-generate-asset__action-group">
-					<strong><?php esc_html_e( 'Complete workflows', 'worldgraph' ); ?></strong>
-					<button type="button" class="button worldgraph-generate-asset__run-set" disabled><?php esc_html_e( 'Generate this item’s full set', 'worldgraph' ); ?></button>
-					<?php if ( 'worldgraph_project' === $post->post_type ) : ?>
-						<button type="button" class="button worldgraph-generate-asset__run-project" disabled><?php esc_html_e( 'Generate all Project media', 'worldgraph' ); ?></button>
-					<?php endif; ?>
-				</div>
+				<button type="button" class="button button-primary worldgraph-generate-asset__run" disabled><?php esc_html_e( 'Choose what to create', 'worldgraph' ); ?></button>
 				<button type="button" class="button-link-delete worldgraph-generate-asset__cancel" hidden><?php esc_html_e( 'Stop queued work', 'worldgraph' ); ?></button>
 			</div>
 			<div class="worldgraph-generate-asset__status" role="status" aria-live="polite"></div>
