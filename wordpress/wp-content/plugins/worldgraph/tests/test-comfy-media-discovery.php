@@ -34,6 +34,20 @@ use WorldGraph\Utils\Generation_Modality;
 /** Media modality inference from provider workflows. */
 class Test_Comfy_Media_Discovery extends TestCase {
 
+	/** A compound name must not be swallowed by the generic text-video match. */
+	public function test_image_and_text_name_is_discovered_as_image_to_video(): void {
+		$entry = Comfy_Manifest::normalize_entry( [
+			'id'       => 'compound-name-workflow',
+			'name'     => 'Image and Text to Video',
+			'workflow' => [
+				'1' => [ 'class_type' => 'SaveVideo', 'inputs' => [] ],
+			],
+		] );
+
+		$this->assertIsArray( $entry );
+		$this->assertSame( Generation_Modality::TEXT_IMAGE_TO_VIDEO, $entry['modality'] );
+	}
+
 	/** A still workflow with a loader is usable as image-to-image. */
 	public function test_api_workflow_with_load_image_is_discovered_as_image_to_image(): void {
 		$entry = Comfy_Manifest::normalize_entry( [

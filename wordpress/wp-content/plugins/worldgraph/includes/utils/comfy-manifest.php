@@ -815,11 +815,11 @@ class Comfy_Manifest {
 			if ( false !== strpos( $name, 'video to video' ) || false !== strpos( $name, 'video-to-video' ) || false !== strpos( $name, 'vid2video' ) ) {
 				return Generation_Modality::VIDEO_TO_VIDEO;
 			}
-			if ( false !== strpos( $name, 'text to video' ) || false !== strpos( $name, 'text-to-video' ) || false !== strpos( $name, 'txt2video' ) ) {
-				return Generation_Modality::TEXT_TO_VIDEO;
-			}
 			if ( false !== strpos( $name, 'image to video' ) || false !== strpos( $name, 'image-to-video' ) || false !== strpos( $name, 'img2video' ) || false !== strpos( $name, 'image and text to video' ) || false !== strpos( $name, 'text and image to video' ) ) {
 				return Generation_Modality::TEXT_IMAGE_TO_VIDEO;
+			}
+			if ( false !== strpos( $name, 'text to video' ) || false !== strpos( $name, 'text-to-video' ) || false !== strpos( $name, 'txt2video' ) ) {
+				return Generation_Modality::TEXT_TO_VIDEO;
 			}
 			if ( false !== strpos( $name, 'image and text to image' ) || false !== strpos( $name, 'text and image to image' ) || false !== strpos( $name, 'image-text-to-image' ) ) {
 				return Generation_Modality::IMAGE_TEXT_TO_IMAGE;
@@ -829,8 +829,8 @@ class Comfy_Manifest {
 			}
 		}
 
-		$has_video_nodes = in_array( 'SaveVideo', $nodes, true ) || in_array( 'CreateVideo', $nodes, true );
-		$workflow        = is_array( $template['workflow'] ?? null ) ? $template['workflow'] : [];
+		$has_video_nodes  = in_array( 'SaveVideo', $nodes, true ) || in_array( 'CreateVideo', $nodes, true );
+		$workflow         = is_array( $template['workflow'] ?? null ) ? $template['workflow'] : [];
 		$load_image_count = self::workflow_node_class_count( $workflow, 'LoadImage' );
 		if ( 0 === $load_image_count && in_array( 'LoadImage', $nodes, true ) ) {
 			$load_image_count = 1;

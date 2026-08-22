@@ -138,9 +138,12 @@ inherit the Template/provider behavior.
 Media inputs are not scalar run controls. Image-to-video and
 text-plus-image-to-video Templates continue to obtain their image or
 start-frame inputs through `Template_Bindings`, with required bindings checked
-for each source item. Likewise checkpoint/model, VAE, and CLIP file selection
-remains a Template-authoring and readiness concern; the Assets form cannot
-submit arbitrary model or filesystem names for one run.
+for each source item. Local ComfyUI then binds each uploaded filename to an
+explicit or unambiguous `LoadImage.image` target; auxiliary Template images are
+left intact, and ambiguous graphs fail before provider submission. Likewise
+checkpoint/model, VAE, and CLIP file selection remains a Template-authoring and
+readiness concern; the Assets form cannot submit arbitrary model or filesystem
+names for one run.
 
 For a direct run the client may send a `run_values` object keyed by the
 selected Template's advertised fields. For a Sequence,

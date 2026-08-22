@@ -252,6 +252,11 @@ bindings: image-to-video and text-plus-image-to-video continue resolving their
 image or start-frame input through `Template_Bindings`. Checkpoint/model, VAE,
 and CLIP file selection remains part of Template authoring, catalog discovery,
 requirements, and readiness rather than a client-supplied run value.
+For local ComfyUI, editor graphs are converted to API format before media
+binding. Explicit `{{image}}`, `{{start_frame}}`, and `{{end_frame}}` loader
+markers win; otherwise a single image loader or topology-proven first/last
+frame is bound. Unrelated literal loaders remain Template-owned, while an
+ambiguous required binding fails before upload and submission.
 
 The author first chooses a conditional **Image**, **Sequence**, or **Video**
 mode. Image and video each reveal only their own defined output selector,
