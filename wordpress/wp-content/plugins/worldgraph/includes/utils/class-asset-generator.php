@@ -42,17 +42,17 @@ class Asset_Generator {
 	 */
 	const VIDEO_MIME_TYPES = [
 		'mp4'  => 'video/mp4',
-		'm4v'  => 'video/x-m4v',
+		'm4v'  => 'video/mp4',
 		'webm' => 'video/webm',
 		'mov'  => 'video/quicktime',
-		'avi'  => 'video/x-msvideo',
+		'avi'  => 'video/avi',
 	];
 
 	/** Accepted generated-audio mime types, keyed by file extension. */
 	const AUDIO_MIME_TYPES = [
 		'mp3'  => 'audio/mpeg',
 		'wav'  => 'audio/wav',
-		'm4a'  => 'audio/mp4',
+		'm4a'  => 'audio/mpeg',
 		'aac'  => 'audio/aac',
 		'ogg'  => 'audio/ogg',
 		'flac' => 'audio/flac',
@@ -1120,7 +1120,9 @@ class Asset_Generator {
 		$temp_dir = realpath( get_temp_dir() );
 		foreach ( array_unique( array_filter( (array) ( $journal['temp_files'] ?? [] ), 'is_string' ) ) as $file ) {
 			$file_dir = realpath( dirname( $file ) );
-			if ( 0 !== strpos( basename( $file ), 'worldgraph-videodraft-media' ) || ! file_exists( $file ) || ! $temp_dir || $temp_dir !== $file_dir ) {
+			$basename = basename( $file );
+			$owned    = 0 === strpos( $basename, 'worldgraph-generated-media' ) || 0 === strpos( $basename, 'worldgraph-videodraft-media' );
+			if ( ! $owned || ! file_exists( $file ) || ! $temp_dir || $temp_dir !== $file_dir ) {
 				continue;
 			}
 			wp_delete_file( $file );
@@ -1251,6 +1253,11 @@ class Asset_Generator {
 	 */
 	private static function find_result_video_url( array $result ): string {
 		$extensions = array_keys( self::VIDEO_MIME_TYPES );
+		foreach ( [ 'video_url', 'videoUrl' ] as $key ) {
+			if ( isset( $result[ $key ] ) && is_string( $result[ $key ] ) && filter_var( $result[ $key ], FILTER_VALIDATE_URL ) ) {
+				return $result[ $key ];
+			}
+		}
 
 		foreach ( $result as $value ) {
 			if ( is_string( $value ) && filter_var( $value, FILTER_VALIDATE_URL ) ) {
@@ -1315,6 +1322,7 @@ class Asset_Generator {
 
 	/** Stream a large provider output into a bounded temporary file. */
 	private static function download_to_file( string $url, int $maximum_bytes, int $job_id, string $adapter = '' ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
 		$temporary = wp_tempnam( 'worldgraph-generated-media' );
 		if ( ! $temporary ) {
 			return new WP_Error( 'worldgraph_gen_download_failed', __( 'WordPress could not create temporary storage for the generated media.', 'worldgraph' ) );

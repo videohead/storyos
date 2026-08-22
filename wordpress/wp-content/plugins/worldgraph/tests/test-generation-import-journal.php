@@ -89,8 +89,10 @@ class Test_Generation_Import_Journal extends TestCase {
 
 	/** Recovery restores links and removes every journal-owned object. */
 	public function test_recovery_executes_the_journal_and_then_clears_it(): void {
-		$temp_file = tempnam( sys_get_temp_dir(), 'worldgraph-videodraft-media' );
+		$temp_file = tempnam( sys_get_temp_dir(), 'worldgraph-generated-media' );
+		$legacy_temp_file = tempnam( sys_get_temp_dir(), 'worldgraph-videodraft-media' );
 		$this->assertNotFalse( $temp_file );
+		$this->assertNotFalse( $legacy_temp_file );
 		$state =& $GLOBALS['worldgraph_import_journal_state'];
 		$state['post_types'] = [ 9 => 'attachment', 21 => 'attachment', 22 => 'attachment', 31 => 'worldgraph_asset' ];
 		$state['thumbnails'][11] = 21;
@@ -101,7 +103,7 @@ class Test_Generation_Import_Journal extends TestCase {
 			'featured_attachment_id' => 21,
 			'attachment_ids'          => [ 21, 22 ],
 			'asset_ids'               => [ 31 ],
-			'temp_files'              => [ $temp_file ],
+			'temp_files'              => [ $temp_file, $legacy_temp_file ],
 		];
 		$state['meta'][90]['_worldgraph_gen_attachment_ids'] = [ 21, 22 ];
 
@@ -113,6 +115,7 @@ class Test_Generation_Import_Journal extends TestCase {
 		$this->assertArrayNotHasKey( 31, $state['post_types'] );
 		$this->assertArrayNotHasKey( Asset_Generator::IMPORT_JOURNAL_META, $state['meta'][90] );
 		$this->assertFileDoesNotExist( $temp_file );
+		$this->assertFileDoesNotExist( $legacy_temp_file );
 	}
 
 	/** A later editor thumbnail choice is not overwritten during recovery. */

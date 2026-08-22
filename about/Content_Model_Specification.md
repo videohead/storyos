@@ -440,7 +440,12 @@ composer also reads the entity's detailed authorial fields and the creative
 objective for the selected representative output.
 In the Assets metabox, one-off directions use a separate blank additive field;
 the composed provider prompt is available only as a collapsed read-only review.
-Shots explicitly expose both direct still-image and text-to-video output choices.
+The conditional top level separates **Image**, **Sequence**, and **Video**.
+Each available mode reveals only its own output selector, Template controls,
+explanation, and action; undefined modes remain visibly unavailable. Shots
+expose all three, multi-view Characters/Props/Locations expose Image and
+Sequence, Projects expose key-art Image and Project-wide Sequence, and
+single-output recipes expose Image only.
 
 The default representative-media model is:
 

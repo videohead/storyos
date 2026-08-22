@@ -270,11 +270,14 @@ GET  /wp-json/worldgraph/v1/assets/generate/prompt
 POST /wp-json/worldgraph/v1/assets/generate
 ```
 
-The prompt response exposes the current recipe as `outputs.image` and, for a
-Shot, `outputs.video`. Each output includes its intent, read-only composed
-prompt, readiness, and resolved default Template. The metabox keeps that
-provider prompt collapsed and uses a separate blank field for one-off author
-instructions.
+The prompt response exposes every directly selectable recipe output in the
+ordered `actions` array. Each action includes its `type`, `intent`, label,
+read-only composed prompt, featured behavior, readiness, and resolved default
+Template. This preserves all six same-type look-development actions for a
+Character, Prop, or Location and both still/video actions for a Shot. The
+legacy `outputs.image` and `outputs.video` keys remain as first-of-type aliases
+for older clients. The metabox keeps a single-output provider prompt collapsed
+and uses a separate blank field for one-off author instructions.
 
 Direct generation accepts `type: "image"` (the backward-compatible default) or
 `type: "video"`, an intent returned by the prompt route, a matching
@@ -344,11 +347,11 @@ batch error. Up to 200 child `jobs` are included inline; `jobs_truncated`
 indicates that more exist. Each job reports its source, intent, output type,
 status, attachment ID, and error. Cancellation publishes its parent marker
 before child transitions and staging/activation recheck it on every step. It
-changes children that are still
-`staged` or `queued`; submitted work continues polling and importing because a
-local request cannot reliably revoke paid work across every provider. The
-response adds `stopped_queued` and a `cancel_note` to the refreshed aggregate
-status.
+changes children that are still `staged`, `queued`, or claimed as `submitting`
+before the worker's atomic `dispatching` boundary. Work that crossed that
+boundary continues reconciling, polling, and importing because a local request
+cannot reliably revoke paid work across every provider. The response adds
+`stopped_queued` and a `cancel_note` to the refreshed aggregate status.
 
 Media imported by these routes is named
 `{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`;

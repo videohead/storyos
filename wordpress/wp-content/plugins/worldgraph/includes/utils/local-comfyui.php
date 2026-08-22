@@ -401,11 +401,21 @@ class Local_ComfyUI {
 			$path = (string) get_attached_file( (int) $reference );
 		} elseif ( 0 === stripos( $reference, 'https://' ) && wp_http_validate_url( $reference ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
-			$path = download_url( $reference, 60 );
-			if ( is_wp_error( $path ) ) {
-				return new WP_Error( 'local_comfyui_input_download_failed', sprintf( __( 'Unable to download the generation input %s.', 'worldgraph' ), $reference ) );
+			$path = (string) wp_tempnam( 'worldgraph-comfy-input' );
+			if ( '' === $path ) {
+				return new WP_Error( 'local_comfyui_input_download_failed', __( 'Unable to create temporary storage for the generation input.', 'worldgraph' ) );
 			}
 			$cleanup = true;
+			$download = wp_safe_remote_get( $reference, [
+				'timeout'             => 60,
+				'stream'              => true,
+				'filename'            => $path,
+				'limit_response_size' => self::MAX_INPUT_BYTES + 1,
+			] );
+			if ( is_wp_error( $download ) || wp_remote_retrieve_response_code( $download ) < 200 || wp_remote_retrieve_response_code( $download ) >= 300 ) {
+				wp_delete_file( $path );
+				return new WP_Error( 'local_comfyui_input_download_failed', sprintf( __( 'Unable to download the generation input %s.', 'worldgraph' ), $reference ) );
+			}
 		} else {
 			return new WP_Error( 'local_comfyui_input_invalid', __( 'A generation input must be a WordPress attachment ID or a validated HTTPS URL.', 'worldgraph' ) );
 		}

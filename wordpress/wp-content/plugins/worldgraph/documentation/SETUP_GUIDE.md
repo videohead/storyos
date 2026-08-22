@@ -299,10 +299,11 @@ events with WP-CLI. A queued generation cannot progress if WP-Cron never runs.
 1. Open a Project, Story World, Character, Location, Prop, Organization,
    Episode, Scene, Shot, Storyboard Frame, Asset, or Editorial Artifact.
 2. Find **World Graph Studio Assets**.
-3. Confirm the prompt and active Template.
-4. Leave **Set as featured asset** and **Create linked Asset record** enabled if
-   desired.
-5. Select **Generate image**.
+3. Choose **Image**, then select the exact image intent and active Template.
+   (A Shot also offers **Video**; multi-output recipes offer **Sequence**.)
+4. Review the generated prompt and leave the applicable featured-asset and
+   linked-Asset choices enabled if desired.
+5. Select the contextual **Create image: …** action.
 6. Confirm the queued job in the Generation Log, run WP-Cron if necessary, and
    reload the post after completion.
 

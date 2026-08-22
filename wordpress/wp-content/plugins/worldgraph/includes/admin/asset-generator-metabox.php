@@ -101,10 +101,6 @@ class Asset_Generator_MetaBox {
 			'nonce'          => wp_create_nonce( 'wp_rest' ),
 			'pollIntervalMs' => 15000,
 			'i18n'           => [
-				'loadingChoices'    => __( 'Loading available options…', 'worldgraph' ),
-				'imageMode'         => __( 'Image', 'worldgraph' ),
-				'sequenceMode'      => __( 'Sequence', 'worldgraph' ),
-				'videoMode'         => __( 'Video', 'worldgraph' ),
 				'imageSelection'    => __( 'Image to create', 'worldgraph' ),
 				'sequenceSelection' => __( 'Sequence to create', 'worldgraph' ),
 				'videoSelection'    => __( 'Video to create', 'worldgraph' ),
@@ -112,7 +108,8 @@ class Asset_Generator_MetaBox {
 				'stillImage'        => __( 'still image', 'worldgraph' ),
 				'video'             => __( 'video', 'worldgraph' ),
 				'outputs'           => __( 'outputs', 'worldgraph' ),
-				'create'            => __( 'Create', 'worldgraph' ),
+				'createImage'       => __( 'Create image:', 'worldgraph' ),
+				'createVideo'       => __( 'Create video:', 'worldgraph' ),
 				'reviewQueue'       => __( 'Review and queue', 'worldgraph' ),
 				'reviewProject'     => __( 'Review and queue all Project media', 'worldgraph' ),
 				'chooseImage'       => __( 'Choose an image Template…', 'worldgraph' ),
@@ -135,6 +132,8 @@ class Asset_Generator_MetaBox {
 				'queuedImage'       => __( 'Image generation queued. The background worker will import the completed media.', 'worldgraph' ),
 				'queuedVideo'       => __( 'Video generation queued. The background worker will import the completed media.', 'worldgraph' ),
 				'job'               => __( 'Job', 'worldgraph' ),
+				'jobSingular'       => __( 'job', 'worldgraph' ),
+				'image'             => __( 'image', 'worldgraph' ),
 				'loading'           => __( 'Building generation context from saved Story Graph fields…', 'worldgraph' ),
 				'planning'          => __( 'Planning representative media…', 'worldgraph' ),
 				'starting'          => __( 'Freezing the plan and starting its background batch…', 'worldgraph' ),
@@ -147,7 +146,7 @@ class Asset_Generator_MetaBox {
 				'batchQueued'       => __( 'Representative-media batch queued.', 'worldgraph' ),
 				'batchProgress'     => __( 'Batch progress', 'worldgraph' ),
 				'cancelBatch'       => __( 'Stop work that has not reached a provider?', 'worldgraph' ),
-				'cancelled'         => __( 'Staged and queued work was stopped. Already-submitted jobs will finish and import.', 'worldgraph' ),
+				'cancelled'         => __( 'Not-yet-dispatched work was stopped. Already-dispatched jobs will finish and import.', 'worldgraph' ),
 				'done'              => __( 'Image generated and attached.', 'worldgraph' ),
 				'doneVideo'         => __( 'Video generated and attached.', 'worldgraph' ),
 				'featured'          => __( 'Set as the featured asset.', 'worldgraph' ),
@@ -156,7 +155,6 @@ class Asset_Generator_MetaBox {
 				'error'             => __( 'Media generation failed.', 'worldgraph' ),
 				'unconfiguredImage' => __( 'No runnable image Template is configured. Configure an active text-to-image Template and Connection first.', 'worldgraph' ),
 				'unconfiguredVideo' => __( 'No runnable video Template is configured. Configure an active text-to-video Template and Connection first.', 'worldgraph' ),
-				'noActions'         => __( 'No representative-media outputs are defined for this item.', 'worldgraph' ),
 			],
 		] );
 	}
@@ -222,7 +220,7 @@ class Asset_Generator_MetaBox {
 					</label>
 					<label class="worldgraph-generate-asset__mode">
 						<input type="radio" name="worldgraph-generation-mode-<?php echo esc_attr( $post->ID ); ?>" value="sequence" disabled />
-						<span><strong><?php esc_html_e( 'Sequence', 'worldgraph' ); ?></strong><small><?php esc_html_e( 'Queue a complete multi-output workflow', 'worldgraph' ); ?></small></span>
+						<span><strong><?php esc_html_e( 'Sequence', 'worldgraph' ); ?></strong><small><?php esc_html_e( 'Create every image or video in a defined set', 'worldgraph' ); ?></small></span>
 					</label>
 					<label class="worldgraph-generate-asset__mode">
 						<input type="radio" name="worldgraph-generation-mode-<?php echo esc_attr( $post->ID ); ?>" value="video" disabled />
@@ -265,11 +263,11 @@ class Asset_Generator_MetaBox {
 			</details>
 			<div class="worldgraph-generate-asset__actions">
 				<button type="button" class="button button-primary worldgraph-generate-asset__run" disabled><?php esc_html_e( 'Choose what to create', 'worldgraph' ); ?></button>
-				<button type="button" class="button-link-delete worldgraph-generate-asset__cancel" hidden><?php esc_html_e( 'Stop queued work', 'worldgraph' ); ?></button>
+				<button type="button" class="button-link-delete worldgraph-generate-asset__cancel" hidden><?php esc_html_e( 'Stop pending work', 'worldgraph' ); ?></button>
 			</div>
 			<div class="worldgraph-generate-asset__status" role="status" aria-live="polite"></div>
 			<div class="worldgraph-generate-asset__progress" hidden>
-				<progress max="100" value="0"></progress>
+				<progress max="100" value="0" aria-label="<?php esc_attr_e( 'Representative media generation progress', 'worldgraph' ); ?>"></progress>
 				<span></span>
 			</div>
 			<div class="worldgraph-generate-asset__result" hidden></div>

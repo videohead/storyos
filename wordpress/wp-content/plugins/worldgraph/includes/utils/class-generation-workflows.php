@@ -53,6 +53,7 @@ class Generation_Workflows {
 		'staged',
 		'queued',
 		'submitting',
+		'dispatching',
 		'submitted',
 		'polling',
 		'importing',
@@ -773,6 +774,9 @@ class Generation_Workflows {
 			if ( '' !== $stored_hash && ! hash_equals( $stored_hash, $request_hash ) ) {
 				return new WP_Error( 'worldgraph_generation_idempotency_conflict', __( 'That idempotency key was already used for different generation settings.', 'worldgraph' ), [ 'status' => 409 ] );
 			}
+			if ( ! Generation_Batch::schedule() ) {
+				return self::schedule_error();
+			}
 			return self::batch_status( $existing );
 		}
 
@@ -815,6 +819,9 @@ class Generation_Workflows {
 			return $reservation;
 		}
 		if ( ! empty( $reservation['batch_id'] ) ) {
+			if ( ! Generation_Batch::schedule() ) {
+				return self::schedule_error();
+			}
 			return self::batch_status( (int) $reservation['batch_id'] );
 		}
 		$reservation_token = (string) $reservation['token'];
@@ -860,13 +867,27 @@ class Generation_Workflows {
 			self::BATCH_CURSOR_META      => 0,
 			self::BATCH_PLAN_META        => $frozen_plan,
 		];
+		$stored = true;
 		foreach ( $meta as $key => $value ) {
 			update_post_meta( $batch_id, $key, is_array( $value ) ? wp_slash( $value ) : $value );
+			$persisted = get_post_meta( $batch_id, $key, true );
+			if ( is_array( $value ) ? $persisted !== $value : (string) $persisted !== (string) $value ) {
+				$stored = false;
+				break;
+			}
 		}
-		if ( self::REPRESENTATIVE_BATCH !== get_post_meta( $batch_id, self::BATCH_KIND_META, true ) || count( $frozen_plan ) !== count( (array) get_post_meta( $batch_id, self::BATCH_PLAN_META, true ) ) ) {
+		if ( ! $stored ) {
 			wp_delete_post( $batch_id, true );
 			self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
 			return new WP_Error( 'worldgraph_generation_batch_storage_failed', __( 'WordPress could not persist the representative-media plan.', 'worldgraph' ), [ 'status' => 500 ] );
+		}
+
+		// Ensure a wake-up exists before the root commit marker becomes visible.
+		// An idempotent retry also schedules above, so a removed cron event heals.
+		if ( ! Generation_Batch::schedule() ) {
+			wp_delete_post( $batch_id, true );
+			self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
+			return self::schedule_error();
 		}
 
 		// The root status is the coordinator's commit marker. Publish it only
@@ -879,8 +900,19 @@ class Generation_Workflows {
 		}
 
 		self::release_idempotency_key( $post_id, $requester_id, $idempotency_key, $reservation_token );
-		Generation_Batch::schedule();
+		if ( ! Generation_Batch::schedule() ) {
+			return self::schedule_error();
+		}
 		return self::batch_status( $batch_id );
+	}
+
+	/** Report a durable batch whose worker wake-up could not be guaranteed. */
+	private static function schedule_error(): WP_Error {
+		return new WP_Error(
+			'worldgraph_generation_schedule_failed',
+			__( 'WordPress could not schedule the representative-media batch. Retry the same request to resume it safely.', 'worldgraph' ),
+			[ 'status' => 503 ]
+		);
 	}
 
 	/** Find an existing caller-scoped batch for a retry-safe start request. */
@@ -984,16 +1016,20 @@ class Generation_Workflows {
 			'meta_query'     => [
 				[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
 				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'batch_materializing', 'batch_activating' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_cancel_requested', 'compare' => 'NOT EXISTS' ],
 			],
 		] );
 
 		try {
 			foreach ( $batches as $batch_id ) {
+				if ( ! self::refresh_coordinator_lock( $lock_token ) ) {
+					break;
+				}
 				$status = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
 				if ( 'batch_materializing' === $status ) {
-					self::materialize_batch( (int) $batch_id );
+					self::materialize_batch( (int) $batch_id, $lock_token );
 				} elseif ( 'batch_activating' === $status ) {
-					self::activate_batch( (int) $batch_id );
+					self::activate_batch( (int) $batch_id, $lock_token );
 				}
 			}
 		} finally {
@@ -1034,6 +1070,42 @@ class Generation_Workflows {
 		return 1 === $updated ? $token : '';
 	}
 
+	/** Renew the coordinator lease and fail closed if another process owns it. */
+	private static function refresh_coordinator_lock( string $token ): bool {
+		global $wpdb;
+
+		$current = get_option( self::COORDINATOR_LOCK, [] );
+		if ( ! is_array( $current ) || ! hash_equals( $token, (string) ( $current['token'] ?? '' ) ) ) {
+			return false;
+		}
+
+		$renewed            = $current;
+		$renewed['expires'] = time() + self::COORDINATOR_LOCK_TTL;
+		if ( absint( $current['expires'] ?? 0 ) >= $renewed['expires'] - 1 ) {
+			return true;
+		}
+
+		$updated = $wpdb->update(
+			$wpdb->options,
+			[ 'option_value' => maybe_serialize( $renewed ) ],
+			[
+				'option_name'  => self::COORDINATOR_LOCK,
+				'option_value' => maybe_serialize( $current ),
+			],
+			[ '%s' ],
+			[ '%s', '%s' ]
+		);
+		wp_cache_delete( self::COORDINATOR_LOCK, 'options' );
+		if ( 1 === $updated ) {
+			return true;
+		}
+
+		$latest = get_option( self::COORDINATOR_LOCK, [] );
+		return is_array( $latest )
+			&& hash_equals( $token, (string) ( $latest['token'] ?? '' ) )
+			&& absint( $latest['expires'] ?? 0 ) >= $renewed['expires'] - 1;
+	}
+
 	/** Release only the coordinator lease owned by this process. */
 	private static function release_coordinator_lock( string $token ): void {
 		global $wpdb;
@@ -1054,7 +1126,7 @@ class Generation_Workflows {
 	}
 
 	/** Persist a bounded set of non-runnable staged jobs from one frozen plan. */
-	private static function materialize_batch( int $batch_id ): void {
+	private static function materialize_batch( int $batch_id, string $lock_token ): void {
 		if ( 'batch_materializing' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) || self::is_cancel_requested( $batch_id ) ) {
 			return;
 		}
@@ -1065,7 +1137,7 @@ class Generation_Workflows {
 		$limit        = min( count( $plan ), $cursor + self::MATERIALIZE_PER_TICK );
 
 		for ( $index = $cursor; $index < $limit; ++$index ) {
-			if ( self::is_cancel_requested( $batch_id ) || 'batch_materializing' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) ) {
+			if ( ! self::refresh_coordinator_lock( $lock_token ) || self::is_cancel_requested( $batch_id ) || 'batch_materializing' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) ) {
 				return;
 			}
 			$task = (array) $plan[ $index ];
@@ -1089,7 +1161,12 @@ class Generation_Workflows {
 				'schedule'           => false,
 			] );
 			if ( is_wp_error( $result ) ) {
-				self::fail_staged_batch( $batch_id, $result );
+				if ( ! self::is_cancel_requested( $batch_id ) ) {
+					self::fail_staged_batch( $batch_id, $result );
+				}
+				return;
+			}
+			if ( ! self::refresh_coordinator_lock( $lock_token ) ) {
 				return;
 			}
 			if ( self::is_cancel_requested( $batch_id ) ) {
@@ -1105,7 +1182,7 @@ class Generation_Workflows {
 	}
 
 	/** Promote a bounded number of staged jobs only after the full plan exists. */
-	private static function activate_batch( int $batch_id ): void {
+	private static function activate_batch( int $batch_id, string $lock_token ): void {
 		if ( 'batch_activating' !== get_post_meta( $batch_id, '_worldgraph_gen_status', true ) || self::is_cancel_requested( $batch_id ) ) {
 			return;
 		}
@@ -1122,10 +1199,13 @@ class Generation_Workflows {
 			],
 		] );
 		foreach ( $staged as $job_id ) {
-			if ( self::is_cancel_requested( $batch_id ) ) {
+			if ( ! self::refresh_coordinator_lock( $lock_token ) || self::is_cancel_requested( $batch_id ) ) {
 				break;
 			}
 			update_post_meta( $job_id, '_worldgraph_gen_status', 'queued', 'staged' );
+		}
+		if ( ! self::refresh_coordinator_lock( $lock_token ) ) {
+			return;
 		}
 
 		$remaining = get_posts( [
@@ -1168,6 +1248,9 @@ class Generation_Workflows {
 
 	/** Fail a batch before activation and cancel every already-staged child. */
 	private static function fail_staged_batch( int $batch_id, WP_Error $error ): void {
+		if ( self::is_cancel_requested( $batch_id ) ) {
+			return;
+		}
 		$staged = get_posts( [
 			'post_type'      => 'worldgraph_gen',
 			'post_status'    => 'any',
@@ -1181,8 +1264,9 @@ class Generation_Workflows {
 		foreach ( $staged as $job_id ) {
 			update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', 'staged' );
 		}
-		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_failed' );
-		update_post_meta( $batch_id, '_worldgraph_gen_error', sanitize_text_field( $error->get_error_message() ) );
+		if ( false !== update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_failed', 'batch_materializing' ) ) {
+			update_post_meta( $batch_id, '_worldgraph_gen_error', sanitize_text_field( $error->get_error_message() ) );
+		}
 	}
 
 	/** Whether another cron tick is needed to finish staging or activation. */
@@ -1195,6 +1279,7 @@ class Generation_Workflows {
 			'meta_query'     => [
 				[ 'key' => self::BATCH_KIND_META, 'value' => self::REPRESENTATIVE_BATCH ],
 				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'batch_materializing', 'batch_activating' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_cancel_requested', 'compare' => 'NOT EXISTS' ],
 			],
 		] );
 
@@ -1252,10 +1337,10 @@ class Generation_Workflows {
 		$cancelled_children      = (int) ( $counts['cancelled'] ?? 0 );
 		$cancelled               = $cancelled_children + ( $cancel_requested ? $pending_materialization : 0 );
 		$terminal                = $completed + $failed + $cancelled;
-		if ( 'batch_failed' === $root_status ) {
-			$status = 'failed';
-		} elseif ( $cancel_requested ) {
+		if ( $cancel_requested ) {
 			$status = $active_children > 0 ? 'cancelling' : 'cancelled';
+		} elseif ( 'batch_failed' === $root_status ) {
+			$status = 'failed';
 		} elseif ( $active > 0 ) {
 			$status = 'active';
 		} elseif ( $total > 0 && $completed === $total ) {
@@ -1329,8 +1414,7 @@ class Generation_Workflows {
 		// Publish cancellation first. Materialization and activation recheck this
 		// marker before and after every child transition.
 		update_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', current_time( 'mysql' ) );
-		$root_status = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
-		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_cancelling', $root_status );
+		update_post_meta( $batch_id, '_worldgraph_gen_status', 'batch_cancelling' );
 
 		$stoppable = get_posts( [
 			'post_type'      => 'worldgraph_gen',
@@ -1339,19 +1423,19 @@ class Generation_Workflows {
 			'fields'         => 'ids',
 			'meta_query'     => [
 				[ 'key' => self::BATCH_ID_META, 'value' => $batch_id ],
-				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'staged', 'queued' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'staged', 'queued', 'submitting' ], 'compare' => 'IN' ],
 			],
 		] );
 		$stopped = 0;
 		foreach ( $stoppable as $job_id ) {
 			$current = (string) get_post_meta( $job_id, '_worldgraph_gen_status', true );
-			if ( in_array( $current, [ 'staged', 'queued' ], true ) && false !== update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', $current ) ) {
+			if ( in_array( $current, [ 'staged', 'queued', 'submitting' ], true ) && false !== update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', $current ) ) {
 				++$stopped;
 			}
 		}
 		$status                    = self::batch_status( $batch_id );
 		$status['stopped_queued'] = $stopped;
-		$status['cancel_note']    = __( 'Staged and queued jobs were stopped. Jobs already submitted to a provider will finish polling and import their results.', 'worldgraph' );
+		$status['cancel_note']    = __( 'Staged, queued, and not-yet-dispatched jobs were stopped. Jobs already dispatched to a provider will finish polling and import their results.', 'worldgraph' );
 		return $status;
 	}
 }

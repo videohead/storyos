@@ -8,19 +8,28 @@
 
 ## Delivered authoring workflow
 
-The **World Graph Studio Assets** Generate surface supports two related paths:
+The **World Graph Studio Assets** Generate surface starts with three conditional
+modes:
 
-- direct generation explicitly selects a still image or, for a Shot, text to
-  video, then selects the matching Template and queues exactly one output; and
-- representative generation previews a complete item or Project plan before
-  it starts a durable, potentially long-running batch.
+- **Image** selects one defined still-image intent, its image Template, and the
+  applicable featured/Asset-record behavior;
+- **Sequence** selects a complete multi-output item workflow or, on a Project,
+  all Project representative media, then previews the image/video plan and
+  Template behavior before queueing a durable batch; and
+- **Video** selects one defined video intent and its video Template. The default
+  registry enables this mode for Shots.
+
+Modes that are not defined for the current CPT are visibly unavailable. Each
+available mode has its own output selector, contextual explanation, relevant
+Template controls, and primary action; image, Sequence, and video operations
+are not mixed in one ambiguous output menu.
 
 The editable textarea contains only optional **Additional instructions for
 this run**. The complete automatically composed provider prompt is available
-in a collapsed read-only preview. The primary button follows the selected
-direct output; **Generate this item's full set** queues only the current CPT's
-recipe, while **Generate all Project media** expands owned Project content.
-Template selections survive the read-only planning refresh before confirmation.
+in a collapsed read-only preview. For a Sequence, that preview lists the
+planned outputs because each job receives a separately composed prompt.
+Template selections are retained per selected image, video, or Sequence and
+survive the read-only planning refresh before confirmation.
 
 Planning reports the number of image and video jobs, every source and creative
 intent, prompt fingerprints, Templates runnable across the plan, resolved
@@ -203,8 +212,11 @@ Up to 200 child details are returned inline with source, intent, type, status,
 attachment, and error; `jobs_truncated` marks a larger batch.
 
 The coordinator-visible parent status is written only after the complete
-frozen plan is verified. A child's runnable status is likewise written last,
-after its prompt, Template, requester, intent, and batch membership are durable.
+frozen plan and a worker wake-up are verified. Idempotent retries re-establish
+a missing wake-up or return a retryable scheduling error instead of silently
+leaving a committed batch dormant. A child's runnable status is likewise
+written last, after its prompt, Template, requester, intent, and batch
+membership are durable.
 After start freezes the plan, the parent moves through
 `batch_materializing`, `batch_activating`, and `batch_active`. WP-Cron creates
 up to 20 non-runnable `staged` children per tick. Only after every task exists
@@ -212,10 +224,11 @@ does it promote up to 50 staged children to `queued` per tick, then continue
 submitting and polling bounded numbers of jobs. A large Project batch may
 therefore run for hours or days without one HTTP request remaining open.
 Cancellation prevents remaining planned tasks from being activated, changes
-already materialized `staged` or `queued` children to `cancelled`, and reports
-that count in `stopped_queued` plus a human-readable `cancel_note`. Submitted or
-terminal provider work retains its actual lifecycle state and remains in the
-aggregate report.
+already materialized `staged`, `queued`, or pre-dispatch `submitting` children
+to `cancelled`, and reports that count in `stopped_queued` plus a human-readable
+`cancel_note`. A job atomically enters `dispatching` immediately before the
+provider call; dispatching, submitted, or terminal provider work retains its
+actual lifecycle state and remains in the aggregate report.
 
 Generated files carry the same context outside WordPress through
 `{project_slug|project-wp-slug}-{cpt-type}-{source-slug?}-{intent?}-job-{job_id}.{ext}`.

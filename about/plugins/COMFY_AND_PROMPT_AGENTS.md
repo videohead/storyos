@@ -98,7 +98,8 @@ That means:
 - the Comfy Technician explains supplied state but does not perform a live
   requirement lookup on its own;
 - prompt-oriented advisors can discuss the current Story Graph context but do
-  not click **Suggest prompt** or **Generate image** for the user;
+  not select or start an Image, Sequence, or Video generation action for the
+  user;
 - catalog downloads remain administrator actions; and
 - generation remains a separately authenticated REST/admin action.
 

@@ -87,6 +87,16 @@
 		return found;
 	}
 
+	function selectHasEnabledOption( select ) {
+		return Array.prototype.some.call( select.options, function ( option ) {
+			return ! option.disabled;
+		} );
+	}
+
+	function countedLabel( count, singular, plural ) {
+		return count + ' ' + ( 1 === parseInt( count, 10 ) ? singular : plural );
+	}
+
 	function templateSelect( panel, type ) {
 		return panel.querySelector( 'video' === type ? '.worldgraph-generate-asset__video-template' : '.worldgraph-generate-asset__template' );
 	}
@@ -145,6 +155,18 @@
 		return Object.prototype.hasOwnProperty.call( selections, type ) ? selections[ type ] : null;
 	}
 
+	function rememberDirectOptions( panel ) {
+		var target = panel._worldgraphRenderedTarget || '';
+		if ( 0 !== target.indexOf( 'single:' ) ) {
+			return;
+		}
+		panel._worldgraphDirectOptions = panel._worldgraphDirectOptions || {};
+		panel._worldgraphDirectOptions[ target ] = {
+			featured: panel.querySelector( '.worldgraph-generate-asset__featured' ).checked,
+			createAsset: panel.querySelector( '.worldgraph-generate-asset__create' ).checked
+		};
+	}
+
 	function appendOption( group, value, label ) {
 		var option = document.createElement( 'option' );
 		option.value = value;
@@ -152,41 +174,63 @@
 		group.appendChild( option );
 	}
 
-	function buildTargetOptions( panel, body, preferredTarget ) {
-		var select = panel.querySelector( '.worldgraph-generate-asset__target' );
+	function buildModes( panel, body, preferredMode ) {
+		var actions = panel._worldgraphActions || [];
+		var availability = {
+			image: actions.some( function ( action ) { return 'image' === action.type; } ),
+			sequence: ( parseInt( body.total_jobs, 10 ) || 0 ) > 1 || '1' === panel.dataset.isProject,
+			video: actions.some( function ( action ) { return 'video' === action.type; } )
+		};
+		var firstAvailable = '';
+		Array.prototype.forEach.call( panel.querySelectorAll( '.worldgraph-generate-asset__modes input' ), function ( input ) {
+			var available = !! availability[ input.value ];
+			var note = input.closest( '.worldgraph-generate-asset__mode' ).querySelector( 'small' );
+			note.dataset.availableText = note.dataset.availableText || note.textContent;
+			note.textContent = available ? note.dataset.availableText : strings.notAvailable;
+			input.dataset.available = available ? '1' : '0';
+			input.disabled = ! available;
+			input.closest( '.worldgraph-generate-asset__mode' ).classList.toggle( 'is-unavailable', ! available );
+			if ( available && ! firstAvailable ) {
+				firstAvailable = input.value;
+			}
+		} );
+		var selectedMode = preferredMode && availability[ preferredMode ] ? preferredMode : firstAvailable;
+		if ( selectedMode ) {
+			panel.querySelector( '.worldgraph-generate-asset__modes input[value="' + selectedMode + '"]' ).checked = true;
+		}
+		return selectedMode;
+	}
+
+	function buildActionOptions( panel, body, mode, preferredTarget ) {
+		var select = panel.querySelector( '.worldgraph-generate-asset__action-select' );
+		var label = panel.querySelector( '.worldgraph-generate-asset__selection-label strong' );
 		var actions = panel._worldgraphActions || [];
 		select.textContent = '';
 
-		if ( ! actions.length ) {
-			appendOption( select, '', strings.noActions );
+		if ( 'image' === mode || 'video' === mode ) {
+			label.textContent = 'video' === mode ? strings.videoSelection : strings.imageSelection;
+			actions.filter( function ( action ) {
+				return mode === action.type;
+			} ).forEach( function ( action ) {
+				appendOption( select, 'single:' + action.intent, action.label );
+			} );
+		} else if ( 'sequence' === mode ) {
+			label.textContent = strings.sequenceSelection;
+			if ( ( parseInt( body.total_jobs, 10 ) || 0 ) > 1 ) {
+				appendOption( select, 'workflow:item', body.workflow.label + ' (' + body.total_jobs + ' ' + strings.outputs + ')' );
+			}
+			if ( '1' === panel.dataset.isProject ) {
+				appendOption( select, 'workflow:project', strings.allProjectMedia );
+			}
+		}
+
+		if ( ! select.options.length ) {
+			appendOption( select, '', strings.notAvailable );
 			select.disabled = true;
 			return;
 		}
-
-		var singles = document.createElement( 'optgroup' );
-		singles.label = strings.oneOutput;
-		actions.forEach( function ( action ) {
-			var mediaLabel = 'video' === action.type ? strings.video : strings.stillImage;
-			appendOption( singles, 'single:' + action.intent, action.label + ' — ' + mediaLabel );
-		} );
-		select.appendChild( singles );
-
-		var hasItemWorkflow = ( parseInt( body.total_jobs, 10 ) || 0 ) > 1;
-		var isProject = '1' === panel.dataset.isProject;
-		if ( hasItemWorkflow || isProject ) {
-			var workflows = document.createElement( 'optgroup' );
-			workflows.label = strings.completeWorkflow;
-			if ( hasItemWorkflow ) {
-				appendOption( workflows, 'workflow:item', body.workflow.label + ' (' + body.total_jobs + ' ' + strings.outputs + ')' );
-			}
-			if ( isProject ) {
-				appendOption( workflows, 'workflow:project', strings.allProjectMedia );
-			}
-			select.appendChild( workflows );
-		}
-
 		select.disabled = false;
-		select.value = preferredTarget && selectHasValue( select, preferredTarget ) ? preferredTarget : 'single:' + actions[0].intent;
+		select.value = preferredTarget && selectHasValue( select, preferredTarget ) ? preferredTarget : select.options[0].value;
 	}
 
 	function clearElement( element ) {
@@ -217,7 +261,7 @@
 		strong.textContent = 'project' === body.scope ? strings.allProjectMedia : ( body.workflow.label || strings.workflow );
 		workflow.appendChild( strong );
 		var detail = document.createElement( 'span' );
-		detail.textContent = ' — ' + body.total_jobs + ' ' + strings.jobs + ': ' + ( counts.image || 0 ) + ' ' + strings.images + ', ' + ( counts.video || 0 ) + ' ' + strings.videos + ( 'project' === body.scope ? '; ' + body.sources + ' ' + strings.sources : '' );
+		detail.textContent = ' — ' + countedLabel( body.total_jobs, strings.jobSingular, strings.jobs ) + ': ' + countedLabel( counts.image || 0, strings.image, strings.images ) + ', ' + countedLabel( counts.video || 0, strings.video, strings.videos ) + ( 'project' === body.scope ? '; ' + body.sources + ' ' + strings.sources : '' );
 		workflow.appendChild( detail );
 	}
 
@@ -235,18 +279,58 @@
 	}
 
 	function activeBatch( panel ) {
-		return panel._worldgraphActiveBatch && ! isTerminal( panel._worldgraphActiveBatch.status ) ? panel._worldgraphActiveBatch : null;
+		if ( panel._worldgraphActiveBatch && ! isTerminal( panel._worldgraphActiveBatch.status ) ) {
+			return panel._worldgraphActiveBatch;
+		}
+		if ( panel._worldgraphKnownBatches && panel._worldgraphKnownBatches.length ) {
+			return panel._worldgraphKnownBatches[0];
+		}
+		return panel._worldgraphBatchTransition ? { status: 'checking' } : null;
+	}
+
+	function rememberBatch( panel, body ) {
+		if ( ! body || ! body.batch_id || isTerminal( body.status ) ) {
+			return;
+		}
+		panel._worldgraphKnownBatches = panel._worldgraphKnownBatches || [];
+		panel._worldgraphKnownBatches = panel._worldgraphKnownBatches.filter( function ( batch ) {
+			return String( batch.batch_id ) !== String( body.batch_id );
+		} );
+		panel._worldgraphKnownBatches.push( body );
+		panel._worldgraphKnownBatches.sort( function ( left, right ) {
+			return parseInt( right.batch_id, 10 ) - parseInt( left.batch_id, 10 );
+		} );
+	}
+
+	function forgetBatch( panel, batchId ) {
+		panel._worldgraphKnownBatches = ( panel._worldgraphKnownBatches || [] ).filter( function ( batch ) {
+			return String( batch.batch_id ) !== String( batchId );
+		} );
 	}
 
 	function updatePrimaryState( panel ) {
 		var button = panel.querySelector( '.worldgraph-generate-asset__run' );
-		var select = panel.querySelector( '.worldgraph-generate-asset__target' );
+		var select = panel.querySelector( '.worldgraph-generate-asset__action-select' );
 		var info = targetInfo( currentTarget( panel ) );
 		var enabled = ! panel._worldgraphLoading && ! panel._worldgraphBusy;
 
-		select.disabled = !! panel._worldgraphLoading || !! panel._worldgraphBusy || ! ( panel._worldgraphActions || [] ).length;
+		var controlsLocked = !! panel._worldgraphLoading || !! panel._worldgraphBusy;
+		select.disabled = controlsLocked || ! select.options.length;
+		Array.prototype.forEach.call( panel.querySelectorAll( '.worldgraph-generate-asset__modes input' ), function ( input ) {
+			input.disabled = controlsLocked || '1' !== input.dataset.available;
+		} );
+		[ 'image', 'video' ].forEach( function ( type ) {
+			var template = templateSelect( panel, type );
+			template.disabled = controlsLocked || templateContainer( panel, type ).hidden || ! selectHasEnabledOption( template );
+		} );
+		panel.querySelector( '.worldgraph-generate-asset__prompt' ).disabled = controlsLocked;
+		panel.querySelector( '.worldgraph-generate-asset__refresh-context' ).disabled = controlsLocked;
+		var directOptions = panel.querySelector( '.worldgraph-generate-asset__direct-options' );
+		panel.querySelector( '.worldgraph-generate-asset__create' ).disabled = controlsLocked || directOptions.hidden;
+		var action = 'single' === info.kind ? actionForIntent( panel, info.intent ) : null;
+		panel.querySelector( '.worldgraph-generate-asset__featured' ).disabled = controlsLocked || directOptions.hidden || ! action || 'image' !== action.type;
 		if ( 'single' === info.kind ) {
-			var action = actionForIntent( panel, info.intent );
+			action = actionForIntent( panel, info.intent );
 			enabled = enabled && !! action && parseInt( templateSelect( panel, action ? action.type : 'image' ).value, 10 ) > 0;
 		} else if ( 'workflow' === info.kind ) {
 			enabled = enabled && ! activeBatch( panel ) && panel._worldgraphDisplayedPlanScope === info.scope && panel._worldgraphDisplayedPlan && !! panel._worldgraphDisplayedPlan.ready;
@@ -266,6 +350,7 @@
 		var type = action.type;
 		var templates = ( panel._worldgraphTemplates || {} )[ type ] || [];
 		var select = templateSelect( panel, type );
+		var savedOptions = ( panel._worldgraphDirectOptions || {} )[ target ];
 		panel._worldgraphDisplayedPlan = null;
 		panel._worldgraphDisplayedPlanScope = '';
 
@@ -278,10 +363,12 @@
 		var featuredOption = panel.querySelector( '.worldgraph-generate-asset__featured-option' );
 		featuredOption.hidden = 'image' !== type;
 		panel.querySelector( '.worldgraph-generate-asset__featured' ).disabled = 'image' !== type;
+		panel.querySelector( '.worldgraph-generate-asset__featured' ).checked = savedOptions ? savedOptions.featured : !! action.featured;
+		panel.querySelector( '.worldgraph-generate-asset__create' ).checked = savedOptions ? savedOptions.createAsset : true;
 		panel.querySelector( '.worldgraph-generate-asset__prompt-help' ).textContent = strings.singlePromptHelp;
 		panel.querySelector( '.worldgraph-generate-asset__choice-description' ).textContent = strings.singleChoiceHelp;
 		panel.querySelector( '.worldgraph-generate-asset__context-preview' ).textContent = action.prompt || '';
-		panel.querySelector( '.worldgraph-generate-asset__run' ).textContent = strings.create + ' ' + action.label;
+		panel.querySelector( '.worldgraph-generate-asset__run' ).textContent = ( 'video' === type ? strings.createVideo : strings.createImage ) + ' ' + action.label;
 		renderSingleSummary( panel, action );
 		selectionStatus( panel, action.configured ? '' : ( 'video' === type ? strings.unconfiguredVideo : strings.unconfiguredImage ), ! action.configured );
 		updatePrimaryState( panel );
@@ -290,6 +377,15 @@
 	function renderPlanLoading( panel, scope ) {
 		panel._worldgraphDisplayedPlan = null;
 		panel._worldgraphDisplayedPlanScope = '';
+		[ 'image', 'video' ].forEach( function ( type ) {
+			var select = templateSelect( panel, type );
+			select.textContent = '';
+			var loading = document.createElement( 'option' );
+			loading.value = '';
+			loading.textContent = strings.planning;
+			loading.disabled = true;
+			select.appendChild( loading );
+		} );
 		setTemplateVisibility( panel, 'image', false, '' );
 		setTemplateVisibility( panel, 'video', false, '' );
 		panel.querySelector( '.worldgraph-generate-asset__direct-options' ).hidden = true;
@@ -348,21 +444,30 @@
 			return panel._worldgraphPlanRequests[ scope ];
 		}
 
-		panel._worldgraphPlanRequests[ scope ] = request( settings.restUrl + '/plan?post_id=' + encodeURIComponent( panel.dataset.postId ) + '&scope=' + encodeURIComponent( scope ) )
+		var epoch = panel._worldgraphPlanEpoch || 0;
+		var planRequest = request( settings.restUrl + '/plan?post_id=' + encodeURIComponent( panel.dataset.postId ) + '&scope=' + encodeURIComponent( scope ) )
 			.then( function ( body ) {
-				panel._worldgraphPlanCache[ scope ] = body;
-				delete panel._worldgraphPlanRequests[ scope ];
+				if ( epoch === panel._worldgraphPlanEpoch ) {
+					panel._worldgraphPlanCache[ scope ] = body;
+				}
+				if ( panel._worldgraphPlanRequests[ scope ] === planRequest ) {
+					delete panel._worldgraphPlanRequests[ scope ];
+				}
 				return body;
 			} )
 			.catch( function ( error ) {
-				delete panel._worldgraphPlanRequests[ scope ];
+				if ( panel._worldgraphPlanRequests[ scope ] === planRequest ) {
+					delete panel._worldgraphPlanRequests[ scope ];
+				}
 				throw error;
 			} );
-		return panel._worldgraphPlanRequests[ scope ];
+		panel._worldgraphPlanRequests[ scope ] = planRequest;
+		return planRequest;
 	}
 
 	function renderTarget( panel ) {
 		rememberTemplateSelections( panel );
+		rememberDirectOptions( panel );
 		var target = currentTarget( panel );
 		var info = targetInfo( target );
 		var token = ( panel._worldgraphSelectionToken || 0 ) + 1;
@@ -385,9 +490,6 @@
 						return;
 					}
 					renderPlan( panel, body, target );
-					if ( body.latest_batch && body.latest_batch.batch_id && ! isTerminal( body.latest_batch.status ) && ( ! activeBatch( panel ) || parseInt( body.latest_batch.batch_id, 10 ) > parseInt( panel._worldgraphActiveBatch.batch_id, 10 ) ) ) {
-						watchBatch( panel, body.latest_batch );
-					}
 				} )
 				.catch( function ( error ) {
 					if ( token === panel._worldgraphSelectionToken && target === currentTarget( panel ) ) {
@@ -416,12 +518,12 @@
 		return actions;
 	}
 
-	function newestActiveBatch( body ) {
+	function activeBatchesFromPrompt( body ) {
 		return [ body.latest_batch, body.latest_project_batch ].filter( function ( batch ) {
 			return batch && batch.batch_id && ! isTerminal( batch.status );
 		} ).sort( function ( left, right ) {
 			return parseInt( right.batch_id, 10 ) - parseInt( left.batch_id, 10 );
-		} )[0] || null;
+		} );
 	}
 
 	function loadPrompt( panel, force ) {
@@ -429,6 +531,7 @@
 			return Promise.resolve( panel._worldgraphPromptBody );
 		}
 
+		var preferredMode = currentMode( panel );
 		var preferredTarget = currentTarget( panel );
 		panel._worldgraphLoading = true;
 		panel._worldgraphSelectionToken = ( panel._worldgraphSelectionToken || 0 ) + 1;
@@ -444,15 +547,25 @@
 					image: body.image_templates || body.templates || [],
 					video: body.video_templates || []
 				};
+				panel._worldgraphPlanEpoch = ( panel._worldgraphPlanEpoch || 0 ) + 1;
 				panel._worldgraphPlanCache = {};
 				panel._worldgraphPlanRequests = {};
-				buildTargetOptions( panel, body, preferredTarget );
+				var selectedMode = buildModes( panel, body, preferredMode );
+				buildActionOptions( panel, body, selectedMode, selectedMode === preferredMode ? preferredTarget : '' );
+				panel._worldgraphRenderedMode = selectedMode;
+				if ( panel._worldgraphPollTimer ) {
+					window.clearTimeout( panel._worldgraphPollTimer );
+				}
+				panel._worldgraphWatchToken = ( panel._worldgraphWatchToken || 0 ) + 1;
+				panel._worldgraphActiveBatch = null;
+				panel._worldgraphKnownBatches = activeBatchesFromPrompt( body );
+				delete panel.dataset.batchId;
+				panel.querySelector( '.worldgraph-generate-asset__cancel' ).hidden = true;
 				panel._worldgraphLoading = false;
 				panel.querySelector( '.worldgraph-generate-asset__refresh-context' ).disabled = false;
 				renderTarget( panel );
-				var latest = newestActiveBatch( body );
-				if ( latest ) {
-					watchBatch( panel, latest );
+				if ( panel._worldgraphKnownBatches.length ) {
+					watchBatch( panel, panel._worldgraphKnownBatches[0] );
 				}
 				return body;
 			} )
@@ -541,7 +654,7 @@
 			updatePrimaryState( panel );
 			return;
 		}
-		var summary = body.total_jobs + ' ' + strings.jobs + ' (' + ( body.counts.image || 0 ) + ' ' + strings.images + ', ' + ( body.counts.video || 0 ) + ' ' + strings.videos + ').\n\n';
+		var summary = countedLabel( body.total_jobs, strings.jobSingular, strings.jobs ) + ' (' + countedLabel( body.counts.image || 0, strings.image, strings.images ) + ', ' + countedLabel( body.counts.video || 0, strings.video, strings.videos ) + ').\n\n';
 		if ( ! window.confirm( summary + ( 'project' === scope ? strings.confirmProject : strings.confirmItem ) ) ) {
 			return;
 		}
@@ -599,13 +712,43 @@
 		setStatus( panel, strings.batchQueued + ' #' + body.batch_id + ' — ' + body.status, 'failed' === body.status || 'completed_with_errors' === body.status );
 		panel.querySelector( '.worldgraph-generate-asset__cancel' ).hidden = terminal || 'cancelling' === body.status;
 		if ( terminal ) {
+			forgetBatch( panel, body.batch_id );
 			panel._worldgraphActiveBatch = null;
 			delete panel.dataset.batchId;
 		} else {
+			rememberBatch( panel, body );
 			panel._worldgraphActiveBatch = body;
 			panel.dataset.batchId = body.batch_id;
 		}
 		updatePrimaryState( panel );
+	}
+
+	function resumeKnownBatch( panel ) {
+		var next = ( panel._worldgraphKnownBatches || [] )[0];
+		if ( ! next || panel._worldgraphBatchTransition ) {
+			updatePrimaryState( panel );
+			return;
+		}
+		panel._worldgraphBatchTransition = true;
+		updatePrimaryState( panel );
+		request( settings.restUrl + '/batches/' + encodeURIComponent( next.batch_id ) )
+			.then( function ( body ) {
+				panel._worldgraphBatchTransition = false;
+				if ( isTerminal( body.status ) ) {
+					forgetBatch( panel, body.batch_id );
+					resumeKnownBatch( panel );
+				} else {
+					watchBatch( panel, body );
+				}
+			} )
+			.catch( function ( error ) {
+				panel._worldgraphBatchTransition = false;
+				setStatus( panel, error.message, true );
+				updatePrimaryState( panel );
+				panel._worldgraphPollTimer = window.setTimeout( function () {
+					resumeKnownBatch( panel );
+				}, Math.max( 30000, settings.pollIntervalMs || 15000 ) );
+			} );
 	}
 
 	function watchBatch( panel, initial ) {
@@ -614,8 +757,12 @@
 		}
 		var watchToken = ( panel._worldgraphWatchToken || 0 ) + 1;
 		panel._worldgraphWatchToken = watchToken;
+		rememberBatch( panel, initial );
 		renderBatch( panel, initial );
 		if ( isTerminal( initial.status ) ) {
+			window.setTimeout( function () {
+				resumeKnownBatch( panel );
+			}, 0 );
 			return;
 		}
 
@@ -631,6 +778,8 @@
 					renderBatch( panel, body );
 					if ( ! isTerminal( body.status ) ) {
 						panel._worldgraphPollTimer = window.setTimeout( poll, settings.pollIntervalMs || 15000 );
+					} else {
+						resumeKnownBatch( panel );
 					}
 				} )
 				.catch( function ( error ) {
@@ -663,7 +812,23 @@
 	document.addEventListener( 'DOMContentLoaded', function () {
 		Array.prototype.forEach.call( document.querySelectorAll( '.worldgraph-generate-asset' ), function ( panel ) {
 			panel._worldgraphTemplateSelections = {};
-			panel.querySelector( '.worldgraph-generate-asset__target' ).addEventListener( 'change', function () {
+			panel._worldgraphModeTargets = {};
+			Array.prototype.forEach.call( panel.querySelectorAll( '.worldgraph-generate-asset__modes input' ), function ( input ) {
+				input.addEventListener( 'change', function () {
+					if ( ! input.checked || ! panel._worldgraphPromptBody ) {
+						return;
+					}
+					rememberTemplateSelections( panel );
+					if ( panel._worldgraphRenderedMode ) {
+						panel._worldgraphModeTargets[ panel._worldgraphRenderedMode ] = currentTarget( panel );
+					}
+					panel._worldgraphRenderedMode = input.value;
+					buildActionOptions( panel, panel._worldgraphPromptBody, input.value, panel._worldgraphModeTargets[ input.value ] || '' );
+					renderTarget( panel );
+				} );
+			} );
+			panel.querySelector( '.worldgraph-generate-asset__action-select' ).addEventListener( 'change', function () {
+				panel._worldgraphModeTargets[ currentMode( panel ) ] = currentTarget( panel );
 				renderTarget( panel );
 			} );
 			panel.querySelector( '.worldgraph-generate-asset__template' ).addEventListener( 'change', function () {

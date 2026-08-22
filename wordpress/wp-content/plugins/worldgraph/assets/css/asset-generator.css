@@ -2,6 +2,89 @@
 	margin: 0 0 4px;
 }
 
+.worldgraph-generate-asset [hidden] {
+	display: none !important;
+}
+
+.worldgraph-generate-asset__modes {
+	margin: 16px 0 12px;
+	padding: 0;
+	border: 0;
+}
+
+.worldgraph-generate-asset__modes legend {
+	margin-bottom: 8px;
+}
+
+.worldgraph-generate-asset__mode-list {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(140px, 1fr));
+	gap: 8px;
+}
+
+.worldgraph-generate-asset__mode {
+	position: relative;
+	margin: 0;
+}
+
+.worldgraph-generate-asset__mode input {
+	position: absolute;
+	opacity: 0;
+}
+
+.worldgraph-generate-asset__mode span {
+	display: flex;
+	box-sizing: border-box;
+	min-height: 72px;
+	padding: 10px 12px;
+	flex-direction: column;
+	justify-content: center;
+	background: #fff;
+	border: 1px solid #8c8f94;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.worldgraph-generate-asset__mode strong {
+	font-size: 14px;
+}
+
+.worldgraph-generate-asset__mode small {
+	margin-top: 3px;
+	color: #50575e;
+	line-height: 1.35;
+}
+
+.worldgraph-generate-asset__mode input:checked + span {
+	background: #f0f6fc;
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.worldgraph-generate-asset__mode input:focus + span {
+	box-shadow: 0 0 0 2px #2271b1;
+}
+
+.worldgraph-generate-asset__mode input:disabled + span {
+	background: #f6f7f7;
+	border-color: #dcdcde;
+	cursor: not-allowed;
+	opacity: 0.58;
+}
+
+.worldgraph-generate-asset__selection {
+	max-width: 640px;
+	margin-bottom: 12px;
+}
+
+.worldgraph-generate-asset__selection select {
+	margin-top: 4px;
+}
+
+.worldgraph-generate-asset__selection .description {
+	margin: 5px 0 0;
+}
+
 .worldgraph-generate-asset__workflow {
 	margin: 14px 0;
 	padding: 10px 12px;
@@ -35,17 +118,28 @@
 	line-height: 1.5;
 }
 
-.worldgraph-generate-asset__options {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
+.worldgraph-generate-asset__template-options {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(220px, 1fr));
 	gap: 12px;
+	margin: 12px 0;
 }
 
-.worldgraph-generate-asset__video-option {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
+.worldgraph-generate-asset__template-option select {
+	margin-top: 4px;
+}
+
+.worldgraph-generate-asset__template-option .description {
+	margin: 4px 0 0;
+}
+
+.worldgraph-generate-asset__direct-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 16px;
+	margin: 10px 0 14px;
+	padding: 0;
+	border: 0;
 }
 
 .worldgraph-generate-asset__actions {
@@ -54,20 +148,6 @@
 	align-items: flex-end;
 	gap: 12px;
 	margin: 14px 0;
-}
-
-.worldgraph-generate-asset__action-group {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 8px;
-	padding-right: 12px;
-	border-right: 1px solid #dcdcde;
-}
-
-.worldgraph-generate-asset__action-group strong {
-	flex-basis: 100%;
-	font-size: 12px;
 }
 
 .worldgraph-generate-asset__status {
@@ -94,8 +174,16 @@
 	width: min(320px, 45%);
 }
 
-.worldgraph-generate-asset__result img {
+.worldgraph-generate-asset__result img,
+.worldgraph-generate-asset__result video {
 	height: auto;
 	border: 1px solid #dcdcde;
 	border-radius: 2px;
+}
+
+@media screen and (max-width: 782px) {
+	.worldgraph-generate-asset__mode-list,
+	.worldgraph-generate-asset__template-options {
+		grid-template-columns: 1fr;
+	}
 }

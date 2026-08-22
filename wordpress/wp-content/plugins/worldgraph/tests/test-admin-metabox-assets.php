@@ -25,29 +25,42 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'block editor', strtolower( $source ) );
 	}
 
-	/** The generator buttons must map to distinct, discoverable operations. */
+	/** Generation type drives one purpose-built selector and contextual action. */
 	public function test_generator_controls_match_their_actions(): void {
 		$metabox = file_get_contents( dirname( __DIR__ ) . '/includes/admin/asset-generator-metabox.php' );
 		$script  = file_get_contents( dirname( __DIR__ ) . '/assets/js/asset-generator.js' );
 
 		$this->assertNotFalse( $metabox );
 		$this->assertNotFalse( $script );
-		$this->assertStringContainsString( 'Still image (text to image)', $metabox );
-		$this->assertStringContainsString( 'Video (text to video)', $metabox );
-		$this->assertStringContainsString( 'Selected output', $metabox );
-		$this->assertStringContainsString( 'Complete workflows', $metabox );
-		$this->assertStringContainsString( 'Generate this item’s full set', $metabox );
-		$this->assertStringContainsString( 'Generate all Project media', $metabox );
+		$this->assertStringContainsString( 'Choose a generation type', $metabox );
+		$this->assertStringContainsString( 'Create one selected still image', $metabox );
+		$this->assertStringContainsString( 'Create every image or video in a defined set', $metabox );
+		$this->assertStringContainsString( 'Create one selected moving shot', $metabox );
+		$this->assertStringContainsString( 'worldgraph-generate-asset__action-select', $metabox );
+		$this->assertStringContainsString( 'worldgraph-generate-asset__image-template-option', $metabox );
+		$this->assertStringContainsString( 'worldgraph-generate-asset__video-template-option', $metabox );
 		$this->assertStringContainsString( 'Additional instructions for this run', $metabox );
-		$this->assertStringContainsString( 'Review the automatically generated prompt', $metabox );
+		$this->assertStringContainsString( 'Review the generated prompt or workflow plan', $metabox );
 		$this->assertStringContainsString( "self::asset_version( 'assets/js/asset-generator.js' )", $metabox );
 		$this->assertStringNotContainsString( 'Detailed prompt preview', $metabox );
 		$this->assertStringNotContainsString( 'worldgraph-generate-asset__suggest', $metabox );
+		$this->assertStringNotContainsString( 'Automatic per intent', $metabox );
+		$this->assertStringNotContainsString( 'Direct output', $metabox );
+		$this->assertStringNotContainsString( 'Generate this item’s full set', $metabox );
 
-		$this->assertStringContainsString( 'type: type', $script );
+		$this->assertStringContainsString( 'body.actions || legacyActions( body )', $script );
+		$this->assertStringContainsString( "image: actions.some", $script );
+		$this->assertStringContainsString( "sequence: ( parseInt( body.total_jobs", $script );
+		$this->assertStringContainsString( "video: actions.some", $script );
+		$this->assertStringContainsString( 'type: action.type', $script );
+		$this->assertStringContainsString( 'intent: action.intent', $script );
 		$this->assertStringContainsString( 'base_prompt:', $script );
-		$this->assertStringContainsString( 'previousValue', $script );
-		$this->assertStringContainsString( "startBatch( panel, 'item' )", $script );
-		$this->assertStringContainsString( "startBatch( panel, 'project' )", $script );
+		$this->assertStringContainsString( 'startBatch( panel, info.scope )', $script );
+		$this->assertStringContainsString( 'selectHasEnabledOption( template )', $script );
+		$this->assertStringContainsString( "panel.querySelector( '.worldgraph-generate-asset__prompt' ).disabled = controlsLocked", $script );
+		$this->assertStringContainsString( 'panel._worldgraphKnownBatches = activeBatchesFromPrompt( body )', $script );
+		$this->assertStringContainsString( "select.textContent = '';", $script );
+		$this->assertStringNotContainsString( 'worldgraph-generate-asset__run-set', $script );
+		$this->assertStringNotContainsString( 'worldgraph-generate-asset__run-project', $script );
 	}
 }

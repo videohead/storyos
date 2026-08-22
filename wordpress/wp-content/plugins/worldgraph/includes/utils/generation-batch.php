@@ -26,10 +26,16 @@ class Generation_Batch {
 		add_action( self::HOOK, [ __CLASS__, 'process' ] );
 	}
 
-	public static function schedule(): void {
+	/** Ensure that at least one future worker wake-up exists. */
+	public static function schedule(): bool {
 		if ( ! wp_next_scheduled( self::HOOK ) ) {
-			wp_schedule_single_event( time() + 5, self::HOOK );
+			$scheduled = wp_schedule_single_event( time() + 5, self::HOOK );
+			if ( false === $scheduled && ! wp_next_scheduled( self::HOOK ) ) {
+				return false;
+			}
 		}
+
+		return true;
 	}
 
 	public static function process(): void {
@@ -171,7 +177,7 @@ class Generation_Batch {
 			'posts_per_page' => 20,
 			'fields'         => 'ids',
 			'meta_query'     => [
-				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'submitting', 'polling', 'importing', 'import_cleaning' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'submitting', 'dispatching', 'polling', 'importing', 'import_cleaning' ], 'compare' => 'IN' ],
 			],
 		] );
 		foreach ( $jobs as $job_id ) {
@@ -200,6 +206,12 @@ class Generation_Batch {
 					update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
 					update_post_meta( $job_id, '_worldgraph_gen_error', 'The completed provider result is unavailable after an interrupted media import.' );
 				}
+				self::clear_videodraft_submission_cache( (int) $job_id );
+			} elseif ( 'dispatching' === $status ) {
+				// The provider call began, but no durable response was recorded. Never
+				// submit it again automatically because the remote job may exist.
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'failed' );
+				update_post_meta( $job_id, '_worldgraph_gen_error', 'The generation submission was interrupted after dispatch began and its provider outcome is unknown. Verify the provider before retrying.' );
 				self::clear_videodraft_submission_cache( (int) $job_id );
 			} elseif ( 'submitting' === $status && 'generate_audio' === preg_replace( '/^mcp:/', '', (string) get_post_meta( $job_id, '_worldgraph_gen_workflow', true ) ) && get_post_meta( $job_id, '_worldgraph_videodraft_idempotency_key', true ) ) {
 				update_post_meta( $job_id, '_worldgraph_gen_status', 'queued' );
@@ -291,6 +303,20 @@ class Generation_Batch {
 			}
 			if ( Local_ComfyUI::class === $client ) {
 				$params['_worldgraph_job_id'] = $job_id;
+			}
+
+			// Cancellation may claim a prepared job up to this atomic dispatch
+			// boundary. Once dispatching wins, the provider outcome is ambiguous
+			// until the request returns and must be reconciled normally.
+			if ( self::batch_cancel_requested( $job_id ) ) {
+				update_post_meta( $job_id, '_worldgraph_gen_status', 'cancelled', 'submitting' );
+				self::clear_videodraft_submission_cache( $job_id );
+				self::clear_job_claim( $job_id );
+				continue;
+			}
+			if ( ! self::claim_job( $job_id, 'submitting', 'dispatching' ) ) {
+				self::clear_job_claim( $job_id );
+				continue;
 			}
 
 			Generation_Log::add( 'info', 'generation_batch', sprintf( 'Submitting job %d via %s.', $job_id, $provider_type ), [], (string) $job_id );
@@ -464,9 +490,15 @@ class Generation_Batch {
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
 			'meta_query'     => [
-				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'queued', 'submitted', 'submitting', 'polling', 'importing', 'import_retry', 'import_cleanup', 'import_cleaning' ], 'compare' => 'IN' ],
+				[ 'key' => '_worldgraph_gen_status', 'value' => [ 'queued', 'submitted', 'submitting', 'dispatching', 'polling', 'importing', 'import_retry', 'import_cleanup', 'import_cleaning' ], 'compare' => 'IN' ],
 			],
 		] );
+	}
+
+	/** Whether this job belongs to a representative batch being cancelled. */
+	private static function batch_cancel_requested( int $job_id ): bool {
+		$batch_id = absint( get_post_meta( $job_id, Generation_Workflows::BATCH_ID_META, true ) );
+		return $batch_id > 0 && '' !== (string) get_post_meta( $batch_id, '_worldgraph_gen_cancel_requested', true );
 	}
 
 	/**

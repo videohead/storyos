@@ -226,13 +226,14 @@ template ID, optional workflow JSON, model/checkpoint information, and default
 configuration. Templates are WordPress configuration records, not permission
 to run arbitrary server code.
 
-For a direct output, an author selects image or Shot video, chooses the matching
-active runnable Template, adds optional one-off instructions, chooses applicable
-featured-media and linked-Asset behavior, and queues one job. The complete
-Story Graph prompt remains server-composed and is shown only in a collapsed
-read-only preview. For representative generation, the author reviews the
-image/video counts, chooses optional Template overrides, and confirms the
-durable item or Project batch.
+The author first chooses a conditional **Image**, **Sequence**, or **Video**
+mode. Image and video each reveal only their own defined output selector,
+matching active runnable Template, applicable featured/linked-Asset choices,
+and contextual action. Sequence reveals the complete item or Project workflow,
+image/video counts, and only the Template controls needed by that plan before
+confirming a durable batch. Modes not defined for the current CPT are disabled.
+The complete prompt for a single output remains server-composed and appears in
+a collapsed read-only preview; a Sequence instead previews its distinct jobs.
 
 Runnable Template lists exclude disabled Connections, mismatched output types,
 and Templates whose required bindings cannot be resolved for every applicable
@@ -305,8 +306,10 @@ counts from the frozen total and persisted child states and report `pending`,
 The preparation phases are durable: `batch_materializing` creates up to 20
 non-runnable `staged` children per tick; after every frozen task exists,
 `batch_activating` promotes up to 50 staged children per tick; only then does the
-parent enter `batch_active`. A step key prevents a restarted materialization
-cursor from duplicating a child.
+parent enter `batch_active`. A renewable coordinator lease and step lookup keep
+a restarted materialization cursor from duplicating a child. The complete root
+metadata and worker wake-up are verified before the visible commit marker is
+published; an idempotent retry safely re-establishes a missing wake-up.
 
 The worker:
 
@@ -322,15 +325,17 @@ The durable states are:
 | State | Meaning |
 | --- | --- |
 | `queued` | Persisted and waiting for the batch worker |
+| `submitting` | Claimed locally and preparing a provider request; still cancellable |
+| `dispatching` | Provider dispatch began; an interrupted outcome requires reconciliation rather than automatic resubmission |
 | `submitted` | Accepted by an asynchronous provider and being polled |
 | `completed` | Provider work and required media import succeeded |
 | `failed` | Validation, provider execution, or media import failed |
 | `cancelled` | Cancelled in World Graph Studio |
 
-Cancelling a representative batch cancels child jobs that remain `queued`;
-already submitted or terminal children retain their real state and continue to
-contribute to the aggregate summary. The response reports how many queued jobs
-were stopped.
+Cancelling a representative batch cancels child jobs that remain `staged`,
+`queued`, or `submitting` before dispatch. Jobs already `dispatching`, submitted,
+or terminal retain their real state and continue to contribute to the aggregate
+summary. The response reports how many not-yet-dispatched jobs were stopped.
 
 ElevenLabs and VideoDraft audio may return completed results synchronously.
 ComfyUI, fal, Suno, and VideoDraft image/video tools can return asynchronous
@@ -393,7 +398,7 @@ The canonical REST base is `/wp-json/worldgraph/v1/`.
 | `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompt hashes, runnable Templates, defaults, and the latest batch |
 | `POST /assets/generate/batches` | Validate and start a durable item or Project representative-media batch |
 | `GET /assets/generate/batches/{id}` | Read aggregate batch progress and child jobs |
-| `POST /assets/generate/batches/{id}/cancel` | Cancel staged/queued children and return refreshed batch status |
+| `POST /assets/generate/batches/{id}/cancel` | Cancel not-yet-dispatched children and return refreshed batch status |
 | `POST /generation` | Create a Template-backed generation record |
 | `GET /generation/{id}` | Read job status and identity |
 | `POST /generation/{id}/cancel` | Mark a job cancelled |
