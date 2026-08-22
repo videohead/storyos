@@ -704,7 +704,7 @@ function worldgraph_maybe_invalidate_story_display_meta_cache( int|array $meta_i
 /** Register presentation hooks shared by REST and the WordPress theme. */
 function worldgraph_story_display_init(): void {
 	add_action( 'rest_api_init', __NAMESPACE__ . '\\worldgraph_register_story_display_rest_field' );
-	foreach ( worldgraph_story_display_post_types() as $post_type ) {
+	foreach ( array_keys( worldgraph_get_all_cpts() ) as $post_type ) {
 		add_filter( 'rest_prepare_' . $post_type, __NAMESPACE__ . '\\worldgraph_hide_protected_story_rest_fields', PHP_INT_MAX, 3 );
 	}
 	add_action( 'save_post', __NAMESPACE__ . '\\worldgraph_invalidate_story_display_cache', 30 );
@@ -745,6 +745,13 @@ function worldgraph_hide_protected_story_rest_fields( $response, \WP_Post $post,
 		$data['acf']                = [];
 		$data['worldgraph_display'] = [];
 		$response->set_data( $data );
+	}
+	if ( method_exists( $response, 'get_links' ) && method_exists( $response, 'remove_link' ) ) {
+		foreach ( array_keys( $response->get_links() ) as $relation ) {
+			if ( str_starts_with( (string) $relation, 'acf:' ) ) {
+				$response->remove_link( $relation );
+			}
+		}
 	}
 
 	return $response;
@@ -820,7 +827,22 @@ function worldgraph_register_story_display_rest_field(): void {
 				$post_id         = absint( $object['id'] ?? 0 );
 				$expanded        = (bool) preg_match( '#/\d+$#', $request->get_route() );
 				$include_private = $post_id > 0 && current_user_can( 'edit_post', $post_id );
-				return worldgraph_get_story_display_payload( $post_id, $expanded, $include_private );
+				$post_password   = (string) get_post_field( 'post_password', $post_id );
+				$request_password = (string) $request->get_param( 'password' );
+				$password_matches = '' !== $post_password && '' !== $request_password && hash_equals( $post_password, $request_password );
+				if ( ! $password_matches ) {
+					return worldgraph_get_story_display_payload( $post_id, $expanded, $include_private );
+				}
+
+				$password_filter = static function( bool $required, $password_post ) use ( $post_id ): bool {
+					return $password_post instanceof \WP_Post && $post_id === $password_post->ID ? false : $required;
+				};
+				add_filter( 'post_password_required', $password_filter, PHP_INT_MAX, 2 );
+				try {
+					return worldgraph_get_story_display_payload( $post_id, $expanded, $include_private );
+				} finally {
+					remove_filter( 'post_password_required', $password_filter, PHP_INT_MAX );
+				}
 			},
 			'schema'       => [
 				'description' => __( 'Read-only media and aggregate data used by World Graph Studio story displays.', 'worldgraph' ),

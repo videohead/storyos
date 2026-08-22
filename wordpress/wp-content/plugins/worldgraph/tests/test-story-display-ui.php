@@ -27,7 +27,9 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "'' === (string) \$node_post->post_password", $source );
 		$this->assertStringContainsString( "'publish' === \$post->post_status", $source );
 		$this->assertStringContainsString( 'worldgraph_hide_protected_story_rest_fields', $source );
+		$this->assertStringContainsString( 'array_keys( worldgraph_get_all_cpts() )', $source );
 		$this->assertStringContainsString( "\$data['acf']                = [];", $source );
+		$this->assertStringContainsString( "str_starts_with( (string) \$relation, 'acf:' )", $source );
 		$this->assertStringContainsString( 'hash_equals( (string) $post->post_password, $request_password )', $source );
 	}
 
