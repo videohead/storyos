@@ -37,6 +37,8 @@ class Generation_Workflows {
 	const WORKFLOW_VERSION      = 1;
 	const MATERIALIZE_PER_TICK  = 20;
 	const ACTIVATE_PER_TICK     = 50;
+	const COORDINATOR_LOCK      = 'worldgraph_generation_workflow_coordinator_lock';
+	const COORDINATOR_LOCK_TTL  = 7200;
 
 	/** Maximum number of child jobs one request may persist. */
 	const MAX_BATCH_TASKS = 5000;
@@ -67,6 +69,17 @@ class Generation_Workflows {
 		'worldgraph_shot'      => [ 'shot_number', 'shot_type', 'camera_angle', 'lens', 'duration', 'shot_description', 'editorial_notes' ],
 		'worldgraph_scene'     => [ 'scene_number', 'summary', 'script_content', 'dialogue', 'location', 'time_of_day', 'emotional_tone', 'production_notes' ],
 		'worldgraph_episode'   => [ 'episode_number', 'synopsis' ],
+	];
+
+	/** Canonical authoring fields and parent types used for context ancestry. */
+	const PARENT_RULES = [
+		'worldgraph_world'     => [ 'field' => 'project', 'types' => [ 'worldgraph_project' ] ],
+		'worldgraph_character' => [ 'field' => 'story_world', 'types' => [ 'worldgraph_world' ] ],
+		'worldgraph_location'  => [ 'field' => 'story_world', 'types' => [ 'worldgraph_world' ] ],
+		'worldgraph_prop'      => [ 'field' => 'owner_character', 'types' => [ 'worldgraph_character' ] ],
+		'worldgraph_episode'   => [ 'field' => 'project', 'types' => [ 'worldgraph_project' ] ],
+		'worldgraph_scene'     => [ 'field' => 'episode', 'types' => [ 'worldgraph_episode' ] ],
+		'worldgraph_shot'      => [ 'field' => 'scene', 'types' => [ 'worldgraph_scene' ] ],
 	];
 
 	/** Request-local Template lookup cache, keyed by source post and output. */
@@ -121,7 +134,7 @@ class Generation_Workflows {
 					self::output( 'location-front-view', 'image', __( 'Front view', 'worldgraph' ), __( 'Create a straight-on front-facing view of the location or its primary entrance, preserving the same design, weather, era, and lighting language.', 'worldgraph' ) ),
 					self::output( 'location-three-quarter-view', 'image', __( 'Three-quarter view', 'worldgraph' ), __( 'Create a three-quarter view that reveals the location\'s depth, circulation, adjacent structures, and spatial relationships while preserving continuity.', 'worldgraph' ) ),
 					self::output( 'location-profile-view', 'image', __( 'Profile view', 'worldgraph' ), __( 'Create a side or profile view of the location that clearly communicates its silhouette, elevation, terrain, and practical access.', 'worldgraph' ) ),
-					self::output( 'location-reverse-view', 'image', __( 'Reverse view', 'worldgraph' ), __( 'Create the reverse or back-facing view from the opposite direction, preserving every established architectural and environmental detail.', 'worldgraph' ) ),
+					self::output( 'location-back-view', 'image', __( 'Back view', 'worldgraph' ), __( 'Create the reverse or back-facing view from the opposite direction, preserving every established architectural and environmental detail.', 'worldgraph' ) ),
 					self::output( 'location-close-up', 'image', __( 'Detail close-up', 'worldgraph' ), __( 'Create a close-up of the location\'s most story-defining architectural, material, signage-free, or environmental detail.', 'worldgraph' ) ),
 				],
 			],
@@ -221,6 +234,10 @@ class Generation_Workflows {
 
 		$labels  = worldgraph_get_all_cpts();
 		$parts   = [ sprintf( '%s: %s', (string) ( $labels[ $post_type ] ?? __( 'Story element', 'worldgraph' ) ), self::clean_text( $post->post_title, 80 ) ) ];
+		$inherited_context = self::inherited_context( $post_id );
+		if ( '' !== $inherited_context ) {
+			$parts[] = $inherited_context;
+		}
 
 		$seen = [];
 		foreach ( [ $post->post_excerpt, $post->post_content ] as $core_text ) {
@@ -269,6 +286,99 @@ class Generation_Workflows {
 		$prompt  = self::clean_text( implode( "\n\n", array_filter( $parts ) ), self::MAX_CONTEXT_WORDS );
 
 		return $prompt;
+	}
+
+	/** Return canonical immediate-parent-to-Project ancestry for one source. */
+	public static function ancestors( int $post_id ): array {
+		$ancestors    = [];
+		$seen         = [ $post_id => true ];
+		$current_id   = $post_id;
+		$current_type = (string) get_post_type( $post_id );
+		for ( $depth = 0; $depth < 12 && isset( self::PARENT_RULES[ $current_type ] ); ++$depth ) {
+			$rule       = self::PARENT_RULES[ $current_type ];
+			$candidates = [];
+			$preferred  = [];
+			$value      = worldgraph_get_field_value( $current_id, (string) $rule['field'] );
+			foreach ( is_array( $value ) ? $value : [ $value ] as $candidate ) {
+				$candidate_id = $candidate instanceof \WP_Post ? (int) $candidate->ID : absint( $candidate );
+				$candidate_type = $candidate_id ? (string) get_post_type( $candidate_id ) : '';
+				if ( $candidate_id && in_array( $candidate_type, $rule['types'], true ) ) {
+					$preferred[ $candidate_id ] = $candidate_type;
+					$candidates[ $candidate_id ] = $candidate_type;
+				}
+			}
+			foreach ( get_relationships( $current_id, $current_type, 'incoming' ) as $relationship ) {
+				$candidate_id   = absint( $relationship['from_id'] ?? 0 );
+				$candidate_type = (string) ( $relationship['from_type'] ?? '' );
+				if ( 'contains' === ( $relationship['type'] ?? '' ) && in_array( $candidate_type, $rule['types'], true ) ) {
+					$candidates[ $candidate_id ] = $candidate_type;
+				}
+			}
+			foreach ( get_relationships( $current_id, $current_type, 'outgoing' ) as $relationship ) {
+				$candidate_id   = absint( $relationship['to_id'] ?? 0 );
+				$candidate_type = (string) ( $relationship['to_type'] ?? '' );
+				if ( 'belongs_to' === ( $relationship['type'] ?? '' ) && in_array( $candidate_type, $rule['types'], true ) ) {
+					$candidates[ $candidate_id ] = $candidate_type;
+				}
+			}
+			ksort( $preferred, SORT_NUMERIC );
+			ksort( $candidates, SORT_NUMERIC );
+			$candidate_id = (int) array_key_first( $preferred ?: $candidates );
+			if ( ! $candidate_id || isset( $seen[ $candidate_id ] ) ) {
+				break;
+			}
+			$parent = get_post( $candidate_id );
+			if ( ! $parent instanceof \WP_Post ) {
+				break;
+			}
+			$ancestors[]          = $parent;
+			$seen[ $candidate_id ] = true;
+			$current_id            = $candidate_id;
+			$current_type          = (string) $parent->post_type;
+		}
+
+		return $ancestors;
+	}
+
+	/** Resolve the owning Project using the canonical ancestry rules. */
+	public static function project_id_for_source( int $post_id ): int {
+		if ( 'worldgraph_project' === get_post_type( $post_id ) ) {
+			return $post_id;
+		}
+		foreach ( self::ancestors( $post_id ) as $ancestor ) {
+			if ( 'worldgraph_project' === $ancestor->post_type ) {
+				return (int) $ancestor->ID;
+			}
+		}
+
+		return 0;
+	}
+
+	/** Format bounded parent context and inherited prompt instructions. */
+	private static function inherited_context( int $post_id ): string {
+		$labels = worldgraph_get_all_cpts();
+		$lines  = [];
+		foreach ( array_reverse( self::ancestors( $post_id ) ) as $ancestor ) {
+			$details = [];
+			$fields  = worldgraph_get_fields( $ancestor->post_type );
+			foreach ( array_slice( self::PROMPT_FIELDS[ $ancestor->post_type ] ?? [], 0, 4 ) as $field_name ) {
+				$value = self::field_prompt_value( (int) $ancestor->ID, $field_name, (array) ( $fields[ $field_name ] ?? [] ) );
+				if ( '' !== $value ) {
+					$details[] = ucwords( str_replace( '_', ' ', $field_name ) ) . ': ' . self::clean_text( $value, 90 );
+				}
+			}
+			$instructions = self::clean_text( (string) worldgraph_get_field_value( (int) $ancestor->ID, 'generation_prompt' ), 180 );
+			if ( '' !== $instructions ) {
+				$details[] = __( 'Generation instructions', 'worldgraph' ) . ': ' . $instructions;
+			}
+			$line = sprintf( '%s: %s', (string) ( $labels[ $ancestor->post_type ] ?? $ancestor->post_type ), $ancestor->post_title );
+			if ( $details ) {
+				$line .= ' — ' . implode( '; ', $details );
+			}
+			$lines[] = self::clean_text( $line, 320 );
+		}
+
+		return $lines ? __( 'Inherited story context', 'worldgraph' ) . ":\n- " . implode( "\n- ", $lines ) : '';
 	}
 
 	/** Normalize one registered field for readable prompt context. */
@@ -741,6 +851,19 @@ class Generation_Workflows {
 
 	/** Stage and then activate frozen child tasks in bounded cron chunks. */
 	public static function process_batches(): void {
+		$current_lock = get_option( self::COORDINATOR_LOCK, [] );
+		$current_lock = is_array( $current_lock ) ? $current_lock : [];
+		if ( absint( $current_lock['expires'] ?? 0 ) >= time() ) {
+			return;
+		}
+		if ( $current_lock ) {
+			delete_option( self::COORDINATOR_LOCK );
+		}
+		$lock_token = wp_generate_uuid4();
+		if ( ! add_option( self::COORDINATOR_LOCK, [ 'token' => $lock_token, 'expires' => time() + self::COORDINATOR_LOCK_TTL ], '', false ) ) {
+			return;
+		}
+
 		$batches = get_posts( [
 			'post_type'      => 'worldgraph_gen',
 			'post_status'    => 'any',
@@ -752,12 +875,19 @@ class Generation_Workflows {
 			],
 		] );
 
-		foreach ( $batches as $batch_id ) {
-			$status = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
-			if ( 'batch_materializing' === $status ) {
-				self::materialize_batch( (int) $batch_id );
-			} elseif ( 'batch_activating' === $status ) {
-				self::activate_batch( (int) $batch_id );
+		try {
+			foreach ( $batches as $batch_id ) {
+				$status = (string) get_post_meta( $batch_id, '_worldgraph_gen_status', true );
+				if ( 'batch_materializing' === $status ) {
+					self::materialize_batch( (int) $batch_id );
+				} elseif ( 'batch_activating' === $status ) {
+					self::activate_batch( (int) $batch_id );
+				}
+			}
+		} finally {
+			$owned_lock = get_option( self::COORDINATOR_LOCK, [] );
+			if ( is_array( $owned_lock ) && hash_equals( $lock_token, (string) ( $owned_lock['token'] ?? '' ) ) ) {
+				delete_option( self::COORDINATOR_LOCK );
 			}
 		}
 

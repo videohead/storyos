@@ -261,7 +261,7 @@ class AI_Editor {
 			'post_status'    => 'any',
 			'posts_per_page' => 1,
 			'meta_key'       => 'worldgraph_wizard_slot', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-			'meta_value'     => 'local_comfyui_default', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+			'meta_value'     => 'local_comfyui_text_to_image', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
 		] );
 
 		if ( $posts ) {

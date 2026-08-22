@@ -831,6 +831,10 @@ class Asset_Abilities extends AbstractAbilityGroup {
                         'type'        => 'boolean',
                         'description' => 'Create a linked World Graph Studio Asset record.',
                     ],
+                    'template_id' => [
+                        'type'        => 'integer',
+                        'description' => 'Optional active image Template ID. The representative-media default is resolved when omitted.',
+                    ],
                 ],
                 'required' => ['post_id'],
             ],
@@ -843,10 +847,21 @@ class Asset_Abilities extends AbstractAbilityGroup {
                 ],
             ],
             'execute_callback' => function( $input ) {
+                $plan = \WorldGraph\Utils\Generation_Workflows::plan( (int) $input['post_id'], 'item' );
+                if ( is_wp_error( $plan ) ) {
+                    return $plan;
+                }
+                $task        = (array) ( $plan['tasks'][0] ?? [] );
+                $template_id = absint( $input['template_id'] ?? 0 );
+                if ( ! $template_id && $task ) {
+                    $template_id = \WorldGraph\Utils\Generation_Workflows::resolve_template_id( $task );
+                }
                 return \WorldGraph\Utils\Asset_Generator::queue_for_post( (int) $input['post_id'], [
                     'prompt'       => (string) ( $input['prompt'] ?? '' ),
                     'set_featured' => $input['set_featured'] ?? true,
                     'create_asset' => $input['create_asset'] ?? true,
+                    'template_id'  => $template_id,
+                    'intent'       => (string) ( $task['intent'] ?? '' ),
                 ] );
             },
             'permission_callback' => function( $input ) {

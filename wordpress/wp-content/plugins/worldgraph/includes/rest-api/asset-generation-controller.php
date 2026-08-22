@@ -178,6 +178,7 @@ class Asset_Generation_Controller extends Base_Controller {
 			'video_templates'     => Generation_Workflows::runnable_templates( $post_id, 'video' ),
 			'default_template_id' => $default_id,
 			'latest_batch'        => Generation_Workflows::latest_batch( $post_id, 'item' ),
+			'latest_project_batch' => 'worldgraph_project' === get_post_type( $post_id ) ? Generation_Workflows::latest_batch( $post_id, 'project' ) : [],
 		] );
 	}
 

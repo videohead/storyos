@@ -72,6 +72,12 @@ if ( ! function_exists( 'sanitize_key' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_http_validate_url' ) ) {
+	function wp_http_validate_url( $url ) {
+		return false !== filter_var( $url, FILTER_VALIDATE_URL ) ? (string) $url : false;
+	}
+}
+
 if ( ! function_exists( 'user_can' ) ) {
 	function user_can( $user_id, $capability, ...$args ): bool {
 		$capabilities = $GLOBALS['worldgraph_generation_auth_caps'][ (int) $user_id ] ?? [];
@@ -165,6 +171,14 @@ class Test_Generation_Authorization extends TestCase {
 		$result = Generation_Authorization::authorize_submission( 'image', 0, [ 'image' => '17.5' ], 7 );
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'worldgraph_generation_attachment_invalid', $result->get_error_code() );
+
+		$result = Generation_Authorization::authorize_submission( 'image', 0, [ 'image' => '/etc/passwd' ], 7 );
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'worldgraph_generation_media_input_invalid', $result->get_error_code() );
+
+		$result = Generation_Authorization::authorize_submission( 'image', 0, [ 'image' => 'http://cdn.example/reference.png' ], 7 );
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'worldgraph_generation_media_input_invalid', $result->get_error_code() );
 	}
 
 	/** Cron revalidates the recorded requester and only permits bound attachments. */

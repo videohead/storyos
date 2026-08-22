@@ -479,7 +479,7 @@ intents:
 | Story World | `world-key-art` | `world-key-art` image |
 | Character | `character-look-set` | full, front, three-quarter, profile, back, and close-up images |
 | Prop | `prop-look-set` | full, front, three-quarter, profile, back, and close-up images |
-| Location | `location-look-set` | full establishing, front, three-quarter, profile, reverse, and detail close-up images |
+| Location | `location-look-set` | full establishing, front, three-quarter, profile, back, and detail close-up images |
 | Shot | `shot-still-and-video` | `shot-representative-still` image and `shot-video` video |
 | Scene | `scene-filmstrip` | `scene-filmstrip` image using its shot progression |
 | Episode | `episode-bookend-filmstrip` | `episode-bookend-filmstrip` image using its opening and final scenes |

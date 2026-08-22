@@ -447,7 +447,7 @@ The default representative-media model is:
 | Story World | One defining world key-art image |
 | Character | Full, front, three-quarter, profile, back, and close-up images |
 | Prop | Full, front, three-quarter, profile, back, and close-up images |
-| Location | Full establishing, front, three-quarter, profile, reverse, and detail close-up images |
+| Location | Full establishing, front, three-quarter, profile, back, and detail close-up images |
 | Shot | One representative still and one video |
 | Scene | One filmstrip image summarizing its ordered Shots |
 | Episode | One filmstrip image contrasting its first and last Scenes |

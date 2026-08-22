@@ -81,7 +81,7 @@ is executed.
 | Story World | `world-key-art` | `world-key-art` (image) |
 | Character | `character-look-set` | `character-full-view`, `character-front-view`, `character-three-quarter-view`, `character-profile-view`, `character-back-view`, `character-close-up` (images) |
 | Prop | `prop-look-set` | `prop-full-view`, `prop-front-view`, `prop-three-quarter-view`, `prop-profile-view`, `prop-back-view`, `prop-close-up` (images) |
-| Location | `location-look-set` | `location-full-view`, `location-front-view`, `location-three-quarter-view`, `location-profile-view`, `location-reverse-view`, `location-close-up` (images) |
+| Location | `location-look-set` | `location-full-view`, `location-front-view`, `location-three-quarter-view`, `location-profile-view`, `location-back-view`, `location-close-up` (images) |
 | Shot | `shot-still-and-video` | `shot-representative-still` (image), `shot-video` (video) |
 | Scene | `scene-filmstrip` | `scene-filmstrip` (image) |
 | Episode | `episode-bookend-filmstrip` | `episode-bookend-filmstrip` (image) |

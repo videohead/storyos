@@ -497,59 +497,7 @@ class Asset_Generator {
 	 * @return int Project post ID, or 0 when none is found.
 	 */
 	private static function resolve_project_id( int $post_id ): int {
-		if ( 'worldgraph_project' === get_post_type( $post_id ) ) {
-			return $post_id;
-		}
-
-		$parents = [
-			'worldgraph_world'     => [ 'field' => 'project', 'types' => [ 'worldgraph_project' ] ],
-			'worldgraph_character' => [ 'field' => 'story_world', 'types' => [ 'worldgraph_world' ] ],
-			'worldgraph_location'  => [ 'field' => 'story_world', 'types' => [ 'worldgraph_world' ] ],
-			'worldgraph_prop'      => [ 'field' => 'owner_character', 'types' => [ 'worldgraph_character' ] ],
-			'worldgraph_episode'   => [ 'field' => 'project', 'types' => [ 'worldgraph_project' ] ],
-			'worldgraph_scene'     => [ 'field' => 'episode', 'types' => [ 'worldgraph_episode' ] ],
-			'worldgraph_shot'      => [ 'field' => 'scene', 'types' => [ 'worldgraph_scene' ] ],
-		];
-		$queue   = [ [ $post_id, (string) get_post_type( $post_id ) ] ];
-		$seen    = [];
-		$depth   = 0;
-		while ( $queue && $depth++ < 12 ) {
-			[ $current_id, $current_type ] = array_shift( $queue );
-			if ( isset( $seen[ $current_id ] ) || ! isset( $parents[ $current_type ] ) ) {
-				continue;
-			}
-			$seen[ $current_id ] = true;
-			$allowed_types       = $parents[ $current_type ]['types'];
-			$candidates          = [];
-			$field_value         = worldgraph_get_field_value( $current_id, $parents[ $current_type ]['field'] );
-			foreach ( is_array( $field_value ) ? $field_value : [ $field_value ] as $value ) {
-				$candidate_id = $value instanceof \WP_Post ? (int) $value->ID : absint( $value );
-				if ( $candidate_id ) {
-					$candidates[ $candidate_id ] = (string) get_post_type( $candidate_id );
-				}
-			}
-			foreach ( get_relationships( $current_id, $current_type, 'incoming' ) as $relationship ) {
-				if ( 'contains' === ( $relationship['type'] ?? '' ) ) {
-					$candidates[ absint( $relationship['from_id'] ?? 0 ) ] = (string) ( $relationship['from_type'] ?? '' );
-				}
-			}
-			foreach ( get_relationships( $current_id, $current_type, 'outgoing' ) as $relationship ) {
-				if ( 'belongs_to' === ( $relationship['type'] ?? '' ) ) {
-					$candidates[ absint( $relationship['to_id'] ?? 0 ) ] = (string) ( $relationship['to_type'] ?? '' );
-				}
-			}
-			foreach ( $candidates as $candidate_id => $candidate_type ) {
-				if ( ! $candidate_id || ! in_array( $candidate_type, $allowed_types, true ) ) {
-					continue;
-				}
-				if ( 'worldgraph_project' === $candidate_type ) {
-					return (int) $candidate_id;
-				}
-				$queue[] = [ (int) $candidate_id, $candidate_type ];
-			}
-		}
-
-		return 0;
+		return Generation_Workflows::project_id_for_source( $post_id );
 	}
 
 	/**
