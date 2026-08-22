@@ -178,9 +178,19 @@ function worldgraph_acquire_shot_order_lock(): string|false {
 
 	$current_token = (string) get_option( $key, '' );
 	$locked_at     = absint( strtok( $current_token, ':' ) );
-	if ( $locked_at && $now - $locked_at > 300 && $current_token === (string) get_option( $key, '' ) ) {
-		delete_option( $key );
-		return add_option( $key, $token, '', false ) ? $token : false;
+	if ( $locked_at && $now - $locked_at > 300 ) {
+		global $wpdb;
+		$claimed = $wpdb->update( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Atomic compare-and-swap lock ownership.
+			$wpdb->options,
+			[ 'option_value' => $token ],
+			[ 'option_name' => $key, 'option_value' => $current_token ],
+			[ '%s' ],
+			[ '%s', '%s' ]
+		);
+		if ( 1 === $claimed ) {
+			wp_cache_delete( $key, 'options' );
+			return $token;
+		}
 	}
 
 	return false;

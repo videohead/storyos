@@ -251,7 +251,7 @@ class Local_ComfyUI {
 			: (string) get_option( 'worldgraph_comfy_local_workflow', '' );
 		$workflow = json_decode( $raw, true );
 		if ( is_array( $workflow ) && ! empty( $workflow ) ) {
-			return $workflow;
+			return self::prepare_pasted_workflow( $workflow );
 		}
 
 		$settings = $template_id
@@ -276,6 +276,22 @@ class Local_ComfyUI {
 		}
 
 		return Generation_Modality::default_workflow( $modality, $settings );
+	}
+
+	/**
+	 * A workflow pasted or imported from a provider keeps that template's demo
+	 * prompt and fixed seed, so it would ignore the job prompt and repeat the
+	 * same output. Give it per-job placeholders and a fresh seed before it runs.
+	 *
+	 * @param array $workflow API-format workflow.
+	 * @return array
+	 */
+	private static function prepare_pasted_workflow( array $workflow ): array {
+		if ( false === strpos( (string) wp_json_encode( $workflow ), '{{prompt}}' ) ) {
+			$workflow = Comfy_Graph::apply_prompt_placeholders( $workflow );
+		}
+
+		return Comfy_Graph::randomize_seeds( $workflow );
 	}
 
 	/**

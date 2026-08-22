@@ -672,6 +672,11 @@ class Template {
 
 		$workflow = is_array( $raw['workflow'] ?? null ) ? $raw['workflow'] : [];
 		if ( ! empty( $workflow ) ) {
+			// A provider definition ships its own demo prompt; swap it for the
+			// placeholders the generation runner substitutes per job.
+			if ( ! \WorldGraph\Utils\Comfy_Graph::is_editor_graph( $workflow ) ) {
+				$workflow = \WorldGraph\Utils\Comfy_Graph::apply_prompt_placeholders( $workflow );
+			}
 			update_post_meta( $post_id, 'workflow_json', wp_slash( (string) wp_json_encode( $workflow ) ) );
 		}
 
