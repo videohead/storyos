@@ -4,3 +4,7 @@ out/
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Override the repository's generic Python `lib/` rule for frontend source.
+!lib/
+!lib/**

@@ -208,6 +208,19 @@ class Comfy_Template_Registry {
 			return $candidates;
 		}
 
+		// Probing costs a request per template, so spend that budget on the
+		// families whose files already appear on disk rather than on whatever
+		// happens to be popular this month.
+		$object_info = Comfy_Manifest::object_info( $endpoint );
+		if ( ! is_wp_error( $object_info ) ) {
+			$installed = strtolower( implode( ' ', array_merge( [], ...array_values( self::installed_files( $object_info ) ) ) ) );
+			usort( $candidates, static function ( array $a, array $b ) use ( $installed ): int {
+				$hint = self::install_hint( $b, $installed ) <=> self::install_hint( $a, $installed );
+
+				return 0 !== $hint ? $hint : self::compare_popularity( $a, $b );
+			} );
+		}
+
 		foreach ( array_slice( array_keys( $candidates ), 0, max( 0, $probe ) ) as $index ) {
 			$readiness = self::readiness( $candidates[ $index ]['id'], $endpoint );
 			if ( ! is_wp_error( $readiness ) ) {
@@ -227,6 +240,32 @@ class Comfy_Template_Registry {
 		} );
 
 		return $candidates;
+	}
+
+	/**
+	 * How strongly a template's advertised models resemble files already on the
+	 * instance. A cheap signal used only to order the readiness probes.
+	 *
+	 * @param array  $entry     Registry entry.
+	 * @param string $installed Lower-cased list of installed model filenames.
+	 * @return int
+	 */
+	private static function install_hint( array $entry, string $installed ): int {
+		if ( '' === $installed ) {
+			return 0;
+		}
+
+		$score = 0;
+		foreach ( (array) ( $entry['models'] ?? [] ) as $model ) {
+			foreach ( preg_split( '/[^a-z0-9]+/', strtolower( (string) $model ), -1, PREG_SPLIT_NO_EMPTY ) as $token ) {
+				if ( strlen( $token ) >= 4 && false !== strpos( $installed, $token ) ) {
+					++$score;
+					break;
+				}
+			}
+		}
+
+		return $score;
 	}
 
 	/**

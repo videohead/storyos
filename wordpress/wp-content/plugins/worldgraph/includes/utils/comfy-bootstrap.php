@@ -149,6 +149,7 @@ class Comfy_Bootstrap {
 			}
 
 			self::retire_legacy_templates( $existing, $connection_id );
+			self::apply_best_workflow( $existing );
 
 			return $existing;
 		}
@@ -171,9 +172,90 @@ class Comfy_Bootstrap {
 
 		if ( $template_id ) {
 			self::retire_legacy_templates( $template_id, $connection_id );
+			self::apply_best_workflow( $template_id );
 		}
 
 		return $template_id;
+	}
+
+	/**
+	 * Point the provisioned Template at the best published text-to-image
+	 * workflow this instance can already run.
+	 *
+	 * The built-in graph is a Stable Diffusion 1.5 pipeline, which is the only
+	 * thing that can be assumed of an unknown ComfyUI and is no longer close to
+	 * what the model landscape offers. Where the instance already holds the
+	 * files for something better, running the older graph is a choice nobody
+	 * asked for, so the newer workflow is adopted instead. Nothing is downloaded
+	 * here: an instance with nothing installed keeps the built-in fallback.
+	 *
+	 * @param int $template_id Template post ID.
+	 * @return string The adopted registry entry ID, or '' when none was adopted.
+	 */
+	public static function apply_best_workflow( int $template_id ): string {
+		$endpoint = Local_ComfyUI::endpoint();
+		if ( '' === $endpoint || ! $template_id ) {
+			return '';
+		}
+
+		$ranked = Comfy_Template_Registry::ranked(
+			[ 'modality' => Generation_Modality::TEXT_TO_IMAGE, 'local_only' => true, 'limit' => 60 ],
+			$endpoint,
+			10
+		);
+		if ( is_wp_error( $ranked ) ) {
+			return '';
+		}
+
+		foreach ( $ranked as $entry ) {
+			if ( empty( $entry['ready'] ) ) {
+				continue;
+			}
+
+			$workflow = Comfy_Template_Registry::workflow( (string) $entry['id'], $endpoint );
+			if ( is_wp_error( $workflow ) ) {
+				Generation_Log::add( 'debug', 'comfy_bootstrap', 'Published workflow rejected: ' . $workflow->get_error_message(), [ 'template' => $entry['id'] ] );
+				continue;
+			}
+
+			update_post_meta( $template_id, 'workflow_json', wp_slash( (string) wp_json_encode( $workflow ) ) );
+			update_post_meta( $template_id, 'provider_template_id', (string) $entry['id'] );
+			update_post_meta( $template_id, 'template_name', (string) $entry['name'] );
+			update_post_meta( $template_id, 'model_requirements', (string) wp_json_encode( self::registry_requirements( $entry ) ) );
+			Generation_Log::add( 'info', 'comfy_bootstrap', sprintf( 'Provisioned the published workflow "%s".', (string) $entry['name'] ), [ 'template' => $entry['id'] ] );
+
+			return (string) $entry['id'];
+		}
+
+		// Nothing better was runnable, so fall back to the built-in graph rather
+		// than leaving a stale published workflow in place.
+		delete_post_meta( $template_id, 'workflow_json' );
+		delete_post_meta( $template_id, 'provider_template_id' );
+
+		return '';
+	}
+
+	/**
+	 * Model requirement records for an adopted published workflow.
+	 *
+	 * @param array $entry Ranked registry entry with readiness merged in.
+	 * @return array<int, array<string, string>>
+	 */
+	private static function registry_requirements( array $entry ): array {
+		$requirements = [];
+		foreach ( (array) ( $entry['models_required'] ?? [] ) as $model ) {
+			if ( ! is_array( $model ) || empty( $model['filename'] ) || empty( $model['url'] ) ) {
+				continue;
+			}
+
+			$requirements[] = [
+				'filename' => (string) $model['filename'],
+				'folder'   => (string) $model['folder'],
+				'url'      => (string) $model['url'],
+			];
+		}
+
+		return $requirements;
 	}
 
 	/**

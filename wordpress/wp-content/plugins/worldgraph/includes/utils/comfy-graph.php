@@ -49,6 +49,13 @@ class Comfy_Graph {
 	const SEED_FIELDS = [ 'seed', 'noise_seed' ];
 
 	/**
+	 * Inputs that carry prompt text. Encoders disagree: Flux splits a prompt
+	 * across `clip_l` and `t5xxl`, SDXL across `text_g` and `text_l`, and newer
+	 * graphs hoist it into a standalone string node feeding several encoders.
+	 */
+	const PROMPT_FIELDS = [ 'text', 'prompt', 'clip_l', 't5xxl', 'text_g', 'text_l', 'string' ];
+
+	/**
 	 * Recursion ceiling for link resolution through subgraphs and reroutes.
 	 */
 	const MAX_DEPTH = 128;
@@ -236,28 +243,39 @@ class Comfy_Graph {
 		if ( empty( $assigned ) ) {
 			$candidates = [];
 			foreach ( $api as $uid => $node ) {
-				foreach ( [ 'prompt', 'text' ] as $field ) {
-					if ( is_string( $node['inputs'][ $field ] ?? null ) ) {
-						$candidates[ (string) $uid ] = $field;
-						break;
-					}
+				if ( ! empty( self::prompt_fields( $node ) ) ) {
+					$candidates[] = (string) $uid;
 				}
 			}
 			if ( 1 === count( $candidates ) ) {
-				$assigned[ (string) array_key_first( $candidates ) ] = '{{prompt}}';
+				$assigned[ $candidates[0] ] = '{{prompt}}';
 			}
 		}
 
 		foreach ( $assigned as $uid => $placeholder ) {
-			foreach ( [ 'text', 'prompt' ] as $field ) {
-				if ( isset( $api[ $uid ]['inputs'][ $field ] ) && is_string( $api[ $uid ]['inputs'][ $field ] ) ) {
-					$api[ $uid ]['inputs'][ $field ] = $placeholder;
-					break;
-				}
+			foreach ( self::prompt_fields( $api[ $uid ] ) as $field ) {
+				$api[ $uid ]['inputs'][ $field ] = $placeholder;
 			}
 		}
 
 		return $api;
+	}
+
+	/**
+	 * The prompt-carrying string inputs a node holds a literal value for.
+	 *
+	 * @param array $node API-format node.
+	 * @return array<int, string>
+	 */
+	private static function prompt_fields( array $node ): array {
+		$fields = self::PROMPT_FIELDS;
+		if ( 0 === strpos( (string) ( $node['class_type'] ?? '' ), 'PrimitiveString' ) ) {
+			$fields[] = 'value';
+		}
+
+		return array_values( array_filter( $fields, static function ( string $field ) use ( $node ): bool {
+			return is_string( $node['inputs'][ $field ] ?? null );
+		} ) );
 	}
 
 	/**
@@ -739,10 +757,8 @@ class Comfy_Graph {
 		}
 		$seen[ $uid ] = true;
 
-		foreach ( [ 'text', 'prompt' ] as $field ) {
-			if ( is_string( $api[ $uid ]['inputs'][ $field ] ?? null ) ) {
-				return $uid;
-			}
+		if ( ! empty( self::prompt_fields( $api[ $uid ] ) ) ) {
+			return $uid;
 		}
 
 		foreach ( (array) ( $api[ $uid ]['inputs'] ?? [] ) as $value ) {

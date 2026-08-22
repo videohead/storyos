@@ -61,11 +61,14 @@ services:
   headless:
     type: node:20
     port: 3000
-    command: bash -lc "cd /app/headless && [ -d node_modules ] || npm install && npm run dev -- --hostname 0.0.0.0 --port 3000"
-    environment:
-      WORDPRESS_URL: https://worldgraph.lndo.site
-      WORDPRESS_HOSTNAME: worldgraph.lndo.site
-      WORDPRESS_WEBHOOK_SECRET: ${WORDPRESS_WEBHOOK_SECRET:-change-me}
+    build:
+      - cd /app/headless && npm install
+    command: npm --prefix /app/headless run dev -- --hostname 0.0.0.0 --port 3000
+    overrides:
+      environment:
+        WORDPRESS_URL: https://worldgraph.lndo.site
+        WORDPRESS_HOSTNAME: worldgraph.lndo.site
+        WORDPRESS_WEBHOOK_SECRET: ${WORDPRESS_WEBHOOK_SECRET:-change-me}
 proxy:
   headless:
     - headless.worldgraph.lndo.site:3000
@@ -106,15 +109,18 @@ tooling:
     cmd: /usr/local/bin/npx jsonlint
   headless-install:
     service: headless
-    cmd: bash -lc "cd /app/headless && npm install"
+    cmd: npm install
+    dir: /app/headless
     description: Install dependencies for the optional headless Next.js frontend.
   headless-npm:
     service: headless
-    cmd: bash -lc "cd /app/headless && npm"
+    cmd: npm
+    dir: /app/headless
     description: Run npm against the headless frontend.
   headless-build:
     service: headless
-    cmd: bash -lc "cd /app/headless && npm run build"
+    cmd: npm run build
+    dir: /app/headless
     description: Build the optional headless Next.js frontend for production.
   pma:
     service: phpmyadmin

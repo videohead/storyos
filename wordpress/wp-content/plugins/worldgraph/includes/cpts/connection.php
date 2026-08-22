@@ -672,18 +672,50 @@ class Connection {
 					}).then(function (response) { return response.json(); });
 				}
 
+				function formatBytes(bytes) {
+					if (!bytes) {
+						return '';
+					}
+					var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+					var index = 0;
+					while (bytes >= 1024 && index < units.length - 1) {
+						bytes = bytes / 1024;
+						index = index + 1;
+					}
+					return (bytes >= 10 ? Math.round(bytes) : bytes.toFixed(1)) + ' ' + units[index];
+				}
+
+				var STATUS_LABELS = {
+					ready: '<?php echo esc_js( __( 'Ready to run', 'worldgraph' ) ); ?>',
+					needs_models: '<?php echo esc_js( __( 'Needs models', 'worldgraph' ) ); ?>',
+					needs_nodes: '<?php echo esc_js( __( 'Needs nodes', 'worldgraph' ) ); ?>',
+					unverified: '<?php echo esc_js( __( 'Not checked', 'worldgraph' ) ); ?>',
+					unmappable: '<?php echo esc_js( __( 'No modality', 'worldgraph' ) ); ?>',
+					withdrawn: '<?php echo esc_js( __( 'Withdrawn', 'worldgraph' ) ); ?>'
+				};
+
 				function badgeText(entry) {
 					var modality = entry.modality || 'unmappable';
-					var state = entry.status || 'unknown';
+					var state = STATUS_LABELS[entry.status] || entry.status || 'unknown';
 					return modality + ' | ' + state;
+				}
+
+				// Ready-to-run entries first, then the cheapest thing to install, so
+				// the list answers "what can I use now" before "what is popular".
+				function orderEntries(entries) {
+					var weight = { ready: 0, unverified: 1, needs_models: 2, needs_nodes: 3, unmappable: 4, withdrawn: 5 };
+					return entries.slice().sort(function (a, b) {
+						var rank = (weight[a.status] === undefined ? 9 : weight[a.status]) - (weight[b.status] === undefined ? 9 : weight[b.status]);
+						return rank !== 0 ? rank : (a.size || 0) - (b.size || 0);
+					});
 				}
 
 				function setSummary(entries) {
 					var total = entries.length;
-					var mappable = entries.filter(function (entry) { return !!entry.modality; }).length;
+					var ready = entries.filter(function (entry) { return entry.status === 'ready'; }).length;
 					var enabled = entries.filter(function (entry) { return !!entry.enabled; }).length;
 					var materialized = entries.filter(function (entry) { return !!entry.template_id; }).length;
-					summary.textContent = 'Templates: ' + total + ' total, ' + mappable + ' mappable, ' + enabled + ' enabled, ' + materialized + ' materialized.';
+					summary.textContent = 'Templates: ' + total + ' discovered, ' + ready + ' ready to run, ' + enabled + ' enabled, ' + materialized + ' materialized.';
 				}
 
 				function withResponseMessage(response, fallback) {
@@ -704,21 +736,73 @@ class Connection {
 
 					setSummary(entries);
 
-					entries.forEach(function (entry) {
-						var row = document.createElement('p');
-						row.style.margin = '0 0 10px';
+					orderEntries(entries).forEach(function (entry) {
+						var row = document.createElement('div');
+						row.style.cssText = 'margin:0 0 10px;padding:10px;background:#fff;border:1px solid #dcdcde;border-left-width:4px;border-left-color:' + (entry.status === 'ready' ? '#00a32a' : (entry.status === 'unverified' ? '#dba617' : '#c3c4c7')) + ';';
+
+						var header = document.createElement('div');
+						header.style.cssText = 'display:flex;gap:10px;align-items:flex-start;';
+
+						if (entry.thumbnail) {
+							var thumb = document.createElement('img');
+							thumb.src = entry.thumbnail;
+							thumb.alt = '';
+							thumb.loading = 'lazy';
+							thumb.style.cssText = 'width:72px;height:72px;object-fit:cover;border-radius:3px;flex:0 0 auto;background:#f0f0f1;';
+							thumb.addEventListener('error', function () { thumb.remove(); });
+							header.appendChild(thumb);
+						}
+
+						var text = document.createElement('div');
+						text.style.flex = '1 1 auto';
+
 						var title = document.createElement('strong');
 						title.textContent = (entry.name || entry.id) + ' ';
-						row.appendChild(title);
+						text.appendChild(title);
 
 						var badge = document.createElement('span');
-						badge.textContent = '[' + badgeText(entry) + '] ';
+						badge.textContent = '[' + badgeText(entry) + ']';
 						badge.className = 'description';
-						row.appendChild(badge);
+						text.appendChild(badge);
+
+						var facts = [];
+						if (entry.model_type) {
+							facts.push(entry.model_type);
+						}
+						if (entry.size) {
+							facts.push('<?php echo esc_js( __( 'Download', 'worldgraph' ) ); ?>: ' + formatBytes(entry.size));
+						}
+						if (entry.api_only) {
+							facts.push('<?php echo esc_js( __( 'Billed per generation by the provider', 'worldgraph' ) ); ?>');
+						}
+						if (entry.missing_models && entry.missing_models.length) {
+							facts.push(entry.missing_models.length + ' <?php echo esc_js( __( 'model file(s) missing', 'worldgraph' ) ); ?>');
+						}
+						if (entry.missing_nodes && entry.missing_nodes.length) {
+							facts.push('<?php echo esc_js( __( 'Missing nodes', 'worldgraph' ) ); ?>: ' + entry.missing_nodes.join(', '));
+						}
+						if (facts.length) {
+							var meta = document.createElement('div');
+							meta.className = 'description';
+							meta.textContent = facts.join(' · ');
+							text.appendChild(meta);
+						}
+
+						if (entry.description) {
+							var blurb = document.createElement('div');
+							blurb.className = 'description';
+							blurb.style.cssText = 'margin-top:2px;max-width:70em;';
+							blurb.textContent = entry.description.length > 220 ? entry.description.slice(0, 219) + '…' : entry.description;
+							text.appendChild(blurb);
+						}
+
+						header.appendChild(text);
+						row.appendChild(header);
 
 						var enable = document.createElement('button');
 						enable.type = 'button';
 						enable.className = 'button button-small';
+						enable.style.marginTop = '8px';
 						enable.textContent = entry.enabled ? '<?php echo esc_js( __( 'Disable', 'worldgraph' ) ); ?>' : '<?php echo esc_js( __( 'Enable', 'worldgraph' ) ); ?>';
 						enable.addEventListener('click', function () {
 							if (isBusy) {
@@ -1078,6 +1162,10 @@ class Connection {
 	 * @return array|\WP_Error
 	 */
 	public static function catalog_download_entry( int $connection_id, string $entry_id ) {
+		if ( \WorldGraph\Utils\Comfy_Template_Registry::owns( $entry_id ) ) {
+			return self::catalog_download_registry_entry( $connection_id, $entry_id );
+		}
+
 		$result = \WorldGraph\Utils\Comfy_Manifest::request_provider_template_downloads( $entry_id, $connection_id );
 		if ( is_wp_error( $result ) ) {
 			return $result;
@@ -1087,6 +1175,64 @@ class Connection {
 			'message' => sprintf( __( 'Requested %d provider requirement download(s).', 'worldgraph' ), count( (array) ( $result['requested'] ?? [] ) ) ),
 			'result'  => $result,
 		];
+	}
+
+	/**
+	 * Install the models a published ComfyUI template needs.
+	 *
+	 * A ComfyUI reached over plain HTTP has no download API, so where the fetch
+	 * cannot be delegated the operator is told exactly which file belongs in
+	 * which folder rather than being left with a template that will not run.
+	 *
+	 * @param int    $connection_id Connection post ID.
+	 * @param string $entry_id      Registry entry ID.
+	 * @return array|\WP_Error
+	 */
+	private static function catalog_download_registry_entry( int $connection_id, string $entry_id ) {
+		$endpoint  = (string) get_post_meta( $connection_id, 'endpoint_url', true );
+		$readiness = \WorldGraph\Utils\Comfy_Template_Registry::readiness( $entry_id, $endpoint );
+		if ( is_wp_error( $readiness ) ) {
+			return $readiness;
+		}
+
+		$missing = (array) ( $readiness['missing'] ?? [] );
+		if ( empty( $missing ) ) {
+			return [ 'message' => __( 'Every model this template needs is already installed.', 'worldgraph' ), 'result' => [] ];
+		}
+
+		$urls   = [];
+		$manual = [];
+		foreach ( $missing as $model ) {
+			if ( ! empty( $model['url'] ) ) {
+				$urls[] = (string) $model['url'];
+				continue;
+			}
+			$manual[] = sprintf( '%s (models/%s)', (string) $model['filename'], (string) $model['folder'] );
+		}
+
+		if ( ! empty( $urls ) ) {
+			$result = \WorldGraph\Utils\Comfy_Cloud_MCP::download_models( $urls, $connection_id );
+			if ( ! is_wp_error( $result ) ) {
+				return [
+					'message' => sprintf( __( 'Requested %d model download(s).', 'worldgraph' ), count( $urls ) ),
+					'result'  => $result,
+				];
+			}
+
+			foreach ( $missing as $model ) {
+				$manual[] = sprintf( '%s → models/%s (%s)', (string) $model['filename'], (string) $model['folder'], (string) ( $model['url'] ?? '' ) );
+			}
+		}
+
+		return new \WP_Error(
+			'worldgraph_registry_manual_install',
+			sprintf(
+				/* translators: %s: newline-separated install instructions. */
+				__( 'This ComfyUI cannot be asked to download models. Install these files manually: %s', 'worldgraph' ),
+				implode( '; ', array_unique( $manual ) )
+			),
+			[ 'missing' => $missing ]
+		);
 	}
 
 	/**
@@ -1107,6 +1253,12 @@ class Connection {
 
 		foreach ( $entries as $entry ) {
 			if ( ! is_array( $entry ) || empty( $entry['modality'] ) ) {
+				continue;
+			}
+
+			// A published template that is missing models cannot be converted,
+			// so auto-preparation only claims the ones already runnable.
+			if ( 'registry' === ( $entry['source'] ?? '' ) && 'ready' !== ( $entry['status'] ?? '' ) ) {
 				continue;
 			}
 
