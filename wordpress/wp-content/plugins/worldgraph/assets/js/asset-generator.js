@@ -203,16 +203,14 @@
 		}
 	}
 
-	function rememberTemplateSelections( panel ) {
+	function rememberTemplateSelection( panel, type ) {
 		var target = panel._worldgraphRenderedTarget;
 		if ( ! target ) {
 			return;
 		}
 		panel._worldgraphTemplateSelections = panel._worldgraphTemplateSelections || {};
-		panel._worldgraphTemplateSelections[ target ] = {
-			image: panel.querySelector( '.worldgraph-generate-asset__template' ).value,
-			video: panel.querySelector( '.worldgraph-generate-asset__video-template' ).value
-		};
+		panel._worldgraphTemplateSelections[ target ] = panel._worldgraphTemplateSelections[ target ] || {};
+		panel._worldgraphTemplateSelections[ target ][ type ] = templateSelect( panel, type ).value;
 	}
 
 	function savedTemplate( panel, target, type ) {
@@ -1042,7 +1040,6 @@
 
 	function renderTarget( panel ) {
 		rememberRunControls( panel );
-		rememberTemplateSelections( panel );
 		rememberDirectOptions( panel );
 		var target = currentTarget( panel );
 		var info = targetInfo( target );
@@ -1253,7 +1250,6 @@
 
 		var idempotencyProperty = 'project' === scope ? '_worldgraphProjectBatchKey' : '_worldgraphItemBatchKey';
 		panel[ idempotencyProperty ] = panel[ idempotencyProperty ] || uuid();
-		rememberTemplateSelections( panel );
 		var payload = {
 			post_id: parseInt( panel.dataset.postId, 10 ),
 			scope: scope,
@@ -1422,7 +1418,6 @@
 					if ( ! input.checked || ! panel._worldgraphPromptBody ) {
 						return;
 					}
-					rememberTemplateSelections( panel );
 					if ( panel._worldgraphRenderedMode ) {
 						panel._worldgraphModeTargets[ panel._worldgraphRenderedMode ] = currentTarget( panel );
 					}
@@ -1437,13 +1432,13 @@
 			} );
 			panel.querySelector( '.worldgraph-generate-asset__template' ).addEventListener( 'change', function () {
 				rememberRunControls( panel );
-				rememberTemplateSelections( panel );
+				rememberTemplateSelection( panel, 'image' );
 				renderRunControlsForSelection( panel );
 				updatePrimaryState( panel );
 			} );
 			panel.querySelector( '.worldgraph-generate-asset__video-template' ).addEventListener( 'change', function () {
 				rememberRunControls( panel );
-				rememberTemplateSelections( panel );
+				rememberTemplateSelection( panel, 'video' );
 				renderRunControlsForSelection( panel );
 				updatePrimaryState( panel );
 			} );

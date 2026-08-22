@@ -174,7 +174,7 @@ class Comfy_Readiness {
 			Comfy_Bootstrap::status( true ),
 			sprintf(
 				/* translators: 1: Template title, 2: baseline checkpoint label. */
-				__( 'Using %1$s. This local text-to-image workflow runs on stock ComfyUI nodes at 1024x1024 and expects %2$s, or any other SDXL-class checkpoint already installed on this ComfyUI. If that model is missing, the checklist above states what to install.', 'worldgraph' ),
+				__( 'Using %1$s. The fallback local text-to-image graph runs on stock ComfyUI nodes and expects %2$s, or another checkpoint compatible with that workflow. If that model is missing, the checklist above states what to install.', 'worldgraph' ),
 				get_the_title( $template_id ),
 				Comfy_Bootstrap::DEFAULT_CHECKPOINT_LABEL
 			)

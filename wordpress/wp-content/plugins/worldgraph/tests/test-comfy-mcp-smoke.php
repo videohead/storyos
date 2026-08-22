@@ -10,6 +10,21 @@ use PHPUnit\Framework\TestCase;
 class Test_Comfy_MCP_Smoke extends TestCase {
 
 	/**
+	 * Setup guidance must only reference metadata exposed by the current
+	 * fallback checkpoint contract.
+	 */
+	public function test_setup_guidance_matches_the_sd15_fallback(): void {
+		require_once dirname( __DIR__ ) . '/includes/utils/comfy-bootstrap.php';
+
+		$wizard    = (string) file_get_contents( dirname( __DIR__ ) . '/includes/admin/setup-wizard.php' );
+		$readiness = (string) file_get_contents( dirname( __DIR__ ) . '/includes/admin/comfy-readiness.php' );
+
+		$this->assertSame( 'Stable Diffusion 1.5 (FP16)', \WorldGraph\Utils\Comfy_Bootstrap::DEFAULT_CHECKPOINT_LABEL );
+		$this->assertStringNotContainsString( 'DEFAULT_CHECKPOINT_SIZE', $wizard );
+		$this->assertStringNotContainsString( 'SDXL-class', $wizard . $readiness );
+	}
+
+	/**
 	 * MCP tool payloads with isError=true must be normalized into WP_Error so
 	 * Generation_Batch can trigger local fallback when available.
 	 */

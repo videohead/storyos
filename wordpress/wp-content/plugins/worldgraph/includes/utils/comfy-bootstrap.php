@@ -44,6 +44,11 @@ class Comfy_Bootstrap {
 	const DEFAULT_CHECKPOINT = 'v1-5-pruned-emaonly-fp16.safetensors';
 
 	/**
+	 * Human-readable name of ComfyUI's default checkpoint.
+	 */
+	const DEFAULT_CHECKPOINT_LABEL = 'Stable Diffusion 1.5 (FP16)';
+
+	/**
 	 * Where that checkpoint is published, for the one-click model install.
 	 */
 	const DEFAULT_CHECKPOINT_URL = 'https://huggingface.co/Comfy-Org/stable-diffusion-v1-5-archive/resolve/main/v1-5-pruned-emaonly-fp16.safetensors';
