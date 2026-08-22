@@ -267,6 +267,26 @@ class Comfy_Cloud_MCP {
 			return $result;
 		}
 
+		if ( ! empty( $result['isError'] ) ) {
+			$message = '';
+			if ( isset( $result['content'] ) && is_array( $result['content'] ) ) {
+				foreach ( $result['content'] as $content ) {
+					if ( isset( $content['text'] ) ) {
+						$message = trim( (string) $content['text'] );
+						if ( '' !== $message ) {
+							break;
+						}
+					}
+				}
+			}
+
+			return new WP_Error(
+				'comfy_mcp_tool_error',
+				'' !== $message ? $message : __( 'Comfy Cloud MCP reported a tool error.', 'worldgraph' ),
+				is_array( $result ) ? $result : []
+			);
+		}
+
 		if ( isset( $result['structuredContent'] ) && is_array( $result['structuredContent'] ) ) {
 			return $result['structuredContent'];
 		}

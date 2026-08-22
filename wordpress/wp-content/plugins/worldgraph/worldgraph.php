@@ -235,6 +235,7 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/helpers.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/cpt-key-migration.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/generation-log.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/template-smoke-check.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/generation-modality.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/connection-adapters.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/utils/generation-batch.php';
@@ -276,6 +277,7 @@ function init(): void {
 	CPT\Connection::init();
 	Utils\worldgraph_register_generation_record_type();
 	Utils\worldgraph_maybe_migrate_cpt_keys();
+	Utils\Template_Smoke_Check::init();
 	Utils\Connection_Adapters::load_configured();
 
 	// Register taxonomies.

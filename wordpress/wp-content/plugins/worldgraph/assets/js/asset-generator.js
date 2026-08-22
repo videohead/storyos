@@ -41,6 +41,70 @@
 		return [ 'completed', 'completed_with_errors', 'cancelled', 'failed' ].indexOf( status ) !== -1;
 	}
 
+	function isSingleTerminal( status ) {
+		return [ 'completed', 'cancelled', 'failed' ].indexOf( status ) !== -1;
+	}
+
+	function generationStatusBaseUrl() {
+		if ( settings.generationRestUrl ) {
+			return settings.generationRestUrl;
+		}
+		return settings.restUrl.replace( /\/assets\/generate$/, '/generation' );
+	}
+
+	function clearSinglePoll( panel ) {
+		if ( panel._worldgraphSinglePollTimer ) {
+			window.clearTimeout( panel._worldgraphSinglePollTimer );
+		}
+		panel._worldgraphSinglePollTimer = null;
+		panel._worldgraphSingleWatchToken = ( panel._worldgraphSingleWatchToken || 0 ) + 1;
+	}
+
+	function watchSingleJob( panel, generationId, type ) {
+		clearSinglePoll( panel );
+		var watchToken = panel._worldgraphSingleWatchToken;
+		var queued = 'video' === type ? strings.queuedVideo : strings.queuedImage;
+
+		function poll() {
+			if ( watchToken !== panel._worldgraphSingleWatchToken ) {
+				return;
+			}
+
+			request( generationStatusBaseUrl() + '/' + encodeURIComponent( generationId ) )
+				.then( function ( body ) {
+					if ( watchToken !== panel._worldgraphSingleWatchToken ) {
+						return;
+					}
+
+					var status = body.status || 'unknown';
+					if ( 'completed' === status ) {
+						setStatus( panel, '' );
+						renderResult( panel, body, type );
+						clearSinglePoll( panel );
+						return;
+					}
+
+					if ( isSingleTerminal( status ) ) {
+						setStatus( panel, body.error || strings.error, true );
+						clearSinglePoll( panel );
+						return;
+					}
+
+					setStatus( panel, queued + ' (' + status + ')' + ' (' + strings.job + ' #' + generationId + ')' );
+					panel._worldgraphSinglePollTimer = window.setTimeout( poll, settings.pollIntervalMs || 15000 );
+				} )
+				.catch( function ( error ) {
+					if ( watchToken !== panel._worldgraphSingleWatchToken ) {
+						return;
+					}
+					setStatus( panel, error.message, true );
+					panel._worldgraphSinglePollTimer = window.setTimeout( poll, Math.max( 30000, settings.pollIntervalMs || 15000 ) );
+				} );
+		}
+
+		panel._worldgraphSinglePollTimer = window.setTimeout( poll, settings.pollIntervalMs || 15000 );
+	}
+
 	function targetInfo( value ) {
 		if ( 0 === value.indexOf( 'single:' ) ) {
 			return { kind: 'single', intent: value.slice( 7 ) };
@@ -611,6 +675,7 @@
 	}
 
 	function generateSingle( panel, action ) {
+		clearSinglePoll( panel );
 		var templateId = parseInt( templateSelect( panel, action.type ).value, 10 ) || 0;
 		if ( ! templateId ) {
 			setStatus( panel, 'video' === action.type ? strings.unconfiguredVideo : strings.unconfiguredImage, true );
@@ -634,8 +699,12 @@
 				if ( 'queued' === body.status ) {
 					var queued = 'video' === action.type ? strings.queuedVideo : strings.queuedImage;
 					setStatus( panel, queued + ( body.generation_id ? ' (' + strings.job + ' #' + body.generation_id + ')' : '' ) );
+					if ( body.generation_id ) {
+						watchSingleJob( panel, body.generation_id, action.type );
+					}
 					return;
 				}
+				clearSinglePoll( panel );
 				setStatus( panel, '' );
 				renderResult( panel, body, action.type );
 			} )

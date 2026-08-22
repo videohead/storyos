@@ -447,6 +447,10 @@ class Generation_Controller extends Base_Controller {
 	public static function get_generation_status( WP_REST_Request $request ) {
 		$generation_id = absint( $request->get_param( 'id' ) );
 		$job_id = get_post_meta( $generation_id, '_worldgraph_gen_job_id', true );
+		$attachment_id = absint( get_post_meta( $generation_id, '_worldgraph_gen_attachment_id', true ) );
+		$asset_id = absint( get_post_meta( $generation_id, '_worldgraph_gen_asset_id', true ) );
+		$url = $attachment_id ? (string) wp_get_attachment_url( $attachment_id ) : '';
+		$thumbnail_url = $attachment_id ? (string) wp_get_attachment_image_url( $attachment_id, 'thumbnail' ) : '';
 
 		$generation = [
 			'id'            => $generation_id,
@@ -457,6 +461,11 @@ class Generation_Controller extends Base_Controller {
 			'provider_type' => get_post_meta( $generation_id, '_worldgraph_gen_provider_type', true ),
 			'connection_id' => absint( get_post_meta( $generation_id, '_worldgraph_gen_connection_id', true ) ),
 			'created'       => get_post_meta( $generation_id, '_worldgraph_gen_created', true ),
+			'attachment_id' => $attachment_id,
+			'asset_id'      => $asset_id,
+			'url'           => $url,
+			'thumbnail_url' => $thumbnail_url,
+			'error'         => (string) get_post_meta( $generation_id, '_worldgraph_gen_error', true ),
 		];
 
 		return rest_ensure_response( $generation );

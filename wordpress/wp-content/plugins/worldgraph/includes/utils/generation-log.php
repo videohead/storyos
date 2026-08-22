@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Generation_Log {
 	const OPTION = 'worldgraph_gen_log';
 	const MAX_ENTRIES = 200;
+	const LOG_SUBDIR = 'worldgraph/logs';
+	const LOG_FILENAME = 'generation.log';
 
 	/**
 	 * Append a log entry.
@@ -44,7 +46,7 @@ class Generation_Log {
 			$entries = array_slice( $entries, -self::MAX_ENTRIES );
 		}
 
-		update_option( self::OPTION, $entries, false );
+		self::write_entries( $entries );
 	}
 
 	/**
@@ -54,8 +56,15 @@ class Generation_Log {
 	 * @return array
 	 */
 	public static function all( int $connection_id = 0 ): array {
-		$entries = get_option( self::OPTION, [] );
-		$entries = is_array( $entries ) ? $entries : [];
+		$entries = self::read_entries();
+
+		if ( empty( $entries ) ) {
+			$legacy = get_option( self::OPTION, [] );
+			if ( is_array( $legacy ) && ! empty( $legacy ) ) {
+				$entries = $legacy;
+				self::write_entries( $entries );
+			}
+		}
 
 		if ( $connection_id > 0 ) {
 			$entries = array_values( array_filter( $entries, static function ( $entry ) use ( $connection_id ) {
@@ -70,6 +79,83 @@ class Generation_Log {
 	 * Clear the log.
 	 */
 	public static function clear(): void {
+		$file = self::log_file_path();
+		if ( '' !== $file && file_exists( $file ) ) {
+			wp_delete_file( $file );
+		}
 		delete_option( self::OPTION );
+	}
+
+	/**
+	 * Resolve the filesystem path for the generation log file.
+	 *
+	 * @return string
+	 */
+	private static function log_file_path(): string {
+		$uploads = wp_upload_dir();
+		$basedir = is_array( $uploads ) ? (string) ( $uploads['basedir'] ?? '' ) : '';
+		if ( '' === $basedir ) {
+			return '';
+		}
+
+		$dir = trailingslashit( $basedir ) . self::LOG_SUBDIR;
+		wp_mkdir_p( $dir );
+
+		return trailingslashit( $dir ) . self::LOG_FILENAME;
+	}
+
+	/**
+	 * Read log entries from the JSONL generation log file.
+	 *
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function read_entries(): array {
+		$file = self::log_file_path();
+		if ( '' === $file || ! is_readable( $file ) ) {
+			return [];
+		}
+
+		$lines = @file( $file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES );
+		if ( ! is_array( $lines ) ) {
+			return [];
+		}
+
+		$entries = [];
+		foreach ( $lines as $line ) {
+			$decoded = json_decode( (string) $line, true );
+			if ( is_array( $decoded ) ) {
+				$entries[] = $decoded;
+			}
+		}
+
+		return $entries;
+	}
+
+	/**
+	 * Persist log entries to disk as JSON Lines.
+	 *
+	 * @param array<int, array<string, mixed>> $entries Entries ordered oldest-first.
+	 */
+	private static function write_entries( array $entries ): void {
+		$file = self::log_file_path();
+		if ( '' === $file ) {
+			return;
+		}
+
+		if ( count( $entries ) > self::MAX_ENTRIES ) {
+			$entries = array_slice( $entries, -self::MAX_ENTRIES );
+		}
+
+		$lines = [];
+		foreach ( $entries as $entry ) {
+			$lines[] = wp_json_encode( $entry );
+		}
+
+		$payload = implode( "\n", array_filter( $lines, 'is_string' ) );
+		if ( '' !== $payload ) {
+			$payload .= "\n";
+		}
+
+		file_put_contents( $file, $payload, LOCK_EX );
 	}
 }

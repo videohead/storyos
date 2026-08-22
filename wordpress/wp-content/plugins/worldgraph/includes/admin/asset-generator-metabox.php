@@ -98,6 +98,7 @@ class Asset_Generator_MetaBox {
 
 		wp_localize_script( 'worldgraph-asset-generator', 'worldgraphAssetGenerator', [
 			'restUrl'        => rest_url( 'worldgraph/v1/assets/generate' ),
+			'generationRestUrl' => rest_url( 'worldgraph/v1/generation' ),
 			'nonce'          => wp_create_nonce( 'wp_rest' ),
 			'pollIntervalMs' => 15000,
 			'i18n'           => [

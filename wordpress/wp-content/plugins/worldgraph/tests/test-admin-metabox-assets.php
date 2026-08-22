@@ -42,6 +42,7 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'Additional instructions for this run', $metabox );
 		$this->assertStringContainsString( 'Review the generated prompt or workflow plan', $metabox );
 		$this->assertStringContainsString( "self::asset_version( 'assets/js/asset-generator.js' )", $metabox );
+		$this->assertStringContainsString( "'generationRestUrl' => rest_url( 'worldgraph/v1/generation' )", $metabox );
 		$this->assertStringNotContainsString( 'Detailed prompt preview', $metabox );
 		$this->assertStringNotContainsString( 'worldgraph-generate-asset__suggest', $metabox );
 		$this->assertStringNotContainsString( 'Automatic per intent', $metabox );
@@ -54,6 +55,10 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( "video: actions.some", $script );
 		$this->assertStringContainsString( 'type: action.type', $script );
 		$this->assertStringContainsString( 'intent: action.intent', $script );
+		$this->assertStringContainsString( 'function watchSingleJob( panel, generationId, type )', $script );
+		$this->assertStringContainsString( 'generationStatusBaseUrl() + \'/\' + encodeURIComponent( generationId )', $script );
+		$this->assertStringContainsString( 'if ( body.generation_id ) {', $script );
+		$this->assertStringContainsString( 'watchSingleJob( panel, body.generation_id, action.type );', $script );
 		$this->assertStringContainsString( 'base_prompt:', $script );
 		$this->assertStringContainsString( 'startBatch( panel, info.scope )', $script );
 		$this->assertStringContainsString( 'selectHasEnabledOption( template )', $script );
