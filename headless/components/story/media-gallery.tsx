@@ -40,7 +40,7 @@ export function MediaGallery({
   return (
     <section aria-label={label} className="space-y-3">
       <div className="overflow-hidden rounded-wg border-2 border-wg-espresso bg-white shadow-wg">
-        <MediaPlayer media={selected} eager />
+        <MediaPlayer key={`${selected.id}:${selected.url}`} media={selected} eager />
         {(selected.caption || hasMultiple) && (
           <div className="flex items-center justify-between gap-4 border-t border-wg-sepia/35 px-4 py-3 text-sm">
             <p className="text-wg-charcoal/75">

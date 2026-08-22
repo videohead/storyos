@@ -495,9 +495,13 @@ function worldgraph_get_project_display_analytics( int $project_id, bool $includ
 	$visible_ids = [];
 	$nodes       = [];
 	foreach ( (array) ( $graph['nodes'] ?? [] ) as $node ) {
-		$node_id = absint( $node['id'] ?? 0 );
+		$node_id   = absint( $node['id'] ?? 0 );
 		$node_type = (string) ( $node['type'] ?? '' );
-		if ( $node_id && in_array( $node_type, worldgraph_story_display_graph_post_types(), true ) && worldgraph_story_display_can_read( $node_id, $include_private ) ) {
+		$node_post = $node_id ? get_post( $node_id ) : null;
+		$can_read  = $include_private
+			? worldgraph_story_display_can_read( $node_id, true )
+			: $node_post instanceof \WP_Post && 'publish' === $node_post->post_status && '' === (string) $node_post->post_password;
+		if ( $node_id && in_array( $node_type, worldgraph_story_display_graph_post_types(), true ) && $can_read ) {
 			$visible_ids[ $node_id ] = true;
 			$nodes[]                 = $node;
 		}

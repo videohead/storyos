@@ -121,6 +121,8 @@ class Story_Media_Gallery {
 				<?php esc_html_e( 'Choose and order supporting images, audio, or video for the WordPress and headless story displays. Featured media remains the primary image. Generated view frames with a named intent display in their canonical view order.', 'worldgraph' ); ?>
 			</p>
 			<input type="hidden" name="worldgraph_story_media_gallery_ids" value="<?php echo esc_attr( implode( ',', $attachment_ids ) ); ?>" data-gallery-input />
+			<input type="hidden" name="worldgraph_story_media_gallery_original_ids" value="<?php echo esc_attr( implode( ',', $attachment_ids ) ); ?>" />
+			<input type="hidden" name="worldgraph_story_media_gallery_revision" value="<?php echo esc_attr( hash( 'sha256', implode( ',', $attachment_ids ) ) ); ?>" />
 			<ul class="worldgraph-story-gallery__items" data-gallery-items>
 				<?php foreach ( $attachment_ids as $attachment_id ) : ?>
 					<?php
@@ -188,13 +190,29 @@ class Story_Media_Gallery {
 			return;
 		}
 
-		$raw_ids = isset( $_POST['worldgraph_story_media_gallery_ids'] ) ? sanitize_text_field( wp_unslash( $_POST['worldgraph_story_media_gallery_ids'] ) ) : '';
-		$ids     = array_values( array_unique( array_filter( array_map( 'absint', explode( ',', $raw_ids ) ) ) ) );
+		$raw_ids      = isset( $_POST['worldgraph_story_media_gallery_ids'] ) ? sanitize_text_field( wp_unslash( $_POST['worldgraph_story_media_gallery_ids'] ) ) : '';
+		$raw_original = isset( $_POST['worldgraph_story_media_gallery_original_ids'] ) ? sanitize_text_field( wp_unslash( $_POST['worldgraph_story_media_gallery_original_ids'] ) ) : '';
+		$revision     = isset( $_POST['worldgraph_story_media_gallery_revision'] ) ? sanitize_text_field( wp_unslash( $_POST['worldgraph_story_media_gallery_revision'] ) ) : '';
+		$ids          = array_values( array_unique( array_filter( array_map( 'absint', explode( ',', $raw_ids ) ) ) ) );
+		$original_ids = array_values( array_unique( array_filter( array_map( 'absint', explode( ',', $raw_original ) ) ) ) );
+		$current_ids  = array_values( array_unique( array_filter( array_map( 'absint', (array) get_post_meta( $post_id, self::META_KEY, true ) ) ) ) );
+		$current_revision = hash( 'sha256', implode( ',', $current_ids ) );
+
+		// Preserve media appended by an async generator or another editor after
+		// this edit screen loaded, while still honoring intentional removals and
+		// additions made in the submitted gallery.
+		if ( $revision && ! hash_equals( $current_revision, $revision ) ) {
+			$retained_current     = array_values( array_intersect( $ids, $current_ids ) );
+			$user_additions       = array_values( array_diff( $ids, $original_ids ) );
+			$concurrent_additions = array_values( array_diff( $current_ids, $original_ids ) );
+			$ids                  = array_values( array_unique( array_merge( $retained_current, $user_additions, $concurrent_additions ) ) );
+		}
+
 		$ids     = array_values(
 			array_filter(
 				$ids,
-				static function( int $attachment_id ): bool {
-					if ( 'attachment' !== get_post_type( $attachment_id ) ) {
+				static function( int $attachment_id ) use ( $current_ids ): bool {
+					if ( 'attachment' !== get_post_type( $attachment_id ) || ( ! in_array( $attachment_id, $current_ids, true ) && ! current_user_can( 'edit_post', $attachment_id ) ) ) {
 						return false;
 					}
 					$mime_type = (string) get_post_mime_type( $attachment_id );

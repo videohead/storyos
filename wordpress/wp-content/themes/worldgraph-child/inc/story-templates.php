@@ -525,10 +525,8 @@ function worldgraph_child_render_story_collection_block( $attributes ) {
 			'posts_per_page'      => $posts_per_page,
 			'paged'               => $paged,
 			'ignore_sticky_posts' => true,
-			'orderby'             => array(
-				'menu_order' => 'ASC',
-				'title'      => 'ASC',
-			),
+			'orderby'             => 'title',
+			'order'               => 'ASC',
 		)
 	);
 
@@ -637,7 +635,7 @@ function worldgraph_child_render_story_item( $post_id, $detail = false ) {
 		);
 	}
 
-	$expanded        = $detail || in_array( $post->post_type, array( 'worldgraph_world', 'worldgraph_scene' ), true );
+	$expanded        = $detail;
 	$include_private = current_user_can( 'edit_post', $post->ID );
 	$payload         = \WorldGraph\Utils\worldgraph_get_story_display_payload( $post->ID, $expanded, $include_private );
 
@@ -1041,16 +1039,10 @@ function worldgraph_child_render_scene_story( $post, $payload, $detail ) {
 			<?php echo worldgraph_child_story_detail_section( __( 'Script', 'worldgraph-child' ), worldgraph_child_story_field_text( $post->ID, 'script_content' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Helper sanitizes HTML. ?>
 			<?php echo worldgraph_child_story_detail_section( __( 'Production notes', 'worldgraph-child' ), worldgraph_child_story_field_text( $post->ID, 'production_notes' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Helper sanitizes HTML. ?>
 		<?php else : ?>
-			<div class="wg-scene-card__reel" aria-label="<?php echo esc_attr( sprintf( _n( '%s shot', '%s shots', count( $shots ), 'worldgraph-child' ), number_format_i18n( count( $shots ) ) ) ); ?>">
-				<?php if ( $shots ) : ?>
-					<?php foreach ( array_slice( $shots, 0, 3 ) as $shot ) : ?>
-						<?php $shot_image = worldgraph_child_story_first_image( (array) ( $shot['media'] ?? array() ) ); ?>
-						<span><?php echo $shot_image ? worldgraph_child_story_media_element( $shot_image, (string) ( $shot['title'] ?? '' ) ) : esc_html( (string) ( $shot['meta']['shot_number'] ?? '—' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Renderer escapes media; fallback escaped. ?></span>
-					<?php endforeach; ?>
-				<?php else : ?>
-					<span class="wg-scene-card__no-shots"><?php esc_html_e( 'No shots', 'worldgraph-child' ); ?></span>
-				<?php endif; ?>
-			</div>
+			<?php
+			$figure = worldgraph_child_story_featured_figure( $media, get_the_title( $post ), 'wg-scene-card__media' );
+			echo $figure ? $figure : worldgraph_child_story_empty_state( __( 'Scene media pending', 'worldgraph-child' ), __( 'Open the Scene to view its published Shot sequence.', 'worldgraph-child' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Both helpers escape fields.
+			?>
 			<a class="wg-story-link" href="<?php echo esc_url( get_permalink( $post ) ); ?>"><?php esc_html_e( 'Open shot sequence', 'worldgraph-child' ); ?><span aria-hidden="true"> &rarr;</span></a>
 		<?php endif; ?>
 	</article>

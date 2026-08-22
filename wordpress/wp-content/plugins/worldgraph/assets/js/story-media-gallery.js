@@ -127,26 +127,25 @@
 			updateValue();
 		} );
 
-		let frame;
 		add.addEventListener( 'click', () => {
-			if ( ! frame ) {
-				frame = window.wp.media( {
-					title: config.title || 'Choose story media',
-					button: { text: config.button || 'Add to story gallery' },
-					library: { type: [ 'image', 'audio', 'video' ] },
-					multiple: true,
+			// A fresh frame avoids Backbone retaining media that the editor removed
+			// from this gallery between successive openings.
+			const frame = window.wp.media( {
+				title: config.title || 'Choose story media',
+				button: { text: config.button || 'Add to story gallery' },
+				library: { type: [ 'image', 'audio', 'video' ] },
+				multiple: true,
+			} );
+			frame.on( 'select', () => {
+				const existing = new Set( Array.from( list.querySelectorAll( '[data-attachment-id]' ) ).map( ( item ) => item.dataset.attachmentId ) );
+				frame.state().get( 'selection' ).toJSON().forEach( ( attachment ) => {
+					if ( ! existing.has( String( attachment.id ) ) ) {
+						list.appendChild( createItem( attachment ) );
+						existing.add( String( attachment.id ) );
+					}
 				} );
-				frame.on( 'select', () => {
-					const existing = new Set( Array.from( list.querySelectorAll( '[data-attachment-id]' ) ).map( ( item ) => item.dataset.attachmentId ) );
-					frame.state().get( 'selection' ).toJSON().forEach( ( attachment ) => {
-						if ( ! existing.has( String( attachment.id ) ) ) {
-							list.appendChild( createItem( attachment ) );
-							existing.add( String( attachment.id ) );
-						}
-					} );
-					updateValue();
-				} );
-			}
+				updateValue();
+			} );
 			frame.open();
 		} );
 

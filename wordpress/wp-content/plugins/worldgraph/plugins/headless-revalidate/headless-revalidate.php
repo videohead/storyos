@@ -24,6 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'WORLDGRAPH_HEADLESS_VERSION', '1.1.0' );
 define( 'WORLDGRAPH_HEADLESS_OPTION', 'worldgraph_headless_settings' );
+define( 'WORLDGRAPH_HEADLESS_NOTICE', 'worldgraph_headless_revalidation_failure' );
 
 /**
  * Whether headless revalidation is enabled (requires both a site URL and secret).
@@ -56,6 +57,7 @@ function get_settings(): array {
 function init(): void {
 	add_action( 'admin_menu', __NAMESPACE__ . '\\add_settings_page' );
 	add_action( 'admin_init', __NAMESPACE__ . '\\register_settings' );
+	add_action( 'admin_notices', __NAMESPACE__ . '\\render_failure_notice' );
 
 	if ( ! is_enabled() ) {
 		return;
@@ -188,6 +190,37 @@ function render_settings_page(): void {
 	<?php
 }
 
+/** Show the most recent webhook failure when notifications are enabled. */
+function render_failure_notice(): void {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$message = get_transient( WORLDGRAPH_HEADLESS_NOTICE );
+	if ( ! is_string( $message ) || '' === $message ) {
+		return;
+	}
+	delete_transient( WORLDGRAPH_HEADLESS_NOTICE );
+	?>
+	<div class="notice notice-error is-dismissible"><p>
+		<?php echo esc_html( $message ); ?>
+	</p></div>
+	<?php
+}
+
+/**
+ * Log a webhook failure and optionally surface it to administrators.
+ *
+ * @param string               $message  Human-readable failure.
+ * @param array<string, mixed> $settings Module settings.
+ */
+function record_failure( string $message, array $settings ): void {
+	error_log( '[worldgraph-headless] ' . $message );
+	if ( ! empty( $settings['notifications'] ) ) {
+		set_transient( WORLDGRAPH_HEADLESS_NOTICE, $message, MINUTE_IN_SECONDS );
+	}
+}
+
 /**
  * Send the revalidation webhook to the headless frontend.
  *
@@ -212,7 +245,7 @@ function send_webhook( string $content_type, $content_id = null, ?string $slug =
 		$payload['storyType'] = $story_type;
 	}
 
-	$response = wp_remote_post(
+	$response = wp_safe_remote_post(
 		untrailingslashit( $settings['next_url'] ) . '/api/revalidate',
 		[
 			'timeout' => 10,
@@ -224,18 +257,14 @@ function send_webhook( string $content_type, $content_id = null, ?string $slug =
 		]
 	);
 
-	if ( ! is_wp_error( $response ) && ! $settings['notifications'] ) {
-		return;
-	}
-
 	if ( is_wp_error( $response ) ) {
-		error_log( '[worldgraph-headless] Revalidation webhook failed: ' . $response->get_error_message() );
+		record_failure( 'Revalidation webhook failed: ' . $response->get_error_message(), $settings );
 		return;
 	}
 
 	$status = wp_remote_retrieve_response_code( $response );
 	if ( $status >= 400 ) {
-		error_log( '[worldgraph-headless] Revalidation webhook returned HTTP ' . $status );
+		record_failure( 'Revalidation webhook returned HTTP ' . $status, $settings );
 	}
 }
 
@@ -293,11 +322,15 @@ function is_story_display_dependency( string $post_type ): bool {
 /**
  * Queue Story invalidations until WordPress has finished saving all metadata.
  *
- * @param int $post_id Story or supporting post ID.
+ * @param int  $post_id Story or supporting post ID.
+ * @param bool $force   Queue an unpublish transition whose current status is private.
  */
-function queue_story_revalidation( int $post_id ): void {
+function queue_story_revalidation( int $post_id, bool $force = false ): void {
 	$post = get_post( $post_id );
 	if ( ! $post instanceof \WP_Post || ! is_story_display_dependency( $post->post_type ) ) {
+		return;
+	}
+	if ( ! $force && 'publish' !== $post->post_status && ! ( 'attachment' === $post->post_type && 'inherit' === $post->post_status ) ) {
 		return;
 	}
 
@@ -334,6 +367,11 @@ function flush_story_revalidation_queue(): void {
 	$queue = $GLOBALS['worldgraph_headless_story_queue'] ?? [];
 	unset( $GLOBALS['worldgraph_headless_story_queue'] );
 
+	if ( isset( $queue['story'] ) || count( $queue ) > 1 ) {
+		send_webhook( 'story' );
+		return;
+	}
+
 	foreach ( $queue as $item ) {
 		send_webhook( 'story', $item['id'], $item['slug'], $item['story_type'] );
 	}
@@ -364,7 +402,7 @@ function on_story_post_saved( int $post_id, \WP_Post $post, bool $update ): void
  */
 function on_story_display_meta_changed( int|array $meta_id, int $post_id, string $meta_key ): void {
 	unset( $meta_id );
-	if ( in_array( $meta_key, [ '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', 'worldgraph_relationships' ], true ) ) {
+	if ( in_array( $meta_key, [ '_thumbnail_id', '_worldgraph_asset_gallery_ids', '_worldgraph_gen_intent', 'storage_uri', 'worldgraph_relationships' ], true ) ) {
 		queue_story_revalidation( $post_id );
 	}
 }
@@ -406,6 +444,19 @@ function on_story_object_terms_set( int $object_id, $terms, array $tt_ids, strin
  * @param \WP_Post  $post       Post object.
  */
 function on_post_status_transition( string $new_status, string $old_status, \WP_Post $post ): void {
+	if ( is_story_display_dependency( $post->post_type ) ) {
+		if ( $new_status !== $old_status && array_intersect( [ $new_status, $old_status ], [ 'publish', 'inherit' ] ) ) {
+			if ( in_array( $new_status, [ 'publish', 'inherit' ], true ) ) {
+				queue_story_revalidation( $post->ID, true );
+			} else {
+				// The private record's current slug is no longer needed externally;
+				// the broad tag removes its previously public representation.
+				queue_broad_story_revalidation();
+			}
+		}
+		return;
+	}
+
 	if ( 'publish' !== $new_status && 'publish' !== $old_status ) {
 		return;
 	}

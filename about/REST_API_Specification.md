@@ -111,6 +111,12 @@ POST /wp-json/worldgraph/v1/scenes/reorder
 POST /wp-json/worldgraph/v1/shots/reorder
 ```
 
+`shots/reorder` requires `scene_id` plus `ordered_ids` containing that Scene's
+complete Shot membership exactly once. It checks `edit_post` for the Scene and
+every Shot, preserves the Scene's existing project-wide editorial slots, and
+rolls back previously written positions if a later update fails. An optional
+`sequence_id` assigns the validated Shot set to a Sequence.
+
 ### Public Story Display Projection
 
 The public WordPress `wp/v2` resources for displayable Story Graph post types

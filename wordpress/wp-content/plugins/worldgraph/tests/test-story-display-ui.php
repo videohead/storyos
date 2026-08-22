@@ -18,12 +18,13 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "'worldgraph_display'", $source );
 		$this->assertStringNotContainsString( "'update_callback'", $source );
 		$this->assertStringContainsString( "current_user_can( 'read_post', \$post_id )", $source );
-		$this->assertStringContainsString( 'worldgraph_story_display_can_read( $node_id, $include_private )', $source );
+		$this->assertStringContainsString( 'worldgraph_story_display_can_read( $node_id, true )', $source );
 		$this->assertStringContainsString( 'worldgraph_story_display_graph_post_types()', $source );
 		$this->assertStringContainsString( 'fetch_relationship_graph();', $source );
 		$this->assertStringContainsString( 'filter_relationship_graph_by_project( $graph, $project_id )', $source );
 		$this->assertStringNotContainsString( "\t\t'worldgraph_conn',", $source );
 		$this->assertStringContainsString( 'post_password_required( $post )', $source );
+		$this->assertStringContainsString( "'' === (string) \$node_post->post_password", $source );
 		$this->assertStringContainsString( "'publish' === \$post->post_status", $source );
 	}
 
@@ -58,14 +59,22 @@ class Test_Story_Display_UI extends TestCase {
 	/** Scene ordering must be complete, scoped, authorized, and keyboard operable. */
 	public function test_scene_shot_sequencer_validates_complete_membership(): void {
 		$controller = file_get_contents( dirname( __DIR__ ) . '/includes/admin/scene-shot-sequencer.php' );
+		$service    = file_get_contents( dirname( __DIR__ ) . '/includes/utils/scene-shot-order.php' );
+		$rest       = file_get_contents( dirname( __DIR__ ) . '/includes/rest-api/shots-controller.php' );
 		$script     = file_get_contents( dirname( __DIR__ ) . '/assets/js/scene-shot-sequencer.js' );
 
 		$this->assertNotFalse( $controller );
+		$this->assertNotFalse( $service );
+		$this->assertNotFalse( $rest );
 		$this->assertNotFalse( $script );
-		$this->assertStringContainsString( '$submitted_set !== $expected_set', $controller );
-		$this->assertStringContainsString( "current_user_can( 'edit_post', \$scene_id )", $controller );
-		$this->assertStringContainsString( "current_user_can( 'edit_post', \$shot_id )", $controller );
-		$this->assertStringContainsString( '$order_slots[ $index ]', $controller );
+		$this->assertStringContainsString( 'worldgraph_reorder_scene_shots', $controller );
+		$this->assertStringContainsString( '$submitted_set !== $expected_set', $service );
+		$this->assertStringContainsString( "current_user_can( 'edit_post', \$scene_id )", $service );
+		$this->assertStringContainsString( "current_user_can( 'edit_post', \$shot_id )", $service );
+		$this->assertStringContainsString( '$order_slots[ $index ]', $service );
+		$this->assertStringContainsString( 'worldgraph_rollback_scene_shot_order', $service );
+		$this->assertStringContainsString( "'scene_id'", $rest );
+		$this->assertStringContainsString( "'permission_callback' => [ \$this, 'check_reorder_permission' ]", $rest );
 		$this->assertStringContainsString( "data-shot-move=\"up\"", $controller );
 		$this->assertStringContainsString( 'aria-live="polite"', $controller );
 		$this->assertStringContainsString( 'sortable', $script );
@@ -83,7 +92,11 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( 'wp_verify_nonce', $controller );
 		$this->assertStringContainsString( "current_user_can( 'upload_files' )", $controller );
 		$this->assertStringContainsString( "'attachment' !== get_post_type( \$attachment_id )", $controller );
+		$this->assertStringContainsString( "current_user_can( 'edit_post', \$attachment_id )", $controller );
+		$this->assertStringContainsString( 'hash_equals( $current_revision, $revision )', $controller );
+		$this->assertStringContainsString( '$concurrent_additions', $controller );
 		$this->assertStringContainsString( "[ 'image', 'audio', 'video' ]", $script );
+		$this->assertStringContainsString( 'const frame = window.wp.media', $script );
 		$this->assertStringContainsString( 'sortable', $script );
 		$this->assertStringContainsString( 'data-gallery-move="up"', $controller );
 		$this->assertStringContainsString( 'dataset.galleryMove', $script );
@@ -101,6 +114,10 @@ class Test_Story_Display_UI extends TestCase {
 		$this->assertStringContainsString( "'storyType'", $source );
 		$this->assertStringContainsString( "send_webhook( 'story'", $source );
 		$this->assertStringContainsString( 'flush_story_revalidation_queue', $source );
+		$this->assertStringContainsString( 'wp_safe_remote_post', $source );
+		$this->assertStringContainsString( 'render_failure_notice', $source );
+		$this->assertStringContainsString( "'_thumbnail_id'", $source );
+		$this->assertStringContainsString( "'publish' !== \$post->post_status", $source );
 		$this->assertStringContainsString( "add_action( 'set_object_terms'", $source );
 		$this->assertStringContainsString( 'queue_broad_story_revalidation', $source );
 	}

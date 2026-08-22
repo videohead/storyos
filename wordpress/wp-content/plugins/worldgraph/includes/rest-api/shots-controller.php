@@ -81,14 +81,19 @@ class Shots_Controller extends Base_Controller {
 			'permission_callback' => [ $this, 'check_read_permission' ],
 		] );
 
-		// Reorder shots within the editorial cut (optionally within a sequence).
+		// Reorder one complete Scene's Shot set within the global editorial cut.
 		register_rest_route( 'worldgraph/v1', '/shots/reorder', [
 			'methods'             => 'POST',
 			'callback'            => [ $this, 'reorder_items' ],
-			'permission_callback' => [ $this, 'check_create_permission' ],
+			'permission_callback' => [ $this, 'check_reorder_permission' ],
 			'args'                => [
+				'scene_id'    => [
+					'description' => 'Scene whose complete Shot set is being reordered.',
+					'type'        => 'integer',
+					'required'    => true,
+				],
 				'ordered_ids' => [
-					'description' => 'Shot post IDs in the new editorial order.',
+					'description' => 'Every Shot belonging to scene_id, exactly once, in the new order.',
 					'type'        => 'array',
 					'items'       => [ 'type' => 'integer' ],
 					'required'    => true,
@@ -102,47 +107,42 @@ class Shots_Controller extends Base_Controller {
 	}
 
 	/**
+	 * Authorize a Scene-scoped reorder before the callback runs.
+	 *
+	 * The shared service repeats this check and verifies every affected Shot.
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @return bool|\WP_Error
+	 */
+	public static function check_reorder_permission( \WP_REST_Request $request ) {
+		$scene_id = absint( $request->get_param( 'scene_id' ) );
+		if ( ! $scene_id || 'worldgraph_scene' !== get_post_type( $scene_id ) ) {
+			return new \WP_Error( 'rest_invalid_scene', 'Scene not found.', [ 'status' => 404 ] );
+		}
+		if ( ! current_user_can( 'edit_post', $scene_id ) ) {
+			return new \WP_Error( 'rest_forbidden', 'You cannot edit this Scene.', [ 'status' => 403 ] );
+		}
+
+		return true;
+	}
+
+	/**
 	 * Reorder shots and optionally assign them to a sequence.
 	 *
 	 * @param \WP_REST_Request $request
 	 * @return \WP_REST_Response|\WP_Error
 	 */
 	public static function reorder_items( \WP_REST_Request $request ) {
-		$ordered_ids = array_values( array_unique( array_map( 'absint', (array) $request->get_param( 'ordered_ids' ) ) ) );
+		$scene_id    = absint( $request->get_param( 'scene_id' ) );
+		$ordered_ids = (array) $request->get_param( 'ordered_ids' );
 		$sequence_id = $request->get_param( 'sequence_id' ) ? absint( $request->get_param( 'sequence_id' ) ) : 0;
-
-		if ( empty( $ordered_ids ) ) {
-			return new WP_Error( 'rest_invalid_ordered_ids', 'ordered_ids cannot be empty.', [ 'status' => 400 ] );
+		$result      = \WorldGraph\Utils\worldgraph_reorder_scene_shots( $scene_id, $ordered_ids, $sequence_id );
+		if ( is_wp_error( $result ) ) {
+			return $result;
 		}
 
-		$sequence = null;
-		if ( $sequence_id ) {
-			$sequence = get_term( $sequence_id, 'worldgraph_sequence' );
-			if ( ! $sequence || is_wp_error( $sequence ) ) {
-				return new WP_Error( 'rest_invalid_sequence', 'Sequence term not found.', [ 'status' => 404 ] );
-			}
-		}
-
-		$updated = [];
-		foreach ( $ordered_ids as $index => $shot_id ) {
-			$post = get_post( $shot_id );
-			if ( ! $post || 'worldgraph_shot' !== $post->post_type ) {
-				continue;
-			}
-
-			wp_update_post( [
-				'ID'         => $post->ID,
-				'menu_order' => $index + 1,
-			] );
-
-			if ( $sequence ) {
-				wp_set_object_terms( $post->ID, [ (int) $sequence->term_id ], 'worldgraph_sequence', false );
-			}
-
-			$updated[] = $post->ID;
-		}
-
-		return rest_ensure_response( [ 'updated' => $updated ] );
+		$result['scene_id'] = $scene_id;
+		return rest_ensure_response( $result );
 	}
 
 	/**
