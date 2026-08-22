@@ -2,7 +2,8 @@
 
 > **Delivery status:** the provider-neutral representative-media registry,
 > Template-resolution preferences, detailed Story Graph prompts, durable item
-> and Project batches, and their REST operations are delivered. A dedicated
+> and Project batches, Template-conditional per-run controls, and their REST
+> operations are delivered. A dedicated
 > graphical site-preferences editor is not required by this contract; sites can
 > manage the versioned option through an integration or filter.
 
@@ -30,6 +31,10 @@ in a collapsed read-only preview. For a Sequence, that preview lists the
 planned outputs because each job receives a separately composed prompt.
 Template selections are retained per selected image, video, or Sequence and
 survive the read-only planning refresh before confirmation.
+Selecting a Template also reveals only the per-run controls that Template
+declares or that its provider schema/workflow exposes safely. Changing the
+Template replaces that control set and resets values that no longer belong to
+the selected Template.
 
 Planning reports the number of image and video jobs, every source and creative
 intent, prompt fingerprints, Templates runnable across the plan, resolved
@@ -88,6 +93,57 @@ post, and intent.
 Inherited context uses a smaller visual map than the source record. In
 particular, a Shot inherits its Scene summary, location, time of day, and
 emotional tone, not the Scene's complete script or dialogue transcript.
+
+## Template-conditional run controls
+
+Every Template summary returned by the story-aware prompt and plan operations
+can include a sanitized `run_controls` object. The object has `version: 1`, a
+deterministic `fingerprint`, and an ordered `fields` list. The fingerprint lets
+a client detect that the effective form changed; it is not an authorization
+token, and the server never trusts a client-cached descriptor when a run
+starts. Each field has a `key`, `label`, and UI-native `type` (`string`,
+`textarea`, `integer`, `number`, `boolean`, or `select`), with
+applicable `default`, `required`, `min`, `max`, `step`, labeled scalar
+`options`, group, and bounded `description` metadata. Raw workflow JSON,
+provider schemas, node IDs, binding paths, filesystem paths, and credentials
+are not returned as run controls.
+
+Controls are conditional, not a universal form:
+
+- `negative_prompt` is separate from the additive Story Graph prompt and is
+  offered only when the Template has a negative-conditioning input;
+- a fixed-seed integer appears when supported; leaving it unset preserves the
+  Template/provider's existing randomization behavior, while an explicit `0`
+  remains a fixed seed;
+- sampling steps are bounded integers;
+- classic diffusion CFG and FLUX-style guidance are separate concepts, and
+  only the control appropriate to the discovered or declared workflow is
+  shown;
+- sampler and scheduler choices are restricted to values advertised or
+  declared for the Template;
+- width and height, and video duration or frames per second, appear only when
+  the selected Template exposes those inputs; and
+- additional text-conditioning channels, including dual-CLIP channels, appear
+  only when their distinct inputs are discovered or explicitly declared. They
+  are not inferred merely from a model-family label.
+
+Media inputs are not scalar run controls. Image-to-video and
+text-plus-image-to-video Templates continue to obtain their image or
+start-frame inputs through `Template_Bindings`, with required bindings checked
+for each source item. Likewise checkpoint/model, VAE, and CLIP file selection
+remains a Template-authoring and readiness concern; the Assets form cannot
+submit arbitrary model or filesystem names for one run.
+
+For a direct run the client may send a `run_values` object keyed by the
+selected Template's advertised fields. For a Sequence,
+`image_run_values` and `video_run_values` may accompany the corresponding
+explicit image or video Template override and apply to every task of that
+output type. WordPress re-derives the v1 contract from the selected Template at
+submission time, rejects unknown, nested, wrongly typed, out-of-range, or
+non-allowlisted values, and passes only normalized scalar values to generation.
+A non-empty batch values object without its matching Template ID is invalid.
+An omitted or empty values object retains the previous behavior and uses the
+Template/provider defaults.
 
 ## Delivered intent vocabulary
 
@@ -170,23 +226,27 @@ include the Project and each supported descendant once. A plan returns:
 - `tasks` with source identity, workflow, intent, label, type, featured flag,
   and `prompt_hash`, while omitting long provider prompts;
 - `ready` and any Template `blockers`;
-- `image_templates` and `video_templates` runnable across that plan;
+- `image_templates` and `video_templates` runnable across that plan, including
+  each Template's sanitized `run_controls` contract;
 - resolved `default_template_ids`; and
 - `latest_batch`, when one exists for the same root and scope.
 
 The start payload accepts `post_id`, `scope`, optional additive `base_prompt`,
-optional `image_template_id` and `video_template_id`, and the required
-non-empty `idempotency_key`. The server refuses to start unless the requester
-can edit every source and every image/video task resolves a runnable Template.
+optional `image_template_id` and `video_template_id`, optional
+`image_run_values` and `video_run_values` objects, and the required non-empty
+`idempotency_key`. The server refuses to start unless the requester can edit
+every source, every image/video task resolves a runnable Template, and every
+submitted run value validates against its explicitly selected per-type
+Template.
 Plans are limited to 5,000 jobs by default;
 `worldgraph_generation_batch_max_tasks` may change that bound.
 
 The idempotency key is scoped to the requester and root batch request. Repeating
 it returns the existing batch. The server atomically reserves the key and stores
-a request fingerprint covering scope, additive instructions, and Template
-overrides. This protects concurrent starts and client retries from duplicate
-provider spending after a timeout or lost response, while rejecting reuse for
-different settings.
+a request fingerprint covering scope, additive instructions, Template
+overrides, and normalized image/video run values. This protects concurrent
+starts and client retries from duplicate provider spending after a timeout or
+lost response, while rejecting reuse for different settings.
 
 ## Batch storage, status, and cancellation
 
@@ -196,7 +256,7 @@ A representative batch is a parent `worldgraph_gen` record with:
 - `_worldgraph_gen_batch_scope`;
 - `_worldgraph_gen_batch_plan`, a versioned frozen task list containing source,
   step, workflow, intent, output type, Template, prompt, prompt hash, and
-  featured behavior;
+  featured behavior, plus the normalized run values for that task;
 - `_worldgraph_gen_batch_cursor`, which tracks bounded materialization;
 - `_worldgraph_gen_workflow_version = 1`;
 - `_worldgraph_gen_idempotency_key`;

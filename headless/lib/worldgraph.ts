@@ -40,9 +40,7 @@ export const storyResourceConfig = {
 } as const;
 
 /**
- * Native REST bases used by the public projection. Storyboard frames are not a
- * top-level Story route yet, but their non-default REST base is kept here so a
- * display DTO can resolve them without repeating a legacy/CPT-name guess.
+ * Native REST bases used by the public projection.
  */
 export const worldgraphRestBases = {
   projects: storyResourceConfig.projects.restBase,
@@ -51,7 +49,6 @@ export const worldgraphRestBases = {
   scenes: storyResourceConfig.scenes.restBase,
   props: storyResourceConfig.props.restBase,
   sounds: storyResourceConfig.sounds.restBase,
-  storyboardFrames: "worldgraph_board_frame",
 } as const;
 
 export type StoryType = keyof typeof storyResourceConfig;

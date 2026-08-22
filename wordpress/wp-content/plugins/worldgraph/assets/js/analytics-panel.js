@@ -230,7 +230,6 @@
 				'worldgraph_asset': 'Assets',
 				'worldgraph_prop': 'Props',
 				'worldgraph_episode': 'Episodes',
-				'worldgraph_board': 'Storyboards',
 				'worldgraph_editorial': 'Editorial',
 			};
 

@@ -207,6 +207,9 @@ class Comfy_Manifest {
 				$settings[ $key ] = $runtime[ $key ];
 			}
 		}
+		if ( isset( $runtime['seed'] ) && preg_match( '/^\d+$/', (string) $runtime['seed'] ) ) {
+			$settings['seed'] = (string) $runtime['seed'];
+		}
 
 		$size = isset( $runtime['size'] ) && is_scalar( $runtime['size'] ) ? trim( (string) $runtime['size'] ) : '';
 		if ( preg_match( '/^(\d+)x(\d+)$/i', $size, $matches ) ) {
@@ -333,6 +336,13 @@ class Comfy_Manifest {
 		if ( empty( $models ) ) {
 			$models = self::extract_requirement_models( $template );
 		}
+		$provider_schema = [];
+		foreach ( [ 'inputSchema', 'input_schema', 'schema' ] as $schema_key ) {
+			if ( is_array( $template[ $schema_key ] ?? null ) ) {
+				$provider_schema = $template[ $schema_key ];
+				break;
+			}
+		}
 
 		return [
 			'id'             => $id,
@@ -346,6 +356,7 @@ class Comfy_Manifest {
 			'models'         => $models,
 			'model_urls'     => self::extract_model_urls( $template ),
 			'parameters'     => is_array( $template['parameters'] ?? null ) ? $template['parameters'] : [],
+			'provider_schema' => $provider_schema,
 			'workflow_hash'  => $workflow ? 'sha1:' . sha1( (string) wp_json_encode( $workflow ) ) : '',
 		];
 	}

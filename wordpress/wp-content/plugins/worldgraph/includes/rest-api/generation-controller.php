@@ -295,7 +295,8 @@ class Generation_Controller extends Base_Controller {
 		$type = sanitize_key( (string) $request->get_param( 'type' ) );
 		$prompt = $request->get_param( 'prompt' );
 		$asset_id = $request->get_param( 'asset_id' ) ? absint( $request->get_param( 'asset_id' ) ) : null;
-		$params = $request->get_param( 'params' ) ?? [];
+		$params = $request->get_param( 'params' );
+		$params = is_array( $params ) ? $params : [];
 		$inputs = self::sanitize_inputs( $request->get_param( 'inputs' ) );
 		$workflow = sanitize_text_field( (string) $request->get_param( 'workflow' ) );
 
@@ -338,6 +339,10 @@ class Generation_Controller extends Base_Controller {
 		}
 		$provider_type = $connection['provider_type'];
 		$workflow = $provider_template_id;
+		$params = \WorldGraph\Utils\Template_Run_Controls::validate( (int) $template->ID, $params );
+		if ( is_wp_error( $params ) ) {
+			return $params;
+		}
 
 		// Create generation request post.
 		$post_id = wp_insert_post( [
@@ -355,6 +360,7 @@ class Generation_Controller extends Base_Controller {
 		update_post_meta( $post_id, '_worldgraph_gen_type', $type );
 		update_post_meta( $post_id, '_worldgraph_gen_prompt', $prompt );
 		update_post_meta( $post_id, '_worldgraph_gen_params', $params );
+		update_post_meta( $post_id, '_worldgraph_gen_run_values', $params );
 		update_post_meta( $post_id, '_worldgraph_gen_inputs', $inputs );
 		update_post_meta( $post_id, Generation_Authorization::REQUESTER_META, $requester_id );
 		update_post_meta( $post_id, '_worldgraph_gen_workflow', $workflow );
@@ -458,6 +464,7 @@ class Generation_Controller extends Base_Controller {
 			'status'        => get_post_meta( $generation_id, '_worldgraph_gen_status', true ) ?: 'unknown',
 			'type'          => get_post_meta( $generation_id, '_worldgraph_gen_type', true ),
 			'prompt'        => get_post_meta( $generation_id, '_worldgraph_gen_prompt', true ),
+			'run_values'    => (array) get_post_meta( $generation_id, '_worldgraph_gen_run_values', true ),
 			'provider_type' => get_post_meta( $generation_id, '_worldgraph_gen_provider_type', true ),
 			'connection_id' => absint( get_post_meta( $generation_id, '_worldgraph_gen_connection_id', true ) ),
 			'created'       => get_post_meta( $generation_id, '_worldgraph_gen_created', true ),

@@ -377,6 +377,9 @@ class Generation_Modality {
 		} ) );
 
 		$checkpoint = (string) ( $settings['checkpoint'] ?? '' );
+		$seed       = isset( $settings['seed'] ) && preg_match( '/^\d+$/', (string) $settings['seed'] )
+			? min( (int) $settings['seed'], 9007199254740991 )
+			: wp_rand( 0, PHP_INT_MAX >> 1 );
 
 		$graph = [
 			'4' => [
@@ -394,7 +397,7 @@ class Generation_Modality {
 			'3' => [
 				'class_type' => 'KSampler',
 				'inputs'     => [
-					'seed'         => wp_rand( 0, PHP_INT_MAX >> 1 ),
+					'seed'         => $seed,
 					'steps'        => (int) $settings['steps'],
 					'cfg'          => (float) $settings['cfg'],
 					'sampler_name' => (string) $settings['sampler'],

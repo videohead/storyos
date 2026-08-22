@@ -476,6 +476,32 @@ SCF field mappings used to resolve a generation request. `default_values` may
 provide reusable starting values, but explicit user input takes precedence
 after validation.
 
+The `run_controls` response property is not another SCF field. It is a
+sanitized runtime DTO derived from declarations in the effective Template
+configuration, a provider schema, or an inspectable workflow. Its contract
+has `version: 1`, a deterministic `fingerprint`, and an ordered `fields` list.
+Each field exposes a provider-neutral `key`, `label`, UI `type`, and only
+applicable default, required, `min`, `max`, `step`, labeled `options`, group,
+and bounded-description metadata. Public UI types are `string`, `textarea`,
+`integer`, `number`, `boolean`, and `select`; their submitted values remain
+scalar. Provider schema objects, workflow node IDs, binding paths, credentials,
+and filesystem paths are not part of the DTO.
+
+Template authors or trusted catalog sync may declare/discover negative prompt,
+fixed integer seed, sampling steps, classic diffusion CFG or FLUX-style
+guidance, sampler, scheduler, width, height, video duration, frames per second,
+and distinct extra text-conditioning channels. These controls are exposed only
+when present in the effective Template; dual-CLIP channels are not inferred
+from `model_family` alone. Omitting a fixed seed leaves the Template/provider's
+existing randomization behavior in force.
+
+Media source values remain governed by `input_bindings`. In particular,
+image-to-video and text-plus-image-to-video Templates resolve their image or
+start frame from the source item's featured media, gallery, or configured
+SCF/post-meta binding rather than from scalar run values. Checkpoint/model,
+VAE, and CLIP file selection remains Template-authoring metadata validated by
+catalog and readiness flows, not an Assets-run input.
+
 ## Delivered Generation Contract
 
 Project, Story World, Character, Prop, Location, Shot, Scene, and Episode expose
@@ -508,8 +534,9 @@ relationships.
 The Assets workflow resolves an active `worldgraph_template` and its associated
 `worldgraph_conn` for each output. A queued internal `worldgraph_gen` child
 record preserves the template, connection, provider, workflow identifier,
-creative intent, prompt, resolved inputs, parameters, source Story Graph item,
-state, and timestamps. Relevant meta keys use the `_worldgraph_gen_*` prefix,
+creative intent, prompt, resolved inputs, normalized scalar run parameters,
+source Story Graph item, state, and timestamps. Relevant meta keys use the
+`_worldgraph_gen_*` prefix,
 including `_worldgraph_gen_template_id`, `_worldgraph_gen_connection_id`,
 `_worldgraph_gen_provider_type`, `_worldgraph_gen_intent`, and
 `_worldgraph_gen_status`.
@@ -522,9 +549,14 @@ version is stored in `_worldgraph_gen_workflow_version`. Children reference the
 batch and frozen-plan position through `_worldgraph_gen_batch_id` and
 `_worldgraph_gen_batch_step`. Planning is read-only;
 starting first verifies that every required image and video output has a
-runnable Template, then persists the plan. WP-Cron materializes and activates
-children in bounded groups instead of holding one request open for the complete
-Project run.
+runnable Template and re-derives and validates all submitted
+`image_run_values` and `video_run_values` against their corresponding explicit
+per-type Template override. A non-empty values object without that Template ID
+is invalid. The plan then persists the normalized values frozen per task, and
+those values are included in the idempotency request fingerprint. WP-Cron
+materializes and activates children in bounded groups instead of holding one
+request open for the complete Project run. Omitting run values preserves the
+prior Template-default behavior.
 
 WP-Cron processes bounded batches, submits or polls the configured adapter,
 supports cancellation, imports completed media for supported Template

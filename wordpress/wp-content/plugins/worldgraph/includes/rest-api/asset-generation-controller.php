@@ -44,6 +44,7 @@ class Asset_Generation_Controller extends Base_Controller {
 				'set_featured' => [ 'description' => 'Set a generated image as the featured asset. Ignored for video.', 'type' => 'boolean', 'default' => true ],
 				'create_asset' => [ 'description' => 'Create a linked World Graph Studio Asset record.', 'type' => 'boolean', 'default' => true ],
 				'template_id'  => [ 'description' => 'Active Template post ID matching the requested output type.', 'type' => 'integer', 'required' => true ],
+				'run_values'   => [ 'description' => 'Template-declared scalar overrides for this run.', 'type' => 'object', 'default' => [] ],
 			],
 		] );
 
@@ -76,6 +77,8 @@ class Asset_Generation_Controller extends Base_Controller {
 				'base_prompt'       => [ 'description' => 'Optional author-edited prompt for an item batch.', 'type' => 'string', 'default' => '' ],
 				'image_template_id' => [ 'description' => 'Optional image Template override applied to every image task.', 'type' => 'integer', 'default' => 0 ],
 				'video_template_id' => [ 'description' => 'Optional video Template override applied to every video task.', 'type' => 'integer', 'default' => 0 ],
+				'image_run_values'  => [ 'description' => 'Template-declared image overrides; requires one image Template override.', 'type' => 'object', 'default' => [] ],
+				'video_run_values'  => [ 'description' => 'Template-declared video overrides; requires one video Template override.', 'type' => 'object', 'default' => [] ],
 				'idempotency_key'   => [ 'description' => 'Caller-generated key that makes a repeated start request return the existing batch.', 'type' => 'string', 'required' => true ],
 			],
 		] );
@@ -162,6 +165,7 @@ class Asset_Generation_Controller extends Base_Controller {
 			'set_featured' => $request->get_param( 'set_featured' ),
 			'create_asset' => $request->get_param( 'create_asset' ),
 			'template_id'  => absint( $request->get_param( 'template_id' ) ),
+			'run_values'   => (array) $request->get_param( 'run_values' ),
 		] );
 
 		if ( is_wp_error( $result ) ) {
@@ -266,6 +270,8 @@ class Asset_Generation_Controller extends Base_Controller {
 				'base_prompt'       => (string) $request->get_param( 'base_prompt' ),
 				'image_template_id' => absint( $request->get_param( 'image_template_id' ) ),
 				'video_template_id' => absint( $request->get_param( 'video_template_id' ) ),
+				'image_run_values'  => (array) $request->get_param( 'image_run_values' ),
+				'video_run_values'  => (array) $request->get_param( 'video_run_values' ),
 				'idempotency_key'   => (string) $request->get_param( 'idempotency_key' ),
 			]
 		);

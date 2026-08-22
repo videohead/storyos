@@ -226,6 +226,33 @@ template ID, optional workflow JSON, model/checkpoint information, and default
 configuration. Templates are WordPress configuration records, not permission
 to run arbitrary server code.
 
+Runnable Template DTOs expose a sanitized `run_controls` contract with
+`version: 1`, a deterministic definition `fingerprint`, and ordered `fields`.
+Each field contains a provider-neutral `key`, `label`, UI `type`, and only
+the applicable default, required, `min`, `max`, `step`, labeled `options`,
+group, and bounded description metadata. Public UI types are `string`,
+`textarea`, `integer`, `number`, `boolean`, and `select`; their submitted values
+remain scalar. The DTO is an allowlist for rendering, not a copy of the provider
+schema or workflow. It never exposes node IDs, binding paths, credentials, or
+filesystem paths. WordPress re-derives this contract from the selected Template
+when a job is submitted, so a stale or modified browser DTO cannot expand what
+the Template permits.
+
+The conditional field vocabulary covers controls only when the Template's
+workflow or provider schema discovers or declares them: negative conditioning;
+fixed integer seed; bounded sampling steps; classic diffusion CFG or,
+separately, FLUX-style guidance; allowlisted sampler and scheduler; image width
+and height; video duration and frames per second; and distinct extra
+text-conditioning or dual-CLIP channels. The engine does not infer dual
+encoders from a model-family label, and it does not expose both CFG and FLUX
+guidance when the workflow has only one of them.
+
+These fields are per-run scalar overrides. Media inputs remain Template
+bindings: image-to-video and text-plus-image-to-video continue resolving their
+image or start-frame input through `Template_Bindings`. Checkpoint/model, VAE,
+and CLIP file selection remains part of Template authoring, catalog discovery,
+requirements, and readiness rather than a client-supplied run value.
+
 The author first chooses a conditional **Image**, **Sequence**, or **Video**
 mode. Image and video each reveal only their own defined output selector,
 matching active runnable Template, applicable featured/linked-Asset choices,
@@ -240,6 +267,16 @@ and Templates whose required bindings cannot be resolved for every applicable
 task. `Template_Bindings` resolves declared media slots from a featured image,
 the post's asset gallery, or an SCF/post-meta field. Invalid combinations fail
 before provider execution.
+
+Direct story-aware generation may submit `run_values`. A representative batch
+may submit one `image_run_values` map and one `video_run_values` map for its
+corresponding tasks when it also selects an explicit Template override of that
+type. Values must be scalar, use advertised keys, and match the advertised
+types, bounds, and allowed choices. A non-empty batch map without its matching
+Template ID, unknown keys, and nested arrays/objects are errors; they are not
+silently forwarded. Omitting these maps preserves the existing behavior and
+uses the Template/provider defaults. Omitting `seed` specifically preserves
+the existing randomization behavior; integer `0` is not treated as omission.
 
 For each task, Template resolution follows this cascade:
 
@@ -289,16 +326,21 @@ with `_worldgraph_gen_batch_kind = representative_media`. The parent stores the
 root post, `item` or `project` scope, requester, optional idempotency key, a
 versioned frozen task plan, materialization cursor, planned total, and aggregate
 status. Each task snapshot retains its step, source, workflow, intent, output
-type, Template, prompt, prompt hash, and featured behavior. Child jobs store
+type, Template, prompt, prompt hash, featured behavior, and normalized run
+values. Child jobs store
 `_worldgraph_gen_batch_id`, `_worldgraph_gen_batch_step`, and
 `_worldgraph_gen_intent`. This separation lets a Project batch run for hours or
 days while every child remains independently observable through the ordinary
 worker lifecycle.
 
 Planning performs no writes. Starting validates edit permission for every
-source and resolves all required Templates before freezing the batch plan. A
+source, resolves all required Templates, and re-derives and validates the run
+control allowlist before freezing the batch plan. A
 requester-scoped non-empty idempotency key returns the prior batch for the same
-root instead of creating duplicate provider work. Batch summaries derive their
+root and the same normalized run values instead of creating duplicate provider
+work. Image and video run values are part of the request fingerprint, so reuse
+of a key with different settings fails rather than returning or creating the
+wrong run. Batch summaries derive their
 counts from the frozen total and persisted child states and report `pending`,
 `active`, `cancelling`, `cancelled`, `failed`, `completed`, or
 `completed_with_errors`.
@@ -361,9 +403,9 @@ Text-output jobs such as Suno lyrics retain their normalized provider result on
 the generation record and do not create a media attachment.
 
 Generation metadata retains the source post, Template, provider, Connection,
-workflow/provider-template reference, prompt, parameters, timestamps, remote
-job ID, result attachment IDs, and terminal status. Raw synchronous audio bytes
-are removed before the provider result is persisted.
+workflow/provider-template reference, prompt, normalized run parameters,
+timestamps, remote job ID, result attachment IDs, and terminal status. Raw
+synchronous audio bytes are removed before the provider result is persisted.
 
 Generated attachments use identifiable, portable filenames:
 
@@ -393,10 +435,10 @@ The canonical REST base is `/wp-json/worldgraph/v1/`.
 
 | Method and route | Purpose |
 | --- | --- |
-| `GET /assets/generate/prompt?post_id={id}` | Direct image/Shot-video actions, read-only prompts, and runnable Templates |
-| `POST /assets/generate` | Queue one story-aware image or Shot video |
-| `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompt hashes, runnable Templates, defaults, and the latest batch |
-| `POST /assets/generate/batches` | Validate and start a durable item or Project representative-media batch |
+| `GET /assets/generate/prompt?post_id={id}` | Direct image/Shot-video actions, read-only prompts, and runnable Templates with sanitized run controls |
+| `POST /assets/generate` | Queue one story-aware image or Shot video with optional `run_values` |
+| `GET /assets/generate/plan?post_id={id}&scope=item\|project` | Preview representative outputs, prompt hashes, runnable Templates and run controls, defaults, and the latest batch |
+| `POST /assets/generate/batches` | Validate and start a durable item or Project representative-media batch with optional image/video run values |
 | `GET /assets/generate/batches/{id}` | Read aggregate batch progress and child jobs |
 | `POST /assets/generate/batches/{id}/cancel` | Cancel not-yet-dispatched children and return refreshed batch status |
 | `POST /generation` | Create a Template-backed generation record |
@@ -413,6 +455,11 @@ The canonical REST base is `/wp-json/worldgraph/v1/`.
 Catalog enable, materialize, and download controls are current admin actions,
 not public catalog REST routes. They require an edit-capable administrator and
 a `worldgraph_conn_configurator` nonce.
+
+The story-aware run-value contract is additive. Clients that omit
+`run_values`, `image_run_values`, and `video_run_values` keep the prior
+Template-default behavior. See the REST specification for their exact request
+and response shapes.
 
 ## WordPress Abilities and MCP exposure
 
@@ -439,6 +486,10 @@ abilities; their current LLM requests use `tool_choice: none`. See
   network boundary.
 - Treat provider catalogs, workflow descriptions, URLs, and error text as
   untrusted input.
+- Treat submitted run values as untrusted even when they came from a
+  server-rendered control. Re-derive the selected Template's allowlist and
+  normalize only scalar, typed, bounded, allowlisted values before persistence
+  or provider dispatch.
 - WP-Cron must be triggered reliably in production.
 - World Graph Studio remains useful for writing, planning, analysis, and asset
   management with no generation Connection.

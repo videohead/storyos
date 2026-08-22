@@ -262,6 +262,7 @@ function init(): void {
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/scene-shot-sequencer.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/admin/story-media-gallery.php';
 	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/exporter/class-worldgraph-exporter.php';
+	require_once WORLDGRAPH_PLUGIN_DIR . 'includes/cli/class-storyboard-cleanup.php';
 
 	// Register CPTs.
 	CPT\Project::init();
@@ -345,6 +346,7 @@ function init(): void {
 	Admin\Story_Media_Gallery::init();
 	Utils\Generation_Workflows::init();
 	Utils\Generation_Batch::init();
+	CLI\Storyboard_Cleanup::init();
 
 	// Initialize AI Editor module (LLM, MAF bridge, Gutenberg panel, REST endpoints).
 	if ( class_exists( '\WorldGraph\AI\AI_Editor' ) ) {

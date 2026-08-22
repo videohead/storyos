@@ -39,6 +39,8 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'worldgraph-generate-asset__action-select', $metabox );
 		$this->assertStringContainsString( 'worldgraph-generate-asset__image-template-option', $metabox );
 		$this->assertStringContainsString( 'worldgraph-generate-asset__video-template-option', $metabox );
+		$this->assertStringContainsString( 'worldgraph-generate-asset__run-controls', $metabox );
+		$this->assertStringContainsString( 'These controls come from the selected Template', $metabox );
 		$this->assertStringContainsString( 'Additional instructions for this run', $metabox );
 		$this->assertStringContainsString( 'Review the generated prompt or workflow plan', $metabox );
 		$this->assertStringContainsString( "self::asset_version( 'assets/js/asset-generator.js' )", $metabox );
@@ -63,6 +65,16 @@ class Test_Admin_Metabox_Assets extends TestCase {
 		$this->assertStringContainsString( 'startBatch( panel, info.scope )', $script );
 		$this->assertStringContainsString( 'selectHasEnabledOption( template )', $script );
 		$this->assertStringContainsString( "panel.querySelector( '.worldgraph-generate-asset__prompt' ).disabled = controlsLocked", $script );
+		$this->assertStringContainsString( 'template.run_controls', $script );
+		$this->assertStringContainsString( "var runControlGroups = [ 'conditioning', 'sampling', 'output', 'advanced' ]", $script );
+		$this->assertStringContainsString( 'option.textContent =', $script );
+		$this->assertStringContainsString( 'description.textContent = String( field.description )', $script );
+		$this->assertStringContainsString( 'panel._worldgraphRunValues = {}', $script );
+		$this->assertStringContainsString( 'input.disabled = controlsLocked', $script );
+		$this->assertStringContainsString( 'payload.run_values = runValues', $script );
+		$this->assertStringContainsString( 'payload.image_run_values = imageRunValues', $script );
+		$this->assertStringContainsString( 'payload.video_run_values = videoRunValues', $script );
+		$this->assertStringNotContainsString( 'innerHTML', $script );
 		$this->assertStringContainsString( 'panel._worldgraphKnownBatches = activeBatchesFromPrompt( body )', $script );
 		$this->assertStringContainsString( "select.textContent = '';", $script );
 		$this->assertStringNotContainsString( 'worldgraph-generate-asset__run-set', $script );

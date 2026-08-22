@@ -269,3 +269,4 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 wordpress.2026-08-21-1787353708.sql.gz
+wordpress/wp-content/plugins/worldgraph/assets/js/search-widget.js

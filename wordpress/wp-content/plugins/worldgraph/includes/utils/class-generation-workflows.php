@@ -35,7 +35,7 @@ class Generation_Workflows {
 	const INTENT_META           = '_worldgraph_gen_intent';
 	const STEP_META             = '_worldgraph_gen_batch_step';
 	const REPRESENTATIVE_BATCH = 'representative_media';
-	const WORKFLOW_VERSION      = 1;
+	const WORKFLOW_VERSION      = 2;
 	const MATERIALIZE_PER_TICK  = 20;
 	const ACTIVATE_PER_TICK     = 50;
 	const COORDINATOR_LOCK      = 'worldgraph_generation_workflow_coordinator_lock';
@@ -656,7 +656,7 @@ class Generation_Workflows {
 			}
 			$requires_media       = ! empty( Generation_Modality::media_inputs( $modality ) );
 			$provider_template_id = trim( (string) ( worldgraph_get_field_value( $template->ID, 'provider_template_id' ) ?: get_post_meta( $template->ID, 'comfy_template_id', true ) ) );
-			$media_supported      = 'videodraft' === $provider || ( 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' ) && '' === $provider_template_id );
+			$media_supported      = 'videodraft' === $provider || ( 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' ) );
 			if ( $requires_media && ! $media_supported ) {
 				continue;
 			}
@@ -667,6 +667,8 @@ class Generation_Workflows {
 				'provider_type'  => $provider,
 				'connection_id'  => $connection_id,
 				'requires_media' => $requires_media,
+				'media_inputs'   => Generation_Modality::media_inputs( $modality ),
+				'run_controls'   => Template_Run_Controls::describe( (int) $template->ID ),
 			];
 		}
 
@@ -749,6 +751,8 @@ class Generation_Workflows {
 			'base_prompt'       => '',
 			'image_template_id' => 0,
 			'video_template_id' => 0,
+			'image_run_values'  => [],
+			'video_run_values'  => [],
 			'idempotency_key'   => '',
 		] );
 		$requester_id = get_current_user_id();
@@ -760,12 +764,34 @@ class Generation_Workflows {
 		if ( '' === $idempotency_key ) {
 			return new WP_Error( 'worldgraph_generation_idempotency_required', __( 'A unique idempotency key is required to start a representative-media batch.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
+
+		$run_values = [ 'image' => [], 'video' => [] ];
+		foreach ( [ 'image', 'video' ] as $type ) {
+			$submitted   = is_array( $args[ $type . '_run_values' ] ) ? $args[ $type . '_run_values' ] : [];
+			$template_id = absint( $args[ $type . '_template_id' ] );
+			if ( ! empty( $submitted ) && ! $template_id ) {
+				return new WP_Error(
+					'worldgraph_generation_run_template_required',
+					__( 'Choose one Template before applying run controls to a representative-media batch.', 'worldgraph' ),
+					[ 'status' => 400, 'type' => $type ]
+				);
+			}
+			if ( $template_id ) {
+				$validated = Template_Run_Controls::validate( $template_id, $submitted );
+				if ( is_wp_error( $validated ) ) {
+					return $validated;
+				}
+				$run_values[ $type ] = $validated;
+			}
+		}
 		$request_hash = hash( 'sha256', wp_json_encode( [
 			'post_id'           => $post_id,
 			'scope'             => 'project' === $scope ? 'project' : 'item',
 			'base_prompt'       => (string) $args['base_prompt'],
 			'image_template_id' => absint( $args['image_template_id'] ),
 			'video_template_id' => absint( $args['video_template_id'] ),
+			'image_run_values'  => $run_values['image'],
+			'video_run_values'  => $run_values['video'],
 		] ) );
 
 		$existing = self::batch_for_idempotency_key( $post_id, $requester_id, $idempotency_key );
@@ -803,6 +829,9 @@ class Generation_Workflows {
 				continue;
 			}
 			$task['template_id'] = $template_id;
+			$task['run_values'] = $run_values[ (string) $task['type'] ];
+			$description = Template_Run_Controls::describe( $template_id );
+			$task['run_controls_fingerprint'] = (string) ( $description['fingerprint'] ?? '' );
 			$resolved_tasks[]    = $task;
 		}
 
@@ -850,6 +879,8 @@ class Generation_Workflows {
 				'type'         => (string) $task['type'],
 				'featured'     => ! empty( $task['featured'] ),
 				'template_id'  => (int) $task['template_id'],
+				'run_values'   => (array) ( $task['run_values'] ?? [] ),
+				'run_controls_fingerprint' => (string) ( $task['run_controls_fingerprint'] ?? '' ),
 				'prompt'       => (string) $task['prompt'],
 				'prompt_hash'  => hash( 'sha256', (string) $task['prompt'] ),
 			];
@@ -1153,6 +1184,8 @@ class Generation_Workflows {
 				'set_featured'       => 'image' === $task['type'] && ! empty( $task['featured'] ),
 				'create_asset'       => true,
 				'template_id'        => (int) $task['template_id'],
+				'run_values'         => (array) ( $task['run_values'] ?? [] ),
+				'run_values_validated' => true,
 				'intent'             => (string) $task['intent'],
 				'batch_id'           => $batch_id,
 				'batch_step'         => $index,

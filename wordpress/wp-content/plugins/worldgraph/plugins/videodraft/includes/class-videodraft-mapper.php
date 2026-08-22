@@ -258,17 +258,6 @@ class Mapper {
 				}
 			}
 		}
-		foreach ( get_posts( [ 'post_type' => 'worldgraph_board', 'post_status' => 'any', 'posts_per_page' => -1 ] ) as $board ) {
-			foreach ( \WorldGraph\Utils\get_relationships( $board->ID, 'worldgraph_board', 'outgoing' ) as $relationship ) {
-				if ( 'worldgraph_shot' !== ( $relationship['to_type'] ?? '' ) ) {
-					continue;
-				}
-				$shot = get_post( absint( $relationship['to_id'] ?? 0 ) );
-				if ( $shot instanceof \WP_Post ) {
-					$map['frame'][ self::local_external_id( $shot ) ] = self::local_external_id( $board );
-				}
-			}
-		}
 		return $map;
 	}
 

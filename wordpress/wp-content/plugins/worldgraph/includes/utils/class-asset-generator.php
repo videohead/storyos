@@ -151,6 +151,8 @@ class Asset_Generator {
 			'set_featured'       => true,
 			'create_asset'       => true,
 			'template_id'        => 0,
+			'run_values'         => [],
+			'run_values_validated' => false,
 			'intent'             => '',
 			'batch_id'           => 0,
 			'batch_step'         => -1,
@@ -204,23 +206,16 @@ class Asset_Generator {
 		if ( 'fal' === $provider && '' === $provider_template_id ) {
 			$provider_template_id = sanitize_text_field( (string) ( $connection['model'] ?? '' ) );
 		}
-		$use_local_template = false;
+		$use_local_template = 'comfyui' === $provider && 'local' === ( $connection['environment'] ?? '' );
 		if ( ! in_array( $provider, [ 'comfyui', 'fal', 'videodraft', 'openrouter' ], true ) ) {
 			return new WP_Error( 'worldgraph_asset_provider_unsupported', __( 'This provider has no World Graph Studio asset generation adapter yet.', 'worldgraph' ), [ 'status' => 501 ] );
 		}
-		if ( '' === $provider_template_id ) {
-			if ( 'comfyui' !== $provider || 'local' !== $connection['environment'] ) {
-				return new WP_Error( 'worldgraph_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'worldgraph' ), [ 'status' => 400 ] );
-			}
-
-			$use_local_template = true;
+		if ( '' === $provider_template_id && ! $use_local_template ) {
+			return new WP_Error( 'worldgraph_asset_missing_provider_template', __( 'That Template has no provider MCP Template selected.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 
-		if ( 'comfyui' === $provider && 'local' === $connection['environment'] && $use_local_template && ! Local_ComfyUI::is_configured() ) {
-			return new WP_Error( 'worldgraph_local_comfyui_unconfigured', __( 'That Template has no provider MCP Template selected and local ComfyUI API is not configured.', 'worldgraph' ), [ 'status' => 400 ] );
-		}
-		if ( 'comfyui' === $provider && 'local' === $connection['environment'] && ! $use_local_template && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
-			return new WP_Error( 'worldgraph_local_comfyui_unconfigured', __( 'The Template Connection has no configured local ComfyUI MCP endpoint.', 'worldgraph' ), [ 'status' => 400 ] );
+		if ( $use_local_template && ! Local_ComfyUI::is_configured() ) {
+			return new WP_Error( 'worldgraph_local_comfyui_unconfigured', __( 'The Template Connection has no configured local ComfyUI API endpoint.', 'worldgraph' ), [ 'status' => 400 ] );
 		}
 		if ( 'comfyui' === $provider && 'local' !== $connection['environment'] && ! Comfy_Cloud_MCP::is_configured( $connection_id ) ) {
 			return new WP_Error( 'worldgraph_comfy_mcp_unconfigured', __( 'The Template Connection has no configured Comfy Cloud API key.', 'worldgraph' ), [ 'status' => 400 ] );
@@ -273,8 +268,15 @@ class Asset_Generator {
 
 		$batch_id   = absint( $args['batch_id'] );
 		$batch_step = (int) $args['batch_step'];
+		$run_values = is_array( $args['run_values'] ) ? $args['run_values'] : [];
+		if ( ! rest_sanitize_boolean( $args['run_values_validated'] ) ) {
+			$run_values = Template_Run_Controls::validate( $template_id, $run_values );
+			if ( is_wp_error( $run_values ) ) {
+				return $run_values;
+			}
+		}
 		if ( $batch_id ) {
-			$batch_validation = self::validate_batch_task( $batch_id, $batch_step, $post_id, $type, $intent, $template_id, $requester_id );
+			$batch_validation = self::validate_batch_task( $batch_id, $batch_step, $post_id, $type, $intent, $template_id, $requester_id, $run_values );
 			if ( is_wp_error( $batch_validation ) ) {
 				return $batch_validation;
 			}
@@ -300,8 +302,9 @@ class Asset_Generator {
 		// workflow name so existing jobs without a Template keep working.
 		$template       = $use_local_template ? (string) $template_id : $provider_template_id;
 		$adapter        = 'fal' === $provider ? 'fal_mcp' : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? $provider : ( $use_local_template ? 'local_comfyui' : 'comfy_mcp' ) );
-		$template_input = self::fal_template_input( $template_id );
-		$params         = 'fal' === $provider ? $template_input : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
+		$template_input = array_merge( Template_Run_Controls::defaults( $template_id ), self::fal_template_input( $template_id ) );
+		$params         = 'fal' === $provider ? [] : ( in_array( $provider, [ 'videodraft', 'openrouter' ], true ) ? [ 'aspect_ratio' => $profile['aspect_ratio'] ] : $profile );
+		$params         = array_merge( $params, $run_values );
 		$initial_status = in_array( $args['initial_status'], [ 'staged', 'queued' ], true ) ? (string) $args['initial_status'] : 'queued';
 		if ( 'staged' === $initial_status && ! $batch_id ) {
 			wp_delete_post( $job_id, true );
@@ -313,6 +316,7 @@ class Asset_Generator {
 			'_worldgraph_gen_prompt'           => $prompt,
 			'_worldgraph_gen_prompt_hash'      => hash( 'sha256', $prompt ),
 			'_worldgraph_gen_params'           => $params,
+			'_worldgraph_gen_run_values'       => $run_values,
 			'_worldgraph_gen_template_input'   => $template_input,
 			'_worldgraph_gen_workflow'         => $template,
 			'_worldgraph_gen_adapter'          => $adapter,
@@ -359,7 +363,7 @@ class Asset_Generator {
 	}
 
 	/** Validate that a staged child exactly matches its frozen parent task. */
-	private static function validate_batch_task( int $batch_id, int $step, int $post_id, string $type, string $intent, int $template_id, int $requester_id ) {
+	private static function validate_batch_task( int $batch_id, int $step, int $post_id, string $type, string $intent, int $template_id, int $requester_id, array $run_values = [] ) {
 		$batch = get_post( $batch_id );
 		$plan  = get_post_meta( $batch_id, Generation_Workflows::BATCH_PLAN_META, true );
 		$task  = is_array( $plan ) && isset( $plan[ $step ] ) && is_array( $plan[ $step ] ) ? $plan[ $step ] : [];
@@ -372,6 +376,7 @@ class Asset_Generator {
 			|| $type !== ( $task['type'] ?? '' )
 			|| $intent !== ( $task['intent'] ?? '' )
 			|| $template_id !== absint( $task['template_id'] ?? 0 )
+			|| $run_values !== (array) ( $task['run_values'] ?? [] )
 		) {
 			return new WP_Error( 'worldgraph_asset_batch_task_invalid', __( 'The generation job does not match its frozen representative-media batch task.', 'worldgraph' ), [ 'status' => 409 ] );
 		}

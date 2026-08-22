@@ -117,6 +117,12 @@ class Asset_Generator_MetaBox {
 				'configuredPerItem' => __( 'Use each output’s configured Template', 'worldgraph' ),
 				'singleTemplateHelp' => __( 'This Template will be used only for the selected output.', 'worldgraph' ),
 				'batchTemplateHelp' => __( 'Choose a Template to override every matching output, or keep each output’s configured Template.', 'worldgraph' ),
+				'imageRunControls'  => __( 'Image Template controls', 'worldgraph' ),
+				'videoRunControls'  => __( 'Video Template controls', 'worldgraph' ),
+				'conditioningGroup' => __( 'Conditioning', 'worldgraph' ),
+				'samplingGroup'     => __( 'Sampling', 'worldgraph' ),
+				'outputGroup'       => __( 'Output', 'worldgraph' ),
+				'advancedGroup'     => __( 'Advanced', 'worldgraph' ),
 				'singlePromptHelp'  => __( 'These one-off instructions will be added to this output’s generated prompt.', 'worldgraph' ),
 				'batchPromptHelp'   => __( 'These one-off instructions will be added to every generated prompt in this workflow.', 'worldgraph' ),
 				'workflowPrompts'   => __( 'This workflow composes a separate detailed prompt for every output:', 'worldgraph' ),
@@ -248,6 +254,11 @@ class Asset_Generator_MetaBox {
 					<p class="description worldgraph-generate-asset__video-template-help"></p>
 				</div>
 			</div>
+			<section class="worldgraph-generate-asset__run-controls" aria-labelledby="worldgraph-generate-asset-run-controls-heading-<?php echo esc_attr( $post->ID ); ?>" hidden>
+				<h5 id="worldgraph-generate-asset-run-controls-heading-<?php echo esc_attr( $post->ID ); ?>"><?php esc_html_e( 'Run controls', 'worldgraph' ); ?></h5>
+				<p class="description"><?php esc_html_e( 'These controls come from the selected Template and apply only to this run.', 'worldgraph' ); ?></p>
+				<div class="worldgraph-generate-asset__run-control-panels"></div>
+			</section>
 			<fieldset class="worldgraph-generate-asset__direct-options" hidden>
 				<legend class="screen-reader-text"><?php esc_html_e( 'Options for this output', 'worldgraph' ); ?></legend>
 				<label class="worldgraph-generate-asset__featured-option"><input type="checkbox" class="worldgraph-generate-asset__featured" checked /> <?php esc_html_e( 'Set this image as the featured asset', 'worldgraph' ); ?></label>

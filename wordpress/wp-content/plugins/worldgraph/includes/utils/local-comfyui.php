@@ -57,6 +57,9 @@ class Local_ComfyUI {
 		if ( '' !== $prompt && '' === trim( (string) ( $inputs['prompt'] ?? '' ) ) ) {
 			$inputs['prompt'] = $prompt;
 		}
+		if ( isset( $parameters['negative_prompt'] ) && is_scalar( $parameters['negative_prompt'] ) && '' === trim( (string) ( $inputs['negative_prompt'] ?? '' ) ) ) {
+			$inputs['negative_prompt'] = sanitize_textarea_field( (string) $parameters['negative_prompt'] );
+		}
 
 		$job_id   = absint( $parameters['_worldgraph_job_id'] ?? 0 );
 		$resolved = self::resolve_inputs( $modality, $inputs, $connection_id, $job_id );
@@ -251,7 +254,7 @@ class Local_ComfyUI {
 			: (string) get_option( 'worldgraph_comfy_local_workflow', '' );
 		$workflow = json_decode( $raw, true );
 		if ( is_array( $workflow ) && ! empty( $workflow ) ) {
-			return self::prepare_pasted_workflow( $workflow );
+			return self::prepare_pasted_workflow( $template_id, $workflow, $runtime );
 		}
 
 		$settings = $template_id
@@ -283,15 +286,20 @@ class Local_ComfyUI {
 	 * prompt and fixed seed, so it would ignore the job prompt and repeat the
 	 * same output. Give it per-job placeholders and a fresh seed before it runs.
 	 *
-	 * @param array $workflow API-format workflow.
+	 * @param int   $template_id Template post ID.
+	 * @param array $workflow    API-format workflow.
+	 * @param array $runtime     Validated per-run values.
 	 * @return array
 	 */
-	private static function prepare_pasted_workflow( array $workflow ): array {
+	private static function prepare_pasted_workflow( int $template_id, array $workflow, array $runtime ): array {
 		if ( false === strpos( (string) wp_json_encode( $workflow ), '{{prompt}}' ) ) {
 			$workflow = Comfy_Graph::apply_prompt_placeholders( $workflow );
 		}
+		$workflow = Template_Run_Controls::apply_to_workflow( $template_id, $workflow, $runtime );
 
-		return Comfy_Graph::randomize_seeds( $workflow );
+		$fixed_seed = isset( $runtime['seed'] ) && preg_match( '/^\d+$/', (string) $runtime['seed'] );
+
+		return $fixed_seed ? $workflow : Comfy_Graph::randomize_seeds( $workflow );
 	}
 
 	/**

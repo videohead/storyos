@@ -1151,7 +1151,14 @@ class Connection {
 			$entry = self::registry_requirements( $connection_id, $entry_id, $entry );
 		} else {
 			$raw = \WorldGraph\Utils\Comfy_Cloud_MCP::get_template( $entry_id, [], $connection_id );
+			if ( is_wp_error( $raw ) ) {
+				return $raw;
+			}
 			$raw = is_array( $raw ) ? $raw : [];
+			$normalized = \WorldGraph\Utils\Comfy_Manifest::normalize_entry( array_merge( $entry, $raw ), $connection_id );
+			if ( is_array( $normalized ) ) {
+				$entry = array_merge( $entry, $normalized );
+			}
 			$workflow = is_array( $raw['workflow'] ?? null ) ? $raw['workflow'] : [];
 		}
 
@@ -1187,10 +1194,21 @@ class Connection {
 		\WorldGraph\Utils\worldgraph_update_field_value( (int) $template_id, 'model_family', \WorldGraph\Utils\Model_Family::sanitize( (string) ( $entry['model_family'] ?? '' ) ) );
 
 		if ( ! empty( $workflow ) ) {
+			if ( ! \WorldGraph\Utils\Comfy_Graph::is_editor_graph( $workflow ) ) {
+				$workflow = \WorldGraph\Utils\Comfy_Graph::apply_prompt_placeholders( $workflow );
+			}
 			\WorldGraph\Utils\worldgraph_update_field_value( (int) $template_id, 'workflow_json', (string) wp_json_encode( $workflow ) );
 		}
-		if ( ! empty( $entry['parameters'] ) && is_array( $entry['parameters'] ) ) {
-			\WorldGraph\Utils\worldgraph_update_field_value( (int) $template_id, 'configuration_json', (string) wp_json_encode( [ 'parameters' => $entry['parameters'] ] ) );
+		if ( ( ! empty( $entry['parameters'] ) && is_array( $entry['parameters'] ) ) || ( ! empty( $entry['provider_schema'] ) && is_array( $entry['provider_schema'] ) ) ) {
+			$configuration = json_decode( (string) \WorldGraph\Utils\worldgraph_get_field_value( (int) $template_id, 'configuration_json' ), true );
+			$configuration = is_array( $configuration ) ? $configuration : [];
+			if ( ! empty( $entry['parameters'] ) && is_array( $entry['parameters'] ) ) {
+				$configuration['parameters'] = $entry['parameters'];
+			}
+			if ( ! empty( $entry['provider_schema'] ) && is_array( $entry['provider_schema'] ) ) {
+				$configuration['provider_schema'] = $entry['provider_schema'];
+			}
+			\WorldGraph\Utils\worldgraph_update_field_value( (int) $template_id, 'configuration_json', (string) wp_json_encode( $configuration ) );
 		}
 
 		$requirements = self::requirements_from_entry( $entry );

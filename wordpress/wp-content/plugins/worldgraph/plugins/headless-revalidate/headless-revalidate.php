@@ -385,7 +385,6 @@ function is_story_display_dependency( string $post_type ): bool {
 			'worldgraph_scene',
 			'worldgraph_shot',
 			'worldgraph_sound',
-			'worldgraph_board',
 			'worldgraph_asset',
 			'worldgraph_editorial',
 			'attachment',

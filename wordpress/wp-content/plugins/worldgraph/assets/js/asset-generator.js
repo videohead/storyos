@@ -189,6 +189,7 @@
 			var option = document.createElement( 'option' );
 			option.value = String( template.id );
 			option.textContent = template.name + ( template.modality ? ' (' + template.modality + ')' : '' );
+			option._worldgraphTemplate = template;
 			select.appendChild( option );
 		} );
 
@@ -217,6 +218,390 @@
 	function savedTemplate( panel, target, type ) {
 		var selections = ( panel._worldgraphTemplateSelections || {} )[ target ] || {};
 		return Object.prototype.hasOwnProperty.call( selections, type ) ? selections[ type ] : null;
+	}
+
+	var runControlGroups = [ 'conditioning', 'sampling', 'output', 'advanced' ];
+	var runControlTypes = [ 'string', 'textarea', 'integer', 'number', 'boolean', 'select' ];
+
+	function safeRunControlKey( key ) {
+		key = String( key || '' );
+		return /^[A-Za-z_][A-Za-z0-9_.-]{0,127}$/.test( key ) && [ '__proto__', 'prototype', 'constructor' ].indexOf( key ) === -1 ? key : '';
+	}
+
+	function runControlFields( template ) {
+		var controls = template && template.run_controls;
+		if ( ! controls || 1 !== parseInt( controls.version, 10 ) || 'string' !== typeof controls.fingerprint || ! Array.isArray( controls.fields ) ) {
+			return [];
+		}
+
+		var seen = {};
+		return controls.fields.filter( function ( field ) {
+			var key = field && safeRunControlKey( field.key );
+			var type = field && String( field.type || '' );
+			if ( ! key || seen[ key ] || ! String( field.label || '' ).trim() || runControlTypes.indexOf( type ) === -1 ) {
+				return false;
+			}
+			if ( 'select' === type && ( ! Array.isArray( field.options ) || ! validRunControlOptions( field ).length ) ) {
+				return false;
+			}
+			seen[ key ] = true;
+			return true;
+		} );
+	}
+
+	function validRunControlOptions( field ) {
+		return ( field && Array.isArray( field.options ) ? field.options : [] ).filter( function ( option ) {
+			return option && Object.prototype.hasOwnProperty.call( option, 'value' );
+		} );
+	}
+
+	function runControlFingerprint( template ) {
+		var controls = template && template.run_controls;
+		return controls && 'string' === typeof controls.fingerprint ? controls.fingerprint : '';
+	}
+
+	function templateForId( panel, type, templateId ) {
+		var match = null;
+		Array.prototype.some.call( templateSelect( panel, type ).options, function ( option ) {
+			if ( parseInt( option.value, 10 ) === parseInt( templateId, 10 ) && option._worldgraphTemplate ) {
+				match = option._worldgraphTemplate;
+				return true;
+			}
+			return false;
+		} );
+		if ( match ) {
+			return match;
+		}
+		( ( panel._worldgraphTemplates || {} )[ type ] || [] ).some( function ( template ) {
+			if ( parseInt( template.id, 10 ) === parseInt( templateId, 10 ) ) {
+				match = template;
+				return true;
+			}
+			return false;
+		} );
+		return match;
+	}
+
+	function runControlState( panel, target, template, create ) {
+		panel._worldgraphRunValues = panel._worldgraphRunValues || {};
+		var targetState = panel._worldgraphRunValues[ target ];
+		var templateId = String( parseInt( template.id, 10 ) || 0 );
+		if ( ! targetState && create ) {
+			panel._worldgraphRunValues[ target ] = {};
+			targetState = panel._worldgraphRunValues[ target ];
+		}
+		var state = targetState && targetState[ templateId ];
+		var fingerprint = runControlFingerprint( template );
+		if ( state && state.fingerprint !== fingerprint ) {
+			delete targetState[ templateId ];
+			state = null;
+		}
+		if ( ! state && create ) {
+			state = { fingerprint: fingerprint, values: {} };
+			targetState[ templateId ] = state;
+		}
+		return state || null;
+	}
+
+	function finiteRunControlNumber( value ) {
+		if ( null === value || '' === value || 'undefined' === typeof value ) {
+			return null;
+		}
+		var number = Number( value );
+		return isFinite( number ) ? number : null;
+	}
+
+	function booleanRunControlValue( value ) {
+		return true === value || 1 === value || '1' === String( value ) || 'true' === String( value ).toLowerCase();
+	}
+
+	function optionRunControlValue( field, value ) {
+		var selected;
+		validRunControlOptions( field ).some( function ( option ) {
+			if ( String( option.value ) === String( value ) ) {
+				selected = option.value;
+				return true;
+			}
+			return false;
+		} );
+		return selected;
+	}
+
+	function readRunControlValue( input, field ) {
+		if ( 'boolean' === field.type ) {
+			return !! input.checked;
+		}
+		if ( 'integer' === field.type ) {
+			return '' === input.value || ! isFinite( Number( input.value ) ) ? undefined : parseInt( input.value, 10 );
+		}
+		if ( 'number' === field.type ) {
+			return '' === input.value || ! isFinite( Number( input.value ) ) ? undefined : Number( input.value );
+		}
+		if ( 'select' === field.type ) {
+			return optionRunControlValue( field, input.value );
+		}
+		return input.value;
+	}
+
+	function rememberRunControls( panel ) {
+		var target = panel._worldgraphRunControlsTarget;
+		if ( ! target ) {
+			return;
+		}
+
+		Array.prototype.forEach.call( panel.querySelectorAll( '.worldgraph-generate-asset__run-control-template' ), function ( templatePanel ) {
+			var template = templatePanel._worldgraphRunTemplate;
+			if ( ! template ) {
+				return;
+			}
+			var state = runControlState( panel, target, template, true );
+			var values = {};
+			Array.prototype.forEach.call( templatePanel.querySelectorAll( '[data-worldgraph-run-control]' ), function ( input ) {
+				var field = input._worldgraphRunField;
+				if ( ! field ) {
+					return;
+				}
+				var value = readRunControlValue( input, field );
+				if ( 'undefined' !== typeof value ) {
+					values[ safeRunControlKey( field.key ) ] = value;
+				}
+			} );
+			state.values = values;
+		} );
+	}
+
+	function nextRunControlId( panel, templateId ) {
+		panel._worldgraphRunControlSequence = ( panel._worldgraphRunControlSequence || 0 ) + 1;
+		return 'worldgraph-run-control-' + ( parseInt( panel.dataset.postId, 10 ) || 0 ) + '-' + ( parseInt( templateId, 10 ) || 0 ) + '-' + panel._worldgraphRunControlSequence;
+	}
+
+	function applyNumericRunControlAttributes( input, field ) {
+		[ 'min', 'max', 'step' ].forEach( function ( attribute ) {
+			var value = finiteRunControlNumber( field[ attribute ] );
+			if ( null !== value ) {
+				input.setAttribute( attribute, String( value ) );
+			}
+		} );
+		if ( 'integer' === field.type && ! input.hasAttribute( 'step' ) ) {
+			input.step = '1';
+		} else if ( 'number' === field.type && ! input.hasAttribute( 'step' ) ) {
+			input.step = 'any';
+		}
+	}
+
+	function createRunControlInput( panel, field, template, savedValues ) {
+		var wrapper = document.createElement( 'div' );
+		var inputId = nextRunControlId( panel, template.id );
+		var hasSaved = savedValues && Object.prototype.hasOwnProperty.call( savedValues, field.key );
+		var hasDefault = Object.prototype.hasOwnProperty.call( field, 'default' );
+		var value = hasSaved ? savedValues[ field.key ] : ( hasDefault ? field.default : '' );
+		var input;
+		var label = document.createElement( 'label' );
+
+		wrapper.className = 'worldgraph-generate-asset__run-control-field worldgraph-generate-asset__run-control-field--' + field.type;
+		label.htmlFor = inputId;
+
+		if ( 'textarea' === field.type ) {
+			input = document.createElement( 'textarea' );
+			input.rows = 3;
+			input.value = null === value || 'undefined' === typeof value ? '' : String( value );
+		} else if ( 'select' === field.type ) {
+			input = document.createElement( 'select' );
+			validRunControlOptions( field ).forEach( function ( optionDefinition ) {
+				var option = document.createElement( 'option' );
+				option.value = String( optionDefinition.value );
+				option.textContent = String( Object.prototype.hasOwnProperty.call( optionDefinition, 'label' ) ? optionDefinition.label : optionDefinition.value );
+				input.appendChild( option );
+			} );
+			input.value = null === value || 'undefined' === typeof value ? '' : String( value );
+			if ( input.selectedIndex < 0 ) {
+				input.selectedIndex = 0;
+			}
+		} else {
+			input = document.createElement( 'input' );
+			input.type = 'boolean' === field.type ? 'checkbox' : ( [ 'integer', 'number' ].indexOf( field.type ) !== -1 ? 'number' : 'text' );
+			if ( 'boolean' === field.type ) {
+				input.checked = booleanRunControlValue( value );
+			} else {
+				input.value = null === value || 'undefined' === typeof value ? '' : String( value );
+			}
+		}
+
+		input.id = inputId;
+		input.className = 'worldgraph-generate-asset__run-control-input';
+		input.setAttribute( 'data-worldgraph-run-control', '' );
+		input._worldgraphRunField = field;
+		if ( [ 'integer', 'number' ].indexOf( field.type ) !== -1 ) {
+			applyNumericRunControlAttributes( input, field );
+		}
+
+		if ( 'boolean' === field.type ) {
+			label.className = 'worldgraph-generate-asset__run-control-checkbox';
+			label.appendChild( input );
+			var labelText = document.createElement( 'span' );
+			labelText.textContent = String( field.label );
+			label.appendChild( labelText );
+			wrapper.appendChild( label );
+		} else {
+			label.textContent = String( field.label );
+			wrapper.appendChild( label );
+			wrapper.appendChild( input );
+		}
+
+		if ( field.description ) {
+			var description = document.createElement( 'p' );
+			description.id = inputId + '-description';
+			description.className = 'description';
+			description.textContent = String( field.description );
+			input.setAttribute( 'aria-describedby', description.id );
+			wrapper.appendChild( description );
+		}
+
+		return wrapper;
+	}
+
+	function runControlGroupLabel( group ) {
+		var labels = {
+			conditioning: strings.conditioningGroup || 'Conditioning',
+			sampling: strings.samplingGroup || 'Sampling',
+			output: strings.outputGroup || 'Output',
+			advanced: strings.advancedGroup || 'Advanced'
+		};
+		return labels[ group ] || group;
+	}
+
+	function renderRunControlTemplate( panel, parent, selection, target ) {
+		var template = selection.template;
+		var fields = runControlFields( template );
+		var state = runControlState( panel, target, template, false );
+		var savedValues = state ? state.values : null;
+		var templatePanel = document.createElement( 'section' );
+		var heading = document.createElement( 'h6' );
+		var headingId = nextRunControlId( panel, template.id ) + '-heading';
+		var grouped = {};
+
+		templatePanel.className = 'worldgraph-generate-asset__run-control-template';
+		templatePanel.dataset.templateId = String( template.id );
+		templatePanel.dataset.outputType = selection.type;
+		templatePanel._worldgraphRunTemplate = template;
+		templatePanel.setAttribute( 'aria-labelledby', headingId );
+		heading.id = headingId;
+		heading.textContent = ( 'video' === selection.type ? ( strings.videoRunControls || 'Video Template controls' ) : ( strings.imageRunControls || 'Image Template controls' ) ) + ': ' + String( template.name || template.id );
+		templatePanel.appendChild( heading );
+
+		runControlGroups.forEach( function ( group ) {
+			grouped[ group ] = [];
+		} );
+		fields.forEach( function ( field ) {
+			var group = runControlGroups.indexOf( String( field.group || '' ) ) === -1 ? 'advanced' : String( field.group );
+			grouped[ group ].push( field );
+		} );
+
+		runControlGroups.forEach( function ( group ) {
+			if ( ! grouped[ group ].length ) {
+				return;
+			}
+			var fieldset = document.createElement( 'fieldset' );
+			var legend = document.createElement( 'legend' );
+			var grid = document.createElement( 'div' );
+			fieldset.className = 'worldgraph-generate-asset__run-control-group worldgraph-generate-asset__run-control-group--' + group;
+			legend.textContent = runControlGroupLabel( group );
+			grid.className = 'worldgraph-generate-asset__run-control-grid';
+			grouped[ group ].forEach( function ( field ) {
+				grid.appendChild( createRunControlInput( panel, field, template, savedValues ) );
+			} );
+			fieldset.appendChild( legend );
+			fieldset.appendChild( grid );
+			templatePanel.appendChild( fieldset );
+		} );
+
+		parent.appendChild( templatePanel );
+	}
+
+	function renderRunControls( panel, selections, target ) {
+		var controls = panel.querySelector( '.worldgraph-generate-asset__run-controls' );
+		var parent = panel.querySelector( '.worldgraph-generate-asset__run-control-panels' );
+		var runnable = ( selections || [] ).filter( function ( selection ) {
+			return selection.template && runControlFields( selection.template ).length > 0;
+		} );
+
+		clearElement( parent );
+		panel._worldgraphRunControlsTarget = target || currentTarget( panel );
+		runnable.forEach( function ( selection ) {
+			renderRunControlTemplate( panel, parent, selection, panel._worldgraphRunControlsTarget );
+		} );
+		controls.hidden = ! runnable.length;
+	}
+
+	function selectedRunControlTemplates( panel ) {
+		var info = targetInfo( currentTarget( panel ) );
+		var selections = [];
+		if ( 'single' === info.kind ) {
+			var action = actionForIntent( panel, info.intent );
+			var templateId = action ? parseInt( templateSelect( panel, action.type ).value, 10 ) || 0 : 0;
+			var template = action && templateId ? templateForId( panel, action.type, templateId ) : null;
+			if ( template ) {
+				selections.push( { type: action.type, template: template } );
+			}
+		} else if ( 'workflow' === info.kind ) {
+			[ 'image', 'video' ].forEach( function ( type ) {
+				var templateId = templateContainer( panel, type ).hidden ? 0 : parseInt( templateSelect( panel, type ).value, 10 ) || 0;
+				var template = templateId ? templateForId( panel, type, templateId ) : null;
+				if ( template ) {
+					selections.push( { type: type, template: template } );
+				}
+			} );
+		}
+		return selections;
+	}
+
+	function renderRunControlsForSelection( panel ) {
+		renderRunControls( panel, selectedRunControlTemplates( panel ), currentTarget( panel ) );
+	}
+
+	function copyRunControlValues( values ) {
+		var copy = {};
+		Object.keys( values || {} ).forEach( function ( key ) {
+			if ( safeRunControlKey( key ) ) {
+				copy[ key ] = values[ key ];
+			}
+		} );
+		return copy;
+	}
+
+	function runValuesForTemplate( panel, type, templateId ) {
+		var template = templateForId( panel, type, templateId );
+		if ( ! template || ! runControlFields( template ).length ) {
+			return null;
+		}
+		rememberRunControls( panel );
+		var state = runControlState( panel, currentTarget( panel ), template, false );
+		return state ? copyRunControlValues( state.values ) : {};
+	}
+
+	function runControlsAreValid( panel ) {
+		var valid = true;
+		Array.prototype.some.call( panel.querySelectorAll( '.worldgraph-generate-asset__run-controls [data-worldgraph-run-control]' ), function ( input ) {
+			if ( ! input.disabled && 'function' === typeof input.checkValidity && ! input.checkValidity() ) {
+				valid = false;
+				return true;
+			}
+			return false;
+		} );
+		return valid;
+	}
+
+	function reportRunControlValidity( panel ) {
+		var invalid = panel.querySelector( '.worldgraph-generate-asset__run-controls [data-worldgraph-run-control]:invalid' );
+		if ( ! invalid ) {
+			return true;
+		}
+		if ( 'function' === typeof invalid.reportValidity ) {
+			invalid.reportValidity();
+		} else {
+			invalid.focus();
+		}
+		return false;
 	}
 
 	function rememberDirectOptions( panel ) {
@@ -389,6 +774,9 @@
 		} );
 		panel.querySelector( '.worldgraph-generate-asset__prompt' ).disabled = controlsLocked;
 		panel.querySelector( '.worldgraph-generate-asset__refresh-context' ).disabled = controlsLocked;
+		Array.prototype.forEach.call( panel.querySelectorAll( '.worldgraph-generate-asset__run-controls [data-worldgraph-run-control]' ), function ( input ) {
+			input.disabled = controlsLocked;
+		} );
 		var directOptions = panel.querySelector( '.worldgraph-generate-asset__direct-options' );
 		panel.querySelector( '.worldgraph-generate-asset__create' ).disabled = controlsLocked || directOptions.hidden;
 		var action = 'single' === info.kind ? actionForIntent( panel, info.intent ) : null;
@@ -401,6 +789,7 @@
 		} else {
 			enabled = false;
 		}
+		enabled = enabled && runControlsAreValid( panel );
 		button.disabled = ! enabled;
 	}
 
@@ -421,6 +810,7 @@
 		setTemplateVisibility( panel, 'image', 'image' === type, strings.singleTemplateHelp );
 		setTemplateVisibility( panel, 'video', 'video' === type, strings.singleTemplateHelp );
 		fillTemplateSelect( select, templates, action.default_template_id || 0, false, savedTemplate( panel, target, type ), type );
+		renderRunControlsForSelection( panel );
 
 		var directOptions = panel.querySelector( '.worldgraph-generate-asset__direct-options' );
 		directOptions.hidden = false;
@@ -452,6 +842,7 @@
 		} );
 		setTemplateVisibility( panel, 'image', false, '' );
 		setTemplateVisibility( panel, 'video', false, '' );
+		renderRunControls( panel, [], currentTarget( panel ) );
 		panel.querySelector( '.worldgraph-generate-asset__direct-options' ).hidden = true;
 		panel.querySelector( '.worldgraph-generate-asset__prompt-help' ).textContent = strings.batchPromptHelp;
 		panel.querySelector( '.worldgraph-generate-asset__choice-description' ).textContent = 'project' === scope ? strings.projectChoiceHelp : strings.itemChoiceHelp;
@@ -477,6 +868,7 @@
 		if ( videoVisible ) {
 			fillTemplateSelect( templateSelect( panel, 'video' ), body.video_templates || [], defaults.video || 0, !! body.ready, savedTemplate( panel, target, 'video' ), 'video' );
 		}
+		renderRunControlsForSelection( panel );
 
 		panel.querySelector( '.worldgraph-generate-asset__direct-options' ).hidden = true;
 		panel.querySelector( '.worldgraph-generate-asset__prompt-help' ).textContent = strings.batchPromptHelp;
@@ -530,6 +922,7 @@
 	}
 
 	function renderTarget( panel ) {
+		rememberRunControls( panel );
 		rememberTemplateSelections( panel );
 		rememberDirectOptions( panel );
 		var target = currentTarget( panel );
@@ -542,6 +935,9 @@
 			var action = actionForIntent( panel, info.intent );
 			if ( action ) {
 				renderSingle( panel, action, target );
+			} else {
+				renderRunControls( panel, [], target );
+				updatePrimaryState( panel );
 			}
 			return;
 		}
@@ -561,7 +957,11 @@
 						updatePrimaryState( panel );
 					}
 				} );
+			return;
 		}
+
+		renderRunControls( panel, [], target );
+		updatePrimaryState( panel );
 	}
 
 	function legacyActions( body ) {
@@ -691,6 +1091,10 @@
 			create_asset: panel.querySelector( '.worldgraph-generate-asset__create' ).checked,
 			template_id: templateId
 		};
+		var runValues = runValuesForTemplate( panel, action.type, templateId );
+		if ( null !== runValues ) {
+			payload.run_values = runValues;
+		}
 		panel._worldgraphBusy = true;
 		updatePrimaryState( panel );
 		setStatus( panel, 'video' === action.type ? strings.generatingVideo : strings.generatingImage );
@@ -730,10 +1134,7 @@
 
 		var idempotencyProperty = 'project' === scope ? '_worldgraphProjectBatchKey' : '_worldgraphItemBatchKey';
 		panel[ idempotencyProperty ] = panel[ idempotencyProperty ] || uuid();
-		panel._worldgraphBusy = true;
 		rememberTemplateSelections( panel );
-		updatePrimaryState( panel );
-		setStatus( panel, strings.starting );
 		var payload = {
 			post_id: parseInt( panel.dataset.postId, 10 ),
 			scope: scope,
@@ -742,6 +1143,17 @@
 			video_template_id: ( parseInt( body.counts.video, 10 ) || 0 ) > 0 ? parseInt( templateSelect( panel, 'video' ).value, 10 ) || 0 : 0,
 			idempotency_key: panel[ idempotencyProperty ]
 		};
+		var imageRunValues = payload.image_template_id > 0 ? runValuesForTemplate( panel, 'image', payload.image_template_id ) : null;
+		var videoRunValues = payload.video_template_id > 0 ? runValuesForTemplate( panel, 'video', payload.video_template_id ) : null;
+		if ( null !== imageRunValues ) {
+			payload.image_run_values = imageRunValues;
+		}
+		if ( null !== videoRunValues ) {
+			payload.video_run_values = videoRunValues;
+		}
+		panel._worldgraphBusy = true;
+		updatePrimaryState( panel );
+		setStatus( panel, strings.starting );
 		request( settings.restUrl + '/batches', { method: 'POST', body: JSON.stringify( payload ) } )
 			.then( function ( response ) {
 				panel[ idempotencyProperty ] = '';
@@ -758,6 +1170,9 @@
 	}
 
 	function runSelection( panel ) {
+		if ( ! reportRunControlValidity( panel ) ) {
+			return;
+		}
 		var info = targetInfo( currentTarget( panel ) );
 		if ( 'single' === info.kind ) {
 			var action = actionForIntent( panel, info.intent );
@@ -882,6 +1297,7 @@
 		Array.prototype.forEach.call( document.querySelectorAll( '.worldgraph-generate-asset' ), function ( panel ) {
 			panel._worldgraphTemplateSelections = {};
 			panel._worldgraphModeTargets = {};
+			panel._worldgraphRunValues = {};
 			Array.prototype.forEach.call( panel.querySelectorAll( '.worldgraph-generate-asset__modes input' ), function ( input ) {
 				input.addEventListener( 'change', function () {
 					if ( ! input.checked || ! panel._worldgraphPromptBody ) {
@@ -901,11 +1317,23 @@
 				renderTarget( panel );
 			} );
 			panel.querySelector( '.worldgraph-generate-asset__template' ).addEventListener( 'change', function () {
+				rememberRunControls( panel );
 				rememberTemplateSelections( panel );
+				renderRunControlsForSelection( panel );
 				updatePrimaryState( panel );
 			} );
 			panel.querySelector( '.worldgraph-generate-asset__video-template' ).addEventListener( 'change', function () {
+				rememberRunControls( panel );
 				rememberTemplateSelections( panel );
+				renderRunControlsForSelection( panel );
+				updatePrimaryState( panel );
+			} );
+			panel.querySelector( '.worldgraph-generate-asset__run-control-panels' ).addEventListener( 'input', function () {
+				rememberRunControls( panel );
+				updatePrimaryState( panel );
+			} );
+			panel.querySelector( '.worldgraph-generate-asset__run-control-panels' ).addEventListener( 'change', function () {
+				rememberRunControls( panel );
 				updatePrimaryState( panel );
 			} );
 			panel.querySelector( '.worldgraph-generate-asset__refresh-context' ).addEventListener( 'click', function () {

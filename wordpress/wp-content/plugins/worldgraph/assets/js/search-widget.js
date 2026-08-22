@@ -295,7 +295,6 @@
 				shots: '#ffba00',
 				props: '#722094',
 				assets: '#c36d17',
-				storyboard_frames: '#2563eb',
 				editorial_artifacts: '#dc2626'
 			};
 			return colors[entityType] || '#6c757d';
@@ -312,7 +311,6 @@
 				shots: 'format-video',
 				props: 'admin-collapse',
 				assets: 'admin-appearance',
-				storyboard_frames: 'slides',
 				editorial_artifacts: 'admin-tools'
 			};
 			return icons[entityType] || 'admin-generic';
@@ -329,7 +327,6 @@
 				shots: 'Shot',
 				props: 'Prop',
 				assets: 'Asset',
-				storyboard_frames: 'Storyboard',
 				editorial_artifacts: 'Editorial'
 			};
 			return labels[entityType] || entityType;

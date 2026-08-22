@@ -838,27 +838,12 @@ class WorldGraph_Importer {
 			}
 		}
 
-		foreach ( $data['storyboards'] as $frame ) {
-			$context = 'Storyboard ' . ( $frame['id'] ?? '(unknown)' );
-			$this->validate_reference( $frame['shot'] ?? '', 'shots', $context . ' shot', $id_sets, $errors );
-			if ( ! empty( $frame['scene'] ) ) {
-				$this->validate_reference( $frame['scene'], 'scenes', $context . ' scene', $id_sets, $errors );
-				$shot_scene = $shot_scenes[ (string) ( $frame['shot'] ?? '' ) ] ?? '';
-				if ( $shot_scene && (string) $frame['scene'] !== $shot_scene ) {
-					$errors[] = sprintf( '%s shot "%s" does not belong to scene "%s".', $context, $frame['shot'], $frame['scene'] );
-				}
-			}
-			if ( ! empty( $frame['image_asset'] ) ) {
-				$this->validate_asset_reference( $frame['image_asset'], $context . ' image_asset', $id_sets, $errors, $document_assets, $visual_asset_types );
-			}
-		}
-
 		foreach ( $data['assets'] as $asset ) {
 			$context = 'Asset ' . ( $asset['id'] ?? '(unknown)' );
 			if ( ! empty( $asset['project'] ) && (string) $asset['project'] !== (string) $data['project']['id'] ) {
 				$errors[] = sprintf( '%s references unknown project id "%s".', $context, $asset['project'] );
 			}
-			foreach ( [ 'character' => 'characters', 'location' => 'locations', 'scene' => 'scenes', 'storyboard' => 'storyboards' ] as $field => $section ) {
+			foreach ( [ 'character' => 'characters', 'location' => 'locations', 'scene' => 'scenes' ] as $field => $section ) {
 				if ( ! empty( $asset[ $field ] ) ) {
 					$this->validate_reference( $asset[ $field ], $section, $context . ' ' . $field, $id_sets, $errors );
 				}
@@ -1659,68 +1644,6 @@ class WorldGraph_Importer {
 	}
 
 	/**
-	 * Import all storyboard frames.
-	 */
-	private function import_storyboards(): void {
-		$frame_index = 1;
-		foreach ( $this->document['storyboards'] as $frame ) {
-			$external_id = sanitize_text_field( $frame['id'] );
-			$frame_number = isset( $frame['frame_number'] ) ? (int) $frame['frame_number'] : $frame_index;
-
-			$post_id = $this->find_existing( 'worldgraph_board', $external_id );
-
-			if ( $post_id && ! $this->overwrite ) {
-				$this->report['skipped'][] = "Storyboard frame {$external_id} already exists.";
-				$this->id_map[ $external_id ]            = $post_id;
-				$this->skipped_entities[ $external_id ] = true;
-				$frame_index++;
-				continue;
-			}
-
-			$post_data = [
-				'post_type'    => 'worldgraph_board',
-				'post_title'   => sanitize_text_field( (string) ( $frame['title'] ?? sprintf( 'Storyboard Frame %d', $frame_number ) ) ),
-				'post_status'  => 'publish',
-				'post_content' => $this->post_content_value( $post_id, $frame, 'description' ),
-				'menu_order'   => $frame_number,
-			];
-
-			$operation = $post_id ? 'updated' : 'created';
-			if ( $post_id ) {
-				$post_data['ID'] = $post_id;
-				$post_id = wp_update_post( $post_data, true );
-			} else {
-				$post_id = wp_insert_post( $post_data, true );
-			}
-
-			if ( is_wp_error( $post_id ) ) {
-				$this->report['errors'][] = "Storyboard frame {$external_id}: " . $post_id->get_error_message();
-				$frame_index++;
-				continue;
-			}
-			$this->report[ $operation ][] = "Storyboard frame {$external_id}";
-
-			$this->id_map[ $external_id ] = $post_id;
-
-			// SCF fields.
-			update_post_meta( $post_id, 'external_id', $external_id );
-			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'frame_number', $frame_number );
-			$this->update_scalar_fields(
-				$post_id,
-				'worldgraph_board',
-				$frame,
-				[
-					'description'  => 'frame_description',
-					'prompt_text'  => 'prompt_text',
-					'camera_notes' => 'camera_notes',
-				]
-			);
-
-			$frame_index++;
-		}
-	}
-
-	/**
 	 * Import portable Asset records and their generation provenance.
 	 */
 	private function import_assets(): void {
@@ -2264,54 +2187,6 @@ class WorldGraph_Importer {
 			}
 		}
 
-		// Storyboard Frame → Shot.
-		foreach ( $this->document['storyboards'] as $frame ) {
-			if ( $this->entity_was_skipped( (string) $frame['id'] ) ) {
-				continue;
-			}
-			$frame_id = $this->id_map[ $frame['id'] ] ?? 0;
-			if ( ! $frame_id ) {
-				continue;
-			}
-
-			$shot_id = $this->id_map[ $frame['shot'] ] ?? 0;
-			if ( $shot_id ) {
-				// The Board owns the canonical Board → Shot slot. Remove only the
-				// redundant inverse containment edges written by older importers.
-				if ( ! $this->entity_was_skipped( (string) $frame['shot'] ) ) {
-					foreach ( \WorldGraph\Utils\get_relationships( $frame_id, 'worldgraph_board', 'incoming' ) as $relationship ) {
-						if (
-							$shot_id === (int) ( $relationship['from_id'] ?? 0 ) &&
-							'worldgraph_shot' === ( $relationship['from_type'] ?? '' ) &&
-							'contains' === ( $relationship['type'] ?? '' )
-						) {
-							\WorldGraph\Utils\remove_relationship( $shot_id, $frame_id, 'worldgraph_shot', 'worldgraph_board', 'contains' );
-						}
-					}
-				}
-				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'shot', $shot_id );
-			}
-
-			$scene_external_id = $frame['scene'] ?? '';
-			if ( ! $scene_external_id && $shot_id ) {
-				foreach ( $this->document['shots'] as $shot ) {
-					if ( (string) $shot['id'] === (string) $frame['shot'] ) {
-						$scene_external_id = $shot['scene'];
-						break;
-					}
-				}
-			}
-			$scene_id = $this->id_map[ $scene_external_id ] ?? 0;
-			if ( $scene_id ) {
-				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'scene', $scene_id );
-			}
-
-			if ( array_key_exists( 'image_asset', $frame ) ) {
-				$image_asset_id = empty( $frame['image_asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $frame['image_asset'] );
-				\WorldGraph\Utils\worldgraph_update_field_value( $frame_id, 'image_asset', $image_asset_id );
-			}
-		}
-
 		foreach ( $this->document['assets'] as $asset ) {
 			if ( $this->entity_was_skipped( (string) $asset['id'] ) ) {
 				continue;
@@ -2320,7 +2195,7 @@ class WorldGraph_Importer {
 			if ( ! $asset_id ) {
 				continue;
 			}
-			foreach ( [ 'character' => 'worldgraph_character', 'location' => 'worldgraph_location', 'scene' => 'worldgraph_scene', 'storyboard' => 'worldgraph_board' ] as $field => $cpt ) {
+			foreach ( [ 'character' => 'worldgraph_character', 'location' => 'worldgraph_location', 'scene' => 'worldgraph_scene' ] as $field => $cpt ) {
 				if ( array_key_exists( $field, $asset ) ) {
 					$target_id = $this->id_map[ $asset[ $field ] ?? '' ] ?? 0;
 					\WorldGraph\Utils\worldgraph_update_field_value( $asset_id, $field, $target_id );
@@ -2364,7 +2239,6 @@ class WorldGraph_Importer {
 			'worldgraph_scene'            => array_map( 'strval', array_column( $this->document['scenes'], 'id' ) ),
 			'worldgraph_shot'             => array_map( 'strval', array_column( $this->document['shots'], 'id' ) ),
 			'worldgraph_sound'            => array_map( 'strval', array_column( $this->document['sounds'], 'id' ) ),
-			'worldgraph_board'            => array_map( 'strval', array_column( $this->document['storyboards'], 'id' ) ),
 			'worldgraph_asset'            => array_map( 'strval', array_column( $this->document['assets'], 'id' ) ),
 			'worldgraph_editorial'        => array_map( 'strval', array_column( $this->document['editorial_artifacts'], 'id' ) ),
 		];
@@ -2476,14 +2350,6 @@ class WorldGraph_Importer {
 			}
 		}
 
-		foreach ( $this->document['storyboards'] as $frame ) {
-			$frame_id = (int) ( $this->id_map[ (string) $frame['id'] ] ?? 0 );
-			$shot_id  = (int) ( $this->id_map[ (string) $frame['shot'] ] ?? 0 );
-			if ( ! $this->relationship_slot_matches( $frame_id, 'worldgraph_board', 'shot', $shot_id, 'worldgraph_shot' ) ) {
-				$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Shot relationship.', $frame['id'] );
-			}
-		}
-
 		if ( array_key_exists( 'team_members', $this->document['project'] ) ) {
 			$team_member_ids = array_map(
 				fn( string $external_id ): int => (int) ( $this->id_map[ $external_id ] ?? 0 ),
@@ -2584,26 +2450,12 @@ class WorldGraph_Importer {
 			}
 		}
 
-		foreach ( $this->document['storyboards'] as $frame ) {
-			$frame_id = (int) ( $this->id_map[ (string) $frame['id'] ] ?? 0 );
-			$scene_id = (int) ( $this->id_map[ (string) ( $frame['scene'] ?? '' ) ] ?? 0 );
-			if ( $scene_id && ! $this->relationship_slot_matches( $frame_id, 'worldgraph_board', 'scene', $scene_id, 'worldgraph_scene' ) ) {
-				$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Scene relationship.', $frame['id'] );
-			}
-			if ( array_key_exists( 'image_asset', $frame ) ) {
-				$asset_id = empty( $frame['image_asset'] ) ? 0 : $this->resolve_external_id( 'worldgraph_asset', (string) $frame['image_asset'] );
-				if ( ! $this->relationship_field_targets_match( $frame_id, 'worldgraph_board', 'image_asset', array_filter( [ $asset_id ] ), 'worldgraph_asset' ) ) {
-					$this->report['errors'][] = sprintf( 'Storyboard Frame %s did not retain its Image Asset relationship.', $frame['id'] );
-				}
-			}
-		}
-
 		foreach ( $this->document['assets'] as $asset ) {
 			$asset_id = (int) ( $this->id_map[ (string) $asset['id'] ] ?? 0 );
 			if ( ! $this->relationship_exists( $project_id, 'worldgraph_project', $asset_id, 'worldgraph_asset', 'contains' ) ) {
 				$this->report['errors'][] = sprintf( 'Asset %s did not retain its Project membership.', $asset['id'] );
 			}
-			foreach ( [ 'character' => 'worldgraph_character', 'location' => 'worldgraph_location', 'scene' => 'worldgraph_scene', 'storyboard' => 'worldgraph_board' ] as $field => $target_cpt ) {
+			foreach ( [ 'character' => 'worldgraph_character', 'location' => 'worldgraph_location', 'scene' => 'worldgraph_scene' ] as $field => $target_cpt ) {
 				if ( array_key_exists( $field, $asset ) ) {
 					$target_id = (int) ( $this->id_map[ (string) ( $asset[ $field ] ?? '' ) ] ?? 0 );
 					if ( ! $this->relationship_field_targets_match( $asset_id, 'worldgraph_asset', $field, array_filter( [ $target_id ] ), $target_cpt ) ) {

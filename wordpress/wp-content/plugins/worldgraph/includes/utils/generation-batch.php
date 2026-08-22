@@ -270,7 +270,7 @@ class Generation_Batch {
 			$client = self::client_for_job( $job_id, $connection );
 			$params = (array) get_post_meta( $job_id, '_worldgraph_gen_params', true );
 			$template_id = absint( get_post_meta( $job_id, '_worldgraph_gen_template_id', true ) );
-			if ( in_array( $provider_type, [ 'fal', 'elevenlabs', 'suno', 'videodraft', 'openrouter' ], true ) && $template_id ) {
+			if ( $template_id ) {
 				$template_input = get_post_meta( $job_id, '_worldgraph_gen_template_input', true );
 				$template_input = is_array( $template_input ) ? $template_input : self::template_input( $template_id );
 				$params         = array_merge( $template_input, $params );
@@ -729,6 +729,16 @@ class Generation_Batch {
 	/** Read provider defaults provisioned onto a Template. */
 	private static function template_input( int $template_id ): array {
 		$configuration = json_decode( (string) worldgraph_get_field_value( $template_id, 'configuration_json' ), true );
-		return is_array( $configuration ) && is_array( $configuration['input'] ?? null ) ? $configuration['input'] : [];
+		if ( ! is_array( $configuration ) ) {
+			return Template_Run_Controls::defaults( $template_id );
+		}
+		$input = [];
+		if ( is_array( $configuration['input'] ?? null ) ) {
+			$input = $configuration['input'];
+		} elseif ( is_array( $configuration['parameters'] ?? null ) ) {
+			$input = $configuration['parameters'];
+		}
+
+		return array_merge( Template_Run_Controls::defaults( $template_id ), $input );
 	}
 }

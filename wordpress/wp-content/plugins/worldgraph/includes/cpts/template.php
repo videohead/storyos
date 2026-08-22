@@ -594,8 +594,16 @@ class Template {
 			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'workflow_json', (string) wp_json_encode( $workflow ) );
 		}
 
-		if ( ! empty( $normalized['parameters'] ) && is_array( $normalized['parameters'] ) ) {
-			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( [ 'parameters' => $normalized['parameters'] ] ) );
+		if ( ( ! empty( $normalized['parameters'] ) && is_array( $normalized['parameters'] ) ) || ( ! empty( $normalized['provider_schema'] ) && is_array( $normalized['provider_schema'] ) ) ) {
+			$configuration = json_decode( (string) \WorldGraph\Utils\worldgraph_get_field_value( $post_id, 'configuration_json' ), true );
+			$configuration = is_array( $configuration ) ? $configuration : [];
+			if ( ! empty( $normalized['parameters'] ) && is_array( $normalized['parameters'] ) ) {
+				$configuration['parameters'] = $normalized['parameters'];
+			}
+			if ( ! empty( $normalized['provider_schema'] ) && is_array( $normalized['provider_schema'] ) ) {
+				$configuration['provider_schema'] = $normalized['provider_schema'];
+			}
+			\WorldGraph\Utils\worldgraph_update_field_value( $post_id, 'configuration_json', (string) wp_json_encode( $configuration ) );
 		}
 
 		$requirements = self::requirements_from_provider_entry( $normalized );

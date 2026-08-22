@@ -359,15 +359,77 @@ read-only composed prompt, featured behavior, readiness, and resolved default
 Template. This preserves all six same-type look-development actions for a
 Character, Prop, or Location and both still/video actions for a Shot. The
 legacy `outputs.image` and `outputs.video` keys remain as first-of-type aliases
-for older clients. The metabox keeps a single-output provider prompt collapsed
-and uses a separate blank field for one-off author instructions.
+for older clients. Entries in `templates`, `image_templates`, and
+`video_templates` include the selected Template's sanitized, provider-neutral
+run-control contract:
+
+```json
+{
+  "id": 101,
+  "name": "Cinematic still",
+  "run_controls": {
+    "version": 1,
+    "fingerprint": "opaque-deterministic-sha256-value",
+    "fields": [
+      {
+        "key": "steps",
+        "label": "Steps",
+        "type": "integer",
+        "default": 28,
+        "min": 1,
+        "max": 100,
+        "step": 1
+      }
+    ]
+  }
+}
+```
+
+`fields` is ordered. A field always has `key`, `label`, and a UI-native `type`:
+`string`, `textarea`, `integer`, `number`, `boolean`, or `select`. It may include
+`default`, `required`, `min`, `max`, `step`, a rendering group, a bounded
+`description`, and—for `select`—an `options` array of `{ "value": scalar,
+"label": string }` objects. Submitted values remain scalar. The server omits
+unsafe or unsupported provider schema details, including node IDs, binding
+paths, model paths, and nested objects. `fingerprint` identifies the effective
+v1 field definition for client cache/form invalidation; it is opaque, need not
+be echoed in a request, and is not trusted as proof that a value is valid. The
+metabox keeps a single-output provider prompt collapsed and uses a separate
+blank field for one-off author instructions.
 
 Direct generation accepts `type: "image"` (the backward-compatible default) or
 `type: "video"`, an intent returned by the prompt route, a matching
-`template_id`, and optional `prompt` text. That optional text is additive: the
-server appends it to saved Story Graph/SCF context rather than replacing the
-composed prompt. Direct video is defined by the Shot recipe; Project-wide Shot
-videos use the durable batch route.
+`template_id`, optional `prompt` text, and an optional `run_values` object. That
+optional prompt is additive: the server appends it to saved Story Graph/SCF
+context rather than replacing the composed prompt. `run_values` is keyed by the
+selected Template's advertised `run_controls.fields[].key`; values must be
+scalar and match the advertised type, bounds, and select options. For example:
+
+```json
+{
+  "post_id": 42,
+  "type": "image",
+  "intent": "shot-representative-still",
+  "template_id": 101,
+  "prompt": "Use a low camera position.",
+  "run_values": {
+    "negative_prompt": "logo, watermark",
+    "steps": 32,
+    "seed": 873645
+  }
+}
+```
+
+WordPress selects the Template, re-derives its run-control contract, and
+normalizes the submitted object before creating a job. Unknown fields, nested
+arrays or objects, wrong scalar types, out-of-range numbers, and values outside
+an advertised enum fail validation rather than being forwarded to a provider.
+Omitting `seed` means no fixed-seed override and preserves the Template or
+provider's existing randomization behavior; an explicitly submitted integer
+`0` remains a valid fixed seed. An omitted or empty `run_values` object keeps
+the prior behavior and uses Template/provider defaults. Direct video is
+defined by the Shot recipe; Project-wide Shot videos use the durable batch
+route.
 
 Story-aware representative-media planning and durable batches use:
 
@@ -392,7 +454,8 @@ The plan response includes `workflow`, `sources`, `total_jobs`, image/video
 creative `intent`, output `type`, featured-image behavior, and `prompt_hash`;
 long provider prompts are intentionally omitted from expanded plan lists. It
 also returns `ready`, any Template `blockers`, the Templates runnable across
-the plan as `image_templates` and `video_templates`, resolved
+the plan as `image_templates` and `video_templates`, including the same
+sanitized `run_controls` object on each Template, resolved
 `default_template_ids`, and `latest_batch` when one exists.
 
 Starting a batch accepts:
@@ -404,6 +467,14 @@ Starting a batch accepts:
   "base_prompt": "",
   "image_template_id": 101,
   "video_template_id": 202,
+  "image_run_values": {
+    "steps": 32,
+    "seed": 873645
+  },
+  "video_run_values": {
+    "duration": 6,
+    "fps": 24
+  },
   "idempotency_key": "client-operation-uuid"
 }
 ```
@@ -413,15 +484,30 @@ or to every source in Project scope; saved CPT/SCF context and each source's
 `generation_prompt` remain in the final prompt. The image and video Template
 IDs are optional explicit overrides shared by outputs of that type; without
 them, the server applies the registered preference and fallback cascade.
-`idempotency_key` is required and must be
-non-empty. It is scoped to the requester and root post; repeating it returns
-the existing batch instead of duplicating work. WordPress atomically reserves
-the key while the parent is committed and fingerprints scope, additive prompt,
-and Template overrides, so a concurrent retry cannot create a duplicate paid
-batch or reuse the key for different settings. Starting fails before any child is
-queued if any task lacks a runnable Template or the requester cannot edit every
-source. A successful start returns `202 Accepted` and a `Location` header for
-the batch status route.
+`image_run_values` and `video_run_values` are optional scalar objects shared by
+tasks of the matching output type. A non-empty object requires the corresponding
+explicit `image_template_id` or `video_template_id`; the server re-derives and
+validates the selected immutable Template contract before freezing the values.
+This prevents one map from being interpreted against different per-item
+fallback Templates. Media inputs are not accepted in these objects. Required
+image or start-frame inputs for image-to-video and text-plus-image-to-video
+Templates continue to resolve through Template bindings. Checkpoint/model,
+VAE, and CLIP file selection remains Template-authoring configuration and is
+not a per-run REST input.
+
+`idempotency_key` is required and must be non-empty. It is scoped to the
+requester and root post; repeating it returns the existing batch instead of
+duplicating work. WordPress atomically reserves the key while the parent is
+committed and fingerprints scope, additive prompt, Template overrides, and
+normalized image/video run values, so a concurrent retry cannot create a
+duplicate paid batch or reuse the key for different settings. The normalized
+values are frozen into every affected task in the durable batch plan and later
+copied into its child job; catalog or Template changes cannot mutate an already
+accepted batch. Starting fails before any child is queued if any task lacks a
+runnable Template, a submitted value is invalid, or the requester cannot edit
+every source. A successful start returns `202 Accepted` and a `Location` header
+for the batch status route. Omitting both run-value objects preserves the
+pre-v1 batch behavior.
 
 Batch status includes `batch_id`, root `post_id`, `scope`, aggregate `status`,
 planned `total`, `materialized`, `remaining`, `active`, `completed`, `failed`,

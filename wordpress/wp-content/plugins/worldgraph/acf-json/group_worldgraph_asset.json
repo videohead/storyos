@@ -289,30 +289,6 @@
             "ui": 1,
             "taxonomy": [],
             "bidirectional_target": []
-        },
-        {
-            "key": "field_worldgraph_asset_storyboard",
-            "label": "Source Storyboard Frame",
-            "name": "storyboard",
-            "aria-label": "",
-            "type": "post_object",
-            "instructions": "",
-            "required": 0,
-            "conditional_logic": 0,
-            "wrapper": {
-                "width": "",
-                "class": "",
-                "id": ""
-            },
-            "post_type": [
-                "worldgraph_board"
-            ],
-            "return_format": "id",
-            "allow_null": 1,
-            "multiple": 0,
-            "ui": 1,
-            "taxonomy": [],
-            "bidirectional_target": []
         }
     ],
     "location": [
